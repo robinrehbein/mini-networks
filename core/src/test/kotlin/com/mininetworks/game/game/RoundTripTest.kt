@@ -230,12 +230,12 @@ class RoundTripTest {
         assertTrue(w.connect(near, nearServer, CableType.DSL))
         assertNotNull("3 cells DSL are fine for gaming", w.routeFor(near, Service.GAMING))
 
-        val far = w.addClient(Device.CONSOLE, 8, 0)
-        val farServer = w.addServer(Service.GAMING, 8, 9)
+        val far = w.addClient(Device.CONSOLE, 0, 9)
+        val farServer = w.addServer(Service.GAMING, 15, 9)
         assertTrue(w.connect(far, farServer, CableType.COAX))
         val cable = w.cableBetween(far, farServer)!!
-        // The near server is not linked to the far console, so only the 9-cell cable counts.
-        assertNull("9 cells TV cable are too slow both ways", w.routeFor(far, Service.GAMING))
+        // The near server is not linked to the far console, so only the 15-cell cable counts.
+        assertNull("15 cells TV cable are too slow both ways", w.routeFor(far, Service.GAMING))
         assertTrue(w.upgrade(cable, CableType.FIBER))
         assertNotNull("fiber makes it", w.routeFor(far, Service.GAMING))
     }

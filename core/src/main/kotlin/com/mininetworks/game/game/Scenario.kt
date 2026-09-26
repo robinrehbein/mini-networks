@@ -128,8 +128,8 @@ object Scenarios {
             TerrainFeature.HighRises(cx = 0.56f, cy = 0.42f, rx = 0.13f, ry = 0.2f, density = 0.55f),
         ),
         unlock = Unlock.Score(RIVER_TOWN.id, METROPOLIS_TARGET),
-        startBudget = 30,
-        startRouters = 3,
+        startBudget = 56,
+        startRouters = 4,
     )
 
     /** "Insel & Hafen": an island in the sea with a harbour basin and islets; sea cable and radio matter. */
@@ -148,7 +148,8 @@ object Scenarios {
             TerrainFeature.Lake(cx = 0.24f, cy = 0.56f, rx = 0.05f, ry = 0.08f),
         ),
         unlock = Unlock.Score(METROPOLIS.id, ISLAND_TARGET),
-        startBudget = 36,
+        startBudget = 62,
+        startRouters = 2,
         startCellTowers = 1,
     )
 
@@ -166,7 +167,8 @@ object Scenarios {
             TerrainFeature.Mountains(cx = 0.1f, cy = 0.62f, rx = 0.1f, ry = 0.3f, density = 0.9f),
         ),
         unlock = Unlock.Purchase,
-        startBudget = 34,
+        startBudget = 60,
+        startRouters = 2,
     )
 
     /** "Zukunft 2030": everything is invented, cell towers speak 6G to every device and servers start faster. */
@@ -181,8 +183,8 @@ object Scenarios {
             TerrainFeature.HighRises(cx = 0.44f, cy = 0.52f, rx = 0.1f, ry = 0.16f, density = 0.5f),
         ),
         unlock = Unlock.Purchase,
-        startBudget = 48,
-        startRouters = 3,
+        startBudget = 74,
+        startRouters = 4,
         startAccessPoints = 1,
         startCellTowers = 1,
         rules = setOf(ScenarioRule.SIX_G, ScenarioRule.ORBITAL_SERVERS),

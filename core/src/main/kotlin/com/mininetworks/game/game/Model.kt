@@ -38,7 +38,7 @@ enum class Service(
 ) {
     MAIL(Shape.SQUARE, 1, null, 1),
     CALL(Shape.DIAMOND, 1, 300, 1),
-    GAMING(Shape.TRIANGLE, 1, 110, 3),
+    GAMING(Shape.TRIANGLE, 1, 140, 3),
     STREAMING(Shape.CIRCLE, 3, null, 4),
     VIDEO_CALL(Shape.PENTAGON, 2, 240, 6),
     CAMERA_UPLOAD(Shape.HEXAGON, 2, null, 7, Demand.STREAM, upload = true),
@@ -89,9 +89,9 @@ enum class CableType(
     val costPerCell: Int,
     val unlockWeek: Int,
 ) {
-    ISDN(2, 22f, 1.4f, 1, 1),
-    DSL(4, 11f, 2.0f, 1, 2),
-    COAX(6, 8f, 2.4f, 2, 3),
+    ISDN(2, 14f, 1.4f, 1, 1),
+    DSL(4, 7f, 2.0f, 1, 2),
+    COAX(6, 5f, 2.4f, 2, 3),
     FIBER(12, 2.5f, 3.6f, 3, 5),
 }
 

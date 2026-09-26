@@ -35,8 +35,29 @@ class World(
         const val OVERLOAD_SECONDS = 18f
         const val RECOVER_SECONDS = 30f
         const val DISPATCH_COOLDOWN = 0.45f
-        const val START_BUDGET = 24
-        const val START_ROUTERS = 2
+        /** Budget and routers at the start of [Scenarios.RIVER_TOWN]; other scenarios set their own (docs/BALANCING.md). */
+        const val START_BUDGET = 50
+        const val START_ROUTERS = 3
+        /** Budget credited at every week change, on top of the reward the player picks. */
+        const val WEEK_BUDGET = 60
+        /** Seconds until the first client appears on its own. */
+        const val FIRST_SPAWN_SECONDS = 6f
+        /**
+         * Pause between two new clients: [SPAWN_SECONDS] minus [SPAWN_SPEEDUP] per week played, at least
+         * [MIN_SPAWN_SECONDS], plus up to [SPAWN_JITTER] at random.
+         */
+        const val SPAWN_SECONDS = 13f
+        const val SPAWN_SPEEDUP = 0.7f
+        const val MIN_SPAWN_SECONDS = 4f
+        const val SPAWN_JITTER = 2f
+        /**
+         * Pause between two requests of a client with [Demand.RANDOM] services: [REQUEST_SECONDS] minus [REQUEST_SPEEDUP]
+         * per week played, at least [MIN_REQUEST_SECONDS], plus up to [REQUEST_JITTER] at random.
+         */
+        const val REQUEST_SECONDS = 7f
+        const val REQUEST_SPEEDUP = 0.2f
+        const val MIN_REQUEST_SECONDS = 1.6f
+        const val REQUEST_JITTER = 2f
         const val WATER_EXTRA_PER_CELL = 2
         /** Extra budget per cable cell over a mountain pass and through the downtown towers (see [Terrain]). */
         const val MOUNTAIN_EXTRA_PER_CELL = 3
@@ -54,6 +75,11 @@ class World(
         const val START_ROWS = 10
         /** The playable block grows by one ring of cells every this many weeks. */
         const val GROWTH_WEEKS = 2
+        /**
+         * New servers appear in the middle of the block, in a part this fraction of its width and height (plus the
+         * one-cell margin), so every device can reach them within the ping limits of their era.
+         */
+        const val SERVER_AREA = 0.3f
         /** From this week on, every second week brings a server of a random service (earlier ones follow [Service.serverWeek]). */
         const val RANDOM_SERVERS_FROM = 10
         /** A [Demand.STREAM] service sends one request this often, in every week. */
@@ -177,7 +203,7 @@ class World(
         CellRect.centered(bounds, scenario.startCols, scenario.startRows)
             .expand(((week - scenario.startWeek) / Tuning.GROWTH_WEEKS).coerceAtLeast(0), bounds)
 
-    private var clientSpawnTimer = 6f
+    private var clientSpawnTimer = Tuning.FIRST_SPAWN_SECONDS
     private val routeCache = HashMap<Pair<Int, Service>, Route?>()
 
     init {
@@ -251,9 +277,8 @@ class World(
     /** Adds a radio node without using stock, for tests and setups; see [placeRadio]. */
     fun addRadio(type: RadioType, cx: Int, cy: Int) = addNode(type.kind, null, null, cx, cy)
 
-    /** A random free cell inside the [unlocked] block, one cell away from its edge. */
-    private fun randomFreeCell(minSpacing: Int = 2): Pair<Int, Int>? {
-        val area = unlocked
+    /** A random free cell inside [area] (by default the [unlocked] block), one cell away from its edge. */
+    private fun randomFreeCell(minSpacing: Int = 2, area: CellRect = unlocked): Pair<Int, Int>? {
         if (area.width < 3 || area.height < 3) return null
         repeat(300) {
             val cx = area.left + 1 + rng.nextInt(area.width - 2)
@@ -273,8 +298,13 @@ class World(
         addClient(weighted[rng.nextInt(weighted.size)], cx, cy)
     }
 
+    /** A new server appears in the middle of the block ([Tuning.SERVER_AREA]), or anywhere in it if that is full. */
     private fun spawnServer(service: Service): Boolean {
-        val (cx, cy) = randomFreeCell(3) ?: randomFreeCell() ?: return false
+        val middle = CellRect.centered(
+            unlocked, (unlocked.width * Tuning.SERVER_AREA).toInt() + 2, (unlocked.height * Tuning.SERVER_AREA).toInt() + 2,
+        )
+        val (cx, cy) = randomFreeCell(3, middle) ?: randomFreeCell(2, middle) ?: randomFreeCell(1, middle)
+            ?: randomFreeCell() ?: return false
         addServer(service, cx, cy)
         return true
     }
@@ -753,7 +783,8 @@ class World(
         if (!guided) clientSpawnTimer -= dt
         if (clientSpawnTimer <= 0f) {
             spawnClient()
-            clientSpawnTimer = max(4f, 11f - weeksPlayed * 1.2f) + rng.nextFloat() * 2f
+            clientSpawnTimer = max(Tuning.MIN_SPAWN_SECONDS, Tuning.SPAWN_SECONDS - weeksPlayed * Tuning.SPAWN_SPEEDUP) +
+                rng.nextFloat() * Tuning.SPAWN_JITTER
         }
 
         val served = availableServices
@@ -795,7 +826,8 @@ class World(
         }
         val wants = device.services.filter { it.demand == Demand.RANDOM && it in served }
         if (wants.isNotEmpty()) n.pending.addLast(wants[rng.nextInt(wants.size)])
-        n.requestTimer = max(1.6f, 5.5f - weeksPlayed * 0.35f) + rng.nextFloat() * 2f
+        n.requestTimer = max(Tuning.MIN_REQUEST_SECONDS, Tuning.REQUEST_SECONDS - weeksPlayed * Tuning.REQUEST_SPEEDUP) +
+            rng.nextFloat() * Tuning.REQUEST_JITTER
     }
 
     /** True if the nightly backup time ([Tuning.BACKUP_HOUR]) lies in (from, to]. */
@@ -1018,6 +1050,7 @@ class World(
 
     private fun onNewWeek() {
         unlocked = unlockedArea(week)
+        budget += Tuning.WEEK_BUDGET
         rewardOffer = RewardOffer(week, Rewards.offer(seed, week, eligibleRewards()))
         val newCables = CableType.entries.filter { it.unlockWeek == week }
         val newDevices = Device.entries.filter { it.unlockWeek == week }

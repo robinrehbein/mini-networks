@@ -81,7 +81,7 @@
     <string name="connect_error_no_budget">Budget reicht nicht</string>
 
     <!-- Week rewards -->
-    <string name="reward_prompt">Tippe auf eine Karte, um sie zu wählen</string>
+    <string name="reward_prompt">+%1$d Budget Wochenlohn · Tippe auf eine Karte für ein Extra</string>
     <string name="reward_amount_plus">+%1$d</string>
     <string name="reward_amount_voucher">Gratis</string>
     <string name="reward_budget_title">Budget</string>

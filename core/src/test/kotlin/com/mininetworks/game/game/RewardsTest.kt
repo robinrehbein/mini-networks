@@ -87,13 +87,13 @@ class RewardsTest {
     }
 
     @Test
-    fun weekChangeGivesNothingAutomatically() {
+    fun weekChangeCreditsOnlyTheWeeklyBudget() {
         val w = world()
         w.addServer(Service.MAIL, 1, 1)
         val budget = w.budget
         val routers = w.routersAvailable
         untilOffer(w)
-        assertEquals(budget, w.budget)
+        assertEquals(budget + World.Tuning.WEEK_BUDGET, w.budget)
         assertEquals(routers, w.routersAvailable)
     }
 

@@ -79,7 +79,7 @@ class RewardDialog(private val context: Context) {
         }
         text.color = 0xFF5B6674.toInt()
         val promptY = top + cardH + cardW * 0.2f
-        canvas.drawText(context.getString(R.string.reward_prompt), width / 2f, promptY, text)
+        canvas.drawText(context.getString(R.string.reward_prompt, World.Tuning.WEEK_BUDGET), width / 2f, promptY, text)
         text.color = ink
         bonusShown = bonus != null
         if (bonus != null) drawBonus(canvas, bonus, video, width, height, promptY + cardW * 0.07f, cardW, pressed == BONUS)

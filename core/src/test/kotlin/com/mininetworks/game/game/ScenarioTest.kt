@@ -148,7 +148,7 @@ class ScenarioTest {
         assertEquals(0f, w.weekProgress, 1e-4f)
         assertEquals("the day starts at dawn", World.Tuning.DAWN_HOUR, w.hourOfDay, 1e-3f)
         assertEquals(listOf(CableType.ISDN, CableType.DSL, CableType.COAX), w.unlockedCables)
-        assertEquals(36, w.budget)
+        assertEquals(62, w.budget)
         assertEquals(1, w.cellTowersAvailable)
         w.advanceToNextWeek()
         assertEquals(2007, w.year)

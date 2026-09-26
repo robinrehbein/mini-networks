@@ -105,10 +105,10 @@ class NewServicesTest {
         assertNotNull("3 cells DSL are fine", w.routeFor(near, Service.VIDEO_CALL))
 
         val far = w.addClient(Device.LAPTOP, 1, 1)
-        val farServer = w.addServer(Service.VIDEO_CALL, 13, 1)
+        val farServer = w.addServer(Service.VIDEO_CALL, 20, 1)
         assertTrue(w.connect(far, farServer, CableType.DSL))
         assertNotNull(w.bestRoute(far, Service.VIDEO_CALL))
-        assertNull("12 cells DSL are too slow both ways", w.routeFor(far, Service.VIDEO_CALL))
+        assertNull("19 cells DSL are too slow both ways", w.routeFor(far, Service.VIDEO_CALL))
         assertTrue(w.upgrade(w.cableBetween(far, farServer)!!, CableType.FIBER))
         assertNotNull("fiber makes it", w.routeFor(far, Service.VIDEO_CALL))
     }

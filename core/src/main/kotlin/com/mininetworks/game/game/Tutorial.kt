@@ -118,7 +118,7 @@ class Tutorial private constructor(val world: World) {
             TutorialStep.CABLE_TYPE -> world.advanceEra(DSL_WEEK)
             TutorialStep.PING -> {
                 world.advanceEra(FIBER_WEEK)
-                gameServer = addServer(Service.GAMING, 12, 4)
+                gameServer = addServer(Service.GAMING, 15, 8)
             }
             TutorialStep.OVERLOAD -> newPc = addClient(Device.PC, 2, 4).also { pc ->
                 repeat(World.Tuning.MAX_PENDING) { pc.pending.addLast(Service.MAIL) }

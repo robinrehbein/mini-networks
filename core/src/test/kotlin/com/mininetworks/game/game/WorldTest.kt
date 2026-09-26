@@ -56,11 +56,11 @@ class WorldTest {
     fun gamingNeedsLowPing() {
         val w = world()
         val console = w.addClient(Device.CONSOLE, 1, 1)
-        val game = w.addServer(Service.GAMING, 1, 5)
+        val game = w.addServer(Service.GAMING, 1, 7)
         w.connect(console, game, CableType.ISDN)
         val route = w.bestRoute(console, Service.GAMING)
         assertNotNull(route)
-        assertTrue("4 cells ISDN = ${route!!.pingMs} ms", route.pingMs > Service.GAMING.maxPingMs!!)
+        assertTrue("6 cells ISDN = ${route!!.pingMs} ms", route.pingMs > Service.GAMING.maxPingMs!!)
         assertNull("too slow for gaming", w.routeFor(console, Service.GAMING))
         w.jumpToWeek(CableType.FIBER.unlockWeek)
         assertTrue(w.upgrade(w.cableBetween(console, game)!!, CableType.FIBER))
