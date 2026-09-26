@@ -20,6 +20,7 @@ import com.mininetworks.game.game.Reward
 import com.mininetworks.game.game.Scenario
 import com.mininetworks.game.game.Scenarios
 import com.mininetworks.game.game.RewardOffer
+import com.mininetworks.game.game.RouteProblem
 import com.mininetworks.game.game.Service
 import com.mininetworks.game.game.StressWorld
 import com.mininetworks.game.game.Tutorial
@@ -124,8 +125,9 @@ class ScreenshotTest {
         repeat(60 * 5) { w.update(1f / 60f) }
         check(w.nodes.size >= 60 && w.packets.size >= 200) { "stress scene: ${w.nodes.size} nodes, ${w.packets.size} packets" }
         for (r in listOf(FlatRenderer(), IsoRenderer())) {
-            val bmp = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)
+            val bmp = xxhdpiPhone()
             val canvas = Canvas(bmp)
+            r.density = PHONE_DENSITY
             r.layout(bmp.width, bmp.height, w)
             repeat(FRAMES) { r.draw(canvas, w, drag = null, time = 1.3f) }
             val bytes = allocatedBytes()
@@ -186,7 +188,9 @@ class ScreenshotTest {
             type = CableType.FIBER,
             layout = world.planLayout(from, target, bend),
             blocked = world.connectError(from, target, CableType.FIBER, bend) != null,
-            label = "${Texts(RuntimeEnvironment.getApplication()).cable(CableType.FIBER)} · ${world.cableCost(from, target, CableType.FIBER, bend)}",
+            label = RuntimeEnvironment.getApplication().getString(
+                R.string.drag_cost, Texts(RuntimeEnvironment.getApplication()).cable(CableType.FIBER), world.cableCost(from, target, CableType.FIBER, bend),
+            ),
         )
         for (r in listOf(FlatRenderer(), IsoRenderer())) {
             val bmp = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)
@@ -196,14 +200,95 @@ class ScreenshotTest {
         }
     }
 
-    /** Full game frame as the SurfaceView draws it: default (isometric) renderer plus HUD. */
+    /** Full game frame as the SurfaceView draws it on a landscape phone (2400 × 1080, xxhdpi): isometric style plus HUD. */
     @Test
+    @Config(qualifiers = "de-xxhdpi")
     fun renderGameFrameWithHud() {
-        val out = File(System.getProperty("screenshots.dir") ?: "build/screenshots").apply { mkdirs() }
         val view = GameView(RuntimeEnvironment.getApplication())
-        val bmp = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)
+        val bmp = xxhdpiPhone()
         view.drawSnapshot(Canvas(bmp), scene(), bmp.width, bmp.height, time = 1.3f)
-        save(bmp, File(out, "game-hud.png"))
+        save(bmp, File(shots, "game-hud.png"))
+    }
+
+    /**
+     * Requests that cannot leave, on a phone: a smart TV on ISDN (too narrow for streaming, squeeze badge) and a
+     * console on long DSL cables over a router (ping too high, clock badge); both styles, then the HUD with a drag whose label shows
+     * the ping the console would get over fiber, and the hint after tapping the TV.
+     */
+    @Test
+    @Config(qualifiers = "de-xxhdpi")
+    fun renderStuckRequests() {
+        val w = World(cols = 16, rows = 10, seed = 3L, spawnInitialNodes = false)
+        for (row in w.water) row.fill(false)
+        w.incidentsEnabled = false
+        w.jumpToWeek(5)
+        w.grant(400)
+        val cdn = w.addServer(Service.STREAMING, 2, 2)
+        val game = w.addServer(Service.GAMING, 14, 1)
+        val mail = w.addServer(Service.MAIL, 2, 8)
+        val tv = w.addClient(Device.TV, 5, 3)
+        val console = w.addClient(Device.CONSOLE, 3, 6)
+        val pc = w.addClient(Device.PC, 9, 7)
+        check(w.connect(tv, cdn, CableType.ISDN))
+        val router = w.addRouter(8, 4)
+        check(w.connect(console, router, CableType.DSL))
+        check(w.connect(router, game, CableType.DSL))
+        check(w.connect(pc, mail, CableType.DSL))
+        repeat(60 * 12) { w.update(1f / 60f) }
+        check(w.routeProblem(tv, Service.STREAMING) == RouteProblem.TOO_NARROW)
+        check(w.routeProblem(console, Service.GAMING) == RouteProblem.PING_TOO_HIGH)
+        for (r in listOf(FlatRenderer(), IsoRenderer())) {
+            val bmp = xxhdpiPhone()
+            r.density = PHONE_DENSITY
+            r.layout(bmp.width, bmp.height, w)
+            r.draw(Canvas(bmp), w, drag = null, time = 1.3f)
+            save(bmp, File(shots, "stuck-requests-${r.name.lowercase()}.png"))
+        }
+        val view = GameView(RuntimeEnvironment.getApplication())
+        val bmp = xxhdpiPhone()
+        view.drawSnapshot(Canvas(bmp), w, bmp.width, bmp.height, time = 1.3f, style = "Iso")
+        val fiber = view.hudTarget("cable:FIBER")!!
+        view.injectTouch(MotionEvent.ACTION_DOWN, fiber.centerX(), fiber.centerY())
+        view.injectTouch(MotionEvent.ACTION_UP, fiber.centerX(), fiber.centerY())
+        val t = view.activeRenderer.toScreen(tv.center)
+        view.injectTouch(MotionEvent.ACTION_DOWN, t.x, t.y, time = 1000L)
+        view.injectTouch(MotionEvent.ACTION_UP, t.x, t.y, time = 1050L)
+        val a = view.activeRenderer.toScreen(console.center)
+        val b = view.activeRenderer.toScreen(w.nodes.first { it.service == Service.GAMING }.center)
+        view.injectTouch(MotionEvent.ACTION_DOWN, a.x, a.y, time = 2000L)
+        view.injectTouch(MotionEvent.ACTION_MOVE, (a.x + b.x) / 2f, a.y, time = 2100L)
+        view.injectTouch(MotionEvent.ACTION_MOVE, b.x, b.y, time = 2200L)
+        view.drawCurrent(Canvas(bmp))
+        save(bmp, File(shots, "stuck-requests-hud.png"))
+        view.injectTouch(MotionEvent.ACTION_CANCEL, b.x, b.y)
+    }
+
+    /**
+     * The deliberate controls on a phone: the clock paused in place (banner, play icon), a cable selected by a first
+     * tap (yellow glow, hint with the refund), and a server's upgrade preview.
+     */
+    @Test
+    @Config(qualifiers = "de-xxhdpi")
+    fun renderControls() {
+        val world = scene()
+        val view = GameView(RuntimeEnvironment.getApplication())
+        val bmp = xxhdpiPhone()
+        view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 1.3f, style = "Iso")
+        fun tap(x: Float, y: Float, at: Long) {
+            view.injectTouch(MotionEvent.ACTION_DOWN, x, y, time = at)
+            view.injectTouch(MotionEvent.ACTION_UP, x, y, time = at + 50L)
+        }
+        view.hudTarget("pause")!!.let { tap(it.centerX(), it.centerY(), 0L) }
+        val cable = world.cables.first { it.type == CableType.FIBER && it.a.kind == NodeKind.ROUTER && it.b.kind == NodeKind.ROUTER }
+        val p = view.activeRenderer.toScreen(cable.layout.pointAt(0.5f))
+        tap(p.x, p.y, 1000L)
+        view.drawCurrent(Canvas(bmp))
+        save(bmp, File(shots, "controls-selected-cable.png"))
+        val server = world.nodes.first { it.service == Service.CALL }
+        val s = view.activeRenderer.toScreen(server.center)
+        tap(s.x, s.y, 2000L)
+        view.drawCurrent(Canvas(bmp))
+        save(bmp, File(shots, "controls-server-preview.png"))
     }
 
     /** Week change: the map pauses under the reward choice (isometric main style), the unlock message stays visible. */
@@ -335,16 +420,18 @@ class ScreenshotTest {
     }
 
     @Test
+    @Config(qualifiers = "de-xxhdpi")
     fun renderNewServices() {
         val world = newServicesScene()
         for (r in listOf(FlatRenderer(), IsoRenderer())) {
-            val bmp = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)
+            val bmp = xxhdpiPhone()
+            r.density = PHONE_DENSITY
             r.layout(bmp.width, bmp.height, world)
             r.draw(Canvas(bmp), world, drag = null, time = 1.3f)
             save(bmp, File(shots, "new-services-${r.name.lowercase()}.png"))
         }
         val view = GameView(RuntimeEnvironment.getApplication())
-        val bmp = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)
+        val bmp = xxhdpiPhone()
         view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 1.3f, style = "Iso")
         save(bmp, File(shots, "new-services-hud.png"))
     }
@@ -411,9 +498,45 @@ class ScreenshotTest {
         g.move(c.x - 260f, c.y, c.x + 260f, c.y, r.camera)
         r.draw(Canvas(bmp), world, drag = null, time = 1.3f)
         save(bmp, File(shots, "incidents-zoom-iso.png"))
+    }
+
+    /** The incident scene on a phone: one line at the top, a countdown pin over each cable or node it is about. */
+    @Test
+    @Config(qualifiers = "de-xxhdpi")
+    fun renderIncidentsHud() {
+        val world = incidentScene()
         val view = GameView(RuntimeEnvironment.getApplication())
+        val bmp = xxhdpiPhone()
         view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 1.3f, style = "Iso")
         save(bmp, File(shots, "incidents-hud.png"))
+    }
+
+    /**
+     * Portrait windows (split screen, resizable windows, or a tablet held upright): the game with its HUD, the week
+     * reward choice, the main menu and the scenery picker on a 1080 × 2400 xxhdpi phone.
+     */
+    @Test
+    @Config(qualifiers = "de-port-xxhdpi")
+    fun renderPortrait() {
+        val app = RuntimeEnvironment.getApplication()
+        val bmp = Bitmap.createBitmap(1080, 2400, Bitmap.Config.ARGB_8888)
+        val game = GameView(app)
+        game.drawSnapshot(Canvas(bmp), scene(), bmp.width, bmp.height, time = 1.3f, style = "Iso")
+        save(bmp, File(shots, "portrait-game.png"))
+        val week = scene()
+        week.jumpToWeek(5)
+        week.advanceToNextWeek()
+        val reward = GameView(app)
+        bmp.eraseColor(0)
+        reward.drawSnapshot(Canvas(bmp), week, bmp.width, bmp.height, time = 1.3f, style = "Iso")
+        save(bmp, File(shots, "portrait-reward.png"))
+        val menu = GameView(app)
+        bmp.eraseColor(0)
+        menu.drawSnapshot(Canvas(bmp), menu.currentWorld, bmp.width, bmp.height, time = 1.3f, screen = null)
+        save(bmp, File(shots, "portrait-menu.png"))
+        bmp.eraseColor(0)
+        menu.drawSnapshot(Canvas(bmp), menu.currentWorld, bmp.width, bmp.height, time = 1.3f, screen = Screen.SCENERIES)
+        save(bmp, File(shots, "portrait-sceneries.png"))
     }
 
     /** Every service shape in both palettes, requests filled and responses outlined, plus every device icon. */
@@ -512,6 +635,9 @@ class ScreenshotTest {
 
     /** Landscape phone: 800 × 360 dp at 2x. */
     private fun phoneBitmap() = Bitmap.createBitmap(1600, 720, Bitmap.Config.ARGB_8888)
+
+    /** Landscape phone as sold today: 2400 × 1080 pixels at xxhdpi, 800 × 360 dp. */
+    private fun xxhdpiPhone() = Bitmap.createBitmap(2400, 1080, Bitmap.Config.ARGB_8888)
 
     /** Main menu over the demo town, with a best score (German, the default language). */
     @Test
@@ -682,6 +808,8 @@ class ScreenshotTest {
     private companion object {
         /** Frames drawn to warm up and then to time in [renderStressWorld]. */
         const val FRAMES = 20
+        /** Pixels per dp of [xxhdpiPhone], for renderers drawn without a view. */
+        const val PHONE_DENSITY = 3f
     }
 
     /** Bytes this thread allocated so far (HotSpot's thread bean, by reflection: android.jar has no java.lang.management). */

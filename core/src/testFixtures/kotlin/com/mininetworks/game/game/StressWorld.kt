@@ -3,7 +3,7 @@ package com.mininetworks.game.game
 import kotlin.random.Random
 
 /**
- * A large, busy, seeded network for performance checks (docs/PLAN.md P4.2) and a future debug menu: a 5 × 3 grid of
+ * A large, busy, seeded network for performance checks (docs/PLAN.md P4.2), a test fixture of :core: a 5 × 3 grid of
  * routers joined by fiber, two level-3 servers of every service and a few clients at every router, all with full
  * request queues, so a few seconds in more than 200 packets are on their way.
  */

@@ -34,8 +34,12 @@ Ein Mensch baut sauberere Netze; der Bot ist die untere Messlatte.
 | Neue Server `SERVER_AREA` (neu) | irgendwo im Block | im mittleren Drittel des Blocks | Ein Game-Server in einer Ecke war für die halbe Stadt mit keinem Kabel erreichbar |
 | Großstadt | 30 Budget, 3 Router | 56 Budget, 4 Router | Kurve: etwas schwerer als die Kleinstadt |
 | Insel & Hafen | 36 Budget, 2 Router | 62 Budget, 2 Router | Kurve |
-| Bergdorf | 34 Budget, 2 Router | 60 Budget, 2 Router | Kurve |
+| Bergdorf | 34 Budget, 2 Router | 54 Budget, 2 Router | Kurve; mit 60 verlor der Bot einzelne Seeds schon in Woche 2 (Game-Server mit vier belegten Ports), mit 54 baut er anders und hält überall mindestens 2,5 Wochen |
 | Zukunft 2030 | 48 Budget, 3 Router | 74 Budget, 4 Router | Mit sieben Servern ab Start fehlen sonst Router; bleibt die schwerste Szenerie |
+
+| Fairer Start `EARLY_WEEKS` (neu) | – | 2 Wochen | In den ersten zwei Wochen erscheinen Geräte nur dort, wo jeder ihrer Dienste mit einem direkten Kabel einer erfundenen Technik erreichbar ist: breit genug, höchstens 80 % des Ping-Limits (Platz für einen Router) und höchstens 24 Budget. Vorher endete Zukunft 2030 in einzelnen Seeds nach 0,9 Wochen |
+| Überlast in den ersten Wochen `EARLY_OVERLOAD_SLOWDOWN` (neu) | – | Ring füllt sich halb so schnell | Schonfrist bis zum ersten Wochenlohn: der Bot war in Zukunft 2030 und Bergdorf früh pleite, bevor die +60 kamen |
+| Freischalt-Ziele `METROPOLIS_TARGET` / `ISLAND_TARGET` | 1.500 / 3.000 Pakete | 900 / 650 Pakete | Etwa das 1,3-Fache des Bot-Medians in der Szenerie davor (709 bzw. 507); 1.500 und 3.000 lagen über dem besten Bot-Lauf und wirkten wie eine Bezahlschranke |
 
 Router sind für den Bot der stärkste Hebel (ein Router mehr bringt in den späteren Szenerien 1–2 Wochen), das Start-Budget der schwächste;
 darüber ist die Kurve zwischen den Szenerien gestellt. Das Tutorial legt den Game-Server dafür weiter weg (15 Felder), damit dort TV-Kabel
@@ -47,29 +51,31 @@ in der Kleinstadt fast immer wegen eines Telefons, das mit ISDN nicht erreichbar
 ## Ergebnisse
 
 20 Seeds je Szenerie, höchstens 25 Wochen. „Wochen“ zählt ab dem Start der Szenerie, mit Bruchteil. „Ende“: Gerät, Dienst und Grund
-(`unrouted`: keine Route, `ping`: Route zu langsam, `jam`: Route da, aber Stau).
+(`World.failure`: `unrouted`: keine Route, `narrow`: nur über zu schmale Leitungen, `ping`: Route zu langsam, `jam`: Route da, aber Stau).
 
 <!-- summary:start -->
 | Szenerie | Wochen (Median) | Wochen (Min–Max) | Pakete (Median) | Pakete (Min–Max) | bis Woche 25 | häufigstes Ende |
 |---|---|---|---|---|---|---|
-| river_town | 6,8 | 3,4–8,1 | 553 | 155–855 | 0/20 | CAMERA:CAMERA_UPLOAD:unrouted (4×) |
-| metropolis | 5,9 | 2,9–8,7 | 431 | 109–931 | 0/20 | TV:STREAMING:jam (5×) |
-| island_harbor | 5,0 | 2,9–9,9 | 274 | 89–1502 | 0/20 | TV:STREAMING:jam (5×) |
-| mountain_village | 4,5 | 1,5–7,7 | 241 | 29–841 | 0/20 | CONSOLE:GAMING:unrouted (8×) |
-| future_2030 | 3,4 | 0,9–8,0 | 163 | 17–925 | 0/20 | CAMERA:CAMERA_UPLOAD:jam (6×) |
+| river_town | 7,5 | 5,3–10,1 | 709 | 354–1196 | 0/20 | CONSOLE:GAMING:unrouted (6×) |
+| metropolis | 6,5 | 3,0–10,2 | 507 | 86–1430 | 0/20 | TV:STREAMING:jam (4×) |
+| island_harbor | 5,6 | 2,6–11,4 | 389 | 89–1680 | 0/20 | CAMERA:CAMERA_UPLOAD:jam (4×) |
+| mountain_village | 4,0 | 2,5–7,9 | 199 | 93–822 | 0/20 | CONSOLE:GAMING:unrouted (9×) |
+| future_2030 | 4,3 | 2,2–9,3 | 316 | 81–1115 | 0/20 | CAMERA:CAMERA_UPLOAD:jam (8×) |
 <!-- summary:end -->
 
 ## Wächter
 
 `BalancingTest.botSurvivesTheFirstSceneryLongEnough` spielt bei jedem Build die Kleinstadt mit den Seeds 1–3 und verlangt
-mindestens 4 Wochen. So fällt ein versehentlicher Schwierigkeitssprung sofort auf. Die drei Läufe heute:
+mindestens 4 Wochen. So fällt ein versehentlicher Schwierigkeitssprung sofort auf. `noSceneryIsLostInTheFirstWeeks`
+verlangt zusätzlich in **jeder** Szenerie (auch den gekauften) mit denselben Seeds mindestens 2 Wochen; mit 40 Seeds
+liegt das Minimum heute bei 2,0 (Zukunft 2030) bis 3,4 Wochen (Kleinstadt). Die drei Kleinstadt-Läufe heute:
 
 <!-- guard:start -->
 | Seed | Wochen | Pakete | Ende |
 |---|---|---|---|
-| 1 | 6,7 | 579 | WATCH:CALL:ping |
-| 2 | 7,0 | 565 | CAMERA:CAMERA_UPLOAD:unrouted |
-| 3 | 4,9 | 288 | PHONE:CALL:unrouted |
+| 1 | 7,3 | 651 | CONSOLE:GAMING:unrouted |
+| 2 | 7,6 | 721 | LAPTOP:MAIL:jam |
+| 3 | 6,6 | 531 | CONSOLE:GAMING:unrouted |
 <!-- guard:end -->
 
 ## Neu messen

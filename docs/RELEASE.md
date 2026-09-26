@@ -184,6 +184,11 @@ Finanzdaten. **Kaufverlauf:** Die App kennt nur die Produkt-IDs gekaufter Artike
 Zahlung wickelt Google Play ab (keine Angabe als „erhoben“, solange nichts davon an uns oder Dritte geht – mit Googles
 aktueller Billing-Anleitung abgleichen).
 
+Mit „Werbefrei“ startet die App das Mobile Ads SDK nicht mehr (ab dem nächsten App-Start; `PlayRules.canInitializeAds`),
+die Angaben oben gelten also für Spieler ohne diesen Kauf. Die lokal gemerkten Käufe (`monetization`-Einstellungen) sind
+von Backup und Geräteumzug ausgenommen (`res/xml/data_extraction_rules.xml`, `backup_rules.xml`): Besitz kommt immer
+von Google Play.
+
 Berechtigungen im Release-Manifest (aus den SDKs): `INTERNET`, `ACCESS_NETWORK_STATE`, `com.google.android.gms.permission.AD_ID`,
 `ACCESS_ADSERVICES_AD_ID`/`_ATTRIBUTION`/`_TOPICS` (Privacy Sandbox), `com.android.vending.BILLING`, `WAKE_LOCK`,
 `FOREGROUND_SERVICE`. Die Frage „Verwendet die App die Werbe-ID?“ ist daher mit **Ja, Werbung oder Marketing** zu beantworten.
@@ -192,7 +197,13 @@ Berechtigungen im Release-Manifest (aus den SDKs): `INTERNET`, `ACCESS_NETWORK_S
 
 - [ ] `appVersionName`/`versionCode` erhöht
 - [ ] Upload-Schlüssel gesetzt, `keytool -printcert` zeigt nicht „Android Debug“
-- [ ] Echte AdMob-IDs gesetzt (Release baut sonst mit Test-IDs)
+- [ ] Ziel-API aktuell: Google Play verlangt seit 31. August 2026 für neue Apps und Updates **targetSdk 36**
+      (`app/build.gradle.kts`); vor jedem Upload in der Play Console unter „Richtlinienstatus“ die aktuelle Frist prüfen.
+      Android 16 ignoriert die feste Querlage auf großen Bildschirmen nur deshalb nicht, weil das Manifest
+      `android:appCategory="game"` setzt; Hochformat-Fenster (Split-Screen, frei skalierbar) funktionieren trotzdem
+      (`docs/screenshots/portrait-*.png`)
+- [ ] Echte AdMob-IDs gesetzt: ein Release-Build warnt bei Google-Test-IDs und bricht ab, sobald der Upload-Schlüssel gesetzt ist
+- [ ] `lintRelease` ohne Warnungen; bewusst ignorierte Prüfungen stehen mit Grund in `app/lint.xml`
 - [ ] `./gradlew testDebugUnitTest assembleDebug lintDebug lintRelease bundleRelease` grün
 - [ ] Datenschutzerklärung veröffentlicht, URL in Play Console und UMP-Nachricht
 - [ ] In-App-Produkte angelegt und aktiv, Lizenztester eingetragen

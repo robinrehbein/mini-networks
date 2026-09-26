@@ -27,8 +27,8 @@ class ScenarioTest {
         assertEquals(listOf("river_town", "metropolis", "island_harbor", "mountain_village", "future_2030"), Scenarios.all.map { it.id })
         assertEquals(listOf(1995, 1998, 2004, 2001, 2030), Scenarios.all.map { it.startYear })
         assertEquals(Unlock.Free, Scenarios.RIVER_TOWN.unlock)
-        assertEquals(Unlock.Score("river_town", 1500), Scenarios.METROPOLIS.unlock)
-        assertEquals(Unlock.Score("metropolis", 3000), Scenarios.ISLAND.unlock)
+        assertEquals(Unlock.Score("river_town", 900), Scenarios.METROPOLIS.unlock)
+        assertEquals(Unlock.Score("metropolis", 650), Scenarios.ISLAND.unlock)
         assertEquals(Unlock.Purchase, Scenarios.MOUNTAIN_VILLAGE.unlock)
         assertEquals(Unlock.Purchase, Scenarios.FUTURE.unlock)
         assertFalse(Scenarios.RIVER_TOWN.purchasable)
@@ -41,7 +41,7 @@ class ScenarioTest {
     fun startWeeksMatchTheEras() {
         // Every scenario but the future one starts in the era week of its start year (docs/PLAN.md 3.2).
         for (s in Scenarios.all - Scenarios.FUTURE) {
-            assertEquals(s.id, s.startYear, World.Tuning.FIRST_YEAR + (s.startWeek - 1) * World.Tuning.YEARS_PER_WEEK)
+            assertEquals(s.id, s.startYear, World.eraYear(s.startWeek))
         }
         assertTrue("2030 has every technology", CableType.entries.all { it.unlockWeek <= Scenarios.FUTURE.startWeek })
         assertTrue(RadioType.entries.all { it.unlockWeek <= Scenarios.FUTURE.startWeek })
@@ -55,12 +55,12 @@ class ScenarioTest {
         fun unlocked(s: Scenario, owns: (String) -> Boolean = none) = Scenarios.isUnlocked(s, { best[it] ?: 0 }, owns)
         assertTrue(unlocked(Scenarios.RIVER_TOWN))
         assertEquals(listOf(true, false, false, false, false), Scenarios.all.map { unlocked(it) })
-        best["river_town"] = 1499
+        best["river_town"] = 899
         assertFalse(unlocked(Scenarios.METROPOLIS))
-        best["river_town"] = 1500
+        best["river_town"] = 900
         assertTrue(unlocked(Scenarios.METROPOLIS))
         assertFalse("the island needs its target in the metropolis", unlocked(Scenarios.ISLAND))
-        best["metropolis"] = 3000
+        best["metropolis"] = 650
         assertTrue(unlocked(Scenarios.ISLAND))
         best["river_town"] = 99_999
         assertFalse("no score unlocks a purchase-only scenario", unlocked(Scenarios.MOUNTAIN_VILLAGE))

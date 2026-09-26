@@ -12,9 +12,12 @@ val localProperties = Properties().apply {
 }
 fun monetizationProperty(name: String, testValue: String): String =
     (findProperty(name) as String?) ?: localProperties.getProperty(name) ?: testValue
-val admobAppId = monetizationProperty("mininetworks.admob.appId", "ca-app-pub-3940256099942544~3347511713")
-val admobInterstitialId = monetizationProperty("mininetworks.admob.interstitialId", "ca-app-pub-3940256099942544/1033173712")
-val admobRewardedId = monetizationProperty("mininetworks.admob.rewardedId", "ca-app-pub-3940256099942544/5224354917")
+/** Publisher id of Google's sample ad ids; release builds warn (or fail) while any id still uses it. */
+val admobTestPublisher = "ca-app-pub-3940256099942544"
+val admobAppId = monetizationProperty("mininetworks.admob.appId", "$admobTestPublisher~3347511713")
+val admobInterstitialId = monetizationProperty("mininetworks.admob.interstitialId", "$admobTestPublisher/1033173712")
+val admobRewardedId = monetizationProperty("mininetworks.admob.rewardedId", "$admobTestPublisher/5224354917")
+val admobTestIds = listOf(admobAppId, admobInterstitialId, admobRewardedId).filter { it.startsWith(admobTestPublisher) }
 val playMonetizationInDebug = monetizationProperty("mininetworks.playMonetizationInDebug", "false").toBoolean()
 
 // Version scheme (docs/RELEASE.md): versionName is MAJOR.MINOR.PATCH, versionCode = MAJOR * 10000 + MINOR * 100 + PATCH,
@@ -39,12 +42,13 @@ val hasUploadKey = listOf(uploadStoreFile, uploadStorePassword, uploadKeyAlias, 
 
 android {
     namespace = "com.mininetworks.game"
-    compileSdk = 35
+    // Google Play requires target API 36 for new apps and updates since 31 Aug 2026 (docs/RELEASE.md 10).
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.mininetworks.game"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = appVersionCode
         versionName = appVersionName
         manifestPlaceholders["admobAppId"] = admobAppId
@@ -83,9 +87,10 @@ android {
     }
 
     lint {
-        // The definition of done runs lintDebug and lintRelease; any error fails the build.
+        // The definition of done runs lintDebug and lintRelease; any error fails the build. lint.xml says what is ignored and why.
         abortOnError = true
         checkReleaseBuilds = true
+        lintConfig = file("lint.xml")
     }
 
     compileOptions {
@@ -113,17 +118,28 @@ android {
 dependencies {
     implementation(project(":core"))
     // Monetization (P3.4, docs/PLAN.md 5.1): AdMob, UMP consent and Play Billing.
-    implementation("com.google.android.gms:play-services-ads:24.9.0")
+    // 25.x: its breaking changes only touch mediation, native ads and banners, none of which the game uses. 25.3 and
+    // later are built with Kotlin 2.3 metadata, which the project's Kotlin 2.1 cannot read (app/lint.xml).
+    implementation("com.google.android.gms:play-services-ads:25.2.0")
     implementation("com.google.android.ump:user-messaging-platform:4.0.0")
     implementation("com.android.billingclient:billing:9.1.0")
+    testImplementation(testFixtures(project(":core")))
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.14.1")
 }
 
-if (!hasUploadKey) {
-    gradle.taskGraph.whenReady {
-        if (allTasks.any { it.project == project && it.name.contains("Release") && (it.name.startsWith("bundle") || it.name.startsWith("assemble")) }) {
-            logger.warn("Mini Networks: no upload key set (docs/RELEASE.md), the release build is signed with the DEBUG key and cannot go to Play.")
-        }
+gradle.taskGraph.whenReady {
+    val releaseBuild = allTasks.any {
+        it.project == project && it.name.contains("Release") && (it.name.startsWith("bundle") || it.name.startsWith("assemble"))
+    }
+    if (!releaseBuild) return@whenReady
+    if (!hasUploadKey) {
+        logger.warn("Mini Networks: no upload key set (docs/RELEASE.md), the release build is signed with the DEBUG key and cannot go to Play.")
+    }
+    if (admobTestIds.isNotEmpty()) {
+        val message = "Mini Networks: the release build still uses Google's test ad ids (${admobTestIds.joinToString()}); " +
+            "set mininetworks.admob.appId, .interstitialId and .rewardedId (docs/RELEASE.md) or it earns nothing."
+        // A build signed for Play must never ship test ads; a local debug-signed release build only warns.
+        if (hasUploadKey) throw GradleException(message) else logger.warn(message)
     }
 }

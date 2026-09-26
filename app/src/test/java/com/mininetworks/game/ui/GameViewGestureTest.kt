@@ -176,6 +176,9 @@ class GameViewGestureTest {
         assertEquals(budget - Incidents.REPAIR_COST, world.budget)
         view.injectTouch(MotionEvent.ACTION_DOWN, p.x, p.y, time = 1000L)
         view.injectTouch(MotionEvent.ACTION_UP, p.x, p.y, time = 1000L)
-        assertFalse("an intact cable of the picked type is removed as before", cable in world.cables)
+        assertTrue("an intact cable is only selected by the first tap", cable in world.cables)
+        view.injectTouch(MotionEvent.ACTION_DOWN, p.x, p.y, time = 1500L)
+        view.injectTouch(MotionEvent.ACTION_UP, p.x, p.y, time = 1500L)
+        assertFalse("the second tap removes it", cable in world.cables)
     }
 }

@@ -32,6 +32,9 @@ class FlatRenderer : Renderer {
     private val edge = 0x55262B33
 
     override val camera = Camera()
+    override var density = 1f
+    /** A cell at least [READABLE_CELL_DP] wide in the automatic framing. */
+    override val readableScale get() = READABLE_CELL_DP * density
     private val cell get() = camera.scale
     override val unitPx get() = cell
     private var cornerRadius = 0f
@@ -111,9 +114,14 @@ class FlatRenderer : Renderer {
             canvas.drawPath(path, cableP)
             d.label?.let {
                 val s = toScreen(end)
-                labelP.textSize = cell * 0.36f
+                labelP.textSize = maxOf(cell * 0.36f, LABEL_MIN_DP * density)
                 labelP.color = if (d.blocked) alarm else ink
-                canvas.drawText(it, s.x, s.y - cell * 0.7f, labelP)
+                val ly = s.y - cell * 0.7f - if (d.detail != null) labelP.textSize * 1.15f else 0f
+                canvas.drawText(it, s.x, ly, labelP)
+                d.detail?.let { detail ->
+                    labelP.color = if (d.detailWarning) alarm else ink
+                    canvas.drawText(detail, s.x, ly + labelP.textSize * 1.15f, labelP)
+                }
             }
         }
 
@@ -171,22 +179,27 @@ class FlatRenderer : Renderer {
                     icons.server(canvas, n.service!!, n.level, world.serverBusy(n), nx, ny, cell * 0.34f, time)
                 }
                 NodeKind.CLIENT -> {
-                    icons.device(canvas, n.device!!, nx, ny, cell * 0.3f)
+                    val icon = maxOf(cell * 0.3f, ICON_MIN_DP * density)
+                    icons.device(canvas, n.device!!, nx, ny, icon)
+                    val r = maxOf(cell * 0.08f, REQUEST_MIN_DP * density)
+                    val qx = nx + maxOf(cell * 0.52f, icon * 1.6f)
+                    val qy = ny - cell * 0.12f
                     for (i in 0 until minOf(n.pending.size, 8)) {
                         val svc = n.pending[i]
-                        val px = nx + cell * (0.52f + (i % 4) * 0.22f)
-                        val py = ny - cell * 0.12f + (i / 4) * cell * 0.24f
+                        val px = qx + (i % 4) * r * 2.75f
+                        val py = qy + (i / 4) * r * 3f
                         fillP.color = ServiceColors.of(svc)
-                        Shapes.draw(canvas, svc.shape, px, py, cell * 0.08f, fillP)
-                        if (world.routeFor(n, svc) == null && world.bestRoute(n, svc) != null) {
-                            // Reachable, but the ping is too high for this real-time service.
-                            strokeP.color = alarm; strokeP.strokeWidth = cell * 0.03f
-                            Shapes.draw(canvas, svc.shape, px, py, cell * 0.11f, strokeP)
+                        Shapes.draw(canvas, svc.shape, px, py, r, fillP)
+                        if (ProblemBadges.shows(world.routeProblem(n, svc))) {
+                            // Stuck: the route is too slow for this real-time service, or no link is wide enough.
+                            strokeP.color = alarm; strokeP.strokeWidth = r * 0.38f
+                            Shapes.draw(canvas, svc.shape, px, py, r * 1.4f, strokeP)
                         }
                     }
+                    ProblemBadges.of(world, n)?.let { ProblemBadges.draw(canvas, it, nx - icon * 1.25f, ny - icon * 1.1f, r * 1.9f) }
                     if (n.overload > 0f) {
                         arcRect.set(nx - cell * 0.48f, ny - cell * 0.48f, nx + cell * 0.48f, ny + cell * 0.48f)
-                        strokeP.color = alarm; strokeP.strokeWidth = cell * 0.07f
+                        strokeP.color = alarm; strokeP.strokeWidth = maxOf(cell * 0.07f, RING_MIN_DP * density)
                         canvas.drawArc(arcRect, -90f, 360f * n.overload, false, strokeP)
                     }
                 }
@@ -387,6 +400,13 @@ class FlatRenderer : Renderer {
     }
 
     private companion object {
+        /** Readable sizes on a phone: cell width of the automatic framing, minimum dp of a device icon's half size, a
+         *  request's radius, an overload ring and the drag label. */
+        const val READABLE_CELL_DP = 26f
+        const val ICON_MIN_DP = 7f
+        const val REQUEST_MIN_DP = 3.2f
+        const val RING_MIN_DP = 2.5f
+        const val LABEL_MIN_DP = 13f
         const val MOUNTAIN = 0xFFB9B2A4.toInt()
         const val MOUNTAIN_SHADE = 0xFF9E9687.toInt()
         const val TOWER = 0xFFB4BAC2.toInt()

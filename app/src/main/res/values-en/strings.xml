@@ -9,17 +9,15 @@
     <string name="hud_resources">Budget %1$d  ·  Routers %2$d</string>
     <string name="hud_clock_day">Day · %1$s</string>
     <string name="hud_clock_night">Night · %1$s · backups at %2$s</string>
-    <string name="button_pause">Pause</string>
     <string name="button_router">Router (%1$d)</string>
-    <string name="button_cable">%1$s · %2$d</string>
     <string name="hint_place_router">Tap a free cell</string>
     <string name="button_access_point">Wi-Fi (%1$d)</string>
     <string name="button_cell_tower">Tower (%1$d)</string>
     <string name="hint_access_point">Tap the access point to change its channel · hold for 5 GHz (%1$d)</string>
     <string name="hint_channel">%1$s: channel %2$d</string>
     <plurals name="hint_channel_interference">
-        <item quantity="one">%1$s: channel %2$d · clashes with %3$d neighbour</item>
-        <item quantity="other">%1$s: channel %2$d · clashes with %3$d neighbours</item>
+        <item quantity="one">%1$s: channel %2$d · clashes with %3$d neighbor</item>
+        <item quantity="other">%1$s: channel %2$d · clashes with %3$d neighbors</item>
     </plurals>
     <string name="hint_5ghz">%1$s now uses 5 GHz (radius 1)</string>
     <string name="wifi_error_already_5ghz">Already on 5 GHz</string>
@@ -59,7 +57,7 @@
     <string name="device_smart_home">Smart home hub</string>
     <string name="cable_isdn">ISDN</string>
     <string name="cable_dsl">DSL</string>
-    <string name="cable_coax">Cable</string>
+    <string name="cable_coax">Coax</string>
     <string name="cable_fiber">Fiber</string>
     <string name="node_router">Router</string>
     <string name="node_access_point">Wi-Fi access point</string>
@@ -78,7 +76,7 @@
     <string name="connect_error_no_budget">Not enough budget</string>
 
     <!-- Week rewards -->
-    <string name="reward_prompt">+%1$d budget weekly pay · Tap a card for an extra</string>
+    <string name="reward_prompt">Weekly pay: +%1$d · Tap a card for an extra</string>
     <string name="reward_amount_plus">+%1$d</string>
     <string name="reward_amount_voucher">Free</string>
     <string name="reward_budget_title">Budget</string>
@@ -124,7 +122,7 @@
     <string name="scenery_title">Choose a scenery</string>
     <string name="scenery_river_town">River Town</string>
     <string name="scenery_metropolis">Metropolis</string>
-    <string name="scenery_island_harbor">Island &amp; Harbour</string>
+    <string name="scenery_island_harbor">Island &amp; Harbor</string>
     <string name="scenery_mountain_village">Mountain Village</string>
     <string name="scenery_future_2030">Future 2030</string>
     <string name="scenery_river_town_desc">One river · to get started</string>
@@ -170,7 +168,7 @@
         <item quantity="other">A new PC without a connection! From %1$d waiting requests on, a red ring fills up. When it closes, the game is over. Connect the PC!</item>
     </plurals>
     <string name="tutorial_done_title">Well done!</string>
-    <string name="tutorial_done_text">You know the basics. Week by week, new devices, services and technologies arrive. Have fun!</string>
+    <string name="tutorial_done_text">You know the basics. Tips: tap a server to upgrade it, tap a cable twice to remove it, and pause stops the clock while you keep building. Have fun!</string>
     <!-- Monetization (docs/PLAN.md 5.1) -->
     <string name="menu_remove_ads">Remove ads · %1$s</string>
     <string name="settings_privacy">Privacy settings</string>
@@ -181,4 +179,36 @@
     <string name="hint_bonus_router">+1 router</string>
     <string name="hint_continued">Overload rings cleared · once per game</string>
     <string name="scenery_pack_buy">All sceneries · %1$s</string>
+
+    <!-- Controls feedback -->
+    <string name="hud_paused">Paused · keep building</string>
+    <string name="hint_cable_info">%1$s: bandwidth %2$d · %3$s ms per cell · price per cell %4$d</string>
+    <string name="hint_cable_too_narrow">too narrow for %1$s</string>
+    <string name="hint_cable_upgraded">Cable upgraded to %1$s · −%2$d</string>
+    <string name="cable_error_no_budget">Not enough budget, the upgrade costs %1$d</string>
+    <string name="hint_cable_remove">%1$s cable · tap again to remove it (+%2$d)</string>
+    <string name="hint_cable_removed">Cable removed, refund: +%1$d</string>
+    <string name="place_error_no_stock">No %1$s left in stock</string>
+    <string name="place_error_locked">This cell is not open yet</string>
+    <string name="place_error_occupied">This cell is taken</string>
+    <string name="place_error_terrain">Only on open land</string>
+    <string name="hint_router_pick_up">Router without cables · tap again to put it back in stock</string>
+    <string name="hint_router_picked_up">Router back in stock</string>
+    <string name="server_tier">tier %1$d</string>
+    <string name="server_tier_data_center">data center</string>
+    <string name="hint_server_preview">%1$s → %2$s for %3$d · tap again</string>
+    <string name="hint_server_preview_voucher">%1$s → %2$s with a voucher · tap again</string>
+    <string name="hint_server_upgraded">%1$s is now: %2$s</string>
+    <string name="hint_server_busy">%1$s cannot keep up: tap it to upgrade</string>
+    <string name="hint_radio_reward">New: %1$s – won as a weekly reward</string>
+    <string name="hint_service_needs">%1$s needs bandwidth %2$d</string>
+    <string name="hint_service_needs_ping">%1$s needs bandwidth %2$d, ping at most %3$d ms</string>
+    <string name="device_wants">%1$s wants %2$s</string>
+    <string name="problem_no_route">%1$s: %2$s – no way to a server</string>
+    <string name="problem_too_narrow">%1$s: %2$s – no cable wide enough (bandwidth %3$d)</string>
+    <string name="problem_ping">%1$s: %2$s – ping %3$d ms, allowed %4$d ms</string>
+    <string name="problem_jam">%1$s: %2$s – jammed, cables or server too full</string>
+    <string name="drag_too_narrow">%1$s needs bandwidth %2$d</string>
+    <string name="drag_ping">%1$s: ping %2$d/%3$d ms</string>
+    <string name="incident_more">%1$s (+%2$d)</string>
 </resources>

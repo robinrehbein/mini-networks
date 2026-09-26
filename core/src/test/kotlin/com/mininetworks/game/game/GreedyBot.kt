@@ -442,7 +442,7 @@ class GreedyBot(private val w: World) {
 
 /**
  * One bot game: how many weeks it lasted (fractional, counted from the scenery's start), what it delivered, and why it
- * ended ([cause]: device, service and "unrouted", "ping" or "jam"; empty if it survived).
+ * ended ([cause]: device, service and "unrouted", "narrow", "ping" or "jam", see [World.failure]; empty if it survived).
  */
 data class BotRun(val scenario: String, val seed: Long, val weeks: Float, val delivered: Int, val survived: Boolean, val cause: String)
 
@@ -464,16 +464,15 @@ object BotRunner {
             if (think <= 0f) { bot.act(); think = THINK_SECONDS }
             w.update(STEP)
         }
-        val cause = w.failedNode?.let { n ->
-            val s = n.pending.groupingBy { it }.eachCount().maxByOrNull { it.value }?.key
-                ?: return@let "${n.device}:?"
-            val why = when {
-                w.bestRoute(n, s) == null -> "unrouted"
-                w.routeFor(n, s) == null -> "ping"
-                else -> "jam"
+        val cause = w.failure?.let { f ->
+            val why = when (f.problem) {
+                RouteProblem.NO_ROUTE -> "unrouted"
+                RouteProblem.TOO_NARROW -> "narrow"
+                RouteProblem.PING_TOO_HIGH -> "ping"
+                null -> "jam"
             }
-            "${n.device}:$s:$why"
-        } ?: ""
+            "${f.node.device}:${f.service}:$why"
+        } ?: w.failedNode?.let { "${it.device}:?" } ?: ""
         return BotRun(scenario.id, seed, (w.time - start) / World.Tuning.WEEK_SECONDS, w.delivered, !w.gameOver, cause)
     }
 }

@@ -16,6 +16,7 @@ import com.mininetworks.game.game.Incidents
 import com.mininetworks.game.game.Node
 import com.mininetworks.game.game.NodeKind
 import com.mininetworks.game.game.Packet
+import com.mininetworks.game.game.RouteProblem
 import com.mininetworks.game.game.Service
 import com.mininetworks.game.game.Terrain
 import com.mininetworks.game.game.Vec2
@@ -44,6 +45,9 @@ class IsoRenderer : Renderer {
     private val edge = 0x8C2F3A34.toInt()
 
     override val camera = Camera()
+    override var density = 1f
+    /** A tile at least [READABLE_TILE_DP] wide: device icons about 14 dp, requests about 6 dp. */
+    override val readableScale get() = READABLE_TILE_DP * density
     /** Tile width and height in pixels at the current zoom. */
     private val tw get() = camera.scale
     private val th get() = camera.scale / 2f
@@ -153,8 +157,13 @@ class IsoRenderer : Renderer {
             strokeP.color = if (d.blocked) alarm else st.color and 0x99FFFFFF.toInt()
             strokeP.strokeWidth = tw * maxOf(st.width, 0.12f) * 0.75f; canvas.drawPath(path, strokeP)
             d.label?.let {
-                labelP.textSize = tw * 0.28f; labelP.color = if (d.blocked) alarm else 0xFF2F3A34.toInt()
-                canvas.drawText(it, sx(end.x, end.y), sy(end.x, end.y) - th * 1.6f, labelP)
+                labelP.textSize = maxOf(tw * 0.28f, LABEL_MIN_DP * density); labelP.color = if (d.blocked) alarm else 0xFF2F3A34.toInt()
+                val ly = sy(end.x, end.y) - th * 1.6f - if (d.detail != null) labelP.textSize * 1.15f else 0f
+                canvas.drawText(it, sx(end.x, end.y), ly, labelP)
+                d.detail?.let { detail ->
+                    labelP.color = if (d.detailWarning) alarm else 0xFF2F3A34.toInt()
+                    canvas.drawText(detail, sx(end.x, end.y), ly + labelP.textSize * 1.15f, labelP)
+                }
             }
         }
 
@@ -188,7 +197,7 @@ class IsoRenderer : Renderer {
             if (n.kind != NodeKind.CLIENT || n.overload <= 0f) continue
             val cx = sx(n.center.x, n.center.y); val cy = sy(n.center.x, n.center.y)
             oval.set(cx - tw * 0.55f, cy - th * 0.55f, cx + tw * 0.55f, cy + th * 0.55f)
-            strokeP.color = alarm; strokeP.strokeWidth = tw * 0.05f
+            strokeP.color = alarm; strokeP.strokeWidth = maxOf(tw * 0.05f, RING_MIN_DP * density)
             canvas.drawArc(oval, -90f, 360f * n.overload, false, strokeP)
         }
         drawDeliveryPops(canvas, world)
@@ -760,12 +769,27 @@ class IsoRenderer : Renderer {
             NodeKind.CLIENT -> {
                 val d = n.device!!
                 box(canvas, x, y, 0.5f, 0.2f, 0xFFFAFAF7.toInt(), 0xFFE3E6E1.toInt())
-                icons.device(canvas, d, sx(x, y), sy(x, y, 0.2f) - tw * 0.2f, tw * 0.2f)
+                val icon = maxOf(tw * 0.2f, ICON_MIN_DP * density)
+                icons.device(canvas, d, sx(x, y), sy(x, y, 0.2f) - icon, icon)
+                // Waiting requests in a queue beside the device; a red outline marks one that is stuck (ping, bandwidth).
+                val r = maxOf(tw * 0.065f, REQUEST_MIN_DP * density)
+                val qx = sx(x, y) + maxOf(tw * 0.35f, icon * 1.5f)
+                val qy = sy(x, y, 0.2f) - icon * 2.2f
+                var badge: RouteProblem? = null
                 for (i in 0 until minOf(n.pending.size, 8)) {
                     val svc = n.pending[i]
+                    val px = qx + (i % 4) * r * 2.6f
+                    val py = qy + (i / 4) * r * 2.6f
                     fillP.color = ServiceColors.of(svc)
-                    Shapes.draw(canvas, svc.shape, sx(x, y) + tw * (0.35f + (i % 4) * 0.13f), sy(x, y, 1.1f) + (i / 4) * th * 0.3f, tw * 0.05f, fillP)
+                    Shapes.draw(canvas, svc.shape, px, py, r, fillP)
+                    val problem = world.routeProblem(n, svc)
+                    if (ProblemBadges.shows(problem)) {
+                        strokeP.color = alarm; strokeP.strokeWidth = r * 0.35f
+                        Shapes.draw(canvas, svc.shape, px, py, r * 1.45f, strokeP)
+                        if (badge == null) badge = problem
+                    }
                 }
+                badge?.let { ProblemBadges.draw(canvas, it, sx(x, y) - icon * 1.3f, qy, r * 1.9f) }
             }
             NodeKind.ROUTER -> {
                 val dark = world.isDark(n)
@@ -1030,6 +1054,14 @@ class IsoRenderer : Renderer {
     }
 
     private companion object {
+        /** Readable sizes on a phone (docs/PLAN.md P4.3 review): tile width of the automatic framing, and minimum dp of
+         *  a device icon's half size, a request's radius, an overload ring and the drag label. */
+        const val READABLE_TILE_DP = 36f
+        const val ICON_MIN_DP = 7f
+        const val REQUEST_MIN_DP = 3.2f
+        const val RING_MIN_DP = 2.5f
+        const val LABEL_MIN_DP = 13f
+
         /** Kinds of [depth] and [plan] items; decorations are [DECOR] plus their [Decor.ordinal]. */
         const val NODE = 0
         const val EXCAVATOR = 1

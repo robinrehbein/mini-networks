@@ -25,7 +25,7 @@ Verkabel eine wachsende Stadt – vom Modem 1995 bis zur Glasfaser von heute.
 > rüste Server bis zum Rechenzentrum auf. Und pass auf den Bagger auf – der kappt gern mal ein Kabel.
 >
 > • Ruhiges, klares Puzzle-Strategiespiel in isometrischer 2,5D-Grafik
-> • Zeitreise durch 30 Jahre Netztechnik: ISDN, DSL, Kabel, Glasfaser, WLAN, 4G/5G
+> • Zeitreise durch 30 Jahre Netztechnik: ISDN, DSL, TV-Kabel, Glasfaser, WLAN, 4G/5G
 > • Sieben Dienste mit eigenem Tempo, eigener Farbe und eigener Form
 > • Fünf Szenerien: Kleinstadt am Fluss, Großstadt, Insel & Hafen, Bergdorf, Zukunft 2030
 > • Wöchentliche Belohnungen: Budget, Router oder ein Server-Gutschein – du entscheidest
@@ -55,15 +55,15 @@ Wire up a growing town – from 1995 dial-up to today's fibre.
 > backups. Every service has its own ping limit: a phone call forgives more than an online game.
 >
 > Place routers as hubs, put up Wi-Fi access points and cell towers, pick radio channels that don't interfere, and
-> upgrade servers all the way to a data centre. And watch out for the excavator – it loves cutting cables.
+> upgrade servers all the way to a data center. And watch out for the excavator – it loves cutting cables.
 >
 > • Calm, clear puzzle strategy in isometric 2.5D
 > • Travel through 30 years of network tech: ISDN, DSL, cable, fibre, Wi-Fi, 4G/5G
-> • Seven services, each with its own speed, colour and shape
-> • Five sceneries: River Town, Metropolis, Island & Harbour, Mountain Village, Future 2030
+> • Seven services, each with its own speed, color and shape
+> • Five sceneries: River Town, Metropolis, Island & Harbor, Mountain Village, Future 2030
 > • Weekly rewards: budget, routers or a server voucher – your call
 > • Incidents like excavators and power cuts keep you on your toes
-> • Short tutorial, flat overview mode, colour-blind palette
+> • Short tutorial, flat overview mode, colorblind palette
 > • Plays offline, no sign-in
 >
 > Mini Networks is free and occasionally shows an ad between two games – never while you play. A one-time
@@ -77,11 +77,11 @@ Wire up a growing town – from 1995 dial-up to today's fibre.
 | Anfrage hin, Antwort zurück: Ping zählt beide Wege | Request out, answer back: ping counts both ways |
 | 4 Kabeltypen, 10 Gerätetypen, 7 Dienste | 4 cable types, 10 device types, 7 services |
 | Funk: WLAN mit Kanälen 1/6/11 und 5 GHz, Mobilfunkmasten | Radio: Wi-Fi on channels 1/6/11 and 5 GHz, cell towers |
-| Server in 4 Stufen bis zum 2×2-Rechenzentrum | Servers in 4 tiers up to a 2×2 data centre |
+| Server in 4 Stufen bis zum 2×2-Rechenzentrum | Servers in 4 tiers up to a 2×2 data center |
 | Epochen 1995 → heute, jede Woche neue Technik | Eras 1995 → today, new tech every week |
 | 5 Szenerien mit eigenem Gelände und eigenen Regeln | 5 sceneries with their own terrain and rules |
 | Störungen: Bagger, Stromausfall | Incidents: excavator, power outage |
-| Übersichtsmodus, Farbenblind-Palette, Ton und Haptik abschaltbar | Overview mode, colour-blind palette, sound and haptics can be turned off |
+| Übersichtsmodus, Farbenblind-Palette, Ton und Haptik abschaltbar | Overview mode, colorblind palette, sound and haptics can be turned off |
 | Keine Werbung während des Spielens | No ads while you play |
 
 ## Grafiken

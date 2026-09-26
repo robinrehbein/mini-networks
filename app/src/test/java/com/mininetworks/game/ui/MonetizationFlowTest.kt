@@ -78,7 +78,7 @@ class MonetizationFlowTest {
             repeat(World.Tuning.MAX_PENDING) { lonely.pending.addLast(Service.CALL) }
         }
         view.drawSnapshot(Canvas(bmp), w, bmp.width, bmp.height, time = 0f)
-        play(view, World.Tuning.OVERLOAD_SECONDS + 3f)
+        play(view, LOSE_SECONDS)
         assertEquals(Screen.GAME_OVER, view.currentScreen)
         draw(view)
         return w
@@ -163,6 +163,31 @@ class MonetizationFlowTest {
     }
 
     @Test
+    fun aMissedAdCallbackDoesNotLockTheGame() {
+        MonetizationStore(app).savePolicy(AdPolicy(gamesFinished = AdPolicy.FREE_GAMES, lastInterstitialGame = 0))
+        val shop = FakeMonetization()
+        val view = newView(shop)
+        lostGame(view)
+        tap(view, MenuAction.SECOND_CHANCE)
+        assertEquals(AdPlacement.CONTINUE, view.awaitedAd)
+        view.pause()
+        view.resume()
+        view.pause()
+        play(view, 3f)
+        assertEquals("the result may still come", AdPlacement.CONTINUE, view.awaitedAd)
+        play(view, 4f)
+        assertNull("no callback: given up without the reward", view.awaitedAd)
+        assertEquals(Screen.GAME_OVER, view.currentScreen)
+        assertTrue(view.currentWorld.gameOver)
+
+        tap(view, MenuAction.PLAY_AGAIN)
+        assertEquals(AdPlacement.INTERSTITIAL, view.awaitedAd)
+        play(view, 7f)
+        assertNull(view.awaitedAd)
+        assertEquals("the new game starts as if the ad had closed", Screen.PLAYING, view.currentScreen)
+    }
+
+    @Test
     fun rewardedVideoContinuesOnceAfterGameOver() {
         val shop = FakeMonetization()
         val view = newView(shop)
@@ -180,7 +205,11 @@ class MonetizationFlowTest {
         assertTrue(w.continued)
         assertTrue(w.nodes.all { it.overload < 0.01f })
 
-        play(view, World.Tuning.OVERLOAD_SECONDS + 3f)
+        var s = 0
+        while (view.currentScreen != Screen.GAME_OVER && s++ < 60 * 120) {
+            if (w.rewardOffer != null) w.chooseReward(0)
+            view.advance(1f / 60f)
+        }
         assertEquals(Screen.GAME_OVER, view.currentScreen)
         draw(view)
         assertNull("only once per game", view.menuTarget(MenuAction.SECOND_CHANCE))
@@ -290,5 +319,10 @@ class MonetizationFlowTest {
         draw(view)
         tap(view, MenuAction.MAIN_MENU)
         assertNull(view.menuTarget(MenuAction.REMOVE_ADS))
+    }
+
+    private companion object {
+        /** Long enough for an overload ring to close, even in the slower first weeks ([World.Tuning.EARLY_WEEKS]). */
+        const val LOSE_SECONDS = World.Tuning.OVERLOAD_SECONDS * World.Tuning.EARLY_OVERLOAD_SLOWDOWN + 3f
     }
 }

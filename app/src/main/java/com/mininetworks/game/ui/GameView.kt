@@ -24,21 +24,27 @@ import com.mininetworks.game.game.Bend
 import com.mininetworks.game.game.Cable
 import com.mininetworks.game.game.CableLayout
 import com.mininetworks.game.game.CableType
+import com.mininetworks.game.game.CableUpgradeError
 import com.mininetworks.game.game.Cell
 import com.mininetworks.game.game.Demand
+import com.mininetworks.game.game.IncidentKind
 import com.mininetworks.game.game.Incidents
 import com.mininetworks.game.game.FixedStep
 import com.mininetworks.game.game.Node
 import com.mininetworks.game.game.NodeKind
+import com.mininetworks.game.game.PlaceError
 import com.mininetworks.game.game.RadioType
 import com.mininetworks.game.game.RepairError
+import com.mininetworks.game.game.RouteProblem
 import com.mininetworks.game.game.Scenario
 import com.mininetworks.game.game.Scenarios
+import com.mininetworks.game.game.Service
 import com.mininetworks.game.game.ServerUpgradeError
 import com.mininetworks.game.game.SoundCues
 import com.mininetworks.game.game.Tutorial
 import com.mininetworks.game.game.TutorialFocus
 import com.mininetworks.game.game.Vec2
+import com.mininetworks.game.game.WeekNews
 import com.mininetworks.game.game.Wifi
 import com.mininetworks.game.game.WifiUpgradeError
 import com.mininetworks.game.game.Unlock
@@ -72,8 +78,10 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.thread
 import kotlin.concurrent.withLock
+import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.hypot
+import kotlin.math.roundToInt
 
 /**
  * Hosts the game loop, the HUD, the menus and touch input on a [SurfaceView].
@@ -96,21 +104,28 @@ import kotlin.math.hypot
  * before the next screen. Rewarded videos are optional: "continue" on the game-over card (once per game, empties the
  * overload rings) and "+1 router" on the week reward screen; with "remove ads" both come without a video. The main
  * menu sells "remove ads", the scenery picker single sceneries and the pack, the settings reopen the consent form.
- * While a full-screen ad is open, touches and back are ignored and the activity pausing does not open the pause menu.
+ * While a full-screen ad is open, touches and back are ignored and the activity pausing does not open the pause menu;
+ * if its result never comes, the game gives up waiting after [AD_TIMEOUT_SECONDS] of running (not paused) time.
  *
  * Controls:
- *  - drag from a node to another node: lay a cable along the grid (L-shaped; the drag path picks which way it bends)
+ *  - drag from a node to another node: lay a cable along the grid (L-shaped; the drag path picks which way it bends);
+ *    the label shows the price and, for a device, the ping it would get or that the cable is too narrow
  *  - drag on empty ground or with two fingers: pan; pinch: zoom; double tap on empty ground: fit the playable area
- *  - pick a cable technology in the bottom-left bar (ISDN, DSL, Kabel, Glasfaser)
- *  - tap a server: upgrade its hardware (more throughput, taller stack; tier 4 is a data center on 2×2 cells)
- *  - tap a cable: upgrade it to the picked technology, or remove it if it already is that type; a cable cut by an
- *    excavator is repaired instead (small fee)
- *  - "Router" button, then tap an empty cell: place a router; "WLAN" and "Mast" place won radios the same way
+ *  - pick a cable technology in the bottom-left bar (ISDN, DSL, TV-Kabel, Glasfaser; the coin is the price per cell);
+ *    picking one names its bandwidth, speed and price
+ *  - tap a server: preview its next hardware tier and price; tap again to upgrade (tier 4 is a data center on 2×2 cells)
+ *  - tap a cable: upgrade it to a better picked technology; otherwise the first tap selects it and a second tap removes
+ *    it for a refund; a cable cut by an excavator is repaired instead (small fee)
+ *  - tap a device: why its requests are stuck (no way, too narrow, ping too high, jam), or what it wants
+ *  - "Router" button, then tap an empty cell: place a router (a tap, not the start of a pan or pinch; a cell that does
+ *    not work says why); tap a router without cables twice to put it back; "WLAN" and "Mast" place won radios the same
+ *    way and only show while some are in stock
  *  - tap an access point: next WLAN channel; hold it: switch it to 5 GHz (costs budget)
- *  - "Pause" button or back: pause menu (resume, settings, restart, main menu)
+ *  - pause button: stops the clock in place, building goes on (like Mini Metro); menu button or back: pause menu
+ *    (resume, settings, restart, main menu)
  *  - settings: sound, haptics, overview mode (flat instead of isometric), colorblind palette
  *  - at each week change the world pauses and [RewardDialog] shows two reward cards; tap one to pick it
- *    ("Pause" stays tappable above the dialog; resuming returns to the choice)
+ *    (the menu button stays tappable above the dialog; resuming returns to the choice)
  *
  * Sound ([SoundPlayer]): a pluck per delivery pitched by service, a click when a cable locks in, a soft warning when a
  * device starts to overload and a chime at each new week ([SoundCues] reads them from the world while playing).
@@ -206,6 +221,23 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private var cableType = CableType.ISDN
     private var animTime = 0f
 
+    /**
+     * A cable, server or router tapped once and highlighted until [selectionUntil]: a second tap on it removes the
+     * cable, upgrades the server or puts the router back, so a stray tap never costs anything.
+     */
+    private var selection: Any? = null
+    private var selectionUntil = 0f
+    /** True while the player stopped the clock with the pause button; the map stays interactive. */
+    private var userPaused = false
+    /** Running time spent waiting for [pendingAd]'s result since it was asked for or the activity last resumed. */
+    private var pendingAdSeconds = 0f
+    /** Set once this game pointed out a server that cannot keep up. */
+    private var busyHintShown = false
+    /** Hints shown one after the other once the screen is free, e.g. what a new week's services need. */
+    private val hintQueue = ArrayDeque<String>()
+    /** The week news already turned into hints. */
+    private var hintedNews: WeekNews? = null
+
     /** Short feedback above the bottom bar, e.g. why a server tap did not upgrade; shown until [hintUntil]. */
     private var hint: String? = null
     private var hintUntil = 0f
@@ -258,12 +290,20 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private val barFg = fill(0xFF262B33.toInt())
     private val bigText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; color = 0xFF262B33.toInt() }
     private val incidentText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; textSize = 14 * density }
+    private val iconInk = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeCap = Paint.Cap.ROUND; strokeWidth = 3 * density }
+    private val coinFill = fill(COIN_COLOR)
+    private val coinText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; textSize = 11 * density; color = 0xFF5A4300.toInt() }
+    private val pinFill = fill(0)
+    private val pinText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; textSize = 12 * density; color = 0xFFFFFFFF.toInt() }
+    private val selectionPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
+    private val selectionPath = android.graphics.Path()
 
     private data class Button(val id: String, val rect: RectF)
     private val buttons = mutableListOf<Button>()
 
     init {
         holder.addCallback(this)
+        renderers.forEach { it.density = density }
         applySettings(settingsStore.load())
         if (!settingsStore.tutorialSeen && !hasSave) startTutorial()
     }
@@ -273,6 +313,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     /** Starts the game thread; call from `Activity.onResume`. */
     fun resume() {
         if (loop != null) return
+        // Coming back from a full-screen ad: its result normally arrives right away; the timeout counts from here.
+        pendingAdSeconds = 0f
         sounds.open()
         running = true
         loop = thread(name = "GameLoop") { runLoop() }
@@ -289,12 +331,38 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         sounds.close()
         // Safe: the game thread has ended.
         if (failFocusUntil != null) showGameOverCard()
+        // A gesture that started before the pause never gets its release; drop it with everything it armed.
+        endDrag()
+        tutorialGesture = false
+        tutorialPressed = null
+        pressedCard = null
+        gestureConsumed = false
+        cameraGesture = false
+        pinch.stop()
         // A full-screen ad pauses the activity; the game stays where it was (the world waits for the ad's result).
-        if (screen == Screen.PLAYING && pendingAd == null) {
-            endDrag()
-            screen = Screen.PAUSED
-        }
+        if (screen == Screen.PLAYING && pendingAd == null) screen = Screen.PAUSED
         autosave()
+    }
+
+    /** What [restoreState] needs after the activity was recreated; call from `onSaveInstanceState`. */
+    fun saveState(out: android.os.Bundle) {
+        out.putBoolean(STATE_IN_GAME, gameInProgress && tutorial == null)
+        out.putBoolean(STATE_IN_TUTORIAL, tutorial != null && screen != Screen.MAIN_MENU)
+    }
+
+    /**
+     * After the activity was recreated (the process may have been gone): a game in progress continues from its
+     * autosave in the pause menu, a running tutorial starts again. Call from `onCreate` before [resume].
+     */
+    fun restoreState(saved: android.os.Bundle) {
+        check(loop == null) { "game loop is running" }
+        when {
+            saved.getBoolean(STATE_IN_GAME) && hasSave -> {
+                continueGame()
+                if (gameInProgress) screen = Screen.PAUSED
+            }
+            saved.getBoolean(STATE_IN_TUTORIAL) -> startTutorial()
+        }
     }
 
     /** Handles the back key; on the main menu it calls [onExit]. */
@@ -378,17 +446,24 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         val animStep = frameSeconds.coerceAtMost(MAX_ANIM_STEP)
         animTime += animStep
         checkHold()
+        checkPendingAd(frameSeconds)
         if (screen == Screen.PLAYING) {
-            clock.advance(frameSeconds) { world.update(it) }
+            if (userPaused) clock.reset() else clock.advance(frameSeconds) { world.update(it) }
             tutorial?.update()
             val now = (animTime * 1000).toLong()
             for (cue in soundCues.poll(world)) sounds.play(cue, now)
+            if (tutorial == null) {
+                newsHints()
+                busyServerHint()
+            }
         } else {
             clock.reset()
         }
         checkGameOver()
         failFocusUntil?.let { if (animTime >= it) showGameOverCard() }
         followArea()
+        if (selection != null && animTime >= selectionUntil) selection = null
+        if (animTime >= hintUntil && world.rewardOffer == null) hintQueue.removeFirstOrNull()?.let { showHint(it, LONG_HINT_SECONDS) }
         renderer.camera.step(animStep)
     }
 
@@ -401,9 +476,46 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         }
         if (growthHintPending && world.rewardOffer == null) {
             growthHintPending = false
-            hint = context.getString(R.string.hint_map_grew)
-            hintUntil = animTime + HINT_SECONDS
+            hintQueue.addFirst(context.getString(R.string.hint_map_grew))
         }
+    }
+
+    /**
+     * A week that brought servers or radios queues what they need: the bandwidth and ping of a new service (so
+     * "Streaming needs bandwidth 3" is said before ISDN fails it), and that radios only come as week rewards.
+     */
+    private fun newsHints() {
+        val news = world.lastNews ?: return
+        if (news === hintedNews) return
+        hintedNews = news
+        for (s in news.servers) {
+            val ping = s.maxPingMs
+            if (ping != null) hintQueue += context.getString(R.string.hint_service_needs_ping, texts.service(s), s.bandwidth, ping)
+            else if (s.bandwidth > 1) hintQueue += context.getString(R.string.hint_service_needs, texts.service(s), s.bandwidth)
+        }
+        for (r in news.radios) if (world.radiosAvailable(r) == 0) hintQueue += context.getString(R.string.hint_radio_reward, texts.radio(r))
+    }
+
+    /** The first time in a game that requests queue at a server, say that tapping it upgrades it. */
+    private fun busyServerHint() {
+        if (busyHintShown || world.rewardOffer != null) return
+        val busy = world.nodes.firstOrNull { it.kind == NodeKind.SERVER && world.waitingAt(it) >= BUSY_HINT_WAITING } ?: return
+        busyHintShown = true
+        hintQueue.addFirst(context.getString(R.string.hint_server_busy, texts.node(busy)))
+    }
+
+    /**
+     * Gives up on a full-screen ad whose result never came (a missed SDK callback), so the game-over card or the week
+     * screen do not stay locked: after [AD_TIMEOUT_SECONDS] of running time it counts as closed without a reward.
+     */
+    private fun checkPendingAd(frameSeconds: Float) {
+        val ad = pendingAd
+        if (ad == null) {
+            pendingAdSeconds = 0f
+            return
+        }
+        pendingAdSeconds += frameSeconds
+        if (pendingAdSeconds >= AD_TIMEOUT_SECONDS) onAdResult(Input.AdResult(ad, earned = false))
     }
 
     private fun render() {
@@ -427,15 +539,19 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private fun drawFrame(canvas: Canvas) {
         val playing = screen == Screen.PLAYING
         renderer.draw(canvas, world, if (playing) dragPreview() else null, animTime)
-        if (playing) drawHoldProgress(canvas)
+        if (playing) {
+            drawSelection(canvas)
+            drawIncidentPins(canvas)
+            drawHoldProgress(canvas)
+        }
         if (hudVisible) drawHud(canvas)
         if (playing) tutorial?.let {
             tutorialOverlay.draw(canvas, it, tutorialFocus(it), renderer, world, ::hudTarget, surfaceWidth, animTime, tutorialPressed)
         }
         if (playing) world.rewardOffer?.let {
             rewardDialog.draw(canvas, world, it, surfaceWidth, surfaceHeight, animTime, pressedCard, bonusLabel(), video = !monetization.adsRemoved)
-            // Pause stays reachable during the reward choice, so it is drawn above the dimmed map.
-            buttons.firstOrNull { b -> b.id == "pause" }?.let { b -> drawHudButton(canvas, b.rect, context.getString(R.string.button_pause), active = false) }
+            // The menu stays reachable during the reward choice, so its button is drawn above the dimmed map.
+            buttons.firstOrNull { b -> b.id == "menu" }?.let { b -> drawIconButton(canvas, b.rect, b.id, active = false) }
         }
         menuPage()?.let { menuPanel.draw(canvas, it, surfaceWidth, surfaceHeight, pressedAction) }
         if (screen == Screen.SCENERIES) {
@@ -475,15 +591,19 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         screen: Screen? = Screen.PLAYING,
     ) {
         check(loop == null) { "game loop is running" }
+        val changed = world !== snapshotWorld || width != surfaceWidth || height != surfaceHeight
         if (world !== snapshotWorld) {
             world = snapshotWorld
             tutorial = null
             gameInProgress = screen == Screen.PLAYING
+            hintedNews = world.lastNews
         }
         if (screen != null) this.screen = screen
         if (style != null) renderer = renderers.firstOrNull { it.name == style } ?: throw IllegalArgumentException("unknown style $style")
         animTime = time
-        handle(Input.Resize(width, height))
+        surfaceWidth = width
+        surfaceHeight = height
+        if (changed) layoutRenderers()
         checkGameOver()
         drawFrame(canvas)
     }
@@ -535,11 +655,20 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     /** Screen rectangle of a scenery card (or [SceneryPicker.BACK], [SceneryPicker.PACK]) in the last drawn picker, for tests. */
     internal fun sceneryTarget(id: String): RectF? = if (screen == Screen.SCENERIES) sceneryPicker.targetOf(id) else null
 
-    /** Screen rectangle of the HUD button [id] ("pause", "router", "radio:…", "cable:…") in the last drawn frame, for tests. */
+    /** Screen rectangle of the HUD button [id] ("menu", "pause", "router", "radio:…", "cable:…") in the last drawn frame, for tests. */
     internal fun hudTarget(id: String): RectF? = buttons.firstOrNull { it.id == id }?.rect
 
     /** The last sounds played (only while sound is on) with their rate, newest last, for tests. */
     internal val playedSounds: List<Pair<Sound, Float>> get() = sounds.played
+
+    /** The text lines of the menu card on top (game over, pause …), empty without one, for tests. */
+    internal val menuLines: List<String> get() = menuPage()?.lines ?: emptyList()
+
+    /** The hint line above the bottom bar right now, or null, for tests. */
+    internal val shownHint: String? get() = hint?.takeIf { animTime < hintUntil }
+
+    /** True while the clock is stopped in place by the pause button, for tests. */
+    internal val pausedInPlace: Boolean get() = userPaused
 
     /** Number of haptic pulses sent (only counted while haptics are on), for tests. */
     internal var hapticPulses = 0
@@ -568,7 +697,18 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             error != null -> texts.connectError(error, from, target, cableType)
             else -> context.getString(R.string.drag_cost, texts.cable(cableType), world.cableCost(layout, cableType))
         }
-        return DragPreview(from = from, end = end, target = target, type = cableType, layout = layout, blocked = error != null, label = label)
+        // What the cable would mean for the device at one of its ends: too narrow for a service, or the ping it gets.
+        val client = if (from.kind == NodeKind.CLIENT) from else target?.takeIf { it.kind == NodeKind.CLIENT }
+        val other = if (client === from) target else from
+        val check = if (error == null && client != null && other != null) world.checkCable(client, other, cableType) else null
+        val detail = check?.let {
+            if (it.problem == RouteProblem.TOO_NARROW) context.getString(R.string.drag_too_narrow, texts.service(it.service), it.service.bandwidth)
+            else context.getString(R.string.drag_ping, texts.service(it.service), it.pingMs!!.roundToInt(), it.limitMs!!)
+        }
+        return DragPreview(
+            from = from, end = end, target = target, type = cableType, layout = layout, blocked = error != null, label = label,
+            detail = detail, detailWarning = check?.problem != null,
+        )
     }
 
     private fun dragBend(from: Cell, to: Cell): Bend? = CableLayout.suggestBend(from, to, dragTrail)
@@ -586,7 +726,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         if ((last == null || hypot(p.x - last.x, p.y - last.y) >= TRAIL_SPACING) && dragTrail.size < MAX_TRAIL) dragTrail += p
     }
 
+    /** Drops the gesture in progress: a half-drawn cable, a pan, and a hold on an access point. */
     private fun endDrag() {
+        holdAp = null
         snapTarget = null
         dragFrom = null
         dragEnd = null
@@ -643,64 +785,167 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             }
         }
 
-        if (world.rewardOffer == null) drawIncidentLines(canvas, pad + hudText.textSize + 24 * density)
+        if (world.rewardOffer == null) drawIncidentLine(canvas, pad + hudText.textSize + 24 * density)
+        if (userPaused && world.rewardOffer == null) drawPausedBanner(canvas, pad + hudText.textSize + 50 * density)
 
         buttons.clear()
         val bh = 44 * density
         val gap = 10 * density
         var x = surfaceWidth - pad
         val y = surfaceHeight - pad - bh
-        for ((id, label) in listOf(
-            "pause" to context.getString(R.string.button_pause),
-            "router" to context.getString(R.string.button_router, world.routersAvailable),
-        )) {
-            val w = btnText.measureText(label) + 32 * density
-            val r = RectF(x - w, y, x, y + bh)
-            drawHudButton(canvas, r, label, active = id == "router" && placing == NodeKind.ROUTER)
+        // Menu and pause as round icon buttons at the right edge, then the router stock.
+        for (id in listOf("menu", "pause")) {
+            val r = RectF(x - bh, y, x, y + bh)
+            drawIconButton(canvas, r, id, active = id == "pause" && userPaused)
             buttons += Button(id, r)
-            x -= w + gap
+            x -= bh + gap
         }
-        // Radios in a second row above, once invented (or won): the bottom row is full on a phone.
+        val routerLabel = context.getString(R.string.button_router, world.routersAvailable)
+        val rw = btnText.measureText(routerLabel) + 32 * density
+        val routerRect = RectF(x - rw, y, x, y + bh)
+        drawHudButton(canvas, routerRect, routerLabel, active = placing == NodeKind.ROUTER)
+        buttons += Button("router", routerRect)
+        val rightEdge = routerRect.left
+        // Cable technology picker, bottom left: invented technologies, each with its price per cell on a coin. In a
+        // narrow (portrait) window it moves to its own row above, and without room even there it drops the names.
+        val coinR = 9 * density
+        val cables = world.unlockedCables
+        fun widthOf(t: CableType, named: Boolean) =
+            24 * density + (if (named) btnText.measureText(texts.cable(t)) + 8 * density else 0f) + 2 * coinR + 10 * density
+        val rowWidth = { named: Boolean -> cables.sumOf { widthOf(it, named).toDouble() }.toFloat() + gap * (cables.size - 1) }
+        val ownRow = pad + rowWidth(true) > rightEdge - gap
+        val named = !ownRow || pad + rowWidth(true) <= surfaceWidth - pad
+        val cableY = if (ownRow) y - bh - gap else y
+        var cx = pad
+        for (t in cables) {
+            val w = widthOf(t, named)
+            val r = RectF(cx, cableY, cx + w, cableY + bh)
+            val active = t == cableType
+            canvas.drawRoundRect(r, bh / 2, bh / 2, if (active) btnActive else btnFill)
+            swatch.color = CableStyles.of(t).color
+            canvas.drawCircle(r.left + 14 * density, r.centerY(), 5 * density, swatch)
+            if (named) {
+                btnText.color = if (active) 0xFFFFFFFF.toInt() else 0xFF262B33.toInt()
+                btnText.textAlign = Paint.Align.LEFT
+                canvas.drawText(texts.cable(t), r.left + 24 * density, r.centerY() + btnText.textSize * 0.35f, btnText)
+                btnText.textAlign = Paint.Align.CENTER
+            }
+            val coinX = r.right - 10 * density - coinR
+            canvas.drawCircle(coinX, r.centerY(), coinR, coinFill)
+            canvas.drawText(t.costPerCell.toString(), coinX, r.centerY() + coinText.textSize * 0.36f, coinText)
+            buttons += Button("cable:${t.name}", r)
+            cx += w + gap
+        }
+        // Radios in a row above the right buttons (above the cables too when those have their own row), only while
+        // some are in stock (they come as week rewards).
+        var rows = if (ownRow) 1 else 0
         x = surfaceWidth - pad
+        var radioRow = false
         for (type in RadioType.entries.reversed()) {
             val stock = world.radiosAvailable(type)
-            if (world.week < type.unlockWeek && stock == 0) continue
+            if (stock == 0) continue
+            radioRow = true
             val label = context.getString(if (type == RadioType.WLAN) R.string.button_access_point else R.string.button_cell_tower, stock)
             val w = btnText.measureText(label) + 32 * density
-            val r = RectF(x - w, y - bh - gap, x, y - gap)
+            val top = y - (rows + 1) * (bh + gap)
+            val r = RectF(x - w, top, x, top + bh)
             drawHudButton(canvas, r, label, active = placing == type.kind)
             buttons += Button("radio:${type.name}", r)
             x -= w + gap
         }
-        // Cable technology picker, bottom left. Only invented technologies are shown.
-        var cx = pad
-        for (t in world.unlockedCables) {
-            val label = context.getString(R.string.button_cable, texts.cable(t), t.costPerCell)
-            val w = btnText.measureText(label) + 28 * density
-            val r = RectF(cx, y, cx + w, y + bh)
-            val active = t == cableType
-            canvas.drawRoundRect(r, bh / 2, bh / 2, if (active) btnActive else btnFill)
-            val st = CableStyles.of(t)
-            swatch.color = st.color
-            canvas.drawCircle(r.left + 14 * density, r.centerY(), 5 * density, swatch)
-            btnText.color = if (active) 0xFFFFFFFF.toInt() else 0xFF262B33.toInt()
-            canvas.drawText(label, r.centerX() + 6 * density, r.centerY() + btnText.textSize * 0.35f, btnText)
-            buttons += Button("cable:${t.name}", r)
-            cx += w + gap
-        }
+        if (radioRow) rows++
+        val hintY = y - 10 * density - rows * (bh + gap)
         if (placing != null) {
-            canvas.drawText(context.getString(R.string.hint_place_router), pad, y - 10 * density, hudSub)
+            canvas.drawText(context.getString(R.string.hint_place_router), pad, hintY, hudSub)
         } else if (animTime < hintUntil) {
-            hint?.let { canvas.drawText(it, pad, y - 10 * density, hudSub) }
+            hint?.let { canvas.drawText(it, pad, hintY, hudSub) }
         }
     }
 
-    /** One centered line per incident below the news, announcements first: amber while announced, red once struck. */
-    private fun drawIncidentLines(canvas: Canvas, top: Float) {
-        val shown = world.incidents.sortedBy { it.struck }.take(MAX_INCIDENT_LINES)
-        shown.forEachIndexed { k, i ->
-            incidentText.color = if (i.struck) IncidentStyles.CUT else IncidentStyles.WARNING.shade(-0.25f)
-            canvas.drawText(texts.incident(i), surfaceWidth / 2f, top + k * incidentText.textSize * 1.35f, incidentText)
+    /** A round HUD button with a drawn icon: three lines for the menu, two bars (or a play triangle while paused) for pause. */
+    private fun drawIconButton(canvas: Canvas, r: RectF, id: String, active: Boolean) {
+        val h = r.height()
+        canvas.drawRoundRect(r, h / 2, h / 2, if (active) btnActive else btnFill)
+        iconInk.color = if (active) 0xFFFFFFFF.toInt() else 0xFF262B33.toInt()
+        val cx = r.centerX(); val cy = r.centerY(); val u = h * 0.16f
+        when {
+            id == "menu" -> for (k in -1..1) canvas.drawLine(cx - u * 1.3f, cy + k * u, cx + u * 1.3f, cy + k * u, iconInk)
+            active -> {
+                selectionPath.reset()
+                selectionPath.moveTo(cx - u * 0.8f, cy - u * 1.2f)
+                selectionPath.lineTo(cx + u * 1.2f, cy)
+                selectionPath.lineTo(cx - u * 0.8f, cy + u * 1.2f)
+                selectionPath.close()
+                iconInk.style = Paint.Style.FILL
+                canvas.drawPath(selectionPath, iconInk)
+                iconInk.style = Paint.Style.STROKE
+            }
+            else -> for (k in listOf(-1, 1)) canvas.drawLine(cx + k * u * 0.6f, cy - u * 1.1f, cx + k * u * 0.6f, cy + u * 1.1f, iconInk)
+        }
+    }
+
+    /** "Paused, keep building" in a dark pill at the top centre while the clock is stopped in place. */
+    private fun drawPausedBanner(canvas: Canvas, top: Float) {
+        val text = context.getString(R.string.hud_paused)
+        val w = btnText.measureText(text) + 28 * density
+        val h = 30 * density
+        val r = RectF(surfaceWidth / 2f - w / 2f, top, surfaceWidth / 2f + w / 2f, top + h)
+        canvas.drawRoundRect(r, h / 2, h / 2, btnActive)
+        btnText.color = 0xFFFFFFFF.toInt()
+        canvas.drawText(text, r.centerX(), r.centerY() + btnText.textSize * 0.35f, btnText)
+    }
+
+    /**
+     * One centered line for the most urgent incident (a cut cable first, then the one due soonest), amber while
+     * announced, red once struck, with "(+n)" for the others; each also gets a countdown pin on the map.
+     */
+    private fun drawIncidentLine(canvas: Canvas, top: Float) {
+        val incidents = world.incidents
+        if (incidents.isEmpty()) return
+        val first = incidents.minWith(compareBy({ !(it.struck && it.kind == IncidentKind.EXCAVATOR) }, { if (it.struck) it.remaining else it.warning }))
+        incidentText.color = if (first.struck) IncidentStyles.CUT else IncidentStyles.WARNING.shade(-0.25f)
+        val text = texts.incident(first).let { if (incidents.size > 1) context.getString(R.string.incident_more, it, incidents.size - 1) else it }
+        canvas.drawText(text, surfaceWidth / 2f, top, incidentText)
+    }
+
+    /** A countdown pin over every incident's spot on the map, so the line at the top points at its cable or node. */
+    private fun drawIncidentPins(canvas: Canvas) {
+        if (world.rewardOffer != null) return
+        for (i in world.incidents) {
+            val at = renderer.toScreen(i.node?.center ?: i.spot)
+            val seconds = ceil(if (i.struck) i.remaining else i.warning).toInt().coerceAtLeast(1)
+            val text = context.getString(R.string.incident_countdown, seconds)
+            val w = pinText.measureText(text) + 12 * density
+            val h = 20 * density
+            val bottom = at.y - maxOf(renderer.unitPx * 0.9f, 26 * density)
+            pinFill.color = if (i.struck) IncidentStyles.CUT else IncidentStyles.WARNING.shade(-0.2f)
+            canvas.drawRoundRect(at.x - w / 2f, bottom - h, at.x + w / 2f, bottom, h / 2f, h / 2f, pinFill)
+            canvas.drawLine(at.x, bottom, at.x, bottom + 5 * density, pinFill.also { it.strokeWidth = 2 * density })
+            canvas.drawText(text, at.x, bottom - h / 2f + pinText.textSize * 0.36f, pinText)
+        }
+    }
+
+    /** A pulsing yellow glow on the selected cable or node, the one a second tap acts on. */
+    private fun drawSelection(canvas: Canvas) {
+        val sel = selection ?: return
+        val pulse = 0.6f + 0.4f * kotlin.math.sin(animTime * 7f)
+        selectionPaint.color = SELECTION_COLOR
+        selectionPaint.alpha = (140 * pulse).toInt() + 60
+        when (sel) {
+            is Cable -> {
+                selectionPath.reset()
+                sel.layout.waypoints.forEachIndexed { k, p ->
+                    val q = renderer.toScreen(p)
+                    if (k == 0) selectionPath.moveTo(q.x, q.y) else selectionPath.lineTo(q.x, q.y)
+                }
+                selectionPaint.strokeWidth = maxOf(12 * density, renderer.unitPx * 0.3f)
+                canvas.drawPath(selectionPath, selectionPaint)
+            }
+            is Node -> {
+                val c = renderer.toScreen(sel.footprintCenter)
+                selectionPaint.strokeWidth = 5 * density
+                canvas.drawCircle(c.x, c.y, maxOf(26 * density, renderer.unitPx * (if (sel.isDataCenter) 1.3f else 0.8f)), selectionPaint)
+            }
         }
     }
 
@@ -708,10 +953,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     private fun handle(input: Input) {
         when (input) {
-            is Input.Resize -> {
+            // The surface is recreated on every return from the background with the same size: keep the player's view.
+            is Input.Resize -> if (input.width != surfaceWidth || input.height != surfaceHeight) {
                 surfaceWidth = input.width
                 surfaceHeight = input.height
                 layoutRenderers()
+                if (failFocusUntil != null) world.failedNode?.let { renderer.focusOn(it) }
             }
             is Input.Touch -> if (pendingAd == null) onTouch(input)
             Input.Back -> if (pendingAd == null) onBack()
@@ -737,7 +984,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         }
         if (onTutorialTouch(e)) return
         if (!gestureConsumed && world.rewardOffer != null && e.action == MotionEvent.ACTION_DOWN) {
-            buttons.firstOrNull { it.id == "pause" && it.rect.contains(e.x, e.y) }?.let { onButton(it.id); return }
+            buttons.firstOrNull { it.id == "menu" && it.rect.contains(e.x, e.y) }?.let { onButton(it.id); return }
         }
         if (gestureConsumed || (world.rewardOffer != null && e.action == MotionEvent.ACTION_DOWN)) {
             onRewardTouch(e)
@@ -748,14 +995,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 downX = e.x; downY = e.y; downTime = e.time
                 cameraGesture = false
                 buttons.firstOrNull { it.rect.contains(e.x, e.y) }?.let { onButton(it.id); return }
-                val p = renderer.toWorld(e.x, e.y)
-                placing?.let { kind ->
-                    place(kind, floor(p.x).toInt(), floor(p.y).toInt())
-                    placing = null
-                    return
-                }
                 dragTrail.clear()
-                dragFrom = pickNode(e.x, e.y)
+                // While placing, the tap (not the start of a pan or pinch) decides where: see ACTION_UP.
+                dragFrom = if (placing != null) null else pickNode(e.x, e.y)
                 if (dragFrom == null && isDoubleTap(e)) {
                     renderer.fitArea(world, animate = true)
                     emptyTapTime = null
@@ -801,28 +1043,33 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 }
                 val from = dragFrom
                 val isTap = hypot(e.x - downX, e.y - downY) < TAP_SLOP_DP * density
-                if (from != null && isTap && from.kind == NodeKind.SERVER) {
-                    upgradeServer(from)
-                } else if (from != null && isTap && from.kind == NodeKind.ACCESS_POINT) {
-                    if (e.time - downTime >= LONG_PRESS_MS) upgradeTo5Ghz(from) else cycleChannel(from)
-                } else if (from != null && !isTap) {
+                val kind = placing
+                if (kind != null) {
+                    if (isTap) renderer.toWorld(e.x, e.y).let { p -> place(kind, floor(p.x).toInt(), floor(p.y).toInt()) }
+                } else if (from != null && isTap) {
+                    when (from.kind) {
+                        NodeKind.SERVER -> serverTap(from)
+                        NodeKind.ACCESS_POINT -> if (e.time - downTime >= LONG_PRESS_MS) upgradeTo5Ghz(from) else cycleChannel(from)
+                        NodeKind.ROUTER -> routerTap(from)
+                        NodeKind.CLIENT -> explainClient(from)
+                        NodeKind.CELL_TOWER -> Unit
+                    }
+                } else if (from != null) {
                     trackDrag(e.x, e.y)
                     pickNode(e.x, e.y, except = from)?.let {
                         if (world.connect(from, it, cableType, dragBend(from.cell, it.cell))) {
+                            selection = null
                             haptic(HapticFeedbackConstants.VIRTUAL_KEY)
                             sounds.play(Sound.CABLE)
                         }
                     }
-                } else if (isTap && from == null && panArmed) {
+                } else if (isTap && panArmed) {
                     val cable = renderer.cableAtScreen(world, e.x, e.y, TouchTargets.cableRadiusPx(renderer, density))
                     if (cable == null) {
+                        selection = null
                         emptyTapTime = e.time; emptyTapX = e.x; emptyTapY = e.y
-                    } else if (world.isCut(cable)) {
-                        repair(cable)
-                    } else if (cable.type == cableType) {
-                        world.removeCable(cable)
                     } else {
-                        world.upgrade(cable, cableType)
+                        cableTap(cable)
                     }
                 }
                 endDrag()
@@ -868,7 +1115,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private fun onTutorialTouch(e: Input.Touch): Boolean {
         if (tutorial == null) return false
         if (e.action == MotionEvent.ACTION_DOWN) {
-            val hit = tutorialOverlay.hit(e.x, e.y) ?: return false
+            val hit = tutorialOverlay.hit(e.x, e.y)
+            if (hit == null) {
+                // A new gesture elsewhere: whatever the bubble still waited for is over.
+                tutorialGesture = false
+                tutorialPressed = null
+                return false
+            }
             tutorialGesture = true
             tutorialPressed = hit
             endDrag()
@@ -944,40 +1197,161 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         }
     }
 
-    private fun upgradeServer(server: Node) {
+    /** First tap on a server: its next tier and price; a second tap on the selected server upgrades it. */
+    private fun serverTap(server: Node) {
         val error = world.serverUpgradeError(server)
-        if (error == null) {
-            world.upgradeServer(server)
+        if (error != null) {
+            showHint(
+                when (error) {
+                    ServerUpgradeError.NOT_A_SERVER -> return
+                    ServerUpgradeError.MAX_LEVEL -> context.getString(R.string.server_error_max_level)
+                    ServerUpgradeError.NO_SPACE -> context.getString(R.string.server_error_no_space)
+                    ServerUpgradeError.NO_BUDGET ->
+                        context.getString(R.string.server_error_no_budget, World.Tuning.SERVER_UPGRADE_COST[server.level - 1])
+                },
+            )
             return
         }
-        hint = when (error) {
-            ServerUpgradeError.NOT_A_SERVER -> return
-            ServerUpgradeError.MAX_LEVEL -> context.getString(R.string.server_error_max_level)
-            ServerUpgradeError.NO_SPACE -> context.getString(R.string.server_error_no_space)
-            ServerUpgradeError.NO_BUDGET ->
-                context.getString(R.string.server_error_no_budget, World.Tuning.SERVER_UPGRADE_COST[server.level - 1])
+        val next = tierName(server.level + 1)
+        if (selection !== server) {
+            select(server)
+            showHint(
+                if (world.serverVouchers > 0) context.getString(R.string.hint_server_preview_voucher, texts.node(server), next)
+                else context.getString(R.string.hint_server_preview, texts.node(server), next, World.Tuning.SERVER_UPGRADE_COST[server.level - 1]),
+                SELECT_SECONDS,
+            )
+            return
         }
-        hintUntil = animTime + HINT_SECONDS
+        if (!world.upgradeServer(server)) return
+        selection = null
+        haptic(HapticFeedbackConstants.VIRTUAL_KEY)
+        sounds.play(Sound.CABLE)
+        showHint(context.getString(R.string.hint_server_upgraded, texts.node(server), next))
+    }
+
+    private fun tierName(level: Int) =
+        if (level >= World.Tuning.DATA_CENTER_LEVEL) context.getString(R.string.server_tier_data_center) else context.getString(R.string.server_tier, level)
+
+    /**
+     * A tap on an intact cable upgrades it to a better picked technology. Otherwise the first tap selects it and says
+     * what removing it gives back; a second tap on the selected cable removes it. A cut cable is repaired.
+     */
+    private fun cableTap(cable: Cable) {
+        if (world.isCut(cable)) {
+            selection = null
+            repair(cable)
+            return
+        }
+        if (cableType > cable.type) {
+            selection = null
+            val price = world.cableCost(cable.layout, cableType) - cable.cost
+            when (world.upgradeError(cable, cableType)) {
+                null -> if (world.upgrade(cable, cableType)) {
+                    haptic(HapticFeedbackConstants.VIRTUAL_KEY)
+                    sounds.play(Sound.CABLE)
+                    showHint(context.getString(R.string.hint_cable_upgraded, texts.cable(cableType), price))
+                }
+                CableUpgradeError.NO_BUDGET -> showHint(context.getString(R.string.cable_error_no_budget, price))
+                CableUpgradeError.NOT_INVENTED -> showHint(context.getString(R.string.connect_error_not_invented, texts.cable(cableType)))
+                CableUpgradeError.NOT_AN_UPGRADE -> Unit
+            }
+            return
+        }
+        val refund = world.refundOf(cable)
+        if (selection !== cable) {
+            select(cable)
+            showHint(context.getString(R.string.hint_cable_remove, texts.cable(cable.type), refund), SELECT_SECONDS)
+            return
+        }
+        selection = null
+        world.removeCable(cable)
+        haptic(HapticFeedbackConstants.CLOCK_TICK)
+        showHint(context.getString(R.string.hint_cable_removed, refund))
+    }
+
+    /** A router without cables goes back into stock on a second tap; one with cables does nothing. */
+    private fun routerTap(router: Node) {
+        if (world.pickUpError(router) != null) return
+        if (selection !== router) {
+            select(router)
+            showHint(context.getString(R.string.hint_router_pick_up), SELECT_SECONDS)
+            return
+        }
+        selection = null
+        if (world.pickUp(router)) {
+            haptic(HapticFeedbackConstants.CLOCK_TICK)
+            showHint(context.getString(R.string.hint_router_picked_up))
+        }
+    }
+
+    /** Says why the device's waiting requests are stuck, or what it wants if none is. */
+    private fun explainClient(client: Node) {
+        val stuck = client.pending.firstOrNull { world.routeProblem(client, it) != null }
+        showHint(
+            if (stuck != null) {
+                val problem = world.routeProblem(client, stuck)
+                problemText(client, stuck, problem, if (problem == RouteProblem.PING_TOO_HIGH) world.bestRoute(client, stuck)?.pingMs else null)
+            } else {
+                val services = client.device!!.services.joinToString(context.getString(R.string.list_separator)) { texts.service(it) }
+                context.getString(R.string.device_wants, texts.node(client), services)
+            },
+            LONG_HINT_SECONDS,
+        )
+    }
+
+    /** "Konsole: Gaming – Ping 180 ms, erlaubt 140 ms" and the like, for a device, a service and its [RouteProblem]. */
+    private fun problemText(n: Node, s: Service, problem: RouteProblem?, pingMs: Float?): String {
+        val node = texts.node(n)
+        val service = texts.service(s)
+        return when (problem) {
+            RouteProblem.NO_ROUTE -> context.getString(R.string.problem_no_route, node, service)
+            RouteProblem.TOO_NARROW -> context.getString(R.string.problem_too_narrow, node, service, s.bandwidth)
+            RouteProblem.PING_TOO_HIGH ->
+                context.getString(R.string.problem_ping, node, service, (pingMs ?: 0f).roundToInt(), s.maxPingMs ?: 0)
+            null -> context.getString(R.string.problem_jam, node, service)
+        }
+    }
+
+    private fun select(target: Any) {
+        selection = target
+        selectionUntil = animTime + SELECT_SECONDS
     }
 
     private fun repair(cable: Cable) {
-        when (world.repairError(cable)) {
-            null -> {
-                world.repair(cable)
-                haptic(HapticFeedbackConstants.VIRTUAL_KEY)
-                sounds.play(Sound.CABLE)
-                showHint(context.getString(R.string.hint_repaired))
-            }
-            RepairError.NOT_CUT -> Unit
-            RepairError.NO_BUDGET -> showHint(context.getString(R.string.repair_error_no_budget, Incidents.REPAIR_COST))
+        if (world.repairError(cable) == RepairError.NO_BUDGET) {
+            showHint(context.getString(R.string.repair_error_no_budget, Incidents.REPAIR_COST))
+            return
         }
+        if (!world.repair(cable)) return
+        haptic(HapticFeedbackConstants.VIRTUAL_KEY)
+        sounds.play(Sound.CABLE)
+        showHint(context.getString(R.string.hint_repaired))
     }
 
-    /** Places a router or radio from stock; a new access point explains its controls. */
+    /**
+     * Places a router or radio from stock where the player tapped and disarms placing; a new access point explains its
+     * controls. A cell that does not work says why and placing stays armed for another try.
+     */
     private fun place(kind: NodeKind, cx: Int, cy: Int) {
         val radio = RadioType.of(kind)
-        val placed = if (radio == null) world.placeRouter(cx, cy) else world.placeRadio(radio, cx, cy)
-        if (placed?.kind == NodeKind.ACCESS_POINT) showHint(context.getString(R.string.hint_access_point, Wifi.UPGRADE_5_GHZ_COST))
+        val error = world.placeError(kind, cx, cy)
+        if (error != null) {
+            val name = if (radio == null) context.getString(R.string.node_router) else texts.radio(radio)
+            showHint(
+                when (error) {
+                    PlaceError.NO_STOCK -> context.getString(R.string.place_error_no_stock, name)
+                    PlaceError.LOCKED -> context.getString(R.string.place_error_locked)
+                    PlaceError.OCCUPIED -> context.getString(R.string.place_error_occupied)
+                    PlaceError.TERRAIN -> context.getString(R.string.place_error_terrain)
+                },
+            )
+            if (error == PlaceError.NO_STOCK) placing = null
+            return
+        }
+        val placed = (if (radio == null) world.placeRouter(cx, cy) else world.placeRadio(radio, cx, cy)) ?: return
+        placing = null
+        haptic(HapticFeedbackConstants.CLOCK_TICK)
+        if (placed.kind == NodeKind.ACCESS_POINT) showHint(context.getString(R.string.hint_access_point, Wifi.UPGRADE_5_GHZ_COST))
     }
 
     private fun cycleChannel(ap: Node) {
@@ -994,7 +1368,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     /** Fires a hold on an access point as soon as it lasted [LONG_PRESS_MS], not only when the finger lifts. */
     private fun checkHold() {
         val ap = holdAp ?: return
-        if (screen != Screen.PLAYING || world.rewardOffer != null || ap !in world.nodes) {
+        if (screen != Screen.PLAYING || world.gameOver || world.rewardOffer != null || failFocusUntil != null || ap !in world.nodes) {
             holdAp = null
             return
         }
@@ -1022,7 +1396,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         showHint(
             when (world.wifiUpgradeError(ap)) {
                 null -> {
-                    world.upgradeTo5Ghz(ap)
+                    if (!world.upgradeTo5Ghz(ap)) return
                     haptic(HapticFeedbackConstants.VIRTUAL_KEY)
                     context.getString(R.string.hint_5ghz, texts.node(ap))
                 }
@@ -1033,24 +1407,39 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         )
     }
 
-    private fun showHint(text: String) {
+    private fun showHint(text: String, seconds: Float = HINT_SECONDS) {
         hint = text
-        hintUntil = animTime + HINT_SECONDS
+        hintUntil = animTime + seconds
     }
 
     private fun onButton(id: String) {
         click()
         when {
-            id == "pause" -> openPauseMenu()
+            id == "menu" -> openPauseMenu()
+            id == "pause" -> userPaused = !userPaused
             id == "router" -> togglePlacing(NodeKind.ROUTER, world.routersAvailable)
             id.startsWith("radio:") -> RadioType.valueOf(id.removePrefix("radio:")).let { togglePlacing(it.kind, world.radiosAvailable(it)) }
-            id.startsWith("cable:") -> cableType = CableType.valueOf(id.removePrefix("cable:"))
+            id.startsWith("cable:") -> pickCable(CableType.valueOf(id.removePrefix("cable:")))
         }
     }
 
-    /** Arms placing [kind] if [stock] allows it; pressing the same button again disarms it. */
+    /** Arms placing [kind] if [stock] allows it; pressing the same button again disarms it. An empty stock says so. */
     private fun togglePlacing(kind: NodeKind, stock: Int) {
+        if (stock <= 0 && placing != kind) {
+            val name = RadioType.of(kind)?.let(texts::radio) ?: context.getString(R.string.node_router)
+            showHint(context.getString(R.string.place_error_no_stock, name))
+        }
         placing = if (placing == kind || stock <= 0) null else kind
+    }
+
+    /** Picks a cable technology and names its bandwidth, speed and price, and a service it is too narrow for. */
+    private fun pickCable(t: CableType) {
+        cableType = t
+        if (tutorial != null) return
+        val ms = java.text.NumberFormat.getNumberInstance(resources.configuration.locales[0]).format(t.msPerCell.toDouble())
+        val info = context.getString(R.string.hint_cable_info, texts.cable(t), t.capacity, ms, t.costPerCell)
+        val narrow = world.availableServices.filter { it.bandwidth > t.capacity }.sortedBy { it.bandwidth }.firstOrNull()
+        showHint(if (narrow == null) info else context.getString(R.string.hint_two_parts, info, context.getString(R.string.hint_cable_too_narrow, texts.service(narrow))))
     }
 
     // ---------------------------------------------------------------- menus (game thread)
@@ -1103,6 +1492,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             title = context.getString(R.string.game_over_title),
             highlight = if (newBest) context.getString(R.string.game_over_new_best) else null,
             lines = listOfNotNull(
+                world.failure?.let { problemText(it.node, it.service, it.problem, it.pingMs) },
                 resources.getQuantityString(R.plurals.game_over_stats, world.delivered, world.delivered, world.week),
                 if (newBest) null else context.getString(R.string.game_over_best, highscores.best(world.scenario.id)),
             ),
@@ -1354,6 +1744,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private fun openPauseMenu() {
         endDrag()
         placing = null
+        selection = null
+        tutorialGesture = false
+        tutorialPressed = null
         screen = Screen.PAUSED
         autosave()
     }
@@ -1395,6 +1788,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         tutorialPressed = null
         failFocusUntil = null
         gameInProgress = false
+        selection = null
+        userPaused = false
+        busyHintShown = false
+        hintQueue.clear()
+        hint = null
+        hintedNews = w.lastNews
         layoutRenderers()
         clock.reset()
         endDrag()
@@ -1415,6 +1814,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         hasSave = false
         endDrag()
         placing = null
+        selection = null
+        userPaused = false
         val failed = world.failedNode
         if (failed == null) {
             screen = Screen.GAME_OVER
@@ -1487,7 +1888,18 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         const val HINT_SECONDS = 2.5f
         /** How long the camera shows the failed device before the game-over card. */
         const val GAME_OVER_FOCUS_SECONDS = 1.6f
-        const val MAX_INCIDENT_LINES = 4
+        /** Longer hints: what a new service needs, why a device is stuck. */
+        const val LONG_HINT_SECONDS = 4f
+        /** How long a tapped cable, server or router stays selected for the confirming second tap. */
+        const val SELECT_SECONDS = 3f
+        /** Requests waiting at one server before the game points out that tapping upgrades it. */
+        const val BUSY_HINT_WAITING = 2
+        /** Running seconds after which a full-screen ad whose result never came counts as closed. */
+        const val AD_TIMEOUT_SECONDS = 6f
+        const val COIN_COLOR = 0xFFF5C542.toInt()
+        const val SELECTION_COLOR = 0xFFFFC21A.toInt()
+        const val STATE_IN_GAME = "mininetworks.inGame"
+        const val STATE_IN_TUTORIAL = "mininetworks.inTutorial"
         /** A finger that moves less than this is a tap. */
         const val TAP_SLOP_DP = 12f
         const val DOUBLE_TAP_MS = 300L

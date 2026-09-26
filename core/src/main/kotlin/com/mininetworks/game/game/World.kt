@@ -29,7 +29,11 @@ class World(
     object Tuning {
         const val WEEK_SECONDS = 45f
         const val FIRST_YEAR = 1995
-        const val YEARS_PER_WEEK = 3
+        /**
+         * Calendar year of era weeks 1, 2, 3 … (docs/PLAN.md 3.2): three years per week while new technology arrives,
+         * then slower until the calendar reaches today, where it stays.
+         */
+        val ERA_YEARS = intArrayOf(FIRST_YEAR, 1998, 2001, 2004, 2007, 2010, 2013, 2016, 2019, 2022, 2024, 2026)
         const val ROUTER_MS = 4f
         const val MAX_PENDING = 6
         const val OVERLOAD_SECONDS = 18f
@@ -96,6 +100,16 @@ class World(
         const val ARRIVAL_SECONDS = 1f
         /** Highest overload a client reaches in a [guided] world: the ring nearly closes, but the game goes on. */
         const val GUIDED_MAX_OVERLOAD = 0.95f
+        /**
+         * Fair start: during the first this many weeks played, new clients only appear where every service they want
+         * that has a server can be reached with one direct cable of an invented technology, within its ping limit
+         * ([EARLY_PING_SHARE] of it, room for a router on the way) and for at most [EARLY_CABLE_BUDGET].
+         */
+        const val EARLY_WEEKS = 2
+        const val EARLY_PING_SHARE = 0.8f
+        const val EARLY_CABLE_BUDGET = 24
+        /** Grace in those weeks too: overload rings fill this much slower, so the first week's pay can still come. */
+        const val EARLY_OVERLOAD_SLOWDOWN = 2f
     }
 
     private var rng = ReplayableRandom(seed)
@@ -116,7 +130,7 @@ class World(
     private val nodeList = ArrayList<Node>()
     private val cableList = ArrayList<Cable>()
 
-    /** Every node, in the order it appeared; nodes are never removed. */
+    /** Every node, in the order it appeared; only an uncabled router is ever removed again ([pickUp]). */
     val nodes: List<Node> get() = nodeList
     val cables: List<Cable> get() = cableList
     val packets = mutableListOf<Packet>()
@@ -191,7 +205,11 @@ class World(
     /** True between [Tuning.DUSK_HOUR] and [Tuning.DAWN_HOUR]. */
     val isNight get() = hourOfDay.let { it >= Tuning.DUSK_HOUR || it < Tuning.DAWN_HOUR }
 
-    val year get() = scenario.startYear + (week - scenario.startWeek) * Tuning.YEARS_PER_WEEK
+    /**
+     * The calendar: [Tuning.ERA_YEARS] of the current week, shifted so the scenario starts in its [Scenario.startYear]
+     * (only the future scenery starts after its era week). It stops once the era table ends.
+     */
+    val year get() = scenario.startYear + eraYear(week) - eraYear(scenario.startWeek)
 
     /** Weeks played in this game, 1 in the scenario's start week: pacing, growth and incidents follow this. */
     val weeksPlayed get() = week - scenario.startWeek + 1
@@ -213,6 +231,9 @@ class World(
 
     /** Best routes per client, indexed by [Service.ordinal]; [NO_ROUTE] marks a computed "none". Cleared on changes. */
     private val routeCache = HashMap<Node, Array<Route?>>()
+
+    /** Per client and [Service.ordinal]: is there a route at any link width ([YES], [NO], [UNKNOWN])? For [routeProblem]. */
+    private val wideCache = HashMap<Node, ByteArray>()
 
     /** Scratch tables of [computeRoute]. */
     private var routeDist = FloatArray(0)
@@ -305,25 +326,63 @@ class World(
     /** Adds a radio node without using stock, for tests and setups; see [placeRadio]. */
     fun addRadio(type: RadioType, cx: Int, cy: Int) = addNode(type.kind, null, null, cx, cy)
 
-    /** A random free cell inside [area] (by default the [unlocked] block), one cell away from its edge. */
-    private fun randomFreeCell(minSpacing: Int = 2, area: CellRect = unlocked): Pair<Int, Int>? {
+    /**
+     * A random free cell inside [area] (by default the [unlocked] block), one cell away from its edge, that [accept]s.
+     */
+    private fun randomFreeCell(
+        minSpacing: Int = 2,
+        area: CellRect = unlocked,
+        accept: (Cell) -> Boolean = { true },
+    ): Pair<Int, Int>? {
         if (area.width < 3 || area.height < 3) return null
         repeat(300) {
             val cx = area.left + 1 + rng.nextInt(area.width - 2)
             val cy = area.top + 1 + rng.nextInt(area.height - 2)
-            if (isFree(cx, cy) && nodes.all { n -> n.footprint.all { max(abs(it.x - cx), abs(it.y - cy)) >= minSpacing } }) return cx to cy
+            if (isFree(cx, cy) && nodes.all { n -> n.footprint.all { max(abs(it.x - cx), abs(it.y - cy)) >= minSpacing } } &&
+                accept(Cell(cx, cy))
+            ) return cx to cy
         }
         return null
     }
 
+    /**
+     * A new client of a random invented device that wants a service with a server; newer devices show up more often.
+     * In the first [Tuning.EARLY_WEEKS] it only goes where it can be served ([fairStart]); if the drawn device fits
+     * nowhere, the first other device that does is taken instead.
+     */
     private fun spawnClient() {
         val served = availableServices
         val candidates = unlockedDevices.filter { d -> d.services.any { it in served } }
         if (candidates.isEmpty()) return
-        // Newer devices show up more often once unlocked.
         val weighted = candidates.flatMap { d -> List(1 + d.unlockWeek) { d } }
+        val device = weighted[rng.nextInt(weighted.size)]
+        if (weeksPlayed <= Tuning.EARLY_WEEKS) {
+            for (d in listOf(device) + (candidates - device)) {
+                val (cx, cy) = randomFreeCell { fairStart(d, it) } ?: continue
+                addClient(d, cx, cy)
+                return
+            }
+        }
         val (cx, cy) = randomFreeCell() ?: return
-        addClient(weighted[rng.nextInt(weighted.size)], cx, cy)
+        addClient(device, cx, cy)
+    }
+
+    /**
+     * True if device [d] on [cell] can reach a server of every service it wants that has one, each with one direct
+     * cable of an invented technology that is wide enough, fits [Tuning.EARLY_PING_SHARE] of the ping limit with a
+     * router hop to spare, and costs at most [Tuning.EARLY_CABLE_BUDGET].
+     */
+    private fun fairStart(d: Device, cell: Cell): Boolean = d.services.all { s ->
+        s !in availableServices || nodeList.any { n -> n.kind == NodeKind.SERVER && n.service == s && directCableFits(cell, n.cell, s) }
+    }
+
+    private fun directCableFits(from: Cell, to: Cell, s: Service): Boolean {
+        val layout = planLayout(from, to)
+        val limit = s.maxPingMs
+        return unlockedCables.any { t ->
+            t.capacity >= s.bandwidth && cableCost(layout, t) <= Tuning.EARLY_CABLE_BUDGET &&
+                (limit == null || 2f * (layout.length * t.msPerCell + Tuning.ROUTER_MS) <= limit * Tuning.EARLY_PING_SHARE)
+        }
     }
 
     /** A new server appears in the middle of the block ([Tuning.SERVER_AREA]), or anywhere in it if that is full. */
@@ -418,7 +477,7 @@ class World(
         budget -= newCost - c.cost
         c.cost = newCost
         c.type = type
-        routeCache.clear()
+        forgetRoutes()
         return true
     }
 
@@ -459,7 +518,7 @@ class World(
      */
     private fun networkChanged() {
         rebuildRadioLinks()
-        routeCache.clear()
+        forgetRoutes()
         val lost = packets.filter { p -> p.inTransit && usableLink(p.from, p.to) == null }
         if (lost.isNotEmpty()) {
             lost.forEach { it.origin.pending.addFirst(it.service) }
@@ -618,10 +677,47 @@ class World(
     /** True while a server has no capacity left and packets queue on its cables. */
     fun serverBusy(n: Node) = n.kind == NodeKind.SERVER && n.tokens < 1f
 
+    /** Requests that reached [server] and wait at the end of their cable for its throughput. */
+    fun waitingAt(server: Node): Int {
+        var count = 0
+        for (i in packets.indices) {
+            val p = packets[i]
+            if (!p.isResponse && p.inTransit && p.to === server && p.progress >= SERVER_WAIT && p.hop + 2 == p.route.size) count++
+        }
+        return count
+    }
+
+    /** Null when a node of [kind] (a router or a radio) from stock can go on cell ([cx], [cy]), otherwise the reason. */
+    fun placeError(kind: NodeKind, cx: Int, cy: Int): PlaceError? = when {
+        (RadioType.of(kind)?.let(::radiosAvailable) ?: routersAvailable) <= 0 -> PlaceError.NO_STOCK
+        !unlocked.contains(cx, cy) -> PlaceError.LOCKED
+        nodeAt(Cell(cx, cy)) != null -> PlaceError.OCCUPIED
+        terrainAt(cx, cy) != Terrain.LAND -> PlaceError.TERRAIN
+        else -> null
+    }
+
     fun placeRouter(cx: Int, cy: Int): Node? {
-        if (gameOver || routersAvailable <= 0 || !isFree(cx, cy)) return null
+        if (gameOver || placeError(NodeKind.ROUTER, cx, cy) != null) return null
         routersAvailable--
         return addRouter(cx, cy)
+    }
+
+    /** Null when [n] can go back into stock ([pickUp]), otherwise the reason. */
+    fun pickUpError(n: Node): PickUpError? = when {
+        n.kind != NodeKind.ROUTER || n !in nodeList -> PickUpError.NOT_A_ROUTER
+        ports(n) > 0 -> PickUpError.HAS_CABLES
+        incidentList.any { it.node === n } -> PickUpError.INCIDENT
+        else -> null
+    }
+
+    /** Takes a router without cables off the map and back into stock, so a misplaced one costs nothing. */
+    fun pickUp(n: Node): Boolean {
+        if (gameOver || pickUpError(n) != null) return false
+        nodeList.remove(n)
+        for (i in nodeList.indices) nodeList[i].index = i
+        routersAvailable++
+        networkChanged()
+        return true
     }
 
     /** Radios of [type] in stock. */
@@ -632,7 +728,7 @@ class World(
 
     /** Places a radio from stock on a free cell, like [placeRouter]. A new access point starts on channel 1. */
     fun placeRadio(type: RadioType, cx: Int, cy: Int): Node? {
-        if (gameOver || radiosAvailable(type) <= 0 || !isFree(cx, cy)) return null
+        if (gameOver || placeError(type.kind, cx, cy) != null) return null
         when (type) {
             RadioType.WLAN -> accessPointsAvailable--
             RadioType.CELL -> cellTowersAvailable--
@@ -696,12 +792,6 @@ class World(
         return true
     }
 
-    /** The node closest to [p] within [radius], measured to the nearest cell of each node's footprint. */
-    fun nodeNear(p: Vec2, radius: Float = 0.7f): Node? =
-        nodes.minByOrNull { distance(it, p) }?.takeIf { distance(it, p) <= radius }
-
-    private fun distance(n: Node, p: Vec2) = n.footprint.minOf { hypot(it.center.x - p.x, it.center.y - p.y) }
-
     // ---------------------------------------------------------------- routing
 
     /** The cable or radio link between [a] and [b], if any (a cable first); looks only at the few links of [a]. */
@@ -744,11 +834,56 @@ class World(
         return route
     }
 
+    /** Why [client]'s requests for [service] cannot leave right now; null if they have a route ([routeFor]). */
+    fun routeProblem(client: Node, service: Service): RouteProblem? {
+        if (bestRoute(client, service) != null) return if (routeFor(client, service) == null) RouteProblem.PING_TOO_HIGH else null
+        val row = wideCache.getOrPut(client) { ByteArray(Service.entries.size) }
+        if (row[service.ordinal] == UNKNOWN) row[service.ordinal] = if (computeRoute(client, service, minCapacity = 0) != null) YES else NO
+        return if (row[service.ordinal] == YES) RouteProblem.TOO_NARROW else RouteProblem.NO_ROUTE
+    }
+
+    /** Why the game was lost, from the [failedNode] and the service most of its waiting requests ask for. */
+    val failure: Failure?
+        get() {
+            val n = failedNode ?: return null
+            val service = n.pending.groupingBy { it }.eachCount().maxByOrNull { it.value }?.key ?: return null
+            val problem = routeProblem(n, service)
+            return Failure(n, service, problem, if (problem == RouteProblem.PING_TOO_HIGH) bestRoute(n, service)?.pingMs else null)
+        }
+
+    /**
+     * What a cable of [type] from [client] to [other] (along [planLayout] with [bend]) would mean for the client's
+     * services that have a server: the first one it is too narrow for, else the first whose best route through it
+     * would break the ping limit, else the ping-limited one with the least room left. Null if nothing to say
+     * (no ping-limited service reachable through it yet, or [client] is not a client).
+     */
+    fun checkCable(client: Node, other: Node, type: CableType, bend: Bend? = null): ServiceCheck? {
+        val device = client.device ?: return null
+        val services = device.services.filter { it in availableServices }
+        services.firstOrNull { it.bandwidth > type.capacity }?.let { return ServiceCheck(it, RouteProblem.TOO_NARROW, null, it.maxPingMs) }
+        if (client === other || client.cell == other.cell) return null
+        val cable = Cable(client, other, type, 0, planLayout(client, other, bend), 0)
+        var tightest: ServiceCheck? = null
+        for (s in services) {
+            val limit = s.maxPingMs ?: continue
+            val ping = computeRoute(client, s, extra = cable)?.pingMs ?: continue
+            if (ping > limit) return ServiceCheck(s, RouteProblem.PING_TOO_HIGH, ping, limit)
+            if (tightest == null || limit - ping < tightest.limitMs!! - tightest.pingMs!!) tightest = ServiceCheck(s, null, ping, limit)
+        }
+        return tightest
+    }
+
+    private fun forgetRoutes() {
+        routeCache.clear()
+        wideCache.clear()
+    }
+
     /**
      * Dijkstra over the node links, with its tables in arrays indexed by [Node.index] that are reused between calls.
-     * The open list may hold a node twice; the first entry with the lowest distance is taken next.
+     * The open list may hold a node twice; the first entry with the lowest distance is taken next. Links narrower than
+     * [minCapacity] are left out; [extra] is a planned cable that is not laid yet but counts as if it were.
      */
-    private fun computeRoute(client: Node, service: Service): Route? {
+    private fun computeRoute(client: Node, service: Service, minCapacity: Int = service.bandwidth, extra: Cable? = null): Route? {
         val count = nodeList.size
         if (routeDist.size < count) {
             routeDist = FloatArray(count * 2)
@@ -781,21 +916,26 @@ class World(
             // Only the origin and routers, radios or other clients forward traffic; foreign servers are dead ends.
             if (cur !== client && cur.kind == NodeKind.SERVER) continue
             val hopCost = if (cur === client) 0f else Tuning.ROUTER_MS
-            for (c in cur.links) {
-                if (c.capacity < service.bandwidth || !isUp(c)) continue
-                // A radio link only carries its device's own traffic, as the first hop: a radio reaches the network
-                // through its cables, and cabled devices cannot ride on a wireless client.
-                if (c is RadioLink && !(cur === client && c.device === client)) continue
-                val nb = c.other(cur)
-                val d = dist[cur.index] + hopCost + c.latencyMs
-                if (d < dist[nb.index]) {
-                    dist[nb.index] = d
-                    prev[nb.index] = cur.index
-                    open += nb
-                }
-            }
+            val links = cur.links
+            for (i in links.indices) relax(client, cur, links[i], minCapacity, hopCost)
+            if (extra != null && extra.connects(cur)) relax(client, cur, extra, minCapacity, hopCost)
         }
         return null
+    }
+
+    /** One edge of [computeRoute]: reaching the far end of [c] from [cur] through it, if that is shorter. */
+    private fun relax(client: Node, cur: Node, c: Link, minCapacity: Int, hopCost: Float) {
+        if (c.capacity < minCapacity || !isUp(c)) return
+        // A radio link only carries its device's own traffic, as the first hop: a radio reaches the network
+        // through its cables, and cabled devices cannot ride on a wireless client.
+        if (c is RadioLink && !(cur === client && c.device === client)) return
+        val nb = c.other(cur)
+        val d = routeDist[cur.index] + hopCost + c.latencyMs
+        if (d < routeDist[nb.index]) {
+            routeDist[nb.index] = d
+            routePrev[nb.index] = cur.index
+            routeOpen += nb
+        }
     }
 
     /** Where [p] is in world space: on its link, or at the node it waits at. */
@@ -935,10 +1075,11 @@ class World(
 
         movePackets(dt)
 
+        val fillSeconds = Tuning.OVERLOAD_SECONDS * if (weeksPlayed <= Tuning.EARLY_WEEKS) Tuning.EARLY_OVERLOAD_SLOWDOWN else 1f
         for (i in nodeList.indices) {
             val n = nodeList[i]
             if (n.kind != NodeKind.CLIENT) continue
-            n.overload = if (n.pending.size >= Tuning.MAX_PENDING) n.overload + dt / Tuning.OVERLOAD_SECONDS
+            n.overload = if (n.pending.size >= Tuning.MAX_PENDING) n.overload + dt / fillSeconds
             else max(0f, n.overload - dt / Tuning.RECOVER_SECONDS)
             if (guided) n.overload = n.overload.coerceAtMost(Tuning.GUIDED_MAX_OVERLOAD)
             if (n.overload >= 1f) {
@@ -1040,7 +1181,7 @@ class World(
             val last = p.hop + 1 >= p.route.size - 1
             if (last && !p.isResponse && p.to.tokens < 1f) {
                 // Server is saturated: the request waits at the end of the cable and keeps blocking it.
-                p.progress = 0.999f
+                p.progress = SERVER_WAIT
                 continue
             }
             tally(link.medium).moving -= p.size
@@ -1219,7 +1360,7 @@ class World(
             RadioType.entries.filter { it.unlockWeek in weeks },
         )
         lastNewsTime = time
-        routeCache.clear()
+        forgetRoutes()
     }
 
     private fun onNewWeek() {
@@ -1291,19 +1432,61 @@ class World(
         private val RESPONSES_FIRST = booleanArrayOf(true, false)
         /** Cache marker of [bestRoute] for "no route". */
         private val NO_ROUTE = Route(emptyList(), Float.MAX_VALUE)
+        private const val UNKNOWN: Byte = 0
+        private const val YES: Byte = 1
+        private const val NO: Byte = 2
+        /** Progress at which a request waits at the end of its cable for a busy server. */
+        private const val SERVER_WAIT = 0.999f
+
+        /** [Tuning.ERA_YEARS] of era [week]; weeks past the table stay in its last year. */
+        fun eraYear(week: Int) = Tuning.ERA_YEARS[(week - 1).coerceIn(0, Tuning.ERA_YEARS.lastIndex)]
 
         /** Clock hour at game time [t], see [hourOfDay]. */
         fun hourAt(t: Float) = (Tuning.DAWN_HOUR + 24f * (t % Tuning.DAY_SECONDS) / Tuning.DAY_SECONDS) % 24f
 
         private fun cellOf(p: Vec2) = Cell(p.x.toInt(), p.y.toInt())
 
+        /** Largest grid a save may have; the scenarios stay far below. */
+        private const val MAX_GRID = 256
+        /** Most random draws a save may replay; a long game takes well under a million. */
+        private const val MAX_DRAWS = 50_000_000L
+
+        /** A saved node must be what its kind says and lie on the grid; see [restore]. */
+        private fun validate(n: NodeSnapshot, grid: CellRect) {
+            val ok = when (n.kind) {
+                NodeKind.CLIENT -> n.device != null && n.service == null
+                NodeKind.SERVER -> n.service != null && n.device == null
+                else -> n.device == null && n.service == null
+            }
+            require(ok) { "node ${n.id} does not match its kind" }
+            require(n.level in 1..Tuning.MAX_SERVER_LEVEL) { "node ${n.id} has level ${n.level}" }
+            val dataCenter = n.kind == NodeKind.SERVER && n.level >= Tuning.DATA_CENTER_LEVEL
+            require(n.footprint.size == (if (dataCenter) 4 else 1)) { "node ${n.id} has a bad footprint" }
+            require(Cell(n.cellX, n.cellY) in n.footprint && n.footprint.all { it in grid }) { "node ${n.id} is off the grid" }
+            if (n.kind == NodeKind.ACCESS_POINT) {
+                require(n.channel in (if (n.fiveGhz) Wifi.CHANNELS_5_GHZ else Wifi.CHANNELS_2_4_GHZ)) { "node ${n.id} has a bad channel" }
+            }
+            require(n.overload in 0f..1f && n.tokens.isFinite() && n.requestTimer.isFinite() && n.dispatchCooldown.isFinite()) {
+                "node ${n.id} has bad counters"
+            }
+        }
+
         /**
          * Rebuilds a world from [s]. The restored world continues exactly like the saved one would have, random draws
-         * included. Throws [IllegalArgumentException] if the snapshot is inconsistent.
+         * included. Throws [IllegalArgumentException] if the snapshot is inconsistent: anything the simulation or the
+         * renderers would trip over later (a cell off the grid, a client without a device, a packet on a route whose
+         * nodes are not linked …) is rejected here, so a damaged save never loads.
          */
         @OptIn(DebugApi::class)
         fun restore(s: WorldSnapshot): World {
+            require(s.cols in 1..MAX_GRID && s.rows in 1..MAX_GRID) { "bad grid size" }
             require(s.water.size == s.rows && s.water.all { it.length == s.cols }) { "terrain does not match the grid" }
+            val grid = CellRect(0, 0, s.cols, s.rows)
+            val u = s.unlocked
+            require(u.left >= 0 && u.top >= 0 && u.right <= s.cols && u.bottom <= s.rows && u.width >= 3 && u.height >= 3) { "bad unlocked block" }
+            require(s.week >= 1 && s.time >= 0f && s.time.isFinite()) { "bad calendar" }
+            require(s.nodes.all { it.id < s.nextId }) { "next id already used" }
+            require(s.randomDraws in 0..MAX_DRAWS) { "bad random draw count" }
             val scenario = requireNotNull(Scenarios.byId(s.scenario)) { "unknown scenario ${s.scenario}" }
             val w = World(scenario, s.cols, s.rows, s.seed, spawnInitialNodes = false)
             for (y in 0 until s.rows) for (x in 0 until s.cols) {
@@ -1330,7 +1513,7 @@ class World(
             w.clientSpawnTimer = s.clientSpawnTimer
             val byId = HashMap<Int, Node>()
             for (n in s.nodes) {
-                require(n.footprint.isNotEmpty()) { "node ${n.id} has no footprint" }
+                validate(n, grid)
                 val node = Node(n.id, n.kind, n.device, n.service, n.cellX, n.cellY).apply {
                     footprint = n.footprint
                     pending.addAll(n.pending)
@@ -1349,6 +1532,7 @@ class World(
             }
             fun node(id: Int) = requireNotNull(byId[id]) { "unknown node $id" }
             for (c in s.cables) {
+                require(c.waypoints.size >= 2 && c.waypoints.all { it in grid } && c.cost >= 0) { "bad cable" }
                 w.cableList += Cable(node(c.a), node(c.b), c.type, c.cost, CableLayout(c.waypoints.map { it.center }), c.waterCells)
             }
             w.indexCables()
@@ -1357,12 +1541,21 @@ class World(
                 val cable = if (i.cableA != null && i.cableB != null) {
                     requireNotNull(w.cableBetween(node(i.cableA), node(i.cableB))) { "incident at a missing cable" }
                 } else null
+                require((cable != null) == (i.kind == IncidentKind.EXCAVATOR) && (i.node != null) == (i.kind == IncidentKind.POWER_OUTAGE)) {
+                    "incident without its target"
+                }
+                require(i.cutAt in 0f..1f) { "bad cut spot" }
                 w.incidentList += Incident(i.kind, cable, i.node?.let(::node), i.cutAt, i.warning, i.remaining)
             }
             w.rebuildRadioLinks()
             for (p in s.packets) {
-                require(p.route.size >= 2 && p.hop in p.route.indices) { "bad packet route" }
-                w.packets += Packet(p.service, node(p.origin), p.route.map(::node), p.isResponse).apply {
+                require(p.route.size >= 2 && p.hop in 0 until p.route.size - 1) { "bad packet route" }
+                require(p.progress == -1f || p.progress in 0f..1f) { "bad packet progress" }
+                val route = p.route.map(::node)
+                require(route.zipWithNext().all { (a, b) -> w.linkBetween(a, b) != null }) { "packet route is not linked" }
+                val origin = node(p.origin)
+                require(origin.kind == NodeKind.CLIENT && origin === (if (p.isResponse) route.last() else route.first())) { "bad packet origin" }
+                w.packets += Packet(p.service, origin, route, p.isResponse).apply {
                     hop = p.hop
                     progress = p.progress
                 }

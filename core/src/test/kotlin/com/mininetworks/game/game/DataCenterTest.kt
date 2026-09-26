@@ -95,8 +95,7 @@ class DataCenterTest {
         w.upgradeTo(server, 4)
         for (c in server.footprint) {
             assertFalse(w.isFree(c.x, c.y))
-            assertSame(server, w.nodeAt(c))
-            assertSame("tapping any part selects the data center", server, w.nodeNear(c.center))
+            assertSame("any part of the block is the data center", server, w.nodeAt(c))
         }
         assertNull("no router on the data center", w.placeRouter(6, 6))
         assertTrue(w.isFree(7, 5))

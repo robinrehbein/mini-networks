@@ -57,7 +57,8 @@ Belohnungsvideos. Anbieter: Google Ireland Limited, Gordon House, Barrow Street,
 - **Werbe-ID:** Du kannst sie in den Android-Einstellungen (Datenschutz → Werbung) zurücksetzen oder löschen.
 - Mehr: https://policies.google.com/privacy und https://policies.google.com/technologies/partner-sites
 
-Mit dem Kauf **„Werbefrei“** zeigt die App keine Vollbildwerbung mehr und lädt keine Anzeigen mehr.
+Mit dem Kauf **„Werbefrei“** zeigt die App keine Vollbildwerbung mehr und lädt keine Anzeigen mehr; ab dem nächsten
+Start der App wird das Google Mobile Ads SDK gar nicht mehr gestartet und sendet damit auch keine Daten an Google.
 
 ### 5. In-App-Käufe: Google Play Billing
 
@@ -124,7 +125,8 @@ Provider: Google Ireland Limited, Gordon House, Barrow Street, Dublin 4, Ireland
 - **Advertising ID:** you can reset or delete it in the Android settings (Privacy → Ads).
 - More: https://policies.google.com/privacy and https://policies.google.com/technologies/partner-sites
 
-After buying **"Remove ads"** the app no longer shows or loads full-screen ads.
+After buying **"Remove ads"** the app no longer shows or loads full-screen ads; from the next start of the app on, the
+Google Mobile Ads SDK is not started at all and so sends no data to Google.
 
 ### 5. In-app purchases: Google Play Billing
 

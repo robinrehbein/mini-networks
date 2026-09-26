@@ -13,6 +13,7 @@ import com.mininetworks.game.game.Device
 import com.mininetworks.game.game.Geometry
 import com.mininetworks.game.game.Node
 import com.mininetworks.game.game.Packet
+import com.mininetworks.game.game.RouteProblem
 import com.mininetworks.game.game.Service
 import com.mininetworks.game.game.Shape
 import com.mininetworks.game.game.Vec2
@@ -35,6 +36,10 @@ class DragPreview(
     val blocked: Boolean,
     /** Text above the pointer: the cable and its price, or why it cannot be built. */
     val label: String?,
+    /** A second line under [label]: what the cable means for the device's services (ping, bandwidth), if anything. */
+    val detail: String? = null,
+    /** True if [detail] is a warning (too narrow, ping too high); drawn in the alarm color. */
+    val detailWarning: Boolean = false,
 )
 
 /**
@@ -47,6 +52,15 @@ interface Renderer {
 
     /** Zoom and pan of this style's view. */
     val camera: Camera
+
+    /** Pixels per dp of the screen, for sizes that must stay readable at any zoom; set by the view, 1 by default. */
+    var density: Float
+
+    /**
+     * Smallest zoom the automatic framing ([layout], [fitArea], [onAreaChanged]) goes to, so devices and requests stay
+     * readable on a phone; a bigger area than fits is then centred and the player pans. Pinching zooms out further.
+     */
+    val readableScale: Float
 
     /** World units on the ground plane -> this style's map units (before zoom and pan). */
     fun toMap(p: Vec2): Vec2
@@ -69,16 +83,16 @@ interface Renderer {
         fitArea(world, animate = false)
     }
 
-    /** Zooms so the unlocked area fills the view, e.g. on a double tap. */
+    /** Zooms so the unlocked area fills the view (not below [readableScale]), e.g. on a double tap. */
     fun fitArea(world: World, animate: Boolean) {
         updateLimits(world)
-        camera.fit(mapBounds(world.unlocked), animate)
+        camera.fit(mapBounds(world.unlocked), animate, atLeast = readableScale)
     }
 
     /** Call when the unlocked area grew: widens the limits and, unless the player moved the view, follows the area. */
     fun onAreaChanged(world: World) {
         updateLimits(world)
-        if (camera.followsArea) camera.fit(mapBounds(world.unlocked), animate = true)
+        if (camera.followsArea) camera.fit(mapBounds(world.unlocked), animate = true, atLeast = readableScale)
     }
 
     /**
@@ -110,10 +124,6 @@ interface Renderer {
 
     fun packetPosition(world: World, p: Packet): Vec2 = world.packetPosition(p)
 
-    fun cableNear(world: World, p: Vec2, radius: Float = 0.35f): Cable? =
-        world.cables.minByOrNull { Geometry.distToPolyline(p, cablePath(it)) }
-            ?.takeIf { Geometry.distToPolyline(p, cablePath(it)) <= radius }
-
     /**
      * The node closest to screen point ([sx], [sy]) within [radiusPx], measured to its footprint cells on screen,
      * ignoring [except].
@@ -138,6 +148,53 @@ interface Renderer {
         /** Zoom factor of [focusOn]. */
         const val FOCUS_ZOOM = 1.6f
     }
+}
+
+/**
+ * Marks for requests that cannot leave ([World.routeProblem]): a red badge with a clock when the route is too slow for
+ * the service's ping limit, and with two wedges squeezing together when no link on the way is wide enough.
+ * [NO_ROUTE][RouteProblem.NO_ROUTE] gets none: an unconnected device already shows that. Shared by all styles.
+ */
+object ProblemBadges {
+    const val ALARM = 0xFFD7263D.toInt()
+    private val bodyP = fill(ALARM)
+    private val inkP = stroke(0xFFFFFFFF.toInt())
+    private val inkFill = fill(0xFFFFFFFF.toInt())
+    private val path = Path()
+
+    /** True for the problems that get a badge. */
+    fun shows(p: RouteProblem?) = p == RouteProblem.PING_TOO_HIGH || p == RouteProblem.TOO_NARROW
+
+    /** The first problem with a badge among the first [max] waiting requests of client [n], or null. */
+    fun of(world: World, n: Node, max: Int = 8): RouteProblem? {
+        for (i in 0 until minOf(n.pending.size, max)) world.routeProblem(n, n.pending[i]).let { if (shows(it)) return it }
+        return null
+    }
+
+    /** A badge of radius [r] pixels around ([x], [y]). */
+    fun draw(canvas: Canvas, problem: RouteProblem, x: Float, y: Float, r: Float) {
+        canvas.drawCircle(x, y, r, bodyP)
+        inkP.strokeWidth = r * 0.16f
+        canvas.drawCircle(x, y, r, inkP)
+        when (problem) {
+            RouteProblem.PING_TOO_HIGH -> {
+                canvas.drawCircle(x, y, r * 0.55f, inkP)
+                canvas.drawLine(x, y, x, y - r * 0.4f, inkP)
+                canvas.drawLine(x, y, x + r * 0.3f, y, inkP)
+            }
+            RouteProblem.TOO_NARROW -> for (side in SIDES) {
+                path.reset()
+                path.moveTo(x + side * r * 0.62f, y - r * 0.45f)
+                path.lineTo(x + side * r * 0.1f, y)
+                path.lineTo(x + side * r * 0.62f, y + r * 0.45f)
+                path.close()
+                canvas.drawPath(path, inkFill)
+            }
+            RouteProblem.NO_ROUTE -> Unit
+        }
+    }
+
+    private val SIDES = floatArrayOf(-1f, 1f)
 }
 
 /** Minimum touch target sizes; picking works in screen space so targets keep this size at every zoom. */

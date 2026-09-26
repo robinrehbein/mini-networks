@@ -119,6 +119,31 @@ enum class CableUpgradeError { NOT_AN_UPGRADE, NOT_INVENTED, NO_BUDGET }
 /** Why an access point cannot switch to 5 GHz. */
 enum class WifiUpgradeError { NOT_AN_ACCESS_POINT, ALREADY_5_GHZ, NO_BUDGET }
 
+/** Why a router or radio cannot go on a cell: none in stock, outside the unlocked block, taken, or not plain land. */
+enum class PlaceError { NO_STOCK, LOCKED, OCCUPIED, TERRAIN }
+
+/** Why a router cannot be picked up again: it is not a router, still has cables, or an incident is at it. */
+enum class PickUpError { NOT_A_ROUTER, HAS_CABLES, INCIDENT }
+
+/**
+ * Why a client's request for a service cannot leave: no way to any server of it at all, a way that exists only over
+ * links narrower than the service's bandwidth, or a way whose round trip breaks the service's ping limit.
+ */
+enum class RouteProblem { NO_ROUTE, TOO_NARROW, PING_TOO_HIGH }
+
+/**
+ * What a service of [service] would get from a cable being planned: [problem] if it would still be blocked (only
+ * [RouteProblem.TOO_NARROW] or [RouteProblem.PING_TOO_HIGH]), and the round trip [pingMs] of its best route, if any.
+ */
+class ServiceCheck(val service: Service, val problem: RouteProblem?, val pingMs: Float?, val limitMs: Int?)
+
+/**
+ * Why a game was lost: [node] overflowed with requests, most of them for [service]. [problem] says why those could
+ * not leave; null means a route was there but jammed (too little capacity or server throughput). [pingMs] is the
+ * best route's round trip when [problem] is [RouteProblem.PING_TOO_HIGH].
+ */
+class Failure(val node: Node, val service: Service, val problem: RouteProblem?, val pingMs: Float?)
+
 /** What a week change brought: the UI shows it as "year · New: ...". */
 @Serializable
 data class WeekNews(

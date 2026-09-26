@@ -154,7 +154,7 @@ class MenuFlowTest {
         assertTrue(game === view.currentWorld)
     }
 
-    /** A game with some delivered packets that ends in game over within [World.Tuning.OVERLOAD_SECONDS]. */
+    /** A game with some delivered packets that ends in game over within [LOSE_SECONDS]. */
     private fun doomedGame(extraPackets: Int): World {
         val w = World(cols = 16, rows = 10, seed = 1L, spawnInitialNodes = false)
         w.grant(50)
@@ -181,13 +181,13 @@ class MenuFlowTest {
         assertTrue(SaveStore(app.filesDir).exists)
         draw(view)
         tap(view, MenuAction.RESUME)
-        play(view, World.Tuning.OVERLOAD_SECONDS + 3f)
+        play(view, LOSE_SECONDS)
         assertEquals(Screen.GAME_OVER, view.currentScreen)
         assertEquals(3, HighscoreStore(app).best())
         assertFalse("a lost game cannot be continued", SaveStore(app.filesDir).exists)
 
         view.drawSnapshot(Canvas(bmp), doomedGame(1), bmp.width, bmp.height, time = 0f)
-        play(view, World.Tuning.OVERLOAD_SECONDS + 3f)
+        play(view, LOSE_SECONDS)
         assertEquals(Screen.GAME_OVER, view.currentScreen)
         assertEquals("a lower score keeps the best", 3, HighscoreStore(app).best())
 
@@ -207,7 +207,7 @@ class MenuFlowTest {
         val camera = view.activeRenderer.camera
         val fitted = camera.scale
         var s = 0
-        while (!view.currentWorld.gameOver && s++ < 60 * 30) view.advance(1f / 60f)
+        while (!view.currentWorld.gameOver && s++ < 60 * 60) view.advance(1f / 60f)
         view.advance(1f / 60f)
         assertEquals("the map stays visible while the camera moves", Screen.PLAYING, view.currentScreen)
         assertTrue(camera.isAnimating)
@@ -223,7 +223,7 @@ class MenuFlowTest {
 
         view.drawSnapshot(Canvas(bmp), doomedGame(2), bmp.width, bmp.height, time = 0f)
         s = 0
-        while (!view.currentWorld.gameOver && s++ < 60 * 30) view.advance(1f / 60f)
+        while (!view.currentWorld.gameOver && s++ < 60 * 60) view.advance(1f / 60f)
         view.advance(1f / 60f)
         view.injectTouch(MotionEvent.ACTION_DOWN, 10f, 10f)
         view.injectTouch(MotionEvent.ACTION_UP, 10f, 10f)
@@ -238,7 +238,7 @@ class MenuFlowTest {
         view.injectTouch(MotionEvent.ACTION_DOWN, phone.x, phone.y)
         view.injectTouch(MotionEvent.ACTION_MOVE, phone.x + 40f, phone.y + 20f)
         var s = 0
-        while (!view.currentWorld.gameOver && s++ < 60 * 30) view.advance(1f / 60f)
+        while (!view.currentWorld.gameOver && s++ < 60 * 60) view.advance(1f / 60f)
         view.advance(1f / 60f)
         view.injectTouch(MotionEvent.ACTION_UP, phone.x + 40f, phone.y + 20f)
         view.advance(1f / 60f)
@@ -367,7 +367,7 @@ class MenuFlowTest {
     }
 
     @Test
-    fun pauseButtonWorksDuringTheRewardChoice() {
+    fun menuButtonWorksDuringTheRewardChoice() {
         val view = newView()
         pickScenery(view)
         val world = view.currentWorld
@@ -376,9 +376,9 @@ class MenuFlowTest {
         val offer = world.rewardOffer
         assertNotNull(offer)
         draw(view)
-        val pause = view.hudTarget("pause") ?: throw AssertionError("no pause button")
-        view.injectTouch(MotionEvent.ACTION_DOWN, pause.centerX(), pause.centerY())
-        view.injectTouch(MotionEvent.ACTION_UP, pause.centerX(), pause.centerY())
+        val menu = view.hudTarget("menu") ?: throw AssertionError("no menu button")
+        view.injectTouch(MotionEvent.ACTION_DOWN, menu.centerX(), menu.centerY())
+        view.injectTouch(MotionEvent.ACTION_UP, menu.centerX(), menu.centerY())
         view.advance(0f)
         assertEquals(Screen.PAUSED, view.currentScreen)
         draw(view)
@@ -519,12 +519,17 @@ class MenuFlowTest {
         }
         HighscoreStore(app).submit(50, Scenarios.RIVER_TOWN.id)
         view.drawSnapshot(Canvas(bmp), metro, bmp.width, bmp.height, time = 0f)
-        play(view, World.Tuning.OVERLOAD_SECONDS + 3f)
+        play(view, LOSE_SECONDS)
         assertEquals(Screen.GAME_OVER, view.currentScreen)
         assertEquals(50, HighscoreStore(app).best(Scenarios.RIVER_TOWN.id))
         assertEquals(0, HighscoreStore(app).best(Scenarios.METROPOLIS.id))
         draw(view)
         tap(view, MenuAction.PLAY_AGAIN)
         assertEquals("play again keeps the scenery", Scenarios.METROPOLIS, view.currentWorld.scenario)
+    }
+
+    private companion object {
+        /** Long enough for an overload ring to close, even in the slower first weeks ([World.Tuning.EARLY_WEEKS]). */
+        const val LOSE_SECONDS = World.Tuning.OVERLOAD_SECONDS * World.Tuning.EARLY_OVERLOAD_SLOWDOWN + 3f
     }
 }

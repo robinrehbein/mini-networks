@@ -9,7 +9,8 @@ import java.util.Locale
 /**
  * Difficulty guard and balancing report with the [GreedyBot] (docs/BALANCING.md).
  *
- * The guard runs with every build and fails if the first scenery suddenly gets much harder. The report plays every
+ * The guards run with every build and fail if the first scenery suddenly gets much harder or any scenery can be lost
+ * in its first weeks. The report plays every
  * scenery for [REPORT_SEEDS] seeds and rewrites the tables in docs/BALANCING.md:
  * `BALANCING_REPORT=1 ./gradlew :core:test --tests '*BalancingTest*'`.
  */
@@ -20,6 +21,16 @@ class BalancingTest {
         for (seed in GUARD_SEEDS) {
             val run = BotRunner.play(Scenarios.RIVER_TOWN, seed, GUARD_WEEKS)
             assertTrue("seed $seed: the bot lasted only ${run.weeks} weeks (${run.cause})", run.survived)
+        }
+    }
+
+    /** Paid sceneries must be fair too: no scenery may be lost within its first [GUARD_MIN_WEEKS] weeks. */
+    @Test
+    fun noSceneryIsLostInTheFirstWeeks() {
+        val runs = Scenarios.all.flatMap { s -> GUARD_SEEDS.map { s to it } }.parallelStream()
+            .map { (s, seed) -> BotRunner.play(s, seed, GUARD_MIN_WEEKS.toInt() + 1) }.toList()
+        for (run in runs) {
+            assertTrue("${run.scenario} seed ${run.seed}: lost after ${run.weeks} weeks (${run.cause})", run.weeks >= GUARD_MIN_WEEKS)
         }
     }
 
@@ -76,6 +87,8 @@ class BalancingTest {
         /** The bot must last this many weeks on the first scenery with every guard seed. */
         const val GUARD_WEEKS = 4
         val GUARD_SEEDS = listOf(1L, 2L, 3L)
+        /** Every scenery must last this many weeks with every guard seed. */
+        const val GUARD_MIN_WEEKS = 2f
         const val REPORT_SEEDS = 20L
         const val REPORT_MAX_WEEKS = 25
     }

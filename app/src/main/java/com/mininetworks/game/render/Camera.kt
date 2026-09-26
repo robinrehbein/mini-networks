@@ -81,10 +81,13 @@ class Camera {
         return minOf(w / r.width, h / r.height)
     }
 
-    /** Shows all of [r], centred; with [animate], glides there over the next [step]s. Sets [followsArea]. */
-    fun fit(r: MapRect, animate: Boolean = false) {
+    /**
+     * Shows all of [r], centred, but zoomed in at least to [atLeast] (then [r] may overflow the view); with [animate],
+     * glides there over the next [step]s. Sets [followsArea].
+     */
+    fun fit(r: MapRect, animate: Boolean = false, atLeast: Float = 0f) {
         followsArea = true
-        val s = fitScale(r).coerceIn(minScale, maxScale)
+        val s = maxOf(fitScale(r), atLeast).coerceIn(minScale, maxScale)
         if (animate) {
             animating = true
             rate = ANIM_RATE

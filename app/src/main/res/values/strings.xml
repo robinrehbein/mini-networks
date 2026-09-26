@@ -12,9 +12,7 @@
     <string name="hud_clock_day">Tag · %1$s</string>
     <string name="hud_clock_night">Nacht · %1$s · Backups um %2$s</string>
     <string name="clock_time" translatable="false">%1$02d:%2$02d</string>
-    <string name="button_pause">Pause</string>
     <string name="button_router">Router (%1$d)</string>
-    <string name="button_cable">%1$s · %2$d</string>
     <string name="hint_place_router">Tippe auf ein freies Feld</string>
     <string name="button_access_point">WLAN (%1$d)</string>
     <string name="button_cell_tower">Mast (%1$d)</string>
@@ -62,7 +60,7 @@
     <string name="device_smart_home">Smart-Home-Hub</string>
     <string name="cable_isdn">ISDN</string>
     <string name="cable_dsl">DSL</string>
-    <string name="cable_coax">Kabel</string>
+    <string name="cable_coax">TV-Kabel</string>
     <string name="cable_fiber">Glasfaser</string>
     <string name="node_router">Router</string>
     <string name="node_access_point">WLAN-Access-Point</string>
@@ -81,7 +79,7 @@
     <string name="connect_error_no_budget">Budget reicht nicht</string>
 
     <!-- Week rewards -->
-    <string name="reward_prompt">+%1$d Budget Wochenlohn · Tippe auf eine Karte für ein Extra</string>
+    <string name="reward_prompt">Wochenlohn: +%1$d · Tippe auf eine Karte für ein Extra</string>
     <string name="reward_amount_plus">+%1$d</string>
     <string name="reward_amount_voucher">Gratis</string>
     <string name="reward_budget_title">Budget</string>
@@ -173,7 +171,7 @@
         <item quantity="other">Ein neuer PC ohne Anschluss! Ab %1$d wartenden Anfragen füllt sich ein roter Ring. Ist er voll, ist das Spiel vorbei. Schließ den PC an!</item>
     </plurals>
     <string name="tutorial_done_title">Geschafft!</string>
-    <string name="tutorial_done_text">Du kennst die Grundlagen. Woche für Woche kommen neue Geräte, Dienste und Techniken dazu. Viel Spaß!</string>
+    <string name="tutorial_done_text">Du kennst die Grundlagen. Tipps: Server antippen rüstet sie auf, ein Kabel zweimal antippen entfernt es, Pause hält die Zeit an und du baust weiter. Viel Spaß!</string>
     <!-- Monetization (docs/PLAN.md 5.1) -->
     <string name="menu_remove_ads">Werbefrei · %1$s</string>
     <string name="settings_privacy">Datenschutz-Einstellungen</string>
@@ -184,4 +182,38 @@
     <string name="hint_bonus_router">+1 Router</string>
     <string name="hint_continued">Die Überlast-Ringe sind leer · einmal pro Partie</string>
     <string name="scenery_pack_buy">Alle Szenerien · %1$s</string>
+
+    <!-- Controls feedback -->
+    <string name="hud_paused">Pausiert · du kannst weiterbauen</string>
+    <string name="hint_cable_info">%1$s: Bandbreite %2$d · %3$s ms pro Feld · Preis pro Feld %4$d</string>
+    <string name="hint_cable_too_narrow">zu schmal für %1$s</string>
+    <string name="hint_cable_upgraded">Kabel auf %1$s aufgerüstet · −%2$d</string>
+    <string name="cable_error_no_budget">Zu wenig Budget, Aufrüsten kostet %1$d</string>
+    <string name="hint_cable_remove">%1$s-Kabel · nochmal antippen zum Entfernen (+%2$d)</string>
+    <string name="hint_cable_removed">Kabel entfernt, zurück: +%1$d</string>
+    <string name="place_error_no_stock">Kein %1$s mehr auf Lager</string>
+    <string name="place_error_locked">Dieses Feld ist noch nicht erschlossen</string>
+    <string name="place_error_occupied">Das Feld ist schon belegt</string>
+    <string name="place_error_terrain">Nur auf freiem Land</string>
+    <string name="hint_router_pick_up">Router ohne Kabel · nochmal antippen: zurück ins Lager</string>
+    <string name="hint_router_picked_up">Router zurück im Lager</string>
+    <string name="server_tier">Stufe %1$d</string>
+    <string name="server_tier_data_center">Rechenzentrum</string>
+    <string name="hint_server_preview">%1$s → %2$s für %3$d · nochmal antippen</string>
+    <string name="hint_server_preview_voucher">%1$s → %2$s mit Gutschein · nochmal antippen</string>
+    <string name="hint_server_upgraded">%1$s jetzt: %2$s</string>
+    <string name="hint_server_busy">%1$s kommt nicht hinterher: antippen zum Aufrüsten</string>
+    <string name="hint_radio_reward">Neu: %1$s – gibt es als Wochen-Belohnung</string>
+    <string name="hint_service_needs">%1$s braucht Bandbreite %2$d</string>
+    <string name="hint_service_needs_ping">%1$s braucht Bandbreite %2$d, Ping höchstens %3$d ms</string>
+    <string name="device_wants">%1$s will %2$s</string>
+    <string name="problem_no_route">%1$s: %2$s – kein Weg zu einem Server</string>
+    <string name="problem_too_narrow">%1$s: %2$s – kein Kabel breit genug (Bandbreite %3$d)</string>
+    <string name="problem_ping">%1$s: %2$s – Ping %3$d ms, erlaubt %4$d ms</string>
+    <string name="problem_jam">%1$s: %2$s – Stau, Kabel oder Server zu voll</string>
+    <string name="drag_too_narrow">%1$s braucht Bandbreite %2$d</string>
+    <string name="drag_ping">%1$s: Ping %2$d/%3$d ms</string>
+    <string name="incident_countdown" translatable="false">%1$d s</string>
+    <string name="hint_two_parts" translatable="false">%1$s · %2$s</string>
+    <string name="incident_more">%1$s (+%2$d)</string>
 </resources>

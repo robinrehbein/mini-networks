@@ -34,13 +34,16 @@ import kotlin.concurrent.thread
 
 /**
  * [Monetization] with Google Play: AdMob interstitials and rewarded videos behind the UMP consent form, one-time
- * products with the Play Billing Library.
+ * products with the Play Billing Library. The decisions that policies care about live in [PlayRules]; this class only
+ * wires them to the SDKs.
  *
  * [start] first asks UMP for the consent status and shows the form where it is required (EEA, UK); the Mobile Ads SDK
- * is only initialized and ads are only requested once [ConsentInformation.canRequestAds] is true. Owned products are
- * kept in [MonetizationStore], so they work offline, and re-queried from Play at every start: the answer replaces the
- * stored set, so refunds disappear. New purchases are acknowledged, otherwise Play refunds them after three days.
- * Ad unit ids come from [BuildConfig] (Google's test ids unless real ones are configured, see app/build.gradle.kts).
+ * is only initialized and ads are only requested once [ConsentInformation.canRequestAds] is true, and never while
+ * "remove ads" is owned. Owned products are kept in [MonetizationStore], so they work offline, and re-queried from Play
+ * at every start and every [refresh] (from `onResume`, which also catches promo codes and pending purchases finished
+ * outside the app): the answer replaces the stored set, so refunds disappear. New purchases are acknowledged, otherwise
+ * Play refunds them after three days. Ad unit ids come from [BuildConfig] (Google's test ids unless real ones are
+ * configured, see app/build.gradle.kts).
  */
 class PlayMonetization(private val activity: Activity) : Monetization, PurchasesUpdatedListener {
     private val main = Handler(Looper.getMainLooper())
@@ -58,6 +61,7 @@ class PlayMonetization(private val activity: Activity) : Monetization, Purchases
     private var loadingRewarded = false
     private var retryPending = false
     @Volatile private var closed = false
+    @Volatile private var connecting = false
 
     private val billing: BillingClient = BillingClient.newBuilder(activity)
         .setListener(this)
@@ -77,15 +81,38 @@ class PlayMonetization(private val activity: Activity) : Monetization, Purchases
     /** Consent first, then ads; billing connects in parallel. Call once from `onCreate`. */
     fun start() {
         gatherConsent()
+        connectBilling()
+    }
+
+    /**
+     * Asks Play again what is owned (and for the prices while they are missing); connects first if the last setup
+     * failed. Call from `onResume`.
+     */
+    fun refresh() {
+        if (closed) return
+        if (!billing.isReady) {
+            connectBilling()
+            return
+        }
+        queryPurchases()
+        if (details.isEmpty()) queryProducts()
+    }
+
+    private fun connectBilling() {
+        if (closed || connecting) return
+        connecting = true
         billing.startConnection(object : BillingClientStateListener {
             override fun onBillingSetupFinished(result: BillingResult) {
+                connecting = false
                 if (result.responseCode != BillingClient.BillingResponseCode.OK) return
                 queryPurchases()
                 queryProducts()
             }
 
-            // Reconnects on its own (enableAutoServiceReconnection).
-            override fun onBillingServiceDisconnected() = Unit
+            // Calls reconnect on their own (enableAutoServiceReconnection); a failed setup is retried by refresh().
+            override fun onBillingServiceDisconnected() {
+                connecting = false
+            }
         })
     }
 
@@ -119,9 +146,10 @@ class PlayMonetization(private val activity: Activity) : Monetization, Purchases
         privacyRequired = consent.privacyOptionsRequirementStatus == ConsentInformation.PrivacyOptionsRequirementStatus.REQUIRED
     }
 
-    /** Initializes the Mobile Ads SDK once consent allows it; no ad is requested before. */
+    /** Initializes the Mobile Ads SDK once consent allows it and ads are not removed; no ad is requested before. */
     private fun startAds() {
-        if (closed || !consent.canRequestAds() || !adsStarted.compareAndSet(false, true)) return
+        if (!PlayRules.canInitializeAds(consent.canRequestAds(), adsRemoved, adsStarted.get(), closed)) return
+        if (!adsStarted.compareAndSet(false, true)) return
         val context = activity.applicationContext
         thread(name = "MobileAdsInit") {
             MobileAds.initialize(context) {
@@ -135,7 +163,7 @@ class PlayMonetization(private val activity: Activity) : Monetization, Purchases
 
     /** Loads whatever is missing; nothing once ads are removed (rewarded benefits come without a video then). */
     private fun loadAds() {
-        if (closed || !adsReady || adsRemoved || !consent.canRequestAds()) return
+        if (!PlayRules.shouldLoadAds(adsReady, consent.canRequestAds(), adsRemoved, closed)) return
         if (interstitial.get() == null && !loadingInterstitial) {
             loadingInterstitial = true
             InterstitialAd.load(activity, BuildConfig.ADMOB_INTERSTITIAL_ID, AdRequest.Builder().build(), object : InterstitialAdLoadCallback() {
@@ -240,10 +268,13 @@ class PlayMonetization(private val activity: Activity) : Monetization, Purchases
     }
 
     override fun onPurchasesUpdated(result: BillingResult, purchases: List<Purchase>?) {
-        if (result.responseCode != BillingClient.BillingResponseCode.OK || purchases == null) return
-        val bought = purchases.filter { it.purchaseState == Purchase.PurchaseState.PURCHASED }
-        setOwned(owned + bought.flatMap { it.products })
-        bought.forEach(::acknowledge)
+        when (result.responseCode) {
+            BillingClient.BillingResponseCode.OK -> if (purchases != null) {
+                apply(PlayRules.addBought(owned, purchases.map(::info)))
+            }
+            // Owned on another device or from before a reinstall: ask Play what is owned instead of staying locked.
+            BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED -> queryPurchases()
+        }
     }
 
     /** What Play says is owned now replaces the stored set; pending purchases do not count yet. */
@@ -251,11 +282,25 @@ class PlayMonetization(private val activity: Activity) : Monetization, Purchases
         val params = QueryPurchasesParams.newBuilder().setProductType(BillingClient.ProductType.INAPP).build()
         billing.queryPurchasesAsync(params) { result, purchases ->
             if (result.responseCode != BillingClient.BillingResponseCode.OK) return@queryPurchasesAsync
-            val bought = purchases.filter { it.purchaseState == Purchase.PurchaseState.PURCHASED }
-            setOwned(bought.flatMap { it.products }.toSet())
-            bought.forEach(::acknowledge)
+            apply(PlayRules.reconcile(purchases.map(::info)))
         }
     }
+
+    private fun apply(outcome: PurchaseOutcome) {
+        setOwned(outcome.owned)
+        outcome.acknowledge.forEach(::acknowledge)
+    }
+
+    private fun info(p: Purchase) = PurchaseInfo(
+        p.products,
+        when (p.purchaseState) {
+            Purchase.PurchaseState.PURCHASED -> PurchaseInfo.State.PURCHASED
+            Purchase.PurchaseState.PENDING -> PurchaseInfo.State.PENDING
+            else -> PurchaseInfo.State.OTHER
+        },
+        p.isAcknowledged,
+        p.purchaseToken,
+    )
 
     private fun queryProducts() {
         val products = Entitlements.PRODUCTS.map {
@@ -268,9 +313,8 @@ class PlayMonetization(private val activity: Activity) : Monetization, Purchases
         }
     }
 
-    private fun acknowledge(p: Purchase) {
-        if (p.isAcknowledged) return
-        billing.acknowledgePurchase(AcknowledgePurchaseParams.newBuilder().setPurchaseToken(p.purchaseToken).build()) { }
+    private fun acknowledge(token: String) {
+        billing.acknowledgePurchase(AcknowledgePurchaseParams.newBuilder().setPurchaseToken(token).build()) { }
     }
 
     private fun setOwned(products: Set<String>) {
@@ -280,7 +324,11 @@ class PlayMonetization(private val activity: Activity) : Monetization, Purchases
             interstitial.set(null)
             rewarded.set(null)
         } else {
-            main.post(::loadAds)
+            // "Remove ads" refunded or never owned after all: the SDK may start now (if consent allows) and load.
+            main.post {
+                startAds()
+                loadAds()
+            }
         }
     }
 

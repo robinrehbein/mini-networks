@@ -69,38 +69,46 @@ class SceneryPicker(context: Context) {
         targets.clear()
         val wDp = width / density
         val hDp = height / density
-        val cardW = ((wDp - 2 * MARGIN_DP - (cards.size - 1) * GAP_DP) / cards.size).coerceAtMost(MAX_CARD_W_DP)
-        val naturalH = MARGIN_DP + TITLE_DP + CARD_H_DP + HINT_DP
+        // One row while cards stay wide enough (landscape); otherwise a grid, e.g. two columns in a portrait window.
+        val cols = (cards.size downTo 1).first { n -> n == 1 || (wDp - 2 * MARGIN_DP - (n - 1) * GAP_DP) / n >= MIN_CARD_W_DP }
+        val rows = (cards.size + cols - 1) / cols
+        val wrapped = rows > 1
+        val cardW = ((wDp - 2 * MARGIN_DP - (cols - 1) * GAP_DP) / cols).coerceAtMost(MAX_CARD_W_DP)
+        // In a grid the title gets its own line under the pills, so it never runs into them.
+        val titleH = if (wrapped) 2 * TITLE_DP else TITLE_DP
+        val naturalH = MARGIN_DP + titleH + rows * CARD_H_DP + (rows - 1) * ROW_GAP_DP + HINT_DP
         val s = minOf(1f, hDp / naturalH)
         val u = density * s
-        val rowW = (cards.size * cardW + (cards.size - 1) * GAP_DP) * u
-        var x = (width - rowW) / 2f
+        val rowW = (cols * cardW + (cols - 1) * GAP_DP) * u
+        val left = (width - rowW) / 2f
         val top = (height - naturalH * u) / 2f + MARGIN_DP * u
 
         text.textAlign = Paint.Align.CENTER
         text.typeface = Typeface.DEFAULT_BOLD
         text.color = ink
         text.textSize = 24f * u
-        canvas.drawText(title, width / 2f, top + 28f * u, text)
+        canvas.drawText(title, width / 2f, top + (if (wrapped) TITLE_DP else 0f) * u + 28f * u, text)
         text.textSize = 15f * u
         val backW = text.measureText(back) + 40f * u
-        r.set(x, top + 2f * u, x + backW, top + 38f * u)
+        r.set(left, top + 2f * u, left + backW, top + 38f * u)
         pill(canvas, back, pressed == BACK, u)
         targets += RectF(r) to BACK
         if (pack != null) {
             val packW = text.measureText(pack) + 40f * u
-            r.set(x + rowW - packW, top + 2f * u, x + rowW, top + 38f * u)
+            r.set(left + rowW - packW, top + 2f * u, left + rowW, top + 38f * u)
             pill(canvas, pack, pressed == PACK, u, primary = true)
             targets += RectF(r) to PACK
         }
 
-        val cardTop = top + TITLE_DP * u
-        for (card in cards) {
+        val gridTop = top + titleH * u
+        for ((i, card) in cards.withIndex()) {
+            val x = left + (i % cols) * (cardW + GAP_DP) * u
+            val cardTop = gridTop + (i / cols) * (CARD_H_DP + ROW_GAP_DP) * u
             r.set(x, cardTop, x + cardW * u, cardTop + (CARD_H_DP - SLAB_DP) * u)
             drawCard(canvas, card, pressed == card.scenario.id, u)
             targets += RectF(x, cardTop, x + cardW * u, cardTop + CARD_H_DP * u) to card.scenario.id
-            x += (cardW + GAP_DP) * u
         }
+        val cardTop = gridTop + (rows - 1) * (CARD_H_DP + ROW_GAP_DP) * u
         hint?.let {
             text.textAlign = Paint.Align.CENTER
             text.typeface = Typeface.DEFAULT_BOLD
@@ -263,6 +271,9 @@ class SceneryPicker(context: Context) {
         private const val HINT_DP = 30f
         private const val GAP_DP = 10f
         private const val MAX_CARD_W_DP = 180f
+        /** Narrowest card in one row; below it the cards wrap into a grid. */
+        private const val MIN_CARD_W_DP = 120f
+        private const val ROW_GAP_DP = 16f
         private const val SLAB_DP = 6f
         private const val PREVIEW_RATIO = 0.62f
         /** The start block fills the preview a bit beyond its edges. */
