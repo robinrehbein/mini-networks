@@ -20,6 +20,9 @@ class Texts(private val context: Context) {
             Service.CALL -> R.string.service_call
             Service.GAMING -> R.string.service_gaming
             Service.STREAMING -> R.string.service_streaming
+            Service.VIDEO_CALL -> R.string.service_video_call
+            Service.CAMERA_UPLOAD -> R.string.service_camera_upload
+            Service.CLOUD_BACKUP -> R.string.service_cloud_backup
         },
     )
 
@@ -33,6 +36,8 @@ class Texts(private val context: Context) {
             Device.TV -> R.string.device_tv
             Device.TABLET -> R.string.device_tablet
             Device.WATCH -> R.string.device_watch
+            Device.CAMERA -> R.string.device_camera
+            Device.SMART_HOME -> R.string.device_smart_home
         },
     )
 
@@ -60,6 +65,12 @@ class Texts(private val context: Context) {
             RadioType.CELL -> R.string.node_cell_tower
         },
     )
+
+    /** Clock time for an in-game [hour] (0 until 24), in steps of ten minutes. */
+    fun clock(hour: Float): String {
+        val minutes = (hour * 60f).toInt() / 10 * 10
+        return context.getString(R.string.clock_time, minutes / 60 % 24, minutes % 60)
+    }
 
     /** "New: DSL, Laptop" and, with [withYear], "1998 · New: DSL, Laptop". */
     fun news(n: WeekNews, withYear: Boolean): String {

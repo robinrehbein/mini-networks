@@ -252,6 +252,77 @@ class ScreenshotTest {
     }
 
     /**
+     * Week 8 at night, shortly after the backup burst: video calls (pentagon), two security cameras streaming uploads
+     * (hexagon) and cloud backups (plus) from PCs, laptops and smart-home hubs; upload answers are small acks.
+     */
+    private fun newServicesScene(): World {
+        val w = World(cols = 16, rows = 10, seed = 3L, spawnInitialNodes = false)
+        for (row in w.water) row.fill(false)
+        w.jumpToWeek(8)
+        w.grant(400)
+        val video = w.addServer(Service.VIDEO_CALL, 13, 1)
+        val upload = w.addServer(Service.CAMERA_UPLOAD, 13, 8)
+        val backup = w.addServer(Service.CLOUD_BACKUP, 2, 1)
+        val mail = w.addServer(Service.MAIL, 2, 8)
+        val west = w.addRouter(5, 4)
+        val east = w.addRouter(10, 4)
+        check(w.connect(west, east, CableType.FIBER))
+        listOf(backup, mail).forEach { check(w.connect(west, it, CableType.FIBER)) }
+        listOf(video, upload).forEach { check(w.connect(east, it, CableType.FIBER)) }
+        listOf(video, upload, backup).forEach { s -> repeat(2) { w.upgradeServer(s) } }
+        val clients = listOf(
+            w.addClient(Device.CAMERA, 12, 6) to east, w.addClient(Device.CAMERA, 8, 7) to east,
+            w.addClient(Device.SMART_HOME, 4, 7) to west, w.addClient(Device.SMART_HOME, 7, 2) to west,
+            w.addClient(Device.LAPTOP, 3, 3) to west, w.addClient(Device.TABLET, 11, 2) to east,
+        )
+        for ((c, r) in clients) check(w.connect(c, r, CableType.DSL))
+        check(w.connect(w.addClient(Device.PC, 6, 7), clients[2].first, CableType.DSL))
+        w.addClient(Device.PC, 14, 4)
+        repeat(60 * 14) { w.update(1f / 60f) }
+        check(w.isNight) { "scene is set at night" }
+        return w
+    }
+
+    @Test
+    fun renderNewServices() {
+        val world = newServicesScene()
+        for (r in listOf(FlatRenderer(), IsoRenderer())) {
+            val bmp = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)
+            r.layout(bmp.width, bmp.height, world)
+            r.draw(Canvas(bmp), world, drag = null, time = 1.3f)
+            save(bmp, File(shots, "new-services-${r.name.lowercase()}.png"))
+        }
+        val view = GameView(RuntimeEnvironment.getApplication())
+        val bmp = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)
+        view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 1.3f, style = "Iso")
+        save(bmp, File(shots, "new-services-hud.png"))
+    }
+
+    /** Every service shape in both palettes, requests filled and responses outlined, plus every device icon. */
+    @Test
+    fun renderServiceShapes() {
+        val bmp = Bitmap.createBitmap(1400, 560, Bitmap.Config.ARGB_8888)
+        val c = Canvas(bmp)
+        c.drawColor(0xFFDDE9D6.toInt())
+        val stroke = stroke(0, 5f)
+        for ((row, colorblind) in listOf(false, true).withIndex()) {
+            ServiceColors.colorblind = colorblind
+            for ((i, svc) in Service.entries.withIndex()) {
+                val x = 100f + i * 200f
+                val y = 80f + row * 150f
+                Shapes.draw(c, svc.shape, x - 40f, y, 34f, fill(ServiceColors.of(svc)))
+                Shapes.draw(c, svc.shape, x + 45f, y, 22f, fill(0xFFFFFFFF.toInt()))
+                stroke.color = ServiceColors.of(svc)
+                Shapes.draw(c, svc.shape, x + 45f, y, 22f, stroke)
+            }
+        }
+        ServiceColors.colorblind = false
+        val icons = DeviceIcons()
+        for ((i, d) in Device.entries.withIndex()) icons.device(c, d, 70f + i * 130f, 440f, 40f)
+        save(bmp, File(shots, "service-shapes.png"))
+    }
+
+    /**
      * A 32×20 city in week 5: two rings have grown around the 16×10 start block. Every client is wired to the
      * nearest server it can use so the network carries traffic.
      */

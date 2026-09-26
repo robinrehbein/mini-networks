@@ -12,6 +12,8 @@ import kotlin.math.pow
 /**
  * The colorblind palette keeps every pair of services apart under simulated protanopia and deuteranopia
  * (Machado et al. 2009, severity 1), measured as CIE76 ΔE in Lab. The default palette does not, which is why it exists.
+ * Dichromats see a two-dimensional color space (lightness and blue-yellow), so seven services cannot all keep the
+ * ΔE 30 that four could; [MIN_DELTA_E] is 25, and the shapes stay the primary signal.
  */
 class ServiceColorsTest {
 
@@ -74,7 +76,7 @@ class ServiceColorsTest {
     }
 
     private companion object {
-        const val MIN_DELTA_E = 30.0
+        const val MIN_DELTA_E = 25.0
         val IDENTITY = arrayOf(doubleArrayOf(1.0, 0.0, 0.0), doubleArrayOf(0.0, 1.0, 0.0), doubleArrayOf(0.0, 0.0, 1.0))
         val PROTAN = arrayOf(
             doubleArrayOf(0.152286, 1.052583, -0.204868),

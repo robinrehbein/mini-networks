@@ -16,6 +16,7 @@ import com.mininetworks.game.game.Service
 import com.mininetworks.game.game.Shape
 import com.mininetworks.game.game.Vec2
 import com.mininetworks.game.game.World
+import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.sin
 
@@ -162,8 +163,29 @@ object Shapes {
                 val h = r * 1.2f
                 path.moveTo(x, y - h); path.lineTo(x + h, y); path.lineTo(x, y + h); path.lineTo(x - h, y); path.close()
             }
+            Shape.PENTAGON -> polygon(x, y + r * 0.08f, r * 1.1f, 5, -90f)
+            Shape.HEXAGON -> polygon(x, y, r * 1.05f, 6, 0f)
+            Shape.PLUS -> {
+                val a = r * 1.05f
+                val t = r * 0.38f
+                path.moveTo(x - t, y - a); path.lineTo(x + t, y - a); path.lineTo(x + t, y - t); path.lineTo(x + a, y - t)
+                path.lineTo(x + a, y + t); path.lineTo(x + t, y + t); path.lineTo(x + t, y + a); path.lineTo(x - t, y + a)
+                path.lineTo(x - t, y + t); path.lineTo(x - a, y + t); path.lineTo(x - a, y - t); path.lineTo(x - t, y - t)
+                path.close()
+            }
         }
         return path
+    }
+
+    /** Regular polygon with [corners] on a circle of radius [r], the first corner at [startDeg]. */
+    private fun polygon(x: Float, y: Float, r: Float, corners: Int, startDeg: Float) {
+        for (i in 0 until corners) {
+            val a = Math.toRadians((startDeg + 360f * i / corners).toDouble())
+            val px = x + r * cos(a).toFloat()
+            val py = y + r * sin(a).toFloat()
+            if (i == 0) path.moveTo(px, py) else path.lineTo(px, py)
+        }
+        path.close()
     }
 
     fun draw(c: Canvas, shape: Shape, x: Float, y: Float, r: Float, paint: Paint) = c.drawPath(path(shape, x, y, r), paint)
@@ -189,7 +211,8 @@ fun stroke(color: Int, width: Float = 1f) = Paint(Paint.ANTI_ALIAS_FLAG).apply {
 
 /**
  * Service colors of the active palette. The default palette puts green, amber and red side by side, which blur
- * together with red-green color blindness; [colorblind] switches to hues from the Okabe-Ito set that stay apart.
+ * together with red-green color blindness; [colorblind] switches to hues based on the Okabe-Ito set, tuned so that all
+ * seven stay apart (lightness carries what the hue cannot).
  * Shapes carry the information either way. Set from the game thread (settings), read while drawing.
  */
 object ServiceColors {
@@ -202,13 +225,19 @@ object ServiceColors {
         Service.CALL -> 0xFF3BA55C.toInt()
         Service.GAMING -> 0xFFE9A92B.toInt()
         Service.STREAMING -> 0xFFE4572E.toInt()
+        Service.VIDEO_CALL -> 0xFF8E5BC6.toInt()
+        Service.CAMERA_UPLOAD -> 0xFF4A5561.toInt()
+        Service.CLOUD_BACKUP -> 0xFF6CC4EC.toInt()
     }
 
     fun colorblindOf(s: Service) = when (s) {
-        Service.MAIL -> 0xFF0072B2.toInt()
-        Service.CALL -> 0xFF009E73.toInt()
+        Service.MAIL -> 0xFF006AB1.toInt()
+        Service.CALL -> 0xFF43B771.toInt()
         Service.GAMING -> 0xFFF0E442.toInt()
         Service.STREAMING -> 0xFFD55E00.toInt()
+        Service.VIDEO_CALL -> 0xFFCA7BA5.toInt()
+        Service.CAMERA_UPLOAD -> 0xFF444444.toInt()
+        Service.CLOUD_BACKUP -> 0xFF95DAFF.toInt()
     }
 }
 
@@ -322,6 +351,36 @@ class DeviceIcons {
                 line.strokeWidth = s * 0.12f
                 canvas.drawLine(x, y, x, y - s * 0.3f, line)
                 canvas.drawLine(x, y, x + s * 0.22f, y, line)
+            }
+            Device.CAMERA -> {
+                // Security camera on a wall arm: tilted body, lens at the front, recording light on top.
+                line.strokeWidth = s * 0.16f
+                canvas.drawLine(x + s * 0.75f, y + s * 0.8f, x + s * 0.75f, y + s * 0.1f, line)
+                canvas.drawLine(x + s * 0.75f, y + s * 0.1f, x + s * 0.35f, y - s * 0.05f, line)
+                canvas.save()
+                canvas.rotate(-15f, x, y - s * 0.3f)
+                box(x - s * 0.95f, y - s * 0.62f, x + s * 0.55f, y + s * 0.02f, s * 0.14f, 0xFFFFFFFF.toInt(), s)
+                box(x - s * 1.15f, y - s * 0.52f, x - s * 0.85f, y - s * 0.08f, s * 0.06f, screen, s * 0.8f)
+                canvas.restore()
+                body.color = 0xFFE4572E.toInt()
+                canvas.drawCircle(x + s * 0.2f, y - s * 0.62f, s * 0.1f, body)
+            }
+            Device.SMART_HOME -> {
+                // Hub shaped like a house with a status light in the door.
+                path.reset()
+                path.moveTo(x, y - s * 0.95f); path.lineTo(x + s * 0.95f, y - s * 0.1f); path.lineTo(x + s * 0.72f, y - s * 0.1f)
+                path.lineTo(x + s * 0.72f, y + s * 0.85f); path.lineTo(x - s * 0.72f, y + s * 0.85f); path.lineTo(x - s * 0.72f, y - s * 0.1f)
+                path.lineTo(x - s * 0.95f, y - s * 0.1f); path.close()
+                body.color = 0xFFFFFFFF.toInt(); canvas.drawPath(path, body)
+                line.strokeWidth = s * 0.16f; canvas.drawPath(path, line)
+                line.strokeWidth = s * 0.12f
+                for (i in 1..2) {
+                    val r = s * 0.2f * i
+                    rect.set(x - r, y + s * 0.15f - r, x + r, y + s * 0.15f + r)
+                    canvas.drawArc(rect, -135f, 90f, false, line)
+                }
+                body.color = 0xFF3BA55C.toInt()
+                canvas.drawCircle(x, y + s * 0.5f, s * 0.12f, body)
             }
         }
     }

@@ -7,33 +7,75 @@ import kotlin.math.min
 /** Point in world space. One unit = one grid cell. */
 data class Vec2(val x: Float, val y: Float)
 
-enum class Shape { CIRCLE, SQUARE, TRIANGLE, DIAMOND }
+enum class Shape { CIRCLE, SQUARE, TRIANGLE, DIAMOND, PENTAGON, HEXAGON, PLUS }
+
+/** When a client asks for a service. */
+enum class Demand {
+    /** Now and then: each request picks one of the device's random-demand services, faster as the weeks go by. */
+    RANDOM,
+
+    /** A steady stream: one request every [World.Tuning.STREAM_SECONDS], the same in every week. */
+    STREAM,
+
+    /** Only at the nightly backup time ([World.Tuning.BACKUP_HOUR]), then [World.Tuning.BACKUP_BURST] requests at once. */
+    NIGHTLY,
+}
 
 /**
  * What a device wants from the network. Each service has a bandwidth need (packet size in capacity units)
  * and optionally a round-trip ping limit: real-time services fail on slow routes even when bandwidth is free.
+ * The first server of a service appears in [serverWeek]; [demand] says when clients ask for it.
+ * An [upload] sends its data with the request; the response is only a small acknowledgement ([responseSize]).
  * The shape is the primary signal (colorblind-safe), color only supports it. Names come from the UI's string resources.
  */
-enum class Service(val shape: Shape, val bandwidth: Int, val maxPingMs: Int?) {
-    MAIL(Shape.SQUARE, 1, null),
-    CALL(Shape.DIAMOND, 1, 300),
-    GAMING(Shape.TRIANGLE, 1, 110),
-    STREAMING(Shape.CIRCLE, 3, null),
+enum class Service(
+    val shape: Shape,
+    val bandwidth: Int,
+    val maxPingMs: Int?,
+    val serverWeek: Int,
+    val demand: Demand = Demand.RANDOM,
+    val upload: Boolean = false,
+) {
+    MAIL(Shape.SQUARE, 1, null, 1),
+    CALL(Shape.DIAMOND, 1, 300, 1),
+    GAMING(Shape.TRIANGLE, 1, 110, 3),
+    STREAMING(Shape.CIRCLE, 3, null, 4),
+    VIDEO_CALL(Shape.PENTAGON, 2, 240, 6),
+    CAMERA_UPLOAD(Shape.HEXAGON, 2, null, 7, Demand.STREAM, upload = true),
+    CLOUD_BACKUP(Shape.PLUS, 4, null, 8, Demand.NIGHTLY, upload = true),
+    ;
+
+    /** Size of the response in capacity units: the full [bandwidth], or [ACK_SIZE] for an [upload]. */
+    val responseSize get() = if (upload) ACK_SIZE else bandwidth
+
+    companion object {
+        const val ACK_SIZE = 1
+    }
 }
 
 /**
- * Client devices. They appear over the eras and each asks for a mix of services.
+ * Client devices. They appear over the eras and each asks for a mix of services, see [Service.demand].
  * [mobile] devices can also use a cell tower ([RadioType.CELL]).
  */
 enum class Device(val services: List<Service>, val unlockWeek: Int, val mobile: Boolean = false) {
-    PC(listOf(Service.MAIL, Service.GAMING), 1),
+    PC(listOf(Service.MAIL, Service.GAMING, Service.CLOUD_BACKUP), 1),
     PHONE(listOf(Service.CALL), 1),
-    LAPTOP(listOf(Service.MAIL, Service.STREAMING, Service.CALL), 2),
+    LAPTOP(listOf(Service.MAIL, Service.STREAMING, Service.CALL, Service.VIDEO_CALL, Service.CLOUD_BACKUP), 2),
     CONSOLE(listOf(Service.GAMING), 3),
-    SMARTPHONE(listOf(Service.CALL, Service.STREAMING, Service.MAIL), 4, mobile = true),
+    SMARTPHONE(listOf(Service.CALL, Service.STREAMING, Service.MAIL, Service.VIDEO_CALL), 4, mobile = true),
     TV(listOf(Service.STREAMING), 4),
-    TABLET(listOf(Service.STREAMING, Service.MAIL), 5, mobile = true),
+    TABLET(listOf(Service.STREAMING, Service.MAIL, Service.VIDEO_CALL), 5, mobile = true),
     WATCH(listOf(Service.CALL), 6, mobile = true),
+
+    /** Security camera: streams its picture upward all the time. */
+    CAMERA(listOf(Service.CAMERA_UPLOAD), 7),
+
+    /** Smart-home hub: small messages by day, a backup at night. */
+    SMART_HOME(listOf(Service.MAIL, Service.CLOUD_BACKUP), 7),
+    ;
+
+    /** The service this device streams without pause, if any; such a device asks for nothing else. */
+    val stream get() = services.firstOrNull { it.demand == Demand.STREAM }
 }
 
 /**
@@ -206,7 +248,8 @@ class Route(val nodes: List<Node>, val pingMs: Float) {
  * Both directions share cable capacity.
  */
 class Packet(val service: Service, val origin: Node, val route: List<Node>, val isResponse: Boolean = false) {
-    val size get() = service.bandwidth
+    /** Capacity units the packet takes: the service bandwidth, or the acknowledgement size for an upload's response. */
+    val size get() = if (isResponse) service.responseSize else service.bandwidth
 
     /** Index of the node the packet last left (or waits at). */
     var hop = 0

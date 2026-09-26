@@ -22,6 +22,7 @@ import com.mininetworks.game.game.Bend
 import com.mininetworks.game.game.CableLayout
 import com.mininetworks.game.game.CableType
 import com.mininetworks.game.game.Cell
+import com.mininetworks.game.game.Demand
 import com.mininetworks.game.game.FixedStep
 import com.mininetworks.game.game.Node
 import com.mininetworks.game.game.NodeKind
@@ -485,6 +486,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         val barW = 110 * density
         canvas.drawRoundRect(pad, barY, pad + barW, barY + 4 * density, 2 * density, 2 * density, barBg)
         canvas.drawRoundRect(pad, barY, pad + barW * world.weekProgress, barY + 4 * density, 2 * density, 2 * density, barFg)
+        if (world.availableServices.any { it.demand == Demand.NIGHTLY }) {
+            val now = texts.clock(world.hourOfDay)
+            val label = if (world.isNight) context.getString(R.string.hud_clock_night, now, texts.clock(World.Tuning.BACKUP_HOUR))
+            else context.getString(R.string.hud_clock_day, now)
+            canvas.drawText(label, pad, barY + 4 * density + 6 * density + hudSub.textSize, hudSub)
+        }
 
         val right = surfaceWidth - pad
         hudText.textAlign = Paint.Align.RIGHT

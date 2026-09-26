@@ -1,6 +1,7 @@
 package com.mininetworks.game.game
 
 import kotlin.math.abs
+import kotlin.math.floor
 import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -44,6 +45,18 @@ class World(
         const val START_ROWS = 10
         /** The playable block grows by one ring of cells every this many weeks. */
         const val GROWTH_WEEKS = 2
+        /** From this week on, every second week brings a server of a random service (earlier ones follow [Service.serverWeek]). */
+        const val RANDOM_SERVERS_FROM = 10
+        /** A [Demand.STREAM] service sends one request this often, in every week. */
+        const val STREAM_SECONDS = 2.5f
+        /** Length of one in-game day; the clock shows [DAWN_HOUR] at time 0. */
+        const val DAY_SECONDS = 15f
+        const val DAWN_HOUR = 6f
+        /** Night lasts from [DUSK_HOUR] to [DAWN_HOUR]. */
+        const val DUSK_HOUR = 22f
+        /** Every night at this hour, clients queue [BACKUP_BURST] requests of each [Demand.NIGHTLY] service they use. */
+        const val BACKUP_HOUR = 2f
+        const val BACKUP_BURST = 2
     }
 
     private var rng = ReplayableRandom(seed)
@@ -93,6 +106,13 @@ class World(
     var lastNewsTime = 0f; private set
 
     val weekProgress get() = (time % Tuning.WEEK_SECONDS) / Tuning.WEEK_SECONDS
+
+    /** In-game clock, 0 until 24: [Tuning.DAWN_HOUR] at time 0, one day per [Tuning.DAY_SECONDS]. */
+    val hourOfDay get() = hourAt(time)
+
+    /** True between [Tuning.DUSK_HOUR] and [Tuning.DAWN_HOUR]. */
+    val isNight get() = hourOfDay.let { it >= Tuning.DUSK_HOUR || it < Tuning.DAWN_HOUR }
+
     val year get() = Tuning.FIRST_YEAR + (week - 1) * Tuning.YEARS_PER_WEEK
     val unlockedCables get() = CableType.entries.filter { it.unlockWeek <= week }
     private val unlockedDevices get() = Device.entries.filter { it.unlockWeek <= week }
@@ -533,7 +553,9 @@ class World(
     fun update(dt: Float) {
         if (gameOver || rewardOffer != null) return
         val prevWeek = week
+        val prevTime = time
         time += dt
+        if (backupRuns(prevTime, time)) queueBackups()
         week = 1 + (time / Tuning.WEEK_SECONDS).toInt()
         if (week != prevWeek) {
             onNewWeek()
@@ -550,11 +572,7 @@ class World(
         for (n in nodes) {
             if (n.kind != NodeKind.CLIENT) continue
             n.requestTimer -= dt
-            if (n.requestTimer <= 0f) {
-                val wants = n.device!!.services.filter { it in served }
-                if (wants.isNotEmpty()) n.pending.addLast(wants[rng.nextInt(wants.size)])
-                n.requestTimer = max(1.6f, 5.5f - week * 0.35f) + rng.nextFloat() * 2f
-            }
+            if (n.requestTimer <= 0f) request(n, served)
             n.dispatchCooldown -= dt
             if (n.pending.isNotEmpty() && n.dispatchCooldown <= 0f) dispatch(n)
         }
@@ -570,6 +588,44 @@ class World(
                 gameOver = true
                 failedNode = n
                 return
+            }
+        }
+    }
+
+    /**
+     * Queues the client's next request. A streaming device ([Device.stream]) asks for its stream in a fixed rhythm;
+     * any other device picks one of its [Demand.RANDOM] services, and its pause shrinks week by week.
+     */
+    private fun request(n: Node, served: Set<Service>) {
+        val device = n.device!!
+        val stream = device.stream
+        if (stream != null) {
+            if (stream in served) n.pending.addLast(stream)
+            n.requestTimer += Tuning.STREAM_SECONDS
+            return
+        }
+        val wants = device.services.filter { it.demand == Demand.RANDOM && it in served }
+        if (wants.isNotEmpty()) n.pending.addLast(wants[rng.nextInt(wants.size)])
+        n.requestTimer = max(1.6f, 5.5f - week * 0.35f) + rng.nextFloat() * 2f
+    }
+
+    /** True if the nightly backup time ([Tuning.BACKUP_HOUR]) lies in (from, to]. */
+    private fun backupRuns(from: Float, to: Float): Boolean {
+        val offset = ((Tuning.BACKUP_HOUR - Tuning.DAWN_HOUR + 24f) % 24f) / 24f * Tuning.DAY_SECONDS
+        return floor((to - offset) / Tuning.DAY_SECONDS) > floor((from - offset) / Tuning.DAY_SECONDS)
+    }
+
+    /**
+     * The nightly load peak: every client queues [Tuning.BACKUP_BURST] requests of each [Demand.NIGHTLY] service it uses
+     * and that has a server, all at the same moment. A client whose last backup still waits starts no new one.
+     */
+    private fun queueBackups() {
+        val served = availableServices
+        for (n in nodes) {
+            if (n.kind != NodeKind.CLIENT) continue
+            for (s in n.device!!.services) {
+                if (s.demand != Demand.NIGHTLY || s !in served || s in n.pending) continue
+                repeat(Tuning.BACKUP_BURST) { n.pending.addLast(s) }
             }
         }
     }
@@ -659,12 +715,8 @@ class World(
         rewardOffer = RewardOffer(week, Rewards.offer(seed, week, eligibleRewards()))
         val newCables = CableType.entries.filter { it.unlockWeek == week }
         val newDevices = Device.entries.filter { it.unlockWeek == week }
-        val server = when {
-            week == 3 -> Service.GAMING
-            week == 4 -> Service.STREAMING
-            week >= 6 && week % 2 == 0 -> Service.entries[rng.nextInt(Service.entries.size)]
-            else -> null
-        }
+        val server = Service.entries.firstOrNull { it.serverWeek == week }
+            ?: if (week >= Tuning.RANDOM_SERVERS_FROM && week % 2 == 0) Service.entries[rng.nextInt(Service.entries.size)] else null
         val newServers = if (server != null && spawnServer(server)) listOf(server) else emptyList()
         val newRadios = RadioType.entries.filter { it.unlockWeek == week }
         if (newCables.isNotEmpty() || newDevices.isNotEmpty() || newServers.isNotEmpty() || newRadios.isNotEmpty()) {
@@ -713,6 +765,9 @@ class World(
         /** Radio links to a neighbour can be short; packets on them still take a visible moment. */
         private const val MIN_LINK_LENGTH = 0.5f
         private const val LAND = '.'
+
+        /** Clock hour at game time [t], see [hourOfDay]. */
+        fun hourAt(t: Float) = (Tuning.DAWN_HOUR + 24f * (t % Tuning.DAY_SECONDS) / Tuning.DAY_SECONDS) % 24f
 
         private fun cellOf(p: Vec2) = Cell(p.x.toInt(), p.y.toInt())
 
