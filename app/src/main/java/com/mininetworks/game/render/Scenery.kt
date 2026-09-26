@@ -46,9 +46,9 @@ object Scenery {
         return out
     }
 
-    /** Cells covered by a node or a cable. */
-    fun occupied(world: World): Set<Cell> {
-        val taken = HashSet<Cell>()
+    /** Cells covered by a node or a cable, plus [extra] cells the caller keeps free (such as an excavator's stand). */
+    fun occupied(world: World, extra: Collection<Cell> = emptyList()): Set<Cell> {
+        val taken = HashSet<Cell>(extra)
         for (n in world.nodes) taken += n.footprint
         for (c in world.cables) taken += c.layout.cells
         return taken

@@ -131,6 +131,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
      * (or on the next tap). Null otherwise.
      */
     private var failFocusUntil: Float? = null
+    /** A finger went down during the game-over focus; only its release skips the focus, not a gesture from before. */
+    private var focusSkipArmed = false
     private var newBest = false
     private val menuPanel = MenuPanel(context)
     private var pressedAction: MenuAction? = null
@@ -617,7 +619,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     private fun onTouch(e: Input.Touch) {
         if (failFocusUntil != null) {
-            if (e.action == MotionEvent.ACTION_UP) showGameOverCard()
+            when (e.action) {
+                MotionEvent.ACTION_DOWN -> focusSkipArmed = true
+                MotionEvent.ACTION_UP -> if (focusSkipArmed) showGameOverCard()
+            }
             return
         }
         if (screen != Screen.PLAYING) {
@@ -1046,6 +1051,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         }
         renderer.focusOn(failed)
         failFocusUntil = animTime + GAME_OVER_FOCUS_SECONDS
+        focusSkipArmed = false
     }
 
     private fun showGameOverCard() {

@@ -2,10 +2,16 @@ package com.mininetworks.game.render
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import com.mininetworks.game.game.Bend
+import com.mininetworks.game.game.CableType
+import com.mininetworks.game.game.Cell
 import com.mininetworks.game.game.DebugApi
 import com.mininetworks.game.game.Device
+import com.mininetworks.game.game.Service
 import com.mininetworks.game.game.World
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -67,5 +73,31 @@ class IsoGroundCacheTest {
         assertTrue(r.groundCached(w, 800, 450))
         val direct = IsoRenderer().also { it.layout(800, 450, w); repeat(2) { _ -> it.camera.panBy(30f, 10f) } }
         assertTrue(settled.sameAs(frame(direct, w)))
+    }
+
+    @Test
+    fun anExcavatorNeverStandsOnADecoration() {
+        fun dry(w: World, x: Int, y: Int) = x in 0 until w.cols && y in 0 until w.rows && w.isFree(x, y)
+        fun decorated(w: World, x: Int, y: Int) = dry(w, x, y) && Scenery.planned(w.seed, x, y) != null
+        // A cable through (x, y + 1) with decorations on both sides: the excavator has to stand on one of them.
+        fun spot(w: World) = (0 until w.rows).flatMap { y -> (0 until w.cols).map { x -> Cell(x, y) } }.firstOrNull { (x, y) ->
+            decorated(w, x, y) && decorated(w, x, y + 2) && dry(w, x - 1, y + 1) && dry(w, x, y + 1) && dry(w, x + 1, y + 1)
+        }
+        val (w, tree) = (1L..200L).asSequence().map { World(seed = it, spawnInitialNodes = false) }
+            .firstNotNullOf { w -> spot(w)?.let { w to it } }
+        w.incidentsEnabled = false
+        w.grant(50)
+        val pc = w.addClient(Device.PC, tree.x - 1, tree.y + 1)
+        val mail = w.addServer(Service.MAIL, tree.x + 1, tree.y + 1)
+        assertTrue(w.connect(pc, mail, CableType.ISDN, Bend.HORIZONTAL_FIRST))
+        val r = fresh(w)
+        frame(r, w); frame(r, w)
+        w.announceExcavator(w.cables.single())
+        assertFalse("the excavator changes the ground", r.groundCached(w, 800, 450))
+        val stand = r.excavatorCells(w).single()
+        assertNotNull(Scenery.planned(w.seed, stand.x, stand.y))
+        val visible = Scenery.decorations(w, Scenery.occupied(w, r.excavatorCells(w))).map { it.first }
+        assertFalse("the decoration under the excavator is hidden", stand in visible)
+        assertEquals("only that one", Scenery.decorations(w).size - 1, visible.size)
     }
 }

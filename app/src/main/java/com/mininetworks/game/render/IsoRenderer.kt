@@ -208,7 +208,10 @@ class IsoRenderer : Renderer {
         groundBitmap != null && groundView == ViewKey(camera.scale, camera.focusX, camera.focusY, width, height) &&
             groundMap == mapSignature(world)
 
-    /** Changes whenever anything drawn into the ground layer may change: water, unlocked area, nodes, cables. */
+    /**
+     * Changes whenever anything drawn into the ground layer may change: water, unlocked area, nodes, cables and the
+     * cells excavators stand on.
+     */
     private fun mapSignature(world: World): Long {
         var h = System.identityHashCode(world).toLong()
         fun mix(v: Int) { h = (h xor v.toLong()) * 0x100000001B3L }
@@ -222,6 +225,7 @@ class IsoRenderer : Renderer {
             mix(c.a.id); mix(c.b.id)
             for (p in c.layout.waypoints) { mix(p.x.toRawBits()); mix(p.y.toRawBits()) }
         }
+        for (cell in excavatorCells(world)) { mix(cell.x); mix(cell.y) }
         return h
     }
 
@@ -249,7 +253,7 @@ class IsoRenderer : Renderer {
             quad(open.left.toFloat(), open.top.toFloat(), open.width.toFloat(), open.height.toFloat(), 0f)
             strokeP.color = edge; strokeP.strokeWidth = tw * 0.03f; c.drawPath(path, strokeP)
         }
-        val taken = Scenery.occupied(world)
+        val taken = Scenery.occupied(world, excavatorCells(world))
         for (y in 0 until world.rows) for (x in 0 until world.cols) {
             if (world.water[y][x] || Cell(x, y) in taken || Scenery.planned(seed, x, y) != null) continue
             drawGrass(c, seed, x, y, open.contains(x, y))
@@ -630,7 +634,8 @@ class IsoRenderer : Renderer {
 
     /**
      * Where the excavator at [i] stands, and the unit direction from there to the cut: beside the cable, preferably on
-     * the side away from the viewer so the cut stays visible in front of it, unless a node or cable is in that cell.
+     * the side away from the viewer so the cut stays visible in front of it, unless a node, cable or decoration is in
+     * that cell. A decoration left in the chosen cell is hidden while the excavator stands there ([excavatorCells]).
      */
     private fun excavatorStand(world: World, i: Incident): Pair<Vec2, Vec2> {
         val layout = i.cable!!.layout
@@ -640,13 +645,20 @@ class IsoRenderer : Renderer {
         val spot = i.spot
         fun standFor(d: Vec2) = Vec2(spot.x - d.x * 0.62f, spot.y - d.y * 0.62f)
         fun clear(d: Vec2): Boolean {
-            val cell = Cell(floor(spot.x - d.x).toInt(), floor(spot.y - d.y).toInt())
-            return world.nodeAt(cell) == null && world.cables.none { cell in it.layout.cells }
+            val cell = standCell(spot, d)
+            return world.nodeAt(cell) == null && world.cables.none { cell in it.layout.cells } &&
+                Scenery.planned(world.seed, cell.x, cell.y) == null
         }
         val front = Vec2(-back.x, -back.y)
         val d = if (clear(back) || !clear(front)) back else front
         return standFor(d) to d
     }
+
+    private fun standCell(spot: Vec2, d: Vec2) = Cell(floor(spot.x - d.x).toInt(), floor(spot.y - d.y).toInt())
+
+    /** Cells that excavators currently stand on; the ground layer leaves their decorations out. */
+    internal fun excavatorCells(world: World): List<Cell> =
+        world.incidents.filter { it.kind == IncidentKind.EXCAVATOR }.map { standCell(it.spot, excavatorStand(world, it).second) }
 
     /**
      * A small excavator drawn with paths: tracks along the cable, a yellow cab with a window towards it, and a boom
