@@ -99,6 +99,74 @@ class MapGrowthTest {
     }
 
     @Test
+    fun newServersSpawnInTheMiddleOfTheBlock() {
+        for (seed in 1L..8L) {
+            val w = World(seed = seed)
+            var spawned = 0
+            while (w.week < 24) {
+                val known = w.nodes.mapTo(HashSet()) { it.id }
+                w.advanceToNextWeek()
+                val middle = serverArea(w)
+                for (n in w.nodes) if (n.id !in known && n.kind == NodeKind.SERVER) {
+                    assertTrue("$n outside $middle in week ${w.week} (seed $seed)", n.cell in middle)
+                    spawned++
+                }
+                w.chooseReward(0)
+            }
+            assertTrue("servers spawned (seed $seed)", spawned >= 5)
+        }
+    }
+
+    @Test
+    fun crowdedMiddleFallsBackToCloserSpacing() {
+        val w = emptyWorldBeforeGamingServer()
+        val middle = serverArea(w)
+        val inner = Cell(middle.left + middle.width / 2, middle.top + middle.height / 2)
+        fillFreeCells(w, middle) { it != inner }
+        w.advanceToNextWeek()
+        val server = w.nodes.single { it.kind == NodeKind.SERVER }
+        assertEquals(Service.GAMING, server.service)
+        assertEquals("only spacing 1 is left, on the one free cell", inner, server.cell)
+    }
+
+    @Test
+    fun fullMiddleFallsBackToElsewhereInTheBlock() {
+        val w = emptyWorldBeforeGamingServer()
+        val middle = serverArea(w)
+        fillFreeCells(w, middle) { true }
+        w.advanceToNextWeek()
+        val server = w.nodes.single { it.kind == NodeKind.SERVER }
+        assertEquals(Service.GAMING, server.service)
+        assertFalse("$server not in the full middle $middle", server.cell in middle)
+        assertTrue("$server inside ${w.unlocked}", server.cell in w.unlocked)
+    }
+
+    /** The part of the block where new servers are meant to appear, see [World.Tuning.SERVER_AREA]. */
+    private fun serverArea(w: World) = CellRect.centered(
+        w.unlocked,
+        (w.unlocked.width * World.Tuning.SERVER_AREA).toInt() + 2,
+        (w.unlocked.height * World.Tuning.SERVER_AREA).toInt() + 2,
+    )
+
+    /** A world without nodes or water, one week before the first gaming server. */
+    private fun emptyWorldBeforeGamingServer(): World {
+        val w = World(seed = 3L, spawnInitialNodes = false)
+        for (row in w.water) row.fill(false)
+        while (w.week < Service.GAMING.serverWeek - 1) {
+            w.advanceToNextWeek()
+            w.chooseReward(0)
+        }
+        assertTrue(w.nodes.isEmpty())
+        return w
+    }
+
+    private fun fillFreeCells(w: World, area: CellRect, where: (Cell) -> Boolean) {
+        for (x in area.left until area.right) for (y in area.top until area.bottom) {
+            if (w.isFree(x, y) && where(Cell(x, y))) w.addRouter(x, y)
+        }
+    }
+
+    @Test
     fun routersOnlyOnUnlockedCells() {
         val w = World(seed = 1L, spawnInitialNodes = false)
         for (row in w.water) row.fill(false)

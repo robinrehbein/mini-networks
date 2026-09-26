@@ -465,7 +465,8 @@ object BotRunner {
             w.update(STEP)
         }
         val cause = w.failedNode?.let { n ->
-            val s = n.pending.groupingBy { it }.eachCount().maxByOrNull { it.value }!!.key
+            val s = n.pending.groupingBy { it }.eachCount().maxByOrNull { it.value }?.key
+                ?: return@let "${n.device}:?"
             val why = when {
                 w.bestRoute(n, s) == null -> "unrouted"
                 w.routeFor(n, s) == null -> "ping"
