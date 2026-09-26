@@ -1,6 +1,7 @@
 package com.mininetworks.game.render
 
 import com.mininetworks.game.game.Cell
+import com.mininetworks.game.game.Terrain
 import com.mininetworks.game.game.World
 
 /** Decorations on free land. Purely visual: they never block anything and give way to nodes and cables. */
@@ -31,13 +32,13 @@ object Scenery {
     }
 
     /**
-     * Visible decorations of [world], back to front: planned on dry cells that no node footprint and no cable covers.
+     * Visible decorations of [world], back to front: planned on plain land cells that no node footprint and no cable covers.
      * A node that spawns or a cable that is laid on a decorated cell replaces the decoration.
      */
     fun decorations(world: World, taken: Set<Cell> = occupied(world)): List<Pair<Cell, Decor>> {
         val out = ArrayList<Pair<Cell, Decor>>()
         for (y in 0 until world.rows) for (x in 0 until world.cols) {
-            if (world.isWater(x, y)) continue
+            if (world.terrainAt(x, y) != Terrain.LAND) continue
             val cell = Cell(x, y)
             if (cell in taken) continue
             planned(world.seed, x, y)?.let { out += cell to it }

@@ -8,12 +8,15 @@ import com.mininetworks.game.data.HighscoreStore
 import com.mininetworks.game.data.SaveStore
 import com.mininetworks.game.game.CableType
 import com.mininetworks.game.game.DebugApi
+import com.mininetworks.game.game.Scenarios
 import com.mininetworks.game.game.Device
 import com.mininetworks.game.game.Service
 import com.mininetworks.game.game.WeekNews
 import com.mininetworks.game.game.World
+import com.mininetworks.game.monetization.Entitlements
 import com.mininetworks.game.render.ServiceColors
 import com.mininetworks.game.ui.menu.MenuAction
+import com.mininetworks.game.ui.menu.SceneryPicker
 import com.mininetworks.game.ui.menu.Screen
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -22,6 +25,7 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -54,6 +58,20 @@ class MenuFlowTest {
         draw(view)
     }
 
+    /** "Spielen", then the card of scenery [id] on the picker. */
+    private fun pickScenery(view: GameView, id: String = Scenarios.RIVER_TOWN.id) {
+        tap(view, MenuAction.PLAY)
+        assertEquals(Screen.SCENERIES, view.currentScreen)
+        tapScenery(view, id)
+    }
+
+    private fun tapScenery(view: GameView, id: String) {
+        val r = view.sceneryTarget(id) ?: throw AssertionError("$id is not on ${view.currentScreen}")
+        view.injectTouch(MotionEvent.ACTION_DOWN, r.centerX(), r.centerY())
+        view.injectTouch(MotionEvent.ACTION_UP, r.centerX(), r.centerY())
+        draw(view)
+    }
+
     private fun play(view: GameView, seconds: Float) {
         repeat((seconds * 60).toInt()) { view.advance(1f / 60f) }
     }
@@ -75,7 +93,7 @@ class MenuFlowTest {
     fun playPauseAndResume() {
         val view = newView()
         val demo = view.currentWorld
-        tap(view, MenuAction.PLAY)
+        pickScenery(view)
         assertEquals(Screen.PLAYING, view.currentScreen)
         assertNotSame(demo, view.currentWorld)
         play(view, 1f)
@@ -96,7 +114,7 @@ class MenuFlowTest {
     @Test
     fun activityPauseSavesAndContinueRestoresAfterRestart() {
         val view = newView()
-        tap(view, MenuAction.PLAY)
+        pickScenery(view)
         play(view, 5f)
         view.pause()
         assertEquals(Screen.PAUSED, view.currentScreen)
@@ -112,7 +130,7 @@ class MenuFlowTest {
     @Test
     fun mainMenuFromPauseKeepsTheGameToContinue() {
         val view = newView()
-        tap(view, MenuAction.PLAY)
+        pickScenery(view)
         val game = view.currentWorld
         play(view, 2f)
         view.back()
@@ -166,7 +184,7 @@ class MenuFlowTest {
         tap(view, MenuAction.MAIN_MENU)
         assertEquals(Screen.MAIN_MENU, view.currentScreen)
         assertNull(view.menuTarget(MenuAction.CONTINUE))
-        tap(view, MenuAction.PLAY)
+        pickScenery(view)
         assertEquals(Screen.PLAYING, view.currentScreen)
         assertFalse(view.currentWorld.gameOver)
     }
@@ -243,7 +261,7 @@ class MenuFlowTest {
     @Test
     fun settingsFromPauseReturnToPause() {
         val view = newView()
-        tap(view, MenuAction.PLAY)
+        pickScenery(view)
         view.back()
         view.advance(0f)
         draw(view)
@@ -295,7 +313,7 @@ class MenuFlowTest {
     @Test
     fun pauseButtonWorksDuringTheRewardChoice() {
         val view = newView()
-        tap(view, MenuAction.PLAY)
+        pickScenery(view)
         val world = view.currentWorld
         world.jumpToWeek(1)
         world.advanceToNextWeek()
@@ -366,5 +384,94 @@ class MenuFlowTest {
         assertEquals("Play", app.getString(R.string.menu_play))
         assertEquals("Fiber", Texts(app).cable(CableType.FIBER))
         assertNotEquals("Netz überlastet", app.getString(R.string.game_over_title))
+    }
+
+    // ---------------------------------------------------------------- sceneries
+
+    @Test
+    fun playOpensTheSceneryPickerWithOnlyTheRiverTownOpen() {
+        val view = newView()
+        tap(view, MenuAction.PLAY)
+        assertEquals(Screen.SCENERIES, view.currentScreen)
+        for (s in Scenarios.all) assertNotNull(view.sceneryTarget(s.id))
+        val demo = view.currentWorld
+        tapScenery(view, Scenarios.METROPOLIS.id)
+        assertEquals("a locked scenery does not start", Screen.SCENERIES, view.currentScreen)
+        assertSame(demo, view.currentWorld)
+        tapScenery(view, Scenarios.FUTURE.id)
+        assertEquals(Screen.SCENERIES, view.currentScreen)
+        tapScenery(view, SceneryPicker.BACK)
+        assertEquals(Screen.MAIN_MENU, view.currentScreen)
+        tap(view, MenuAction.PLAY)
+        view.back()
+        view.advance(0f)
+        assertEquals("back leaves the picker", Screen.MAIN_MENU, view.currentScreen)
+        pickScenery(view)
+        assertEquals(Screen.PLAYING, view.currentScreen)
+        assertEquals(Scenarios.RIVER_TOWN, view.currentWorld.scenario)
+    }
+
+    @Test
+    fun reachingTheGoalUnlocksTheNextScenery() {
+        HighscoreStore(app).submit(Scenarios.METROPOLIS_TARGET, Scenarios.RIVER_TOWN.id)
+        val view = newView()
+        pickScenery(view, Scenarios.METROPOLIS.id)
+        assertEquals(Screen.PLAYING, view.currentScreen)
+        val w = view.currentWorld
+        assertEquals(Scenarios.METROPOLIS, w.scenario)
+        assertEquals(1998, w.year)
+        assertEquals(Scenarios.METROPOLIS.cols, w.cols)
+
+        view.back()
+        view.advance(0f)
+        draw(view)
+        tap(view, MenuAction.RESTART)
+        assertEquals("restart keeps the scenery", Scenarios.METROPOLIS, view.currentWorld.scenario)
+        assertNotSame(w, view.currentWorld)
+        view.pause()
+        val restarted = newView()
+        tap(restarted, MenuAction.CONTINUE)
+        assertEquals(Scenarios.METROPOLIS, restarted.currentWorld.scenario)
+    }
+
+    @Test
+    fun boughtSceneriesArePlayable() {
+        val view = newView()
+        val asked = ArrayList<String>()
+        view.entitlements = object : Entitlements {
+            override fun ownsScenery(sceneryId: String) = sceneryId == Scenarios.MOUNTAIN_VILLAGE.id
+            override fun purchaseScenery(sceneryId: String): Boolean {
+                asked += sceneryId
+                return true
+            }
+        }
+        tap(view, MenuAction.PLAY)
+        tapScenery(view, Scenarios.FUTURE.id)
+        assertEquals("a locked scenery asks the store", listOf(Scenarios.FUTURE.id), asked)
+        assertEquals(Screen.SCENERIES, view.currentScreen)
+        tapScenery(view, Scenarios.MOUNTAIN_VILLAGE.id)
+        assertEquals(Screen.PLAYING, view.currentScreen)
+        assertEquals(Scenarios.MOUNTAIN_VILLAGE, view.currentWorld.scenario)
+    }
+
+    @Test
+    fun bestScoresArePerScenery() {
+        val view = newView()
+        val metro = World(Scenarios.METROPOLIS, seed = 1L, spawnInitialNodes = false).apply {
+            for (row in water) row.fill(false)
+            for (row in highRises) row.fill(false)
+            val lonely = addClient(Device.PHONE, 20, 10)
+            addServer(Service.CALL, 22, 10)
+            repeat(World.Tuning.MAX_PENDING) { lonely.pending.addLast(Service.CALL) }
+        }
+        HighscoreStore(app).submit(50, Scenarios.RIVER_TOWN.id)
+        view.drawSnapshot(Canvas(bmp), metro, bmp.width, bmp.height, time = 0f)
+        play(view, World.Tuning.OVERLOAD_SECONDS + 3f)
+        assertEquals(Screen.GAME_OVER, view.currentScreen)
+        assertEquals(50, HighscoreStore(app).best(Scenarios.RIVER_TOWN.id))
+        assertEquals(0, HighscoreStore(app).best(Scenarios.METROPOLIS.id))
+        draw(view)
+        tap(view, MenuAction.PLAY_AGAIN)
+        assertEquals("play again keeps the scenery", Scenarios.METROPOLIS, view.currentWorld.scenario)
     }
 }

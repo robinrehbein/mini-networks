@@ -122,4 +122,31 @@
     <string name="game_over_best">Bestwert: %1$d</string>
     <string name="game_over_new_best">Neuer Bestwert!</string>
     <string name="game_over_again">Nochmal</string>
+
+    <!-- Sceneries -->
+    <string name="scenery_title">Szenerie wählen</string>
+    <string name="scenery_river_town">Kleinstadt am Fluss</string>
+    <string name="scenery_metropolis">Großstadt</string>
+    <string name="scenery_island_harbor">Insel &amp; Hafen</string>
+    <string name="scenery_mountain_village">Bergdorf</string>
+    <string name="scenery_future_2030">Zukunft 2030</string>
+    <string name="scenery_river_town_desc">Ein Fluss · zum Einstieg</string>
+    <string name="scenery_metropolis_desc">Zwei Flüsse · Hochhäuser stören Funk</string>
+    <string name="scenery_island_harbor_desc">Viel Wasser · Seekabel und Funk</string>
+    <string name="scenery_mountain_village_desc">Berge blockieren Funk · teure Pässe</string>
+    <string name="scenery_future_2030_desc">6G für alle Geräte · Server im Orbit</string>
+    <string name="scenery_from_year">ab %1$d</string>
+    <string name="scenery_not_played">Noch nicht gespielt</string>
+    <plurals name="scenery_progress">
+        <item quantity="one">%1$,d / %2$,d Paket</item>
+        <item quantity="other">%1$,d / %2$,d Pakete</item>
+    </plurals>
+    <string name="scenery_progress_in">in %1$s</string>
+    <string name="scenery_shop">Im Shop</string>
+    <string name="scenery_shop_pack">einzeln oder im Paket</string>
+    <plurals name="scenery_hint_score">
+        <item quantity="one">Erreiche %1$,d Paket in %2$s oder kaufe die Szenerie</item>
+        <item quantity="other">Erreiche %1$,d Pakete in %2$s oder kaufe die Szenerie</item>
+    </plurals>
+    <string name="scenery_hint_no_shop">Käufe sind in dieser Version noch nicht möglich</string>
 </resources>

@@ -32,13 +32,15 @@ object Save {
 @Serializable
 data class WorldSnapshot(
     val version: Int = Save.VERSION,
+    /** [Scenario.id]; saves from before the scenarios are all [Scenarios.RIVER_TOWN]. */
+    val scenario: String = Scenarios.RIVER_TOWN.id,
     val cols: Int,
     val rows: Int,
     val seed: Long,
     /** How many values the world's random generator had produced; see [ReplayableRandom]. */
     val randomDraws: Long,
     val nextId: Int,
-    /** One string per row, `~` for water and `.` for land. */
+    /** One string per row, one [Terrain] per cell: `.` land, `~` water, `^` mountain, `#` high-rise. */
     val water: List<String>,
     val unlocked: CellRect,
     val time: Float,

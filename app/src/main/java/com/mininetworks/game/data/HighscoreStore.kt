@@ -1,6 +1,7 @@
 package com.mininetworks.game.data
 
 import android.content.Context
+import com.mininetworks.game.game.Scenarios
 
 /** Best score (delivered packets) per scenery, in SharedPreferences. */
 class HighscoreStore(context: Context) {
@@ -15,11 +16,17 @@ class HighscoreStore(context: Context) {
         return true
     }
 
+    /** The scenery the player started last; the main menu shows its best score. */
+    var lastScenery: String
+        get() = prefs.getString(KEY_LAST, null) ?: DEFAULT_SCENERY
+        set(value) = prefs.edit().putString(KEY_LAST, value).apply()
+
     private fun key(scenery: String) = "best_$scenery"
 
     companion object {
-        /** The only scenery until P3.1 adds more ("Kleinstadt am Fluss", docs/PLAN.md 5.2). */
-        const val DEFAULT_SCENERY = "river_town"
+        /** "Kleinstadt am Fluss", the free first scenery (docs/PLAN.md 5.2). */
+        val DEFAULT_SCENERY = Scenarios.RIVER_TOWN.id
         private const val PREFS = "highscores"
+        private const val KEY_LAST = "last_scenery"
     }
 }

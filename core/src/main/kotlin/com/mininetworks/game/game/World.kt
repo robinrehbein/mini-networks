@@ -4,20 +4,20 @@ import kotlin.math.abs
 import kotlin.math.floor
 import kotlin.math.hypot
 import kotlin.math.max
-import kotlin.math.roundToInt
-import kotlin.math.sin
 import kotlin.random.Random
 
 /**
  * The complete game state and rules. Pure Kotlin, no Android types, so it can be unit-tested on the JVM
  * and drawn by any renderer (flat, isometric, pixel ...).
  *
- * The grid is fixed at [cols] × [rows], but only the [unlocked] block in its middle is in play. It starts at
- * [Tuning.START_COLS] × [Tuning.START_ROWS] and grows by one ring of cells every [Tuning.GROWTH_WEEKS] weeks.
+ * The map comes from a [Scenario]: its grid is fixed at [cols] × [rows] with the scenario's terrain, but only the
+ * [unlocked] block in its middle is in play. It starts at the scenario's start size and grows by one ring of cells
+ * every [Tuning.GROWTH_WEEKS] weeks.
  */
 class World(
-    val cols: Int = 32,
-    val rows: Int = 20,
+    val scenario: Scenario = Scenarios.RIVER_TOWN,
+    val cols: Int = scenario.cols,
+    val rows: Int = scenario.rows,
     val seed: Long = 7L,
     private val spawnInitialNodes: Boolean = true,
 ) {
@@ -33,6 +33,9 @@ class World(
         const val START_BUDGET = 24
         const val START_ROUTERS = 2
         const val WATER_EXTRA_PER_CELL = 2
+        /** Extra budget per cable cell over a mountain pass and through the downtown towers (see [Terrain]). */
+        const val MOUNTAIN_EXTRA_PER_CELL = 3
+        const val HIGH_RISE_EXTRA_PER_CELL = 1
         const val MAX_SERVER_LEVEL = 4
         /** Tier 4 "Rechenzentrum": covers a 2×2 block of cells and has [DATA_CENTER_PORTS] ports. */
         const val DATA_CENTER_LEVEL = 4
@@ -41,7 +44,7 @@ class World(
         val SERVER_RATE = floatArrayOf(1.5f, 3f, 5f, 8f)
         /** Budget to reach level 2, 3, 4. */
         val SERVER_UPGRADE_COST = intArrayOf(8, 16, 28)
-        /** Size of the playable block in week 1. */
+        /** Size of the playable block at the start of [Scenarios.RIVER_TOWN]; other scenarios set their own. */
         const val START_COLS = 16
         const val START_ROWS = 10
         /** The playable block grows by one ring of cells every this many weeks. */
@@ -66,12 +69,16 @@ class World(
     private var nextId = 0
 
     val water = Array(rows) { BooleanArray(cols) }
+    /** Mountain cells ([Terrain.MOUNTAIN]). */
+    val mountains = Array(rows) { BooleanArray(cols) }
+    /** Downtown tower cells ([Terrain.HIGH_RISE]). */
+    val highRises = Array(rows) { BooleanArray(cols) }
 
     /** The whole grid, including cells that are not unlocked yet. */
     val bounds = CellRect(0, 0, cols, rows)
 
     /** The playable block: nodes spawn and routers are placed only here; the rest of the grid is drawn dimmed. */
-    var unlocked = unlockedArea(1); private set
+    var unlocked = unlockedArea(scenario.startWeek); private set
 
     val nodes = mutableListOf<Node>()
     val cables = mutableListOf<Cable>()
@@ -110,15 +117,15 @@ class World(
     private var planWeek = 0
     private var weekPlan = emptyList<PlannedIncident>()
 
-    var time = 0f; private set
-    var week = 1; private set
+    var time = (scenario.startWeek - 1) * Tuning.WEEK_SECONDS; private set
+    var week = scenario.startWeek; private set
     var delivered = 0; private set
-    var budget = Tuning.START_BUDGET; private set
-    var routersAvailable = Tuning.START_ROUTERS; private set
+    var budget = scenario.startBudget; private set
+    var routersAvailable = scenario.startRouters; private set
     /** WLAN access points in stock, won as [Reward.ACCESS_POINT]. */
-    var accessPointsAvailable = 0; private set
+    var accessPointsAvailable = scenario.startAccessPoints; private set
     /** Cell towers in stock, won as [Reward.CELL_TOWER]. */
-    var cellTowersAvailable = 0; private set
+    var cellTowersAvailable = scenario.startCellTowers; private set
     var gameOver = false; private set
     var failedNode: Node? = null; private set
 
@@ -140,43 +147,75 @@ class World(
     /** True between [Tuning.DUSK_HOUR] and [Tuning.DAWN_HOUR]. */
     val isNight get() = hourOfDay.let { it >= Tuning.DUSK_HOUR || it < Tuning.DAWN_HOUR }
 
-    val year get() = Tuning.FIRST_YEAR + (week - 1) * Tuning.YEARS_PER_WEEK
+    val year get() = scenario.startYear + (week - scenario.startWeek) * Tuning.YEARS_PER_WEEK
+
+    /** Weeks played in this game, 1 in the scenario's start week: pacing, growth and incidents follow this. */
+    val weeksPlayed get() = week - scenario.startWeek + 1
     val unlockedCables get() = CableType.entries.filter { it.unlockWeek <= week }
     private val unlockedDevices get() = Device.entries.filter { it.unlockWeek <= week }
     val availableServices get() = nodes.filter { it.kind == NodeKind.SERVER }.mapNotNull { it.service }.toSet()
 
-    /** The [unlocked] block in [week]: the start block plus one ring per [Tuning.GROWTH_WEEKS] weeks, within [bounds]. */
+    /**
+     * The [unlocked] block in [week]: the scenario's start block plus one ring per [Tuning.GROWTH_WEEKS] weeks played,
+     * within [bounds].
+     */
     fun unlockedArea(week: Int): CellRect =
-        CellRect.centered(bounds, Tuning.START_COLS, Tuning.START_ROWS).expand((week - 1) / Tuning.GROWTH_WEEKS, bounds)
+        CellRect.centered(bounds, scenario.startCols, scenario.startRows)
+            .expand(((week - scenario.startWeek) / Tuning.GROWTH_WEEKS).coerceAtLeast(0), bounds)
 
     private var clientSpawnTimer = 6f
     private val routeCache = HashMap<Pair<Int, Service>, Route?>()
 
     init {
-        carveRiver()
+        Scenarios.carve(scenario, this, rng)
         if (spawnInitialNodes) {
-            addServer(Service.MAIL, unlocked.left + 2, unlocked.top + 2)
-            addServer(Service.CALL, unlocked.right - 3, unlocked.bottom - 3)
+            // Mail and telephony in opposite corners of the start block, every other server due by the start week anywhere.
+            for ((service, cell) in listOf(
+                Service.MAIL to Cell(unlocked.left + 2, unlocked.top + 2),
+                Service.CALL to Cell(unlocked.right - 3, unlocked.bottom - 3),
+            )) {
+                val at = nearestFree(cell) ?: continue
+                addServer(service, at.x, at.y)
+            }
+            for (service in scenario.startServices) if (service != Service.MAIL && service != Service.CALL) spawnServer(service)
             repeat(3) { spawnClient() }
         }
     }
 
     // ---------------------------------------------------------------- setup
 
-    private fun carveRiver() {
-        val base = cols / 2
-        val phase = rng.nextFloat() * 6f
-        for (y in 0 until rows) {
-            val x = (base + sin(y * 0.6f + phase) * 1.3f).roundToInt().coerceIn(1, cols - 2)
-            water[y][x] = true
-        }
+    /** What cell ([cx], [cy]) is made of; [Terrain.LAND] outside the grid. */
+    fun terrainAt(cx: Int, cy: Int): Terrain = when {
+        cy !in 0 until rows || cx !in 0 until cols -> Terrain.LAND
+        water[cy][cx] -> Terrain.WATER
+        mountains[cy][cx] -> Terrain.MOUNTAIN
+        highRises[cy][cx] -> Terrain.HIGH_RISE
+        else -> Terrain.LAND
+    }
+
+    /** Makes cell ([cx], [cy]) [t], for the scenario's terrain and for tests. */
+    fun setTerrain(cx: Int, cy: Int, t: Terrain) {
+        water[cy][cx] = t == Terrain.WATER
+        mountains[cy][cx] = t == Terrain.MOUNTAIN
+        highRises[cy][cx] = t == Terrain.HIGH_RISE
     }
 
     fun isWater(cx: Int, cy: Int) = cy in 0 until rows && cx in 0 until cols && water[cy][cx]
 
-    /** True if ([cx], [cy]) is unlocked, dry and not covered by a node. */
+    /** True if ([cx], [cy]) is unlocked, plain land and not covered by a node. */
     fun isFree(cx: Int, cy: Int): Boolean =
-        unlocked.contains(cx, cy) && !water[cy][cx] && nodeAt(Cell(cx, cy)) == null
+        unlocked.contains(cx, cy) && terrainAt(cx, cy) == Terrain.LAND && nodeAt(Cell(cx, cy)) == null
+
+    /** [cell] if it is free, otherwise the closest free cell inside the unlocked block (ring by ring), or null. */
+    private fun nearestFree(cell: Cell): Cell? {
+        for (r in 0..maxOf(cols, rows)) {
+            for (dy in -r..r) for (dx in -r..r) {
+                if (maxOf(abs(dx), abs(dy)) != r) continue
+                if (isFree(cell.x + dx, cell.y + dy)) return Cell(cell.x + dx, cell.y + dy)
+            }
+        }
+        return null
+    }
 
     /** The node whose footprint covers [cell], if any. */
     fun nodeAt(cell: Cell): Node? = nodes.firstOrNull { cell in it.footprint }
@@ -184,6 +223,7 @@ class World(
     private fun addNode(kind: NodeKind, device: Device?, service: Service?, cx: Int, cy: Int): Node {
         val n = Node(nextId++, kind, device, service, cx, cy)
         n.requestTimer = 2f + rng.nextFloat() * 3f
+        if (kind == NodeKind.SERVER && ScenarioRule.ORBITAL_SERVERS in scenario.rules) n.level = 2
         if (kind == NodeKind.ACCESS_POINT) n.channel = Wifi.CHANNELS_2_4_GHZ.first()
         nodes += n
         networkChanged()
@@ -233,22 +273,25 @@ class World(
 
     /**
      * The layout a new cable from [a] to [b] gets: an L along the grid with the given [bend], or, without one,
-     * the bend that crosses fewer water cells (horizontal first on a tie).
+     * the bend that pays less for terrain (water, mountains; horizontal first on a tie).
      */
     fun planLayout(a: Cell, b: Cell, bend: Bend? = null): CableLayout {
         if (bend != null) return CableLayout.between(a, b, bend)
         val h = CableLayout.between(a, b, Bend.HORIZONTAL_FIRST)
         val v = CableLayout.between(a, b, Bend.VERTICAL_FIRST)
-        return if (waterCellsOn(v) < waterCellsOn(h)) v else h
+        return if (terrainExtraOn(v) < terrainExtraOn(h)) v else h
     }
 
     fun planLayout(a: Node, b: Node, bend: Bend? = null) = planLayout(a.cell, b.cell, bend)
 
     fun waterCellsOn(layout: CableLayout) = layout.cells.count { isWater(it.x, it.y) }
 
-    /** Cable cost in budget units: cells walked times type price, water cells cost extra (sea cable). */
+    /** Budget a cable along [layout] pays for its terrain on top of the technology: sea cable, passes, downtown. */
+    fun terrainExtraOn(layout: CableLayout) = layout.cells.sumOf { terrainAt(it.x, it.y).cableExtra }
+
+    /** Cable cost in budget units: cells walked times type price, plus [terrainExtraOn] (water, mountains, towers). */
     fun cableCost(layout: CableLayout, type: CableType): Int =
-        layout.steps * type.costPerCell + waterCellsOn(layout) * Tuning.WATER_EXTRA_PER_CELL
+        layout.steps * type.costPerCell + terrainExtraOn(layout)
 
     fun cableCost(a: Node, b: Node, type: CableType, bend: Bend? = null) = cableCost(planLayout(a, b, bend), type)
 
@@ -339,7 +382,7 @@ class World(
         packets.removeAll(lost.toSet())
     }
 
-    /** Radios without power ([isDark]) link nobody. */
+    /** Radios without power ([isDark]) link nobody; mountains and towers in the way ([inRadioSight]) block a link. */
     private fun rebuildRadioLinks() {
         radioLinkList.clear()
         for (r in nodes) {
@@ -348,13 +391,32 @@ class World(
             val capacity = radioCapacity(r)
             val slots = radioSlots(r) ?: Int.MAX_VALUE
             nodes.asSequence()
-                .filter { it.kind == NodeKind.CLIENT && type.serves(it.device!!) && cableBetween(r, it) == null }
+                .filter { it.kind == NodeKind.CLIENT && serves(type, it.device!!) && cableBetween(r, it) == null }
                 .map { it to hypot(it.center.x - r.center.x, it.center.y - r.center.y) }
-                .filter { (_, d) -> d <= r.radius + Wifi.EPSILON }
+                .filter { (c, d) -> d <= r.radius + Wifi.EPSILON && inRadioSight(r, c) }
                 .sortedWith(compareBy({ it.second }, { it.first.id }))
                 .take(slots)
                 .forEach { (client, _) -> radioLinkList += RadioLink(r, client, capacity) }
         }
+    }
+
+    /** True if radio [type] can link device [d] in this scenario ([ScenarioRule.SIX_G] opens cell towers to all). */
+    fun serves(type: RadioType, d: Device) = type.serves(d) || (type == RadioType.CELL && ScenarioRule.SIX_G in scenario.rules)
+
+    /**
+     * True if no terrain that blocks radio ([Terrain.blocksRadio]) lies on the straight line between the centers of
+     * [a] and [b]; the cells of the two nodes themselves do not count.
+     */
+    fun inRadioSight(a: Node, b: Node): Boolean {
+        val from = a.center; val to = b.center
+        val steps = (hypot(to.x - from.x, to.y - from.y) / SIGHT_STEP).toInt() + 1
+        for (i in 1 until steps) {
+            val t = i / steps.toFloat()
+            val cell = Cell(floor(from.x + (to.x - from.x) * t).toInt(), floor(from.y + (to.y - from.y) * t).toInt())
+            if (cell in a.footprint || cell in b.footprint) continue
+            if (terrainAt(cell.x, cell.y).blocksRadio) return false
+        }
+        return true
     }
 
     fun serverRate(n: Node) = Tuning.SERVER_RATE[n.level - 1]
@@ -652,7 +714,7 @@ class World(
         clientSpawnTimer -= dt
         if (clientSpawnTimer <= 0f) {
             spawnClient()
-            clientSpawnTimer = max(4f, 11f - week * 1.2f) + rng.nextFloat() * 2f
+            clientSpawnTimer = max(4f, 11f - weeksPlayed * 1.2f) + rng.nextFloat() * 2f
         }
 
         val served = availableServices
@@ -693,7 +755,7 @@ class World(
         }
         val wants = device.services.filter { it.demand == Demand.RANDOM && it in served }
         if (wants.isNotEmpty()) n.pending.addLast(wants[rng.nextInt(wants.size)])
-        n.requestTimer = max(1.6f, 5.5f - week * 0.35f) + rng.nextFloat() * 2f
+        n.requestTimer = max(1.6f, 5.5f - weeksPlayed * 0.35f) + rng.nextFloat() * 2f
     }
 
     /** True if the nightly backup time ([Tuning.BACKUP_HOUR]) lies in (from, to]. */
@@ -839,7 +901,7 @@ class World(
         if (!incidentsEnabled) return
         if (planWeek != week) {
             planWeek = week
-            weekPlan = Incidents.plan(seed, week)
+            weekPlan = Incidents.plan(seed, weeksPlayed)
         }
         val weekStart = (week - 1) * Tuning.WEEK_SECONDS
         for (p in weekPlan) if (p.at > from - weekStart && p.at <= to - weekStart) startIncident(p)
@@ -873,14 +935,14 @@ class World(
     }
 
     /**
-     * Where an excavator can dig on [c], as fractions of its length: the centers of its dry cells between the ends that
-     * no node covers, or the middle of a one-step cable.
+     * Where an excavator can dig on [c], as fractions of its length: the centers of its plain land cells between the
+     * ends that no node covers, or the middle of a one-step cable.
      */
     private fun cutSpots(c: Cable): List<Float> {
         val cells = c.layout.cells
         if (cells.size == 2) return listOf(0.5f)
         return (1 until cells.size - 1)
-            .filter { i -> cells[i].let { !isWater(it.x, it.y) && nodeAt(it) == null } }
+            .filter { i -> cells[i].let { terrainAt(it.x, it.y) == Terrain.LAND && nodeAt(it) == null } }
             .map { it / c.layout.steps.toFloat() }
     }
 
@@ -913,12 +975,13 @@ class World(
     /** The complete state as plain data, see [Save]. */
     @OptIn(DebugApi::class)
     fun snapshot() = WorldSnapshot(
+        scenario = scenario.id,
         cols = cols,
         rows = rows,
         seed = seed,
         randomDraws = rng.draws,
         nextId = nextId,
-        water = water.map { row -> String(CharArray(row.size) { if (row[it]) WATER else LAND }) },
+        water = (0 until rows).map { y -> String(CharArray(cols) { x -> TERRAIN_CHARS[terrainAt(x, y).ordinal] }) },
         unlocked = unlocked,
         time = time,
         week = week,
@@ -949,10 +1012,12 @@ class World(
     )
 
     companion object {
-        private const val WATER = '~'
+        /** Save characters of [Terrain], by ordinal: land, water, mountain, high-rise. */
+        private const val TERRAIN_CHARS = ".~^#"
         /** Radio links to a neighbour can be short; packets on them still take a visible moment. */
         private const val MIN_LINK_LENGTH = 0.5f
-        private const val LAND = '.'
+        /** Sampling step along a radio's line of sight, in cells. */
+        private const val SIGHT_STEP = 0.1f
 
         /** Clock hour at game time [t], see [hourOfDay]. */
         fun hourAt(t: Float) = (Tuning.DAWN_HOUR + 24f * (t % Tuning.DAY_SECONDS) / Tuning.DAY_SECONDS) % 24f
@@ -965,9 +1030,14 @@ class World(
          */
         @OptIn(DebugApi::class)
         fun restore(s: WorldSnapshot): World {
-            require(s.water.size == s.rows && s.water.all { it.length == s.cols }) { "water does not match the grid" }
-            val w = World(s.cols, s.rows, s.seed, spawnInitialNodes = false)
-            for (y in 0 until s.rows) for (x in 0 until s.cols) w.water[y][x] = s.water[y][x] == WATER
+            require(s.water.size == s.rows && s.water.all { it.length == s.cols }) { "terrain does not match the grid" }
+            val scenario = requireNotNull(Scenarios.byId(s.scenario)) { "unknown scenario ${s.scenario}" }
+            val w = World(scenario, s.cols, s.rows, s.seed, spawnInitialNodes = false)
+            for (y in 0 until s.rows) for (x in 0 until s.cols) {
+                val t = TERRAIN_CHARS.indexOf(s.water[y][x])
+                require(t >= 0) { "unknown terrain '${s.water[y][x]}'" }
+                w.setTerrain(x, y, Terrain.entries[t])
+            }
             w.rng = ReplayableRandom.restore(s.seed, s.randomDraws)
             w.nextId = s.nextId
             w.unlocked = s.unlocked

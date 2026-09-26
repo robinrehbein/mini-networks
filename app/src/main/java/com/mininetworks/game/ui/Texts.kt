@@ -11,12 +11,36 @@ import com.mininetworks.game.game.Incidents
 import com.mininetworks.game.game.Node
 import com.mininetworks.game.game.NodeKind
 import com.mininetworks.game.game.RadioType
+import com.mininetworks.game.game.Scenario
+import com.mininetworks.game.game.Scenarios
 import com.mininetworks.game.game.Service
 import com.mininetworks.game.game.WeekNews
 import kotlin.math.ceil
 
 /** Display texts for the ids the game logic hands out; everything comes from string resources. */
 class Texts(private val context: Context) {
+
+    /** Name of scenery [s] ("Kleinstadt am Fluss" …). */
+    fun scenario(s: Scenario) = context.getString(
+        when (s.id) {
+            Scenarios.METROPOLIS.id -> R.string.scenery_metropolis
+            Scenarios.ISLAND.id -> R.string.scenery_island_harbor
+            Scenarios.MOUNTAIN_VILLAGE.id -> R.string.scenery_mountain_village
+            Scenarios.FUTURE.id -> R.string.scenery_future_2030
+            else -> R.string.scenery_river_town
+        },
+    )
+
+    /** One line on what makes scenery [s] special. */
+    fun scenarioDescription(s: Scenario) = context.getString(
+        when (s.id) {
+            Scenarios.METROPOLIS.id -> R.string.scenery_metropolis_desc
+            Scenarios.ISLAND.id -> R.string.scenery_island_harbor_desc
+            Scenarios.MOUNTAIN_VILLAGE.id -> R.string.scenery_mountain_village_desc
+            Scenarios.FUTURE.id -> R.string.scenery_future_2030_desc
+            else -> R.string.scenery_river_town_desc
+        },
+    )
 
     fun service(s: Service) = context.getString(
         when (s) {

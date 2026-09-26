@@ -11,6 +11,8 @@ import com.mininetworks.game.game.Device
 import com.mininetworks.game.game.NodeKind
 import com.mininetworks.game.game.RadioType
 import com.mininetworks.game.game.Reward
+import com.mininetworks.game.game.Scenario
+import com.mininetworks.game.game.Scenarios
 import com.mininetworks.game.game.RewardOffer
 import com.mininetworks.game.game.Service
 import com.mininetworks.game.game.World
@@ -593,4 +595,79 @@ class ScreenshotTest {
     }
 
     private fun save(bmp: Bitmap, file: File) = file.outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
+
+    /**
+     * A new game of [s] a few seconds in: every client cabled to the nearest server it needs (cheapest invented cable),
+     * so the start map looks like it is being played.
+     */
+    private fun wiredStart(s: Scenario): World {
+        val w = World(s, seed = 4L)
+        w.incidentsEnabled = false
+        w.grant(300)
+        repeat(60 * 12) { w.update(1f / 60f) }
+        val cable = w.unlockedCables.last()
+        for (client in w.nodes.filter { it.kind == NodeKind.CLIENT }) {
+            val server = w.nodes
+                .filter { it.kind == NodeKind.SERVER && it.service in client.device!!.services && w.ports(it) < it.maxPorts }
+                .minByOrNull { abs(it.cellX - client.cellX) + abs(it.cellY - client.cellY) } ?: continue
+            w.connect(client, server, cable)
+        }
+        repeat(60 * 6) { w.update(1f / 60f) }
+        return w
+    }
+
+    /** Every scenery at its start: the game frame in the isometric style and the whole map in the flat overview. */
+    @Test
+    fun renderSceneries() {
+        for (s in Scenarios.all) {
+            val world = wiredStart(s)
+            val view = GameView(RuntimeEnvironment.getApplication())
+            val bmp = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)
+            view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 1.3f, style = "Iso")
+            save(bmp, File(shots, "scenery-${s.id}.png"))
+            val flat = FlatRenderer()
+            bmp.eraseColor(0)
+            flat.layout(bmp.width, bmp.height, world)
+            flat.camera.zoomBy(0.1f, bmp.width / 2f, bmp.height / 2f)
+            flat.draw(Canvas(bmp), world, drag = null, time = 1.3f)
+            save(bmp, File(shots, "scenery-${s.id}-flat.png"))
+        }
+    }
+
+    /**
+     * The scenery picker on a landscape phone: the metropolis unlocked by a river town score, the island on its way
+     * (progress bar), the mountain village and 2030 in the shop, and the hint after tapping a locked card.
+     */
+    @Test
+    @Config(qualifiers = "de-xhdpi")
+    fun renderSceneryPicker() {
+        val scores = HighscoreStore(RuntimeEnvironment.getApplication())
+        scores.submit(1834, Scenarios.RIVER_TOWN.id)
+        scores.submit(1210, Scenarios.METROPOLIS.id)
+        val view = GameView(RuntimeEnvironment.getApplication())
+        val bmp = phoneBitmap()
+        view.drawSnapshot(Canvas(bmp), view.currentWorld, bmp.width, bmp.height, time = 1.3f, screen = null)
+        val play = view.menuTarget(MenuAction.PLAY)!!
+        view.injectTouch(MotionEvent.ACTION_DOWN, play.centerX(), play.centerY())
+        view.injectTouch(MotionEvent.ACTION_UP, play.centerX(), play.centerY())
+        view.drawSnapshot(Canvas(bmp), view.currentWorld, bmp.width, bmp.height, time = 1.3f, screen = null)
+        val island = view.sceneryTarget(Scenarios.ISLAND.id)!!
+        view.injectTouch(MotionEvent.ACTION_DOWN, island.centerX(), island.centerY())
+        view.injectTouch(MotionEvent.ACTION_UP, island.centerX(), island.centerY())
+        bmp.eraseColor(0)
+        view.drawSnapshot(Canvas(bmp), view.currentWorld, bmp.width, bmp.height, time = 1.3f, screen = null)
+        save(bmp, File(shots, "menu-sceneries.png"))
+    }
+
+    /** The picker in English. */
+    @Test
+    @Config(qualifiers = "en-xhdpi")
+    fun renderSceneryPickerEnglish() {
+        val view = GameView(RuntimeEnvironment.getApplication())
+        val bmp = phoneBitmap()
+        view.drawSnapshot(Canvas(bmp), view.currentWorld, bmp.width, bmp.height, time = 1.3f, screen = Screen.SCENERIES)
+        bmp.eraseColor(0)
+        view.drawSnapshot(Canvas(bmp), view.currentWorld, bmp.width, bmp.height, time = 1.3f, screen = null)
+        save(bmp, File(shots, "menu-sceneries-en.png"))
+    }
 }

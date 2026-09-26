@@ -12,6 +12,7 @@ import com.mininetworks.game.game.Incident
 import com.mininetworks.game.game.IncidentKind
 import com.mininetworks.game.game.Incidents
 import com.mininetworks.game.game.NodeKind
+import com.mininetworks.game.game.Terrain
 import com.mininetworks.game.game.Vec2
 import com.mininetworks.game.game.World
 
@@ -66,7 +67,8 @@ class FlatRenderer : Renderer {
         strokeP.color = edge; strokeP.strokeWidth = cell * 0.03f; canvas.drawRect(grid, strokeP)
         canvas.save()
         canvas.clipRect(grid)
-        drawRiver(canvas, world)
+        drawWater(canvas, world)
+        drawRelief(canvas, world)
         canvas.restore()
         drawLockedArea(canvas, world, grid)
 
@@ -248,6 +250,42 @@ class FlatRenderer : Renderer {
         }
     }
 
+    /** One smooth band for a single top-to-bottom river (as in the river town), otherwise rounded water cells. */
+    private fun drawWater(canvas: Canvas, world: World) {
+        val singleRiver = (0 until world.rows).all { y -> (0 until world.cols).count { world.water[y][it] } <= 1 }
+        if (singleRiver) {
+            drawRiver(canvas, world)
+            return
+        }
+        fillP.color = waterColor
+        val r = cell * 0.3f
+        for (y in 0 until world.rows) for (x in 0 until world.cols) {
+            if (!world.water[y][x]) continue
+            val a = toScreen(Vec2(x - 0.04f, y - 0.04f)); val b = toScreen(Vec2(x + 1.04f, y + 1.04f))
+            canvas.drawRoundRect(a.x, a.y, b.x, b.y, r, r, fillP)
+        }
+    }
+
+    /** Mountains as two-tone peaks, downtown towers as grey blocks, flat like the rest of the overview. */
+    private fun drawRelief(canvas: Canvas, world: World) {
+        for (y in 0 until world.rows) for (x in 0 until world.cols) {
+            when (world.terrainAt(x, y)) {
+                Terrain.MOUNTAIN -> {
+                    val l = toScreen(Vec2(x + 0.08f, y + 0.9f)); val t = toScreen(Vec2(x + 0.5f, y + 0.12f)); val rr = toScreen(Vec2(x + 0.92f, y + 0.9f))
+                    path.reset(); path.moveTo(l.x, l.y); path.lineTo(t.x, t.y); path.lineTo(rr.x, rr.y); path.close()
+                    fillP.color = MOUNTAIN; canvas.drawPath(path, fillP)
+                    path.reset(); path.moveTo(t.x, t.y); path.lineTo(rr.x, rr.y); path.lineTo(t.x, rr.y); path.close()
+                    fillP.color = MOUNTAIN_SHADE; canvas.drawPath(path, fillP)
+                }
+                Terrain.HIGH_RISE -> {
+                    val a = toScreen(Vec2(x + 0.16f, y + 0.16f)); val b = toScreen(Vec2(x + 0.84f, y + 0.84f))
+                    fillP.color = TOWER; canvas.drawRoundRect(a.x, a.y, b.x, b.y, cell * 0.08f, cell * 0.08f, fillP)
+                }
+                else -> Unit
+            }
+        }
+    }
+
     private fun drawRiver(canvas: Canvas, world: World) {
         val centers = (0 until world.rows).mapNotNull { y ->
             (0 until world.cols).firstOrNull { world.water[y][it] }?.let { Vec2(it + 0.5f, y + 0.5f) }
@@ -289,5 +327,11 @@ class FlatRenderer : Renderer {
     private fun polyline(pts: List<Vec2>) {
         path.reset()
         pts.forEachIndexed { i, p -> val s = toScreen(p); if (i == 0) path.moveTo(s.x, s.y) else path.lineTo(s.x, s.y) }
+    }
+
+    private companion object {
+        const val MOUNTAIN = 0xFFB9B2A4.toInt()
+        const val MOUNTAIN_SHADE = 0xFF9E9687.toInt()
+        const val TOWER = 0xFFB4BAC2.toInt()
     }
 }

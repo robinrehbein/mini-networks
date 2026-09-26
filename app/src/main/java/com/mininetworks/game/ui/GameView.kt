@@ -30,11 +30,16 @@ import com.mininetworks.game.game.Node
 import com.mininetworks.game.game.NodeKind
 import com.mininetworks.game.game.RadioType
 import com.mininetworks.game.game.RepairError
+import com.mininetworks.game.game.Scenario
+import com.mininetworks.game.game.Scenarios
 import com.mininetworks.game.game.ServerUpgradeError
 import com.mininetworks.game.game.Vec2
 import com.mininetworks.game.game.Wifi
 import com.mininetworks.game.game.WifiUpgradeError
+import com.mininetworks.game.game.Unlock
 import com.mininetworks.game.game.World
+import com.mininetworks.game.monetization.Entitlements
+import com.mininetworks.game.monetization.NoEntitlements
 import com.mininetworks.game.render.CableStyles
 import com.mininetworks.game.render.DragPreview
 import com.mininetworks.game.render.FlatRenderer
@@ -52,6 +57,8 @@ import com.mininetworks.game.ui.menu.MenuAction
 import com.mininetworks.game.ui.menu.MenuItem
 import com.mininetworks.game.ui.menu.MenuPage
 import com.mininetworks.game.ui.menu.MenuPanel
+import com.mininetworks.game.ui.menu.SceneryCard
+import com.mininetworks.game.ui.menu.SceneryPicker
 import com.mininetworks.game.ui.menu.Screen
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.locks.ReentrantLock
@@ -68,9 +75,11 @@ import kotlin.math.hypot
  * The UI thread only enqueues [Input]s, so the world is never touched concurrently.
  *
  * Screens ([Screen]): the app opens on the main menu (play, continue the autosave, settings) over a demo town.
- * The simulation only runs while [Screen.PLAYING]. The game is saved ([SaveStore]) when the pause menu opens, when the
- * player leaves to the main menu and when the activity pauses; game over records the best score ([HighscoreStore])
- * and deletes the save, then the camera glides to the failed device before the result card shows.
+ * "Play" opens the scenery picker ([SceneryPicker]): a scenery is playable once the packet goal of the one before it
+ * is reached or it is bought ([entitlements]). The simulation only runs while [Screen.PLAYING]. The game is saved
+ * ([SaveStore]) when the pause menu opens, when the player leaves to the main menu and when the activity pauses;
+ * game over records the best score of its scenery ([HighscoreStore]) and deletes the save, then the camera glides to
+ * the failed device before the result card shows.
  *
  * Controls:
  *  - drag from a node to another node: lay a cable along the grid (L-shaped; the drag path picks which way it bends)
@@ -119,6 +128,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     /** Called on the UI thread when back is pressed on the main menu. */
     var onExit: (() -> Unit)? = null
+
+    /** Bought sceneries; the billing package replaces the default. Read on the game thread. */
+    @Volatile var entitlements: Entitlements = NoEntitlements
     private val mainThread = Handler(Looper.getMainLooper())
 
     private var screen = Screen.MAIN_MENU
@@ -136,6 +148,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private var newBest = false
     private val menuPanel = MenuPanel(context)
     private var pressedAction: MenuAction? = null
+    private val sceneryPicker = SceneryPicker(context)
+    /** Scenery id or [SceneryPicker.BACK] under the finger on the picker. */
+    private var pressedScenery: String? = null
+    /** Why the last tapped scenery is locked, shown under the cards. */
+    private var sceneryHint: String? = null
 
     private var world = DemoCity.build()
     private val iso = IsoRenderer()
@@ -370,6 +387,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             buttons.firstOrNull { b -> b.id == "pause" }?.let { b -> drawHudButton(canvas, b.rect, context.getString(R.string.button_pause), active = false) }
         }
         menuPage()?.let { menuPanel.draw(canvas, it, surfaceWidth, surfaceHeight, pressedAction) }
+        if (screen == Screen.SCENERIES) {
+            sceneryPicker.draw(
+                canvas, context.getString(R.string.scenery_title), context.getString(R.string.menu_back), sceneryCards(),
+                sceneryHint, surfaceWidth, surfaceHeight, pressedScenery,
+            )
+        }
     }
 
     private fun drawHudButton(canvas: Canvas, r: RectF, label: String, active: Boolean) {
@@ -382,7 +405,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     /** The HUD shows under the in-game menus, not under the main menu. */
     private val hudVisible
         get() = when (screen) {
-            Screen.MAIN_MENU -> false
+            Screen.MAIN_MENU, Screen.SCENERIES -> false
             Screen.SETTINGS -> settingsReturn != Screen.MAIN_MENU
             else -> true
         }
@@ -436,6 +459,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     /** Screen rectangle of an enabled menu entry in the last drawn frame, for tests. */
     internal fun menuTarget(action: MenuAction): RectF? = menuPanel.targetOf(action)
+
+    /** Screen rectangle of a scenery card (or [SceneryPicker.BACK]) in the last drawn picker, for tests. */
+    internal fun sceneryTarget(id: String): RectF? = if (screen == Screen.SCENERIES) sceneryPicker.targetOf(id) else null
 
     /** Screen rectangle of the HUD button [id] ("pause", "router", "radio:…", "cable:…") in the last drawn frame, for tests. */
     internal fun hudTarget(id: String): RectF? = buttons.firstOrNull { it.id == id }?.rect
@@ -623,6 +649,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 MotionEvent.ACTION_DOWN -> focusSkipArmed = true
                 MotionEvent.ACTION_UP -> if (focusSkipArmed) showGameOverCard()
             }
+            return
+        }
+        if (screen == Screen.SCENERIES) {
+            onSceneryTouch(e)
             return
         }
         if (screen != Screen.PLAYING) {
@@ -883,7 +913,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     // ---------------------------------------------------------------- menus (game thread)
 
     private fun menuPage(): MenuPage? = when (screen) {
-        Screen.PLAYING -> null
+        Screen.PLAYING, Screen.SCENERIES -> null
         Screen.MAIN_MENU -> MenuPage(
             title = context.getString(R.string.app_name),
             lines = listOf(context.getString(R.string.menu_tagline)),
@@ -892,12 +922,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 MenuItem.Button(MenuAction.CONTINUE, context.getString(R.string.menu_continue), enabled = gameInProgress || hasSave),
                 MenuItem.Button(MenuAction.SETTINGS, context.getString(R.string.menu_settings)),
             ),
-            footer = highscores.best().takeIf { it > 0 }?.let { context.getString(R.string.menu_best, it) },
+            footer = highscores.best(highscores.lastScenery).takeIf { it > 0 }?.let { context.getString(R.string.menu_best, it) },
             hero = true,
         )
         Screen.PAUSED -> MenuPage(
             title = context.getString(R.string.pause_title),
             lines = listOf(
+                texts.scenario(world.scenario),
                 context.getString(
                     R.string.pause_status,
                     context.getString(R.string.hud_date, world.year, world.week),
@@ -927,7 +958,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             highlight = if (newBest) context.getString(R.string.game_over_new_best) else null,
             lines = listOfNotNull(
                 resources.getQuantityString(R.plurals.game_over_stats, world.delivered, world.delivered, world.week),
-                if (newBest) null else context.getString(R.string.game_over_best, highscores.best()),
+                if (newBest) null else context.getString(R.string.game_over_best, highscores.best(world.scenario.id)),
             ),
             items = listOf(
                 MenuItem.Button(MenuAction.PLAY_AGAIN, context.getString(R.string.game_over_again), primary = true),
@@ -957,7 +988,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     private fun onMenuAction(action: MenuAction) {
         when (action) {
-            MenuAction.PLAY, MenuAction.PLAY_AGAIN, MenuAction.RESTART -> startGame(World(seed = System.currentTimeMillis()))
+            MenuAction.PLAY -> {
+                sceneryHint = null
+                screen = Screen.SCENERIES
+            }
+            MenuAction.PLAY_AGAIN, MenuAction.RESTART -> newGame(world.scenario)
             MenuAction.CONTINUE -> continueGame()
             MenuAction.RESUME -> screen = Screen.PLAYING
             MenuAction.SETTINGS -> {
@@ -986,9 +1021,76 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             }
             Screen.PAUSED -> screen = Screen.PLAYING
             Screen.SETTINGS -> screen = settingsReturn
+            Screen.SCENERIES -> screen = Screen.MAIN_MENU
             Screen.GAME_OVER -> onMenuAction(MenuAction.MAIN_MENU)
             Screen.MAIN_MENU -> mainThread.post { onExit?.invoke() }
         }
+    }
+
+    // ---------------------------------------------------------------- scenery picker (game thread)
+
+    private fun sceneryUnlocked(s: Scenario) = Scenarios.isUnlocked(s, highscores::best, entitlements::ownsScenery)
+
+    private fun sceneryCards(): List<SceneryCard> = Scenarios.all.map { s ->
+        val unlocked = sceneryUnlocked(s)
+        val unlock = s.unlock
+        val best = highscores.best(s.id)
+        val status = when {
+            unlocked -> listOf(if (best > 0) context.getString(R.string.menu_best, best) else context.getString(R.string.scenery_not_played))
+            unlock is Unlock.Score -> listOf(
+                resources.getQuantityString(R.plurals.scenery_progress, unlock.packets, highscores.best(unlock.after).coerceAtMost(unlock.packets), unlock.packets),
+                context.getString(R.string.scenery_progress_in, texts.scenario(Scenarios.byId(unlock.after)!!)),
+            )
+            else -> listOf(context.getString(R.string.scenery_shop), context.getString(R.string.scenery_shop_pack))
+        }
+        SceneryCard(
+            scenario = s,
+            name = texts.scenario(s),
+            era = context.getString(R.string.scenery_from_year, s.startYear),
+            description = texts.scenarioDescription(s),
+            unlocked = unlocked,
+            status = status,
+            progress = if (!unlocked && unlock is Unlock.Score) highscores.best(unlock.after) / unlock.packets.toFloat() else null,
+        )
+    }
+
+    /** A card is chosen when the finger goes down and up on it: an unlocked scenery starts, a locked one says how to get it. */
+    private fun onSceneryTouch(e: Input.Touch) {
+        when (e.action) {
+            MotionEvent.ACTION_DOWN -> {
+                endDrag()
+                pressedScenery = sceneryPicker.hit(e.x, e.y)
+            }
+            MotionEvent.ACTION_UP -> {
+                val id = pressedScenery
+                pressedScenery = null
+                if (id == null || sceneryPicker.hit(e.x, e.y) != id) return
+                click()
+                if (id == SceneryPicker.BACK) {
+                    screen = Screen.MAIN_MENU
+                    return
+                }
+                val s = Scenarios.byId(id) ?: return
+                if (sceneryUnlocked(s)) newGame(s) else sceneryHint = lockedHint(s)
+            }
+            MotionEvent.ACTION_CANCEL -> pressedScenery = null
+        }
+    }
+
+    /** Asks the store for a locked scenery; the hint says how to unlock it, or that buying is not possible yet. */
+    private fun lockedHint(s: Scenario): String? {
+        if (entitlements.purchaseScenery(s.id)) return null
+        val unlock = s.unlock
+        return if (unlock is Unlock.Score) {
+            resources.getQuantityString(R.plurals.scenery_hint_score, unlock.packets, unlock.packets, texts.scenario(Scenarios.byId(unlock.after)!!))
+        } else {
+            context.getString(R.string.scenery_hint_no_shop)
+        }
+    }
+
+    private fun newGame(s: Scenario) {
+        highscores.lastScenery = s.id
+        startGame(World(s, seed = System.currentTimeMillis()))
     }
 
     private fun openPauseMenu() {
@@ -1039,7 +1141,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private fun checkGameOver() {
         if (screen != Screen.PLAYING || !world.gameOver || !gameInProgress) return
         gameInProgress = false
-        newBest = highscores.submit(world.delivered)
+        newBest = highscores.submit(world.delivered, world.scenario.id)
         saveStore.clear()
         hasSave = false
         endDrag()
@@ -1088,7 +1190,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     /** Fits every style to the unlocked area, keeping the HUD rows free; the demo town sits beside the main menu card. */
     private fun layoutRenderers() {
-        val insets = if (screen == Screen.MAIN_MENU && !gameInProgress) {
+        val insets = if ((screen == Screen.MAIN_MENU || screen == Screen.SCENERIES) && !gameInProgress) {
             ViewInsets(surfaceWidth * 0.55f, 24 * density, 16 * density, 24 * density)
         } else {
             ViewInsets(8 * density, 56 * density, 8 * density, 68 * density)

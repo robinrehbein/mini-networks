@@ -17,6 +17,7 @@ import com.mininetworks.game.game.Incidents
 import com.mininetworks.game.game.Node
 import com.mininetworks.game.game.NodeKind
 import com.mininetworks.game.game.Service
+import com.mininetworks.game.game.Terrain
 import com.mininetworks.game.game.Vec2
 import com.mininetworks.game.game.World
 import kotlin.math.PI
@@ -217,7 +218,10 @@ class IsoRenderer : Renderer {
         fun mix(v: Int) { h = (h xor v.toLong()) * 0x100000001B3L }
         val u = world.unlocked
         mix(u.left); mix(u.top); mix(u.right); mix(u.bottom)
-        for (y in 0 until world.rows) for (x in 0 until world.cols) if (world.water[y][x]) mix(y * 4096 + x)
+        for (y in 0 until world.rows) for (x in 0 until world.cols) {
+            val t = world.terrainAt(x, y)
+            if (t != Terrain.LAND) mix((y * 4096 + x) * 4 + t.ordinal)
+        }
         mix(world.nodes.size)
         for (n in world.nodes) { mix(n.id); mix(n.kind.ordinal); mix(n.cellX); mix(n.cellY); mix(n.level) }
         mix(world.cables.size)
@@ -236,11 +240,12 @@ class IsoRenderer : Renderer {
         for (y in 0 until world.rows) for (x in 0 until world.cols) {
             quad(x.toFloat(), y.toFloat(), 1f, 1f, 0f)
             val even = (x + y) % 2 == 0
-            val base = when {
-                !open.contains(x, y) && world.water[y][x] -> if (even) lockedWaterA else lockedWaterB
-                !open.contains(x, y) -> if (even) lockedLandA else lockedLandB
-                world.water[y][x] -> if (even) waterA else waterB
-                else -> if (even) landA else landB
+            val locked = !open.contains(x, y)
+            val base = when (world.terrainAt(x, y)) {
+                Terrain.WATER -> if (locked) (if (even) lockedWaterA else lockedWaterB) else if (even) waterA else waterB
+                Terrain.MOUNTAIN -> (if (even) ROCK_A else ROCK_B).let { if (locked) wash(it) else it }
+                Terrain.HIGH_RISE -> (if (even) PAVEMENT_A else PAVEMENT_B).let { if (locked) wash(it) else it }
+                Terrain.LAND -> if (locked) (if (even) lockedLandA else lockedLandB) else if (even) landA else landB
             }
             fillP.color = base.shade(Scenery.tileVariation(seed, x, y) * TILE_VARIATION)
             c.drawPath(path, fillP)
@@ -255,11 +260,83 @@ class IsoRenderer : Renderer {
         }
         val taken = Scenery.occupied(world, excavatorCells(world))
         for (y in 0 until world.rows) for (x in 0 until world.cols) {
-            if (world.water[y][x] || Cell(x, y) in taken || Scenery.planned(seed, x, y) != null) continue
+            if (world.terrainAt(x, y) != Terrain.LAND || Cell(x, y) in taken || Scenery.planned(seed, x, y) != null) continue
             drawGrass(c, seed, x, y, open.contains(x, y))
         }
         for (n in world.nodes) drawShadow(c, n)
-        for ((cell, d) in Scenery.decorations(world, taken)) drawDecor(c, seed, cell, d, open.contains(cell.x, cell.y))
+        val relief = ArrayList<Pair<Cell, Terrain>>()
+        for (y in 0 until world.rows) for (x in 0 until world.cols) {
+            val t = world.terrainAt(x, y)
+            if (t == Terrain.MOUNTAIN || t == Terrain.HIGH_RISE) relief += Cell(x, y) to t
+        }
+        for ((cell, t) in relief) {
+            if (t == Terrain.MOUNTAIN) groundShadow(c, cell.x + 0.5f, cell.y + 0.5f, 0.86f, mountainHeight(seed, cell) * 0.7f)
+            else groundShadow(c, cell.x + 0.5f, cell.y + 0.5f, TOWER_SIZE, towerHeight(seed, cell))
+        }
+        // Mountains, towers and decorations back to front, so nearer ones overlap farther ones.
+        val items = ArrayList<Pair<Int, () -> Unit>>()
+        for ((cell, t) in relief) items += (cell.x + cell.y) to {
+            val lit = open.contains(cell.x, cell.y)
+            if (t == Terrain.MOUNTAIN) drawMountain(c, seed, cell, lit) else drawTower(c, seed, cell, lit)
+        }
+        for ((cell, d) in Scenery.decorations(world, taken)) items += (cell.x + cell.y) to { drawDecor(c, seed, cell, d, open.contains(cell.x, cell.y)) }
+        items.sortBy { it.first }
+        items.forEach { it.second() }
+    }
+
+    private fun mountainHeight(seed: Long, cell: Cell) = 0.5f + 0.45f * Scenery.unit(seed, cell.x, cell.y, 30)
+
+    private fun towerHeight(seed: Long, cell: Cell) = 0.6f + 0.9f * Scenery.unit(seed, cell.x, cell.y, 31)
+
+    /** A rocky peak filling its cell, lit from the upper left, with a snow cap on the higher ones. */
+    private fun drawMountain(c: Canvas, seed: Long, cell: Cell, open: Boolean) {
+        fun col(v: Int) = if (open) v else wash(v)
+        val h = mountainHeight(seed, cell)
+        val x0 = cell.x + 0.02f; val y0 = cell.y + 0.02f; val x1 = cell.x + 0.98f; val y1 = cell.y + 0.98f
+        val ax = cell.x + 0.5f + (Scenery.unit(seed, cell.x, cell.y, 32) - 0.5f) * 0.24f
+        val ay = cell.y + 0.5f + (Scenery.unit(seed, cell.x, cell.y, 33) - 0.5f) * 0.24f
+        val faces = listOf(
+            floatArrayOf(x0, y0, x1, y0) to ROCK_LIT,
+            floatArrayOf(x0, y1, x0, y0) to ROCK_LIT.shade(-0.06f),
+            floatArrayOf(x1, y0, x1, y1) to ROCK_DARK,
+            floatArrayOf(x1, y1, x0, y1) to ROCK_MID,
+        )
+        for ((e, color) in faces) {
+            poly(e[0], e[1], 0f, e[2], e[3], 0f, ax, ay, h)
+            fillP.color = col(color); c.drawPath(path, fillP)
+        }
+        if (h < SNOW_FROM) return
+        val k = 0.3f
+        for ((e, color) in faces) {
+            fun at(px: Float, py: Float) = floatArrayOf(ax + (px - ax) * k, ay + (py - ay) * k, h * (1f - k))
+            val a = at(e[0], e[1]); val b = at(e[2], e[3])
+            poly(a[0], a[1], a[2], b[0], b[1], b[2], ax, ay, h)
+            fillP.color = col(if (color == ROCK_DARK) SNOW_SHADE else if (color == ROCK_MID) SNOW_SHADE.shade(0.08f) else SNOW)
+            c.drawPath(path, fillP)
+        }
+    }
+
+    /** A downtown tower on a paved cell: glass walls with rows of windows, a few of them lit, and a roof box. */
+    private fun drawTower(c: Canvas, seed: Long, cell: Cell, open: Boolean) {
+        fun col(v: Int) = if (open) v else wash(v)
+        val h = towerHeight(seed, cell)
+        val cx = cell.x + 0.5f; val cy = cell.y + 0.5f
+        val half = TOWER_SIZE / 2f
+        val tint = if (Scenery.unit(seed, cell.x, cell.y, 34) < 0.5f) TOWER_A else TOWER_B
+        boxRect(c, cx - half, cy - half, cx + half, cy + half, 0f, h, col(tint.shade(0.25f)), col(tint))
+        val rows = (h / 0.16f).toInt()
+        for (r in 0 until rows) {
+            val z = 0.08f + r * 0.16f
+            if (z + 0.07f > h - 0.04f) break
+            for (i in 0 until 3) {
+                val u = -half + 0.05f + i * 0.18f
+                val lit = Scenery.unit(seed, cell.x * 7 + i, cell.y * 7 + r, 35) < 0.18f
+                fillP.color = col(if (lit) WINDOW_LIT else WINDOW)
+                faceY(cy + half, cx + u, cx + u + 0.12f, z, z + 0.07f); c.drawPath(path, fillP)
+                faceX(cx + half, cy + u, cy + u + 0.12f, z, z + 0.07f); c.drawPath(path, fillP)
+            }
+        }
+        boxRect(c, cx - 0.12f, cy - 0.14f, cx + 0.08f, cy + 0.04f, h, 0.07f, col(0xFFCBD2D9.toInt()), col(0xFF9AA3AD.toInt()))
     }
 
     /** Tufts of grass and a few flowers on some bare land cells. */
@@ -867,6 +944,23 @@ class IsoRenderer : Renderer {
         const val HOUSE_ROOF = 0xFFC9694F.toInt()
         const val HOUSE_DOOR = 0xFF8A6A4A.toInt()
         const val HOUSE_WINDOW = 0xFFBFD6E6.toInt()
+        const val ROCK_A = 0xFFCBC6B8.toInt()
+        const val ROCK_B = 0xFFC4BFB0.toInt()
+        const val ROCK_LIT = 0xFFB7AE9C.toInt()
+        const val ROCK_MID = 0xFF9C9382.toInt()
+        const val ROCK_DARK = 0xFF837B6C.toInt()
+        const val SNOW = 0xFFFBFCFD.toInt()
+        const val SNOW_SHADE = 0xFFD9E0E8.toInt()
+        /** Peaks at least this high (in tile widths) get a snow cap. */
+        const val SNOW_FROM = 0.72f
+        const val PAVEMENT_A = 0xFFD4D7D6.toInt()
+        const val PAVEMENT_B = 0xFFCDD1D0.toInt()
+        const val TOWER_A = 0xFFA9BACB.toInt()
+        const val TOWER_B = 0xFFB9B3C4.toInt()
+        const val WINDOW = 0xFFE3ECF4.toInt()
+        const val WINDOW_LIT = 0xFFF6DE8E.toInt()
+        /** Width of a downtown tower's footprint, in cells. */
+        const val TOWER_SIZE = 0.66f
         /** Seconds of the ring where a request reaches a server, of a delivery pop, and of the badge bounce. */
         const val SERVER_POP = 0.7f
         const val DELIVERY_POP = 0.8f
