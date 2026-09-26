@@ -4,6 +4,8 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.view.MotionEvent
 import com.mininetworks.game.R
+import com.mininetworks.game.audio.ServicePitch
+import com.mininetworks.game.audio.Sound
 import com.mininetworks.game.data.HighscoreStore
 import com.mininetworks.game.data.SaveStore
 import com.mininetworks.game.game.CableType
@@ -297,6 +299,51 @@ class MenuFlowTest {
         tap(view, MenuAction.SETTINGS)
         tap(view, MenuAction.TOGGLE_HAPTICS)
         assertEquals(0, layCable(view))
+    }
+
+    @Test
+    fun soundsFollowTheGameAndTheSetting() {
+        fun session(view: GameView): List<Sound> {
+            val w = World(seed = 2L, spawnInitialNodes = false)
+            for (row in w.water) row.fill(false)
+            w.grant(100)
+            w.incidentsEnabled = false
+            val pc = w.addClient(Device.PC, 10, 7)
+            val mail = w.addServer(Service.MAIL, 14, 9)
+            val phone = w.addClient(Device.PHONE, 3, 3)
+            view.drawSnapshot(Canvas(bmp), w, bmp.width, bmp.height, time = 0f, style = "Iso")
+            view.advance(1f / 60f)
+            val before = view.playedSounds.size
+            val a = view.activeRenderer.toScreen(pc.center)
+            val b = view.activeRenderer.toScreen(mail.center)
+            view.injectTouch(MotionEvent.ACTION_DOWN, a.x, a.y)
+            view.injectTouch(MotionEvent.ACTION_MOVE, b.x, b.y)
+            view.injectTouch(MotionEvent.ACTION_UP, b.x, b.y)
+            assertNotNull(w.cableBetween(pc, mail))
+            pc.pending.addLast(Service.MAIL)
+            var frames = 0
+            while (w.delivered == 0 && frames++ < 60 * 20) view.advance(1f / 60f)
+            assertTrue(w.delivered > 0)
+            repeat(World.Tuning.MAX_PENDING) { phone.pending.addLast(Service.CALL) }
+            repeat(10) { view.advance(1f / 60f) }
+            phone.pending.clear()
+            w.advanceToNextWeek()
+            view.advance(1f / 60f)
+            return view.playedSounds.drop(before).map { it.first }
+        }
+        val view = newView()
+        val heard = session(view)
+        assertEquals("a cable click first", Sound.CABLE, heard.first())
+        assertTrue("a pluck per delivery", Sound.PLUCK in heard)
+        assertEquals("one warning for the overloaded phone", 1, heard.count { it == Sound.WARNING })
+        assertEquals("the week ends with a chime", Sound.CHIME, heard.last())
+        assertEquals(ServicePitch.rate(Service.MAIL), view.playedSounds.first { it.first == Sound.PLUCK }.second, 0f)
+        view.back()
+        view.advance(0f)
+        draw(view)
+        tap(view, MenuAction.SETTINGS)
+        tap(view, MenuAction.TOGGLE_SOUND)
+        assertEquals(emptyList<Sound>(), session(view))
     }
 
     @Test

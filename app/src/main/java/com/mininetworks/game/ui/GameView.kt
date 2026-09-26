@@ -14,6 +14,8 @@ import android.view.SoundEffectConstants
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import com.mininetworks.game.R
+import com.mininetworks.game.audio.Sound
+import com.mininetworks.game.audio.SoundPlayer
 import com.mininetworks.game.data.GameSettings
 import com.mininetworks.game.data.HighscoreStore
 import com.mininetworks.game.data.SaveStore
@@ -33,6 +35,7 @@ import com.mininetworks.game.game.RepairError
 import com.mininetworks.game.game.Scenario
 import com.mininetworks.game.game.Scenarios
 import com.mininetworks.game.game.ServerUpgradeError
+import com.mininetworks.game.game.SoundCues
 import com.mininetworks.game.game.Vec2
 import com.mininetworks.game.game.Wifi
 import com.mininetworks.game.game.WifiUpgradeError
@@ -94,6 +97,10 @@ import kotlin.math.hypot
  *  - settings: sound, haptics, overview mode (flat instead of isometric), colorblind palette
  *  - at each week change the world pauses and [RewardDialog] shows two reward cards; tap one to pick it
  *    ("Pause" stays tappable above the dialog; resuming returns to the choice)
+ *
+ * Sound ([SoundPlayer]): a pluck per delivery pitched by service, a click when a cable locks in, a soft warning when a
+ * device starts to overload and a chime at each new week ([SoundCues] reads them from the world while playing).
+ * Haptics: a tick when a dragged cable snaps onto a target node and a pulse when it is laid.
  */
 class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback {
 
@@ -124,6 +131,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private val settingsStore = SettingsStore(context)
     private val highscores = HighscoreStore(context)
     private var settings = GameSettings()
+    private val sounds = SoundPlayer(context)
+    private val soundCues = SoundCues()
     private var hasSave = saveStore.exists
 
     /** Called on the UI thread when back is pressed on the main menu. */
@@ -235,6 +244,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     /** Starts the game thread; call from `Activity.onResume`. */
     fun resume() {
         if (loop != null) return
+        sounds.open()
         running = true
         loop = thread(name = "GameLoop") { runLoop() }
     }
@@ -247,6 +257,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             joinQuietly(t)
             loop = null
         }
+        sounds.close()
         // Safe: the game thread has ended.
         if (failFocusUntil != null) showGameOverCard()
         if (screen == Screen.PLAYING) {
@@ -337,7 +348,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         val animStep = frameSeconds.coerceAtMost(MAX_ANIM_STEP)
         animTime += animStep
         checkHold()
-        if (screen == Screen.PLAYING) clock.advance(frameSeconds) { world.update(it) } else clock.reset()
+        if (screen == Screen.PLAYING) {
+            clock.advance(frameSeconds) { world.update(it) }
+            val now = (animTime * 1000).toLong()
+            for (cue in soundCues.poll(world)) sounds.play(cue, now)
+        } else {
+            clock.reset()
+        }
         checkGameOver()
         failFocusUntil?.let { if (animTime >= it) showGameOverCard() }
         followArea()
@@ -465,6 +482,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     /** Screen rectangle of the HUD button [id] ("pause", "router", "radio:…", "cable:…") in the last drawn frame, for tests. */
     internal fun hudTarget(id: String): RectF? = buttons.firstOrNull { it.id == id }?.rect
+
+    /** The last sounds played (only while sound is on) with their rate, newest last, for tests. */
+    internal val playedSounds: List<Pair<Sound, Float>> get() = sounds.played
 
     /** Number of haptic pulses sent (only counted while haptics are on), for tests. */
     internal var hapticPulses = 0
@@ -731,7 +751,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 } else if (from != null && !isTap) {
                     trackDrag(e.x, e.y)
                     pickNode(e.x, e.y, except = from)?.let {
-                        if (world.connect(from, it, cableType, dragBend(from.cell, it.cell))) haptic(HapticFeedbackConstants.VIRTUAL_KEY)
+                        if (world.connect(from, it, cableType, dragBend(from.cell, it.cell))) {
+                            haptic(HapticFeedbackConstants.VIRTUAL_KEY)
+                            sounds.play(Sound.CABLE)
+                        }
                     }
                 } else if (isTap && from == null && panArmed) {
                     val cable = renderer.cableAtScreen(world, e.x, e.y, TouchTargets.cableRadiusPx(renderer, density))
@@ -823,6 +846,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             null -> {
                 world.repair(cable)
                 haptic(HapticFeedbackConstants.VIRTUAL_KEY)
+                sounds.play(Sound.CABLE)
                 showHint(context.getString(R.string.hint_repaired))
             }
             RepairError.NOT_CUT -> Unit
@@ -1173,6 +1197,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     private fun applySettings(s: GameSettings) {
         settings = s
+        sounds.enabled = s.sound
         ServiceColors.colorblind = s.colorblind
         renderer = if (s.overviewMode) flat else iso
     }
@@ -1183,7 +1208,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         post { performHapticFeedback(kind) }
     }
 
-    /** The system click sound for buttons, if sound is on (game sounds come with P3.2). */
+    /** The system click sound for buttons, if sound is on. */
     private fun click() {
         if (settings.sound) post { playSoundEffect(SoundEffectConstants.CLICK) }
     }

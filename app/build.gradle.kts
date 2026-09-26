@@ -32,6 +32,8 @@ android {
         unitTests.isIncludeAndroidResources = true
         unitTests.all { test ->
             test.systemProperty("screenshots.dir", rootDir.resolve("docs/screenshots").absolutePath)
+            test.systemProperty("sounds.dir", projectDir.resolve("src/main/res/raw").absolutePath)
+            System.getenv("REGENERATE_SOUNDS")?.let { test.systemProperty("sounds.regenerate", it) }
             // Optional: point Robolectric at pre-downloaded android-all jars (CI / sandboxed containers).
             System.getenv("ROBOLECTRIC_DEPS_DIR")?.let {
                 test.systemProperty("robolectric.offline", "true")
