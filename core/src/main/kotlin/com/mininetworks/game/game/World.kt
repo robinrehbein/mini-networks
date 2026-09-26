@@ -426,12 +426,15 @@ class World(
         }
     }
 
-    /** Sends the oldest request that currently has a valid route and room on its first cable. */
+    /**
+     * Sends the oldest request that currently has a valid route and room on its first cable. Packets already waiting
+     * to enter that cable at either end (answers on their way back, traffic passing through) keep their claim on it.
+     */
     private fun dispatch(client: Node) {
         for (service in client.pending) {
             val route = routeFor(client, service) ?: continue
             val first = cableBetween(route.nodes[0], route.nodes[1]) ?: continue
-            if (cableLoad(first) + service.bandwidth > first.capacity) continue
+            if (cableLoad(first) + waitingFor(first) + service.bandwidth > first.capacity) continue
             packets += Packet(service, client, route.nodes).apply { progress = 0f }
             client.pending.remove(service)
             client.dispatchCooldown = Tuning.DISPATCH_COOLDOWN
@@ -439,11 +442,16 @@ class World(
         }
     }
 
+    /** Bandwidth units waiting at either end of [c] to enter it. */
+    private fun waitingFor(c: Cable) =
+        packets.sumOf { if (it.inTransit && it.progress < 0f && cableBetween(it.from, it.to) === c) it.size else 0 }
+
     /**
      * Moves requests and responses along their routes. A request that reaches its server takes one throughput token
      * and turns into a response waiting at the server; a response that reaches its client counts as delivered.
      * Responses are handled first, so when capacity frees up on a cable they get it before waiting requests;
-     * otherwise requests queued for a busy server could keep the answers from ever leaving.
+     * otherwise requests queued for a busy server could keep the answers from ever leaving. [dispatch] leaves room
+     * for waiting packets too, so a client with a backlog cannot refill the slot an answer is waiting for.
      */
     private fun movePackets(dt: Float) {
         for (n in nodes) if (n.kind == NodeKind.SERVER) n.tokens = minOf(serverRate(n), n.tokens + serverRate(n) * dt)

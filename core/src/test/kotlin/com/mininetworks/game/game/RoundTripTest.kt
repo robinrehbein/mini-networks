@@ -79,6 +79,65 @@ class RoundTripTest {
     }
 
     @Test
+    fun waitingResponsesGoBeforeNewRequests() {
+        val w = dryWorld()
+        val phone = w.addClient(Device.PHONE, 1, 1)
+        val server = w.addServer(Service.CALL, 4, 1)
+        assertTrue(w.connect(phone, server, CableType.ISDN))
+        phone.requestTimer = Float.MAX_VALUE
+        repeat(10) { phone.pending.addLast(Service.CALL) }
+        var sawWaitingResponse = false
+        repeat(60 * 15) {
+            val waiting = w.packets.filter { it.isResponse && it.progress < 0f }
+            val before = w.packets.toSet()
+            w.update(step)
+            val dispatched = w.packets.filter { it !in before && !it.isResponse }
+            if (waiting.isNotEmpty()) sawWaitingResponse = true
+            if (dispatched.isNotEmpty()) {
+                assertTrue("no new request while an answer waits for the cable", waiting.none { it in w.packets && it.progress < 0f })
+            }
+        }
+        assertTrue("the scenario makes answers wait", sawWaitingResponse)
+    }
+
+    @Test
+    fun backlogOnDirectIsdnCableKeepsDelivering() = assertSustainedThroughput(CableType.ISDN, serverLevel = 1)
+
+    @Test
+    fun backlogOnDirectDslCableKeepsDelivering() = assertSustainedThroughput(CableType.DSL, serverLevel = 3)
+
+    @Test
+    fun backlogOnSaturatedServerKeepsDelivering() = assertSustainedThroughput(CableType.COAX, serverLevel = 1)
+
+    /**
+     * A client with a long backlog on a direct 3-cell cable: every delivery occupies one slot for the way there and
+     * one for the way back, so the cable carries about capacity / round-trip-time answers per second.
+     */
+    private fun assertSustainedThroughput(type: CableType, serverLevel: Int) {
+        val w = dryWorld()
+        w.jumpToWeek(type.unlockWeek)
+        val phone = w.addClient(Device.PHONE, 1, 1)
+        val server = w.addServer(Service.CALL, 4, 1)
+        repeat(serverLevel - 1) { assertTrue(w.upgradeServer(server)) }
+        assertTrue(w.connect(phone, server, type))
+        val cable = w.cableBetween(phone, server)!!
+        phone.requestTimer = Float.MAX_VALUE
+        repeat(24) { phone.pending.addLast(Service.CALL) }
+        val seconds = 16f
+        var maxWaiting = 0
+        repeat((seconds / step).toInt()) {
+            w.update(step)
+            maxWaiting = maxOf(maxWaiting, w.packets.count { it.isResponse && it.progress < 0f })
+        }
+        assertFalse(w.gameOver)
+        val roundTrip = 2 * cable.length / type.speed
+        val rate = minOf(cable.capacity / roundTrip, w.serverRate(server))
+        val expected = (seconds - roundTrip) * rate
+        assertTrue("delivered ${w.delivered}, expected about $expected", w.delivered >= (0.8f * expected).toInt())
+        assertTrue("answers do not pile up at the server: $maxWaiting", maxWaiting <= cable.capacity)
+    }
+
+    @Test
     fun cutCableSendsResponseBackToTheQueue() {
         val w = dryWorld()
         val phone = w.addClient(Device.PHONE, 1, 1)
