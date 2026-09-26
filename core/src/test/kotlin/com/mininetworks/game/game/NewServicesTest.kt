@@ -248,6 +248,7 @@ class NewServicesTest {
     fun backupsNeedAThickCableAndGetDelivered() {
         val w = dryWorld()
         w.jumpToWeek(8)
+        w.incidentsEnabled = false
         val server = w.addServer(Service.CLOUD_BACKUP, 6, 2)
         val pc = w.addClient(Device.PC, 2, 2)
         assertTrue(w.connect(pc, server, CableType.ISDN))

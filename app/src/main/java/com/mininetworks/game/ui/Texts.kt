@@ -5,11 +5,15 @@ import com.mininetworks.game.R
 import com.mininetworks.game.game.CableType
 import com.mininetworks.game.game.ConnectError
 import com.mininetworks.game.game.Device
+import com.mininetworks.game.game.Incident
+import com.mininetworks.game.game.IncidentKind
+import com.mininetworks.game.game.Incidents
 import com.mininetworks.game.game.Node
 import com.mininetworks.game.game.NodeKind
 import com.mininetworks.game.game.RadioType
 import com.mininetworks.game.game.Service
 import com.mininetworks.game.game.WeekNews
+import kotlin.math.ceil
 
 /** Display texts for the ids the game logic hands out; everything comes from string resources. */
 class Texts(private val context: Context) {
@@ -87,5 +91,17 @@ class Texts(private val context: Context) {
         ConnectError.FROM_PORTS_FULL -> context.getString(R.string.connect_error_ports_full, node(from))
         ConnectError.TO_PORTS_FULL -> context.getString(R.string.connect_error_ports_full, node(to))
         ConnectError.NO_BUDGET -> context.getString(R.string.connect_error_no_budget)
+    }
+
+    /** The HUD line for incident [i]: the announcement with its countdown, or the effect and how long it lasts. */
+    fun incident(i: Incident): String {
+        val seconds = ceil(if (i.struck) i.remaining else i.warning).toInt().coerceAtLeast(1)
+        return when (i.kind) {
+            IncidentKind.EXCAVATOR ->
+                if (i.struck) context.getString(R.string.incident_cut, Incidents.REPAIR_COST, seconds)
+                else context.getString(R.string.incident_excavator_warning, seconds)
+            IncidentKind.POWER_OUTAGE ->
+                context.getString(if (i.struck) R.string.incident_outage else R.string.incident_outage_warning, node(i.node!!), seconds)
+        }
     }
 }

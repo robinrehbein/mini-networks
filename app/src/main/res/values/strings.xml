@@ -31,6 +31,12 @@
     <string name="server_error_max_level">Rechenzentrum ist die höchste Stufe</string>
     <string name="server_error_no_budget">Zu wenig Budget, Aufrüsten kostet %1$d</string>
     <string name="server_error_no_space">Rechenzentrum braucht 2×2 freie Felder am Server</string>
+    <string name="incident_excavator_warning">Bagger im Anmarsch: Kabel wird in %1$d s gekappt</string>
+    <string name="incident_outage_warning">Stromausfall droht: %1$s fällt in %2$d s aus</string>
+    <string name="incident_cut">Kabel gekappt: antippen = reparieren für %1$d · von selbst in %2$d s</string>
+    <string name="incident_outage">Stromausfall: %1$s noch %2$d s ohne Strom</string>
+    <string name="repair_error_no_budget">Zu wenig Budget, Reparieren kostet %1$d</string>
+    <string name="hint_repaired">Kabel repariert</string>
     <plurals name="hud_vouchers">
         <item quantity="one">%1$d Server-Gutschein · Server antippen</item>
         <item quantity="other">%1$d Server-Gutscheine · Server antippen</item>

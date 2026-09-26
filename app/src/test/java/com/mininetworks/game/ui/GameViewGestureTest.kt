@@ -3,9 +3,11 @@ package com.mininetworks.game.ui
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.view.MotionEvent
+import com.mininetworks.game.game.CableType
 import com.mininetworks.game.game.Cell
 import com.mininetworks.game.game.DebugApi
 import com.mininetworks.game.game.Device
+import com.mininetworks.game.game.Incidents
 import com.mininetworks.game.game.NodeKind
 import com.mininetworks.game.game.RadioType
 import com.mininetworks.game.game.Wifi
@@ -154,5 +156,26 @@ class GameViewGestureTest {
         assertFalse(ap.fiveGhz)
         view.injectTouch(MotionEvent.ACTION_UP, p.x + 200f, p.y, time = 1100L)
         assertFalse(ap.fiveGhz)
+    }
+
+    @Test
+    fun tappingACutCableRepairsItInsteadOfRemovingIt() {
+        val pc = world.addClient(Device.PC, 10, 7)
+        val mail = world.addServer(Service.MAIL, 14, 7)
+        assertTrue(world.connect(pc, mail, CableType.ISDN))
+        val cable = world.cableBetween(pc, mail)!!
+        world.announceExcavator(cable)
+        repeat(60 * 6) { world.update(1f / 60f) }
+        assertTrue(world.isCut(cable))
+        val budget = world.budget
+        val p = view.activeRenderer.toScreen(cable.layout.pointAt(0.5f))
+        view.injectTouch(MotionEvent.ACTION_DOWN, p.x, p.y)
+        view.injectTouch(MotionEvent.ACTION_UP, p.x, p.y)
+        assertFalse(world.isCut(cable))
+        assertTrue("the cable stays", cable in world.cables)
+        assertEquals(budget - Incidents.REPAIR_COST, world.budget)
+        view.injectTouch(MotionEvent.ACTION_DOWN, p.x, p.y, time = 1000L)
+        view.injectTouch(MotionEvent.ACTION_UP, p.x, p.y, time = 1000L)
+        assertFalse("an intact cable of the picked type is removed as before", cable in world.cables)
     }
 }

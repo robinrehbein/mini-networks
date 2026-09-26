@@ -8,6 +8,9 @@ import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
 import com.mininetworks.game.game.CellRect
+import com.mininetworks.game.game.Incident
+import com.mininetworks.game.game.IncidentKind
+import com.mininetworks.game.game.Incidents
 import com.mininetworks.game.game.NodeKind
 import com.mininetworks.game.game.Vec2
 import com.mininetworks.game.game.World
@@ -41,6 +44,7 @@ class FlatRenderer : Renderer {
     private val arcRect = RectF()
     private val labelP = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = Typeface.DEFAULT_BOLD; textAlign = Paint.Align.CENTER }
     private val airP = stroke(0)
+    private val cutP = stroke(IncidentStyles.CUT)
     private val clip = Path()
 
     /** Flat map space is world space: one map unit per cell. */
@@ -75,9 +79,16 @@ class FlatRenderer : Renderer {
             if (world.cableLoad(c) >= c.capacity) {
                 cableP.color = alarm and 0x80FFFFFF.toInt(); cableP.strokeWidth = cell * 0.05f; canvas.drawPath(path, cableP)
             }
+            if (world.isCut(c)) {
+                val dash = cell * 0.12f
+                cutP.pathEffect = DashPathEffect(floatArrayOf(dash, dash * 0.7f), 0f)
+                cutP.strokeWidth = cell * st.width * 0.6f
+                canvas.drawPath(path, cutP)
+            }
         }
 
         drawRadioCoverage(canvas, world, time)
+        for (i in world.incidents) drawIncidentGround(canvas, i, time)
 
         drag?.let { d ->
             val end = d.layout.end
@@ -110,11 +121,22 @@ class FlatRenderer : Renderer {
             }
         }
 
+        for (i in world.incidents) if (i.kind == IncidentKind.EXCAVATOR) {
+            val spot = toScreen(i.spot)
+            val size = cell * 0.3f
+            val dig = if (i.struck) 0.75f + 0.25f * kotlin.math.sin(time * 3f) else 0f
+            icons.excavator(canvas, spot.x - size * 1.25f, spot.y - size * 0.65f, size, dig)
+        }
+
         for (n in world.nodes) {
             val s = toScreen(n.center)
+            val dark = world.isDark(n)
+            val warning = world.incidents.any { it.node === n && !it.struck }
             when (n.kind) {
-                NodeKind.ROUTER -> icons.router(canvas, s.x, s.y, cell * 0.3f, time)
-                NodeKind.ACCESS_POINT -> {
+                NodeKind.ROUTER -> icons.router(canvas, s.x, s.y, cell * 0.3f, time, warning, dark)
+                NodeKind.ACCESS_POINT -> if (dark) {
+                    icons.accessPoint(canvas, s.x, s.y, cell * 0.28f, RadioStyles.color(n), time, dark = true)
+                } else {
                     icons.accessPoint(canvas, s.x, s.y, cell * 0.28f, RadioStyles.color(n), time)
                     val interfering = world.interferers(n).isNotEmpty()
                     val bx = s.x + cell * 0.36f; val by = s.y - cell * 0.3f; val r = cell * 0.15f
@@ -153,6 +175,17 @@ class FlatRenderer : Renderer {
             }
         }
 
+        for (n in world.nodes) {
+            val dark = world.isDark(n)
+            if (!dark && world.incidents.none { it.node === n }) continue
+            val s = toScreen(n.center)
+            val bx = s.x - cell * 0.34f; val by = s.y - cell * 0.36f; val r = cell * 0.14f
+            fillP.color = if (dark) IncidentStyles.EXCAVATOR_DARK else IncidentStyles.WARNING
+            canvas.drawCircle(bx, by, r, fillP)
+            fillP.color = if (dark) IncidentStyles.WARNING else 0xFFFFFFFF.toInt()
+            canvas.drawPath(IncidentStyles.bolt(path, bx, by, r * 0.68f), fillP)
+        }
+
         world.failedNode?.let {
             val s = toScreen(it.center)
             strokeP.color = alarm; strokeP.strokeWidth = cell * 0.05f
@@ -162,7 +195,7 @@ class FlatRenderer : Renderer {
 
     /** Radio circles in the channel color, red where same-channel access points overlap, dashed lines for radio links. */
     private fun drawRadioCoverage(canvas: Canvas, world: World, time: Float) {
-        val radios = world.nodes.filter { it.radius > 0f }
+        val radios = world.nodes.filter { it.radius > 0f && !world.isDark(it) }
         if (radios.isEmpty()) return
         for (n in radios) {
             val c = toScreen(n.center); val col = RadioStyles.color(n)
@@ -190,6 +223,28 @@ class FlatRenderer : Renderer {
             airP.color = RadioStyles.color(l.radio)
             val a = toScreen(l.radio.center); val b = toScreen(l.device.center)
             canvas.drawLine(a.x, a.y, b.x, b.y, airP)
+        }
+    }
+
+    /** Pulsing amber ring and countdown arc while announced, a red arc running down once struck, a hole at a cut. */
+    private fun drawIncidentGround(canvas: Canvas, i: Incident, time: Float) {
+        val c = toScreen(i.spot)
+        val r = cell * (if (i.kind == IncidentKind.EXCAVATOR) 0.32f else 0.5f)
+        if (i.kind == IncidentKind.EXCAVATOR && i.struck) {
+            fillP.color = IncidentStyles.DIRT; canvas.drawCircle(c.x, c.y, cell * 0.2f, fillP)
+            fillP.color = IncidentStyles.DIRT.shade(-0.4f); canvas.drawCircle(c.x, c.y, cell * 0.11f, fillP)
+        }
+        arcRect.set(c.x - r, c.y - r, c.x + r, c.y + r)
+        strokeP.strokeWidth = cell * 0.05f
+        if (!i.struck) {
+            val phase = IncidentStyles.pulse(time * 1.5f)
+            strokeP.color = IncidentStyles.WARNING and 0x00FFFFFF or ((1f - phase) * 220).toInt().shl(24)
+            canvas.drawCircle(c.x, c.y, r * (0.7f + phase * 0.9f), strokeP)
+            strokeP.color = IncidentStyles.WARNING
+            canvas.drawArc(arcRect, -90f, 360f * (1f - i.warning / Incidents.WARNING_SECONDS), false, strokeP)
+        } else {
+            strokeP.color = IncidentStyles.CUT
+            canvas.drawArc(arcRect, -90f, 360f * (1f - i.effectProgress), false, strokeP)
         }
     }
 

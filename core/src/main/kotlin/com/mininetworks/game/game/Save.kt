@@ -58,6 +58,8 @@ data class WorldSnapshot(
     val nodes: List<NodeSnapshot>,
     val cables: List<CableSnapshot>,
     val packets: List<PacketSnapshot>,
+    val incidentsEnabled: Boolean = true,
+    val incidents: List<IncidentSnapshot> = emptyList(),
 )
 
 @Serializable
@@ -103,4 +105,16 @@ data class PacketSnapshot(
     val isResponse: Boolean,
     val hop: Int,
     val progress: Float,
+)
+
+/** An incident; an excavator names its cable by the node ids [cableA] and [cableB], an outage its [node]. */
+@Serializable
+data class IncidentSnapshot(
+    val kind: IncidentKind,
+    val cableA: Int? = null,
+    val cableB: Int? = null,
+    val node: Int? = null,
+    val cutAt: Float = 0f,
+    val warning: Float,
+    val remaining: Float,
 )

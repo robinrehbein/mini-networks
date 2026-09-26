@@ -6,11 +6,17 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
+import com.mininetworks.game.game.Cell
 import com.mininetworks.game.game.CellRect
+import com.mininetworks.game.game.Incident
+import com.mininetworks.game.game.IncidentKind
+import com.mininetworks.game.game.Incidents
 import com.mininetworks.game.game.Node
 import com.mininetworks.game.game.NodeKind
 import com.mininetworks.game.game.Vec2
 import com.mininetworks.game.game.World
+import kotlin.math.abs
+import kotlin.math.floor
 import kotlin.math.sin
 
 /** Style B from docs/style-explorations.html: isometric tiles, extruded buildings, grid-aligned cables. */
@@ -43,6 +49,7 @@ class IsoRenderer : Renderer {
     private val oval = RectF()
     private val labelP = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = Typeface.DEFAULT_BOLD; textAlign = Paint.Align.CENTER }
     private val airP = stroke(0)
+    private val cutP = stroke(IncidentStyles.CUT)
     private val clip = Path()
 
     /** Isometric map space: one unit per tile width; a tile is half as high as it is wide. */
@@ -94,8 +101,15 @@ class IsoRenderer : Renderer {
             strokeP.color = 0xB3FFFFFF.toInt(); strokeP.strokeWidth = tw * (st.width * 0.75f + 0.08f); canvas.drawPath(path, strokeP)
             strokeP.color = st.color; strokeP.strokeWidth = tw * st.width * 0.75f; canvas.drawPath(path, strokeP)
             st.core?.let { strokeP.color = it; strokeP.strokeWidth = tw * st.coreWidth * 0.75f; canvas.drawPath(path, strokeP) }
+            if (world.isCut(c)) {
+                val dash = tw * 0.16f
+                cutP.pathEffect = DashPathEffect(floatArrayOf(dash, dash * 0.8f), 0f)
+                cutP.strokeWidth = tw * st.width * 0.6f
+                canvas.drawPath(path, cutP)
+            }
         }
         drawRadioCoverage(canvas, world, time)
+        for (i in world.incidents) drawIncidentGround(canvas, i, time)
 
         drag?.let { d ->
             val end = d.layout.end
@@ -114,6 +128,10 @@ class IsoRenderer : Renderer {
         for (n in world.nodes) {
             val c = n.footprintCenter
             items += (c.x + c.y) to { drawNode(canvas, world, n, time) }
+        }
+        for (i in world.incidents) if (i.kind == IncidentKind.EXCAVATOR) {
+            val stand = excavatorStand(world, i)
+            items += (stand.first.x + stand.first.y) to { drawExcavator(canvas, i, stand.first, stand.second, time) }
         }
         for (p in world.packets) {
             val pos = packetPosition(world, p)
@@ -153,7 +171,7 @@ class IsoRenderer : Renderer {
      * where two access points on the same channel overlap, and dashed, drifting lines for the links it carries.
      */
     private fun drawRadioCoverage(canvas: Canvas, world: World, time: Float) {
-        val radios = world.nodes.filter { it.radius > 0f }
+        val radios = world.nodes.filter { it.radius > 0f && !world.isDark(it) }
         if (radios.isEmpty()) return
         for (n in radios) {
             val col = RadioStyles.color(n)
@@ -228,16 +246,129 @@ class IsoRenderer : Renderer {
                 }
             }
             NodeKind.ROUTER -> {
-                box(canvas, x, y, 0.4f, 0.15f, 0xFFF5F7F9.toInt(), 0xFFD9DEE3.toInt())
-                icons.router(canvas, sx(x, y), sy(x, y, 0.15f) - tw * 0.08f, tw * 0.17f, time)
+                val dark = world.isDark(n)
+                val warning = world.incidents.any { it.node === n && !it.struck }
+                box(canvas, x, y, 0.4f, 0.15f, if (dark) DARK_TOP else 0xFFF5F7F9.toInt(), if (dark) DARK_SIDE else 0xFFD9DEE3.toInt())
+                icons.router(canvas, sx(x, y), sy(x, y, 0.15f) - tw * 0.08f, tw * 0.17f, time, warning, dark)
+                if (dark || warning) powerBadge(canvas, sx(x, y), sy(x, y, 0.15f) - tw * 0.42f, dark, time)
             }
             NodeKind.ACCESS_POINT -> {
-                box(canvas, x, y, 0.36f, 0.3f, 0xFFF5F7F9.toInt(), 0xFFD9DEE3.toInt())
-                icons.accessPoint(canvas, sx(x, y), sy(x, y, 0.3f) - tw * 0.06f, tw * 0.15f, RadioStyles.color(n), time)
-                channelBadge(canvas, n, sx(x, y) + tw * 0.22f, sy(x, y, 0.3f) - tw * 0.2f, world.interferers(n).isNotEmpty())
+                val dark = world.isDark(n)
+                val warning = world.incidents.any { it.node === n && !it.struck }
+                box(canvas, x, y, 0.36f, 0.3f, if (dark) DARK_TOP else 0xFFF5F7F9.toInt(), if (dark) DARK_SIDE else 0xFFD9DEE3.toInt())
+                icons.accessPoint(canvas, sx(x, y), sy(x, y, 0.3f) - tw * 0.06f, tw * 0.15f, RadioStyles.color(n), time, dark)
+                if (!dark) channelBadge(canvas, n, sx(x, y) + tw * 0.22f, sy(x, y, 0.3f) - tw * 0.2f, world.interferers(n).isNotEmpty())
+                if (dark || warning) powerBadge(canvas, sx(x, y) - tw * 0.2f, sy(x, y, 0.3f) - tw * 0.3f, dark, time)
             }
             NodeKind.CELL_TOWER -> drawCellTower(canvas, x, y, time)
         }
+    }
+
+    /**
+     * Marks on the ground at an incident: while announced, a pulsing amber ring and an arc that fills until it strikes;
+     * once struck, the arc runs down in red until the effect ends. A cut cable also gets a dug-up hole.
+     */
+    private fun drawIncidentGround(canvas: Canvas, i: Incident, time: Float) {
+        val p = i.spot
+        val r = if (i.kind == IncidentKind.EXCAVATOR) 0.42f else 0.62f
+        if (i.kind == IncidentKind.EXCAVATOR && i.struck) {
+            groundEllipse(p, 0.3f); fillP.color = IncidentStyles.DIRT; canvas.drawOval(oval, fillP)
+            groundEllipse(p, 0.18f); fillP.color = IncidentStyles.DIRT.shade(-0.4f); canvas.drawOval(oval, fillP)
+        }
+        strokeP.strokeWidth = tw * 0.035f
+        if (!i.struck) {
+            val phase = IncidentStyles.pulse(time * 1.5f)
+            groundEllipse(p, r * (0.7f + phase * 0.9f))
+            strokeP.color = IncidentStyles.WARNING and 0x00FFFFFF or ((1f - phase) * 220).toInt().shl(24)
+            canvas.drawOval(oval, strokeP)
+            groundEllipse(p, r)
+            strokeP.color = IncidentStyles.WARNING
+            canvas.drawArc(oval, -90f, 360f * (1f - i.warning / Incidents.WARNING_SECONDS), false, strokeP)
+        } else {
+            groundEllipse(p, r)
+            strokeP.color = IncidentStyles.CUT
+            canvas.drawArc(oval, -90f, 360f * (1f - i.effectProgress), false, strokeP)
+        }
+    }
+
+    /**
+     * Where the excavator at [i] stands, and the unit direction from there to the cut: beside the cable, preferably on
+     * the side away from the viewer so the cut stays visible in front of it, unless a node or cable is in that cell.
+     */
+    private fun excavatorStand(world: World, i: Incident): Pair<Vec2, Vec2> {
+        val layout = i.cable!!.layout
+        val a = layout.pointAt((i.cutAt - 0.02f).coerceAtLeast(0f))
+        val b = layout.pointAt((i.cutAt + 0.02f).coerceAtMost(1f))
+        val back = if (abs(b.x - a.x) >= abs(b.y - a.y)) Vec2(0f, 1f) else Vec2(1f, 0f)
+        val spot = i.spot
+        fun standFor(d: Vec2) = Vec2(spot.x - d.x * 0.62f, spot.y - d.y * 0.62f)
+        fun clear(d: Vec2): Boolean {
+            val cell = Cell(floor(spot.x - d.x).toInt(), floor(spot.y - d.y).toInt())
+            return world.nodeAt(cell) == null && world.cables.none { cell in it.layout.cells }
+        }
+        val front = Vec2(-back.x, -back.y)
+        val d = if (clear(back) || !clear(front)) back else front
+        return standFor(d) to d
+    }
+
+    /**
+     * A small excavator drawn with paths: tracks along the cable, a yellow cab with a window towards it, and a boom
+     * whose bucket hangs raised over the cable while announced and digs in the hole once the cable is cut.
+     * A beacon on the roof flashes during the announcement.
+     */
+    private fun drawExcavator(canvas: Canvas, i: Incident, at: Vec2, d: Vec2, time: Float) {
+        val alongX = d.y != 0f
+        // Boom and window share the cab wall facing the viewer, side by side along the cable, so the boom never covers
+        // the window: the boom takes the half it swings across.
+        val u = if (d.x + d.y > 0f) -1f else 1f
+        val side = if (alongX) Vec2(0.09f * u, 0f) else Vec2(0f, 0.09f * u)
+        val lx = if (alongX) 0.28f else 0.2f
+        val ly = if (alongX) 0.2f else 0.28f
+        oval.set(sx(at.x, at.y) - tw * 0.3f, sy(at.x, at.y) - th * 0.3f, sx(at.x, at.y) + tw * 0.3f, sy(at.x, at.y) + th * 0.3f)
+        fillP.color = 0x2E000000; canvas.drawOval(oval, fillP)
+        boxRect(canvas, at.x - lx, at.y - ly, at.x + lx, at.y + ly, 0f, 0.12f, IncidentStyles.EXCAVATOR_DARK.shade(0.25f), IncidentStyles.EXCAVATOR_DARK)
+        val cx = at.x - d.x * 0.04f; val cy = at.y - d.y * 0.04f
+        val cab = 0.16f
+        val cabTop = 0.44f
+        boxRect(canvas, cx - cab, cy - cab, cx + cab, cy + cab, 0.12f, cabTop - 0.12f, IncidentStyles.EXCAVATOR.shade(0.2f), IncidentStyles.EXCAVATOR)
+        fillP.color = 0xFFBFD6E6.toInt()
+        val w0 = if (u < 0f) 0.02f else -cab + 0.03f
+        val w1 = if (u < 0f) cab - 0.03f else -0.02f
+        if (alongX) faceY(cy + cab, cx + w0, cx + w1, 0.2f, 0.4f) else faceX(cx + cab, cy + w0, cy + w1, 0.2f, 0.4f)
+        canvas.drawPath(path, fillP)
+        if (!i.struck) {
+            fillP.color = if (sin(time * 12f) > 0f) IncidentStyles.WARNING else IncidentStyles.WARNING.shade(-0.45f)
+            canvas.drawCircle(sx(cx, cy), sy(cx, cy, cabTop + 0.04f), tw * 0.035f, fillP)
+        }
+        val baseX = cx + d.x * 0.12f + side.x; val baseY = cy + d.y * 0.12f + side.y
+        val elbowX = at.x + d.x * 0.4f + side.x; val elbowY = at.y + d.y * 0.4f + side.y
+        val spot = i.spot
+        val bucketZ = if (i.struck) 0.06f + 0.1f * (sin(time * 3f) + 1f) else 0.42f + 0.04f * sin(time * 2f)
+        val b0x = sx(baseX, baseY); val b0y = sy(baseX, baseY, 0.34f)
+        val e0x = sx(elbowX, elbowY); val e0y = sy(elbowX, elbowY, 0.82f)
+        val kx = sx(spot.x, spot.y); val ky = sy(spot.x, spot.y, bucketZ + 0.12f)
+        strokeP.color = IncidentStyles.EXCAVATOR_DARK; strokeP.strokeWidth = tw * 0.065f
+        canvas.drawLine(b0x, b0y, e0x, e0y, strokeP); canvas.drawLine(e0x, e0y, kx, ky, strokeP)
+        strokeP.color = IncidentStyles.EXCAVATOR; strokeP.strokeWidth = tw * 0.04f
+        canvas.drawLine(b0x, b0y, e0x, e0y, strokeP); canvas.drawLine(e0x, e0y, kx, ky, strokeP)
+        val bx = sx(spot.x, spot.y); val by = sy(spot.x, spot.y, bucketZ)
+        val k = tw * 0.07f
+        path.reset()
+        path.moveTo(bx - k, by - k * 0.9f); path.lineTo(bx + k, by - k * 0.9f)
+        path.lineTo(bx + k * 0.55f, by + k * 0.6f); path.lineTo(bx - k * 0.8f, by + k * 0.35f); path.close()
+        fillP.color = IncidentStyles.EXCAVATOR_DARK; canvas.drawPath(path, fillP)
+    }
+
+    /** A disc with a lightning bolt above a router or access point: flashing amber while announced, dark once out. */
+    private fun powerBadge(canvas: Canvas, bx: Float, by: Float, dark: Boolean, time: Float) {
+        val r = tw * 0.1f
+        val on = dark || sin(time * 10f) > -0.2f
+        fillP.color = if (dark) IncidentStyles.EXCAVATOR_DARK else if (on) IncidentStyles.WARNING else 0xFFFFFFFF.toInt()
+        canvas.drawCircle(bx, by, r, fillP)
+        strokeP.color = 0xFFFFFFFF.toInt(); strokeP.strokeWidth = tw * 0.015f
+        canvas.drawCircle(bx, by, r, strokeP)
+        fillP.color = if (dark) IncidentStyles.WARNING else if (on) 0xFFFFFFFF.toInt() else IncidentStyles.WARNING
+        canvas.drawPath(IncidentStyles.bolt(path, bx, by, r * 0.68f), fillP)
     }
 
     /** Channel number in a disc: channel color, red rim while the access point suffers interference. */
@@ -332,8 +463,11 @@ class IsoRenderer : Renderer {
         path.lineTo(sx(x, yb), sy(x, yb, zb)); path.lineTo(sx(x, ya), sy(x, ya, zb)); path.close()
     }
 
-    private fun box(canvas: Canvas, cx: Float, cy: Float, s: Float, h: Float, top: Int, side: Int, z0: Float = 0f) {
-        val x0 = cx - s / 2; val y0 = cy - s / 2; val x1 = cx + s / 2; val y1 = cy + s / 2
+    private fun box(canvas: Canvas, cx: Float, cy: Float, s: Float, h: Float, top: Int, side: Int, z0: Float = 0f) =
+        boxRect(canvas, cx - s / 2, cy - s / 2, cx + s / 2, cy + s / 2, z0, h, top, side)
+
+    /** A block over the ground rectangle ([x0], [y0]) – ([x1], [y1]) from height [z0], [h] high; the two front walls are shaded. */
+    private fun boxRect(canvas: Canvas, x0: Float, y0: Float, x1: Float, y1: Float, z0: Float, h: Float, top: Int, side: Int) {
         val z1 = z0 + h
         path.reset()
         path.moveTo(sx(x0, y1), sy(x0, y1, z0)); path.lineTo(sx(x1, y1), sy(x1, y1, z0))
@@ -343,7 +477,7 @@ class IsoRenderer : Renderer {
         path.moveTo(sx(x1, y0), sy(x1, y0, z0)); path.lineTo(sx(x1, y1), sy(x1, y1, z0))
         path.lineTo(sx(x1, y1), sy(x1, y1, z1)); path.lineTo(sx(x1, y0), sy(x1, y0, z1)); path.close()
         fillP.color = side.shade(-0.25f); canvas.drawPath(path, fillP)
-        quad(x0, y0, s, s, z1)
+        quad(x0, y0, x1 - x0, y1 - y0, z1)
         fillP.color = top; canvas.drawPath(path, fillP)
     }
 
@@ -363,6 +497,9 @@ class IsoRenderer : Renderer {
     private companion object {
         /** Half of √2: a ground circle of radius r spans r·√2/2 tile widths to each side in iso. */
         const val HALF_SQRT2 = 0.70710677f
+        /** Router and access point bases without power. */
+        const val DARK_TOP = 0xFF6E7781.toInt()
+        const val DARK_SIDE = 0xFF59616B.toInt()
     }
 
     private fun polyline(pts: List<Vec2>) {

@@ -19,14 +19,17 @@ import com.mininetworks.game.data.HighscoreStore
 import com.mininetworks.game.data.SaveStore
 import com.mininetworks.game.data.SettingsStore
 import com.mininetworks.game.game.Bend
+import com.mininetworks.game.game.Cable
 import com.mininetworks.game.game.CableLayout
 import com.mininetworks.game.game.CableType
 import com.mininetworks.game.game.Cell
 import com.mininetworks.game.game.Demand
+import com.mininetworks.game.game.Incidents
 import com.mininetworks.game.game.FixedStep
 import com.mininetworks.game.game.Node
 import com.mininetworks.game.game.NodeKind
 import com.mininetworks.game.game.RadioType
+import com.mininetworks.game.game.RepairError
 import com.mininetworks.game.game.ServerUpgradeError
 import com.mininetworks.game.game.Vec2
 import com.mininetworks.game.game.Wifi
@@ -35,6 +38,7 @@ import com.mininetworks.game.game.World
 import com.mininetworks.game.render.CableStyles
 import com.mininetworks.game.render.DragPreview
 import com.mininetworks.game.render.FlatRenderer
+import com.mininetworks.game.render.IncidentStyles
 import com.mininetworks.game.render.IsoRenderer
 import com.mininetworks.game.render.Renderer
 import com.mininetworks.game.render.ServiceColors
@@ -42,6 +46,7 @@ import com.mininetworks.game.render.TouchTargets
 import com.mininetworks.game.render.TwoFingerGesture
 import com.mininetworks.game.render.ViewInsets
 import com.mininetworks.game.render.fill
+import com.mininetworks.game.render.shade
 import com.mininetworks.game.ui.menu.DemoCity
 import com.mininetworks.game.ui.menu.MenuAction
 import com.mininetworks.game.ui.menu.MenuItem
@@ -72,7 +77,8 @@ import kotlin.math.hypot
  *  - drag on empty ground or with two fingers: pan; pinch: zoom; double tap on empty ground: fit the playable area
  *  - pick a cable technology in the bottom-left bar (ISDN, DSL, Kabel, Glasfaser)
  *  - tap a server: upgrade its hardware (more throughput, taller stack; tier 4 is a data center on 2×2 cells)
- *  - tap a cable: upgrade it to the picked technology, or remove it if it already is that type
+ *  - tap a cable: upgrade it to the picked technology, or remove it if it already is that type; a cable cut by an
+ *    excavator is repaired instead (small fee)
  *  - "Router" button, then tap an empty cell: place a router; "WLAN" and "Mast" place won radios the same way
  *  - tap an access point: next WLAN channel; hold it: switch it to 5 GHz (costs budget)
  *  - "Pause" button or back: pause menu (resume, settings, restart, main menu)
@@ -190,6 +196,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private val swatch = fill(0)
     private val barFg = fill(0xFF262B33.toInt())
     private val bigText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; color = 0xFF262B33.toInt() }
+    private val incidentText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; textSize = 14 * density }
 
     private data class Button(val id: String, val rect: RectF)
     private val buttons = mutableListOf<Button>()
@@ -520,6 +527,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             }
         }
 
+        if (world.rewardOffer == null) drawIncidentLines(canvas, pad + hudText.textSize + 24 * density)
+
         buttons.clear()
         val bh = 44 * density
         val gap = 10 * density
@@ -567,6 +576,15 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             canvas.drawText(context.getString(R.string.hint_place_router), pad, y - 10 * density, hudSub)
         } else if (animTime < hintUntil) {
             hint?.let { canvas.drawText(it, pad, y - 10 * density, hudSub) }
+        }
+    }
+
+    /** One centered line per incident below the news, announcements first: amber while announced, red once struck. */
+    private fun drawIncidentLines(canvas: Canvas, top: Float) {
+        val shown = world.incidents.sortedBy { it.struck }.take(MAX_INCIDENT_LINES)
+        shown.forEachIndexed { k, i ->
+            incidentText.color = if (i.struck) IncidentStyles.CUT else IncidentStyles.WARNING.shade(-0.25f)
+            canvas.drawText(texts.incident(i), surfaceWidth / 2f, top + k * incidentText.textSize * 1.35f, incidentText)
         }
     }
 
@@ -667,6 +685,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                     val cable = renderer.cableAtScreen(world, e.x, e.y, TouchTargets.cableRadiusPx(renderer, density))
                     if (cable == null) {
                         emptyTapTime = e.time; emptyTapX = e.x; emptyTapY = e.y
+                    } else if (world.isCut(cable)) {
+                        repair(cable)
                     } else if (cable.type == cableType) {
                         world.removeCable(cable)
                     } else {
@@ -744,6 +764,18 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 context.getString(R.string.server_error_no_budget, World.Tuning.SERVER_UPGRADE_COST[server.level - 1])
         }
         hintUntil = animTime + HINT_SECONDS
+    }
+
+    private fun repair(cable: Cable) {
+        when (world.repairError(cable)) {
+            null -> {
+                world.repair(cable)
+                haptic(HapticFeedbackConstants.VIRTUAL_KEY)
+                showHint(context.getString(R.string.hint_repaired))
+            }
+            RepairError.NOT_CUT -> Unit
+            RepairError.NO_BUDGET -> showHint(context.getString(R.string.repair_error_no_budget, Incidents.REPAIR_COST))
+        }
     }
 
     /** Places a router or radio from stock; a new access point explains its controls. */
@@ -1033,6 +1065,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         const val TRAIL_SPACING = 0.2f
         const val MAX_TRAIL = 256
         const val HINT_SECONDS = 2.5f
+        const val MAX_INCIDENT_LINES = 4
         /** A finger that moves less than this is a tap. */
         const val TAP_SLOP_DP = 12f
         const val DOUBLE_TAP_MS = 300L

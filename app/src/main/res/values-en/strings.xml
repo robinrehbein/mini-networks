@@ -28,6 +28,12 @@
     <string name="server_error_max_level">The data center is the top tier</string>
     <string name="server_error_no_budget">Not enough budget, the upgrade costs %1$d</string>
     <string name="server_error_no_space">A data center needs 2×2 free cells at the server</string>
+    <string name="incident_excavator_warning">Excavator on its way: cable cut in %1$d s</string>
+    <string name="incident_outage_warning">Power cut ahead: %1$s goes dark in %2$d s</string>
+    <string name="incident_cut">Cable cut: tap to repair for %1$d · fixes itself in %2$d s</string>
+    <string name="incident_outage">Power cut: %1$s dark for %2$d s</string>
+    <string name="repair_error_no_budget">Not enough budget, a repair costs %1$d</string>
+    <string name="hint_repaired">Cable repaired</string>
     <plurals name="hud_vouchers">
         <item quantity="one">%1$d server voucher · tap a server</item>
         <item quantity="other">%1$d server vouchers · tap a server</item>

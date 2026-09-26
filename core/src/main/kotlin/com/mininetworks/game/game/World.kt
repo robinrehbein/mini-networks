@@ -6,6 +6,7 @@ import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlin.math.sin
+import kotlin.random.Random
 
 /**
  * The complete game state and rules. Pure Kotlin, no Android types, so it can be unit-tested on the JVM
@@ -82,6 +83,22 @@ class World(
      * radio link to it. Rebuilt whenever nodes, cables, channels or bands change.
      */
     val radioLinks: List<RadioLink> get() = radioLinkList
+
+    private val incidentList = ArrayList<Incident>()
+
+    /**
+     * Disturbances announced or in effect, oldest first (see [Incidents]): excavators that cut a cable and power outages
+     * that switch a router or access point off. A cut cable ([isCut]) and a node without power ([isDark]) carry no traffic.
+     */
+    val incidents: List<Incident> get() = incidentList
+
+    /** False stops new incidents from being announced, for tests about other rules and a future debug menu. */
+    @DebugApi
+    var incidentsEnabled = true
+
+    /** The week [weekPlan] was made for; the plan only depends on seed and week. */
+    private var planWeek = 0
+    private var weekPlan = emptyList<PlannedIncident>()
 
     var time = 0f; private set
     var week = 1; private set
@@ -268,29 +285,49 @@ class World(
         return true
     }
 
+    /** Removes [c] and refunds its cost; an excavator waiting at it or a cut on it goes with it. */
     fun removeCable(c: Cable) {
         if (!cables.remove(c)) return
         budget += c.cost
+        incidentList.removeAll { it.cable === c }
         networkChanged()
+    }
+
+    /** Null when [c] can be repaired now, otherwise the reason. */
+    fun repairError(c: Cable): RepairError? = when {
+        !isCut(c) -> RepairError.NOT_CUT
+        Incidents.REPAIR_COST > budget -> RepairError.NO_BUDGET
+        else -> null
+    }
+
+    /** Repairs a cut cable at once for [Incidents.REPAIR_COST] instead of waiting for it to repair itself. */
+    fun repair(c: Cable): Boolean {
+        if (gameOver || repairError(c) != null) return false
+        budget -= Incidents.REPAIR_COST
+        incidentList.removeAll { it.cable === c }
+        networkChanged()
+        return true
     }
 
     /**
      * Rebuilds the [radioLinks] and forgets cached routes. Requests and responses on or heading into a link that no
-     * longer exists go back into their client's queue.
+     * longer exists or is down ([isUp]) go back into their client's queue.
      */
     private fun networkChanged() {
         rebuildRadioLinks()
         routeCache.clear()
-        val lost = packets.filter { p -> p.inTransit && linkBetween(p.from, p.to) == null }
+        val lost = packets.filter { p -> p.inTransit && usableLink(p.from, p.to) == null }
         if (lost.isEmpty()) return
         lost.forEach { it.origin.pending.addFirst(it.service) }
         packets.removeAll(lost.toSet())
     }
 
+    /** Radios without power ([isDark]) link nobody. */
     private fun rebuildRadioLinks() {
         radioLinkList.clear()
         for (r in nodes) {
             val type = r.radio ?: continue
+            if (isDark(r)) continue
             val capacity = radioCapacity(r)
             val slots = radioSlots(r) ?: Int.MAX_VALUE
             nodes.asSequence()
@@ -397,12 +434,13 @@ class World(
 
     /**
      * Access points that disturb [n]: other access points on the same channel whose radio circles overlap its own.
-     * Empty for every other node.
+     * Empty for every other node. An access point without power ([isDark]) neither sends nor disturbs.
      */
     fun interferers(n: Node): List<Node> {
-        if (n.kind != NodeKind.ACCESS_POINT) return emptyList()
+        if (n.kind != NodeKind.ACCESS_POINT || isDark(n)) return emptyList()
         return nodes.filter {
-            it !== n && it.kind == NodeKind.ACCESS_POINT && it.channel == n.channel && Wifi.overlaps(n.center, n.radius, it.center, it.radius)
+            it !== n && it.kind == NodeKind.ACCESS_POINT && it.channel == n.channel && !isDark(it) &&
+                Wifi.overlaps(n.center, n.radius, it.center, it.radius)
         }
     }
 
@@ -457,6 +495,18 @@ class World(
     fun linkBetween(a: Node, b: Node): Link? =
         cableBetween(a, b) ?: radioLinkList.firstOrNull { (it.radio === a && it.device === b) || (it.radio === b && it.device === a) }
 
+    /** The link between [a] and [b] if packets can use it right now. */
+    private fun usableLink(a: Node, b: Node): Link? = linkBetween(a, b)?.takeIf(::isUp)
+
+    /** True if packets can use [l] right now: it is not cut by an excavator and both ends have power. */
+    fun isUp(l: Link) = !(l is Cable && isCut(l)) && !isDark(l.a) && !isDark(l.b)
+
+    /** True while an excavator has cut [c]: it carries nothing until it is repaired or repairs itself. */
+    fun isCut(c: Cable) = incidentList.any { it.cable === c && it.struck }
+
+    /** True while a power outage has switched [n] off: it forwards nothing, an access point links no clients. */
+    fun isDark(n: Node) = incidentList.any { it.node === n && it.struck }
+
     /**
      * Lowest-ping route from [client] to any server of [service], using only cables and radio links wide enough for the
      * service. Null if none exists or if the best route breaks the service's ping limit. The ping counts both ways,
@@ -492,7 +542,7 @@ class World(
             if (cur !== client && cur.kind == NodeKind.SERVER) continue
             val hopCost = if (cur === client) 0f else Tuning.ROUTER_MS
             for (c in links) {
-                if (!c.connects(cur) || c.capacity < service.bandwidth) continue
+                if (!c.connects(cur) || c.capacity < service.bandwidth || !isUp(c)) continue
                 // A radio link only carries its device's own traffic, as the first hop: a radio reaches the network
                 // through its cables, and cabled devices cannot ride on a wireless client.
                 if (c is RadioLink && !(cur === client && c.device === client)) continue
@@ -549,6 +599,23 @@ class World(
         onNewWeek()
     }
 
+    /**
+     * Announces an excavator at [cable] right now, digging at [cutAt] (fraction of its length; by default the first spot
+     * the plan could pick), for tests and a future debug menu.
+     */
+    @DebugApi
+    fun announceExcavator(cable: Cable, cutAt: Float = cutSpots(cable).firstOrNull() ?: 0.5f): Incident {
+        require(cable in cables && incidentList.none { it.cable === cable }) { "no free cable" }
+        return Incident(IncidentKind.EXCAVATOR, cable, null, cutAt).also { incidentList += it }
+    }
+
+    /** Announces a power outage at [node] right now, for tests and a future debug menu. */
+    @DebugApi
+    fun announcePowerOutage(node: Node): Incident {
+        require(node in nodes && incidentList.none { it.node === node }) { "no free node" }
+        return Incident(IncidentKind.POWER_OUTAGE, null, node, 0f).also { incidentList += it }
+    }
+
     /** Advances the simulation by [dt] seconds. Does nothing after game over or while a [rewardOffer] is open. */
     fun update(dt: Float) {
         if (gameOver || rewardOffer != null) return
@@ -561,6 +628,8 @@ class World(
             onNewWeek()
             return
         }
+        advanceIncidents(dt)
+        startIncidents(prevTime, time)
 
         clientSpawnTimer -= dt
         if (clientSpawnTimer <= 0f) {
@@ -664,7 +733,7 @@ class World(
         val responses = ArrayList<Packet>()
         for (p in packets) {
             if (p.progress < 0f) continue
-            val link = linkBetween(p.from, p.to)
+            val link = usableLink(p.from, p.to)
             if (link == null) { arrived += p; p.origin.pending.addFirst(p.service); continue }
             p.progress += link.speed * dt / maxOf(link.length, MIN_LINK_LENGTH)
             if (p.progress < 1f) continue
@@ -690,14 +759,22 @@ class World(
         admitWaiting()
     }
 
-    /** Lets waiting packets enter their next link where its medium has room, responses first. */
+    /**
+     * Lets waiting packets enter their next link where its medium has room, responses first. A packet whose next link
+     * is gone or down goes back into its client's queue, like one on a removed cable.
+     */
     private fun admitWaiting() {
         val waiting = packets.filter { it.inTransit && it.progress < 0f }
         if (waiting.isEmpty()) return
+        val stranded = waiting.filter { usableLink(it.from, it.to) == null }
+        if (stranded.isNotEmpty()) {
+            stranded.forEach { it.origin.pending.addFirst(it.service) }
+            packets.removeAll(stranded.toSet())
+        }
         val load = HashMap<Any, Int>()
         val blocked = HashMap<Any, Int>()
         for (p in waiting.sortedBy { !it.isResponse }) {
-            val link = linkBetween(p.from, p.to) ?: continue
+            val link = usableLink(p.from, p.to) ?: continue
             val medium = link.medium
             val used = load.getOrPut(medium) { linkLoad(link) }
             val reserved = if (p.isResponse) 0 else blocked[medium] ?: 0
@@ -708,6 +785,89 @@ class World(
                 blocked[medium] = (blocked[medium] ?: 0) + p.size
             }
         }
+    }
+
+    // ---------------------------------------------------------------- incidents
+
+    /** Counts down announcements and effects; an incident that strikes or ends changes the network. */
+    private fun advanceIncidents(dt: Float) {
+        if (incidentList.isEmpty()) return
+        var changed = false
+        val ended = ArrayList<Incident>()
+        for (i in incidentList) {
+            if (!i.struck) {
+                i.warning -= dt
+                if (i.struck) changed = true
+            } else {
+                i.remaining -= dt
+                if (i.remaining <= 0f) ended += i
+            }
+        }
+        if (ended.isNotEmpty()) {
+            incidentList.removeAll(ended.toSet())
+            changed = true
+        }
+        if (changed) networkChanged()
+    }
+
+    /** Announces every incident of this week's [Incidents.plan] whose time lies in (from, to]. */
+    @OptIn(DebugApi::class)
+    private fun startIncidents(from: Float, to: Float) {
+        if (!incidentsEnabled) return
+        if (planWeek != week) {
+            planWeek = week
+            weekPlan = Incidents.plan(seed, week)
+        }
+        val weekStart = (week - 1) * Tuning.WEEK_SECONDS
+        for (p in weekPlan) if (p.at > from - weekStart && p.at <= to - weekStart) startIncident(p)
+    }
+
+    /**
+     * Announces [p] at a target drawn with its own random stream: the planned kind if it finds one, otherwise the other
+     * kind; with no target at all nothing happens.
+     */
+    private fun startIncident(p: PlannedIncident) {
+        val r = Random(p.pick)
+        val kinds = if (p.kind == IncidentKind.EXCAVATOR) IncidentKind.entries else IncidentKind.entries.reversed()
+        for (kind in kinds) {
+            val incident = when (kind) {
+                IncidentKind.EXCAVATOR -> excavatorTarget(r)
+                IncidentKind.POWER_OUTAGE -> outageTarget(r)
+            }
+            if (incident != null) {
+                incidentList += incident
+                return
+            }
+        }
+    }
+
+    /** A cable no other incident is at, and a dry spot on it that no node covers. */
+    private fun excavatorTarget(r: Random): Incident? {
+        val candidates = cables.mapNotNull { c -> cutSpots(c).takeIf { it.isNotEmpty() && incidentList.none { i -> i.cable === c } }?.let { c to it } }
+        if (candidates.isEmpty()) return null
+        val (cable, spots) = candidates[r.nextInt(candidates.size)]
+        return Incident(IncidentKind.EXCAVATOR, cable, null, spots[r.nextInt(spots.size)])
+    }
+
+    /**
+     * Where an excavator can dig on [c], as fractions of its length: the centers of its dry cells between the ends that
+     * no node covers, or the middle of a one-step cable.
+     */
+    private fun cutSpots(c: Cable): List<Float> {
+        val cells = c.layout.cells
+        if (cells.size == 2) return listOf(0.5f)
+        return (1 until cells.size - 1)
+            .filter { i -> cells[i].let { !isWater(it.x, it.y) && nodeAt(it) == null } }
+            .map { it / c.layout.steps.toFloat() }
+    }
+
+    /** A cabled router or access point no other incident is at. */
+    private fun outageTarget(r: Random): Incident? {
+        val candidates = nodes.filter { n ->
+            (n.kind == NodeKind.ROUTER || n.kind == NodeKind.ACCESS_POINT) && ports(n) > 0 && incidentList.none { it.node === n }
+        }
+        if (candidates.isEmpty()) return null
+        return Incident(IncidentKind.POWER_OUTAGE, null, candidates[r.nextInt(candidates.size)], 0f)
     }
 
     private fun onNewWeek() {
@@ -728,6 +888,7 @@ class World(
     // ---------------------------------------------------------------- save
 
     /** The complete state as plain data, see [Save]. */
+    @OptIn(DebugApi::class)
     fun snapshot() = WorldSnapshot(
         cols = cols,
         rows = rows,
@@ -758,6 +919,10 @@ class World(
         },
         cables = cables.map { CableSnapshot(it.a.id, it.b.id, it.type, it.cost, it.layout.waypoints.map(::cellOf), it.waterCells) },
         packets = packets.map { PacketSnapshot(it.service, it.origin.id, it.route.map(Node::id), it.isResponse, it.hop, it.progress) },
+        incidentsEnabled = incidentsEnabled,
+        incidents = incidentList.map {
+            IncidentSnapshot(it.kind, it.cable?.a?.id, it.cable?.b?.id, it.node?.id, it.cutAt, it.warning, it.remaining)
+        },
     )
 
     companion object {
@@ -775,6 +940,7 @@ class World(
          * Rebuilds a world from [s]. The restored world continues exactly like the saved one would have, random draws
          * included. Throws [IllegalArgumentException] if the snapshot is inconsistent.
          */
+        @OptIn(DebugApi::class)
         fun restore(s: WorldSnapshot): World {
             require(s.water.size == s.rows && s.water.all { it.length == s.cols }) { "water does not match the grid" }
             val w = World(s.cols, s.rows, s.seed, spawnInitialNodes = false)
@@ -815,6 +981,13 @@ class World(
             fun node(id: Int) = requireNotNull(byId[id]) { "unknown node $id" }
             for (c in s.cables) {
                 w.cables += Cable(node(c.a), node(c.b), c.type, c.cost, CableLayout(c.waypoints.map { it.center }), c.waterCells)
+            }
+            w.incidentsEnabled = s.incidentsEnabled
+            for (i in s.incidents) {
+                val cable = if (i.cableA != null && i.cableB != null) {
+                    requireNotNull(w.cableBetween(node(i.cableA), node(i.cableB))) { "incident at a missing cable" }
+                } else null
+                w.incidentList += Incident(i.kind, cable, i.node?.let(::node), i.cutAt, i.warning, i.remaining)
             }
             w.rebuildRadioLinks()
             for (p in s.packets) {

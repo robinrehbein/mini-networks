@@ -274,6 +274,35 @@ object RadioStyles {
     }
 }
 
+/** Colors of incidents ([com.mininetworks.game.game.Incident]), shared by all styles. */
+object IncidentStyles {
+    /** Announcement: pulse rings and the countdown until the incident strikes. */
+    const val WARNING = 0xFFF2A516.toInt()
+    /** A cut cable and the countdown until it repairs itself. */
+    const val CUT = 0xFFD7263D.toInt()
+    const val EXCAVATOR = 0xFFF2B705.toInt()
+    const val EXCAVATOR_DARK = 0xFF3A3F47.toInt()
+    const val DIRT = 0xFF8C6A48.toInt()
+    /** Body of a router or access point without power. */
+    const val DARK_BODY = 0xFF59616B.toInt()
+
+    /** 0..1 phase of the announcement pulse: one ring per second. */
+    fun pulse(time: Float) = time - kotlin.math.floor(time)
+
+    /** A lightning bolt of half-height [r] around ([x], [y]), into a fresh path. */
+    fun bolt(path: Path, x: Float, y: Float, r: Float): Path {
+        path.reset()
+        path.moveTo(x + r * 0.2f, y - r)
+        path.lineTo(x - r * 0.55f, y + r * 0.12f)
+        path.lineTo(x - r * 0.02f, y + r * 0.12f)
+        path.lineTo(x - r * 0.25f, y + r)
+        path.lineTo(x + r * 0.55f, y - r * 0.18f)
+        path.lineTo(x + r * 0.04f, y - r * 0.18f)
+        path.close()
+        return path
+    }
+}
+
 /**
  * Hand-drawn device icons in screen space, shared by all styles.
  * [s] is the half-size of the icon in pixels. Icons are ink outlines on white so they read at small sizes.
@@ -437,20 +466,23 @@ class DeviceIcons {
         Shapes.draw(canvas, service.shape, x + s * 0.85f, y - s * 0.8f + if (service.shape == Shape.TRIANGLE) s * 0.02f else 0f, s * 0.13f, body)
     }
 
-    /** WLAN access point: a flat puck with Wi-Fi arcs above it; the LED shows the channel [color]. */
-    fun accessPoint(c: Canvas, x: Float, y: Float, s: Float, color: Int, time: Float) {
+    /**
+     * WLAN access point: a flat puck with Wi-Fi arcs above it; the LED shows the channel [color].
+     * A [dark] one (power outage) has no arcs and a grey body.
+     */
+    fun accessPoint(c: Canvas, x: Float, y: Float, s: Float, color: Int, time: Float, dark: Boolean = false) {
         canvas = c
         line.color = ink
         line.strokeWidth = s * 0.14f
-        for (i in 1..3) {
+        if (!dark) for (i in 1..3) {
             val r = s * (0.3f + 0.28f * i)
             rect.set(x - r, y - s * 0.15f - r, x + r, y - s * 0.15f + r)
             line.alpha = if (sin(time * 3f - i * 0.9f) > -0.3f) 255 else 90
             canvas.drawArc(rect, -135f, 90f, false, line)
         }
         line.alpha = 255
-        box(x - s * 0.9f, y - s * 0.1f, x + s * 0.9f, y + s * 0.45f, s * 0.22f, 0xFFFFFFFF.toInt(), s)
-        body.color = color
+        box(x - s * 0.9f, y - s * 0.1f, x + s * 0.9f, y + s * 0.45f, s * 0.22f, if (dark) IncidentStyles.DARK_BODY else 0xFFFFFFFF.toInt(), s)
+        body.color = if (dark) ink else color
         canvas.drawCircle(x, y + s * 0.17f, s * 0.11f, body)
     }
 
@@ -478,15 +510,62 @@ class DeviceIcons {
         canvas.drawCircle(x, top, s * 0.13f, body)
     }
 
-    fun router(c: Canvas, x: Float, y: Float, s: Float, time: Float) {
+    /**
+     * Router with blinking LEDs. While [warning] (a power outage is announced) the LEDs flicker amber; a [dark] router
+     * (outage in effect) has a grey body and no light.
+     */
+    fun router(c: Canvas, x: Float, y: Float, s: Float, time: Float, warning: Boolean = false, dark: Boolean = false) {
         canvas = c
+        line.color = ink
         line.strokeWidth = s * 0.14f
         canvas.drawLine(x - s * 0.5f, y - s * 0.2f, x - s * 0.7f, y - s * 0.9f, line)
         canvas.drawLine(x + s * 0.5f, y - s * 0.2f, x + s * 0.7f, y - s * 0.9f, line)
-        box(x - s * 0.9f, y - s * 0.25f, x + s * 0.9f, y + s * 0.45f, s * 0.15f, 0xFFFFFFFF.toInt(), s)
+        box(x - s * 0.9f, y - s * 0.25f, x + s * 0.9f, y + s * 0.45f, s * 0.15f, if (dark) IncidentStyles.DARK_BODY else 0xFFFFFFFF.toInt(), s)
         for (i in 0 until 3) {
-            body.color = if (sin(time * 6f + i * 1.3f) > 0f) 0xFF3BA55C.toInt() else 0xFFB9C2CC.toInt()
+            body.color = when {
+                dark -> ink
+                warning -> if (sin(time * 17f + i * 2.1f) > 0f) IncidentStyles.WARNING else 0xFFB9C2CC.toInt()
+                sin(time * 6f + i * 1.3f) > 0f -> 0xFF3BA55C.toInt()
+                else -> 0xFFB9C2CC.toInt()
+            }
             canvas.drawCircle(x - s * 0.4f + i * s * 0.4f, y + s * 0.1f, s * 0.09f, body)
         }
+    }
+
+    /**
+     * Side view of a small excavator facing right, for the flat style: tracks, cab with window, boom and bucket.
+     * [dig] 0..1 lowers the bucket from raised (0) to the ground (1).
+     */
+    fun excavator(c: Canvas, x: Float, y: Float, s: Float, dig: Float) {
+        canvas = c
+        line.color = ink
+        // Tracks: a rounded belt with three wheels.
+        box(x - s, y + s * 0.45f, x + s * 0.35f, y + s * 0.85f, s * 0.2f, IncidentStyles.EXCAVATOR_DARK, s * 0.7f)
+        for (i in 0 until 3) {
+            body.color = 0xFF9AA3AD.toInt()
+            canvas.drawCircle(x - s * 0.78f + i * s * 0.45f, y + s * 0.65f, s * 0.11f, body)
+        }
+        // Cab and engine.
+        box(x - s * 0.95f, y + s * 0.05f, x + s * 0.25f, y + s * 0.45f, s * 0.08f, IncidentStyles.EXCAVATOR, s * 0.7f)
+        box(x - s * 0.55f, y - s * 0.6f, x + s * 0.2f, y + s * 0.1f, s * 0.1f, IncidentStyles.EXCAVATOR, s * 0.7f)
+        rect.set(x - s * 0.38f, y - s * 0.45f, x + s * 0.08f, y - s * 0.08f)
+        body.color = screen
+        canvas.drawRect(rect, body)
+        // Boom up to the elbow, stick down to the bucket.
+        val ex = x + s * 0.75f; val ey = y - s * 0.75f
+        val bx = x + s * 1.25f; val by = y - s * 0.2f + dig * s * 0.85f
+        line.strokeWidth = s * 0.26f
+        canvas.drawLine(x + s * 0.1f, y + s * 0.05f, ex, ey, line)
+        canvas.drawLine(ex, ey, bx, by - s * 0.15f, line)
+        line.color = IncidentStyles.EXCAVATOR
+        line.strokeWidth = s * 0.14f
+        canvas.drawLine(x + s * 0.1f, y + s * 0.05f, ex, ey, line)
+        canvas.drawLine(ex, ey, bx, by - s * 0.15f, line)
+        line.color = ink
+        path.reset()
+        path.moveTo(bx - s * 0.2f, by - s * 0.2f); path.lineTo(bx + s * 0.25f, by - s * 0.2f)
+        path.lineTo(bx + s * 0.1f, by + s * 0.2f); path.lineTo(bx - s * 0.25f, by + s * 0.12f); path.close()
+        body.color = IncidentStyles.EXCAVATOR_DARK
+        canvas.drawPath(path, body)
     }
 }

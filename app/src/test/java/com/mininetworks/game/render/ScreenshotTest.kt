@@ -42,6 +42,7 @@ class ScreenshotTest {
 
     private fun scene(): World {
         val w = World(cols = 16, rows = 10, seed = 3L, spawnInitialNodes = false)
+        w.incidentsEnabled = false
         w.jumpToWeek(6)
         w.grant(200)
         val mail = w.addServer(Service.MAIL, 2, 1)
@@ -197,6 +198,7 @@ class ScreenshotTest {
     private fun wirelessScene(): World {
         val w = World(cols = 16, rows = 10, seed = 3L, spawnInitialNodes = false)
         for (row in w.water) row.fill(false)
+        w.incidentsEnabled = false
         w.jumpToWeek(7)
         w.grant(400, extraAccessPoints = 1, extraCellTowers = 1)
         val call = w.addServer(Service.CALL, 13, 1)
@@ -258,6 +260,7 @@ class ScreenshotTest {
     private fun newServicesScene(): World {
         val w = World(cols = 16, rows = 10, seed = 3L, spawnInitialNodes = false)
         for (row in w.water) row.fill(false)
+        w.incidentsEnabled = false
         w.jumpToWeek(8)
         w.grant(400)
         val video = w.addServer(Service.VIDEO_CALL, 13, 1)
@@ -298,6 +301,73 @@ class ScreenshotTest {
         save(bmp, File(shots, "new-services-hud.png"))
     }
 
+    /**
+     * Incidents in week 9: an excavator has cut the fiber between the routers and digs in the hole (red countdown until
+     * it repairs itself), a second one is announced at the mail server's fiber (amber pulse and countdown), the east router is dark
+     * from a power outage, and an outage is announced for the access point.
+     */
+    private fun incidentScene(): World {
+        val w = World(cols = 16, rows = 10, seed = 3L, spawnInitialNodes = false)
+        for (row in w.water) row.fill(false)
+        w.incidentsEnabled = false
+        w.jumpToWeek(9)
+        w.grant(400)
+        val mail = w.addServer(Service.MAIL, 2, 1)
+        val call = w.addServer(Service.CALL, 13, 1)
+        val cdn = w.addServer(Service.STREAMING, 13, 8)
+        val west = w.addRouter(4, 4)
+        val east = w.addRouter(11, 4)
+        val ap = w.addRadio(RadioType.WLAN, 4, 7)
+        check(w.connect(west, east, CableType.FIBER))
+        check(w.connect(west, mail, CableType.FIBER))
+        check(w.connect(east, call, CableType.DSL))
+        check(w.connect(east, cdn, CableType.COAX))
+        check(w.connect(ap, west, CableType.DSL))
+        listOf(mail, call, cdn).forEach { repeat(2) { _ -> w.upgradeServer(it) } }
+        for ((device, x, y) in listOf(
+            Triple(Device.PC, 1, 4), Triple(Device.LAPTOP, 7, 2), Triple(Device.PHONE, 9, 7), Triple(Device.TV, 14, 5),
+            Triple(Device.SMARTPHONE, 5, 8), Triple(Device.TABLET, 3, 8), Triple(Device.CONSOLE, 12, 7),
+        )) {
+            val c = w.addClient(device, x, y)
+            if (device != Device.SMARTPHONE && device != Device.TABLET) {
+                check(w.connect(c, if (x < 8) west else east, CableType.DSL))
+            }
+        }
+        repeat(60 * 4) { w.update(1f / 60f) }
+        w.announceExcavator(w.cableBetween(west, east)!!)
+        w.announcePowerOutage(east)
+        repeat(60 * 9) { w.update(1f / 60f) }
+        // On the vertical leg of the L to the mail server: (4,4) → (2,4) → (2,1), digging at (2,3).
+        w.announceExcavator(w.cableBetween(west, mail)!!, cutAt = 0.6f)
+        w.announcePowerOutage(ap)
+        repeat(60 * 3) { w.update(1f / 60f) }
+        check(w.incidents.count { it.struck } == 2 && w.incidents.count { !it.struck } == 2) { "two struck, two announced" }
+        return w
+    }
+
+    @Test
+    fun renderIncidents() {
+        val world = incidentScene()
+        for (r in listOf(FlatRenderer(), IsoRenderer())) {
+            val bmp = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)
+            r.layout(bmp.width, bmp.height, world)
+            r.draw(Canvas(bmp), world, drag = null, time = 1.3f)
+            save(bmp, File(shots, "incidents-${r.name.lowercase()}.png"))
+        }
+        val r = IsoRenderer()
+        val bmp = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)
+        r.layout(bmp.width, bmp.height, world)
+        val g = TwoFingerGesture()
+        val c = r.toScreen(world.incidents.first().spot)
+        g.start(c.x - 100f, c.y, c.x + 100f, c.y)
+        g.move(c.x - 260f, c.y, c.x + 260f, c.y, r.camera)
+        r.draw(Canvas(bmp), world, drag = null, time = 1.3f)
+        save(bmp, File(shots, "incidents-zoom-iso.png"))
+        val view = GameView(RuntimeEnvironment.getApplication())
+        view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 1.3f, style = "Iso")
+        save(bmp, File(shots, "incidents-hud.png"))
+    }
+
     /** Every service shape in both palettes, requests filled and responses outlined, plus every device icon. */
     @Test
     fun renderServiceShapes() {
@@ -328,6 +398,7 @@ class ScreenshotTest {
      */
     private fun grownCity(): World {
         val w = World(seed = 4L)
+        w.incidentsEnabled = false
         repeat(60 * 45 * 4 + 60 * 5) {
             if (w.rewardOffer != null) w.chooseReward(0)
             w.nodes.forEach { it.pending.clear() }
