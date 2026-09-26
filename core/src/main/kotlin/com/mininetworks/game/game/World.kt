@@ -14,7 +14,7 @@ import kotlin.random.Random
 class World(
     val cols: Int = 16,
     val rows: Int = 10,
-    seed: Long = 7L,
+    val seed: Long = 7L,
     private val spawnInitialNodes: Boolean = true,
 ) {
     object Tuning {
@@ -28,7 +28,6 @@ class World(
         const val DISPATCH_COOLDOWN = 0.45f
         const val START_BUDGET = 24
         const val START_ROUTERS = 2
-        const val WEEKLY_BUDGET_BONUS = 12
         const val WATER_EXTRA_PER_CELL = 2
         const val MAX_SERVER_LEVEL = 3
         /** Packets per second a server can take at level 1, 2, 3. */
@@ -52,6 +51,12 @@ class World(
     var routersAvailable = Tuning.START_ROUTERS; private set
     var gameOver = false; private set
     var failedNode: Node? = null; private set
+
+    /** Open week reward choice. While set, the simulation is paused until [chooseReward] is called. */
+    var rewardOffer: RewardOffer? = null; private set
+
+    /** Free server tier upgrades won as [Reward.SERVER_VOUCHER]; the next server upgrades spend these before budget. */
+    var serverVouchers = 0; private set
 
     /** Short German message for the HUD, e.g. "Neu: Glasfaser". */
     var lastEvent: String? = null; private set
@@ -220,14 +225,32 @@ class World(
     fun serverUpgradeError(n: Node): String? = when {
         n.kind != NodeKind.SERVER -> "Kein Server"
         n.level >= Tuning.MAX_SERVER_LEVEL -> "Maximale Stufe"
-        Tuning.SERVER_UPGRADE_COST[n.level - 1] > budget -> "Budget reicht nicht"
+        serverVouchers == 0 && Tuning.SERVER_UPGRADE_COST[n.level - 1] > budget -> "Budget reicht nicht"
         else -> null
     }
 
+    /** Raises a server one hardware tier, paid with a voucher if the player has one, otherwise with budget. */
     fun upgradeServer(n: Node): Boolean {
         if (gameOver || serverUpgradeError(n) != null) return false
-        budget -= Tuning.SERVER_UPGRADE_COST[n.level - 1]
+        if (serverVouchers > 0) serverVouchers-- else budget -= Tuning.SERVER_UPGRADE_COST[n.level - 1]
         n.level++
+        return true
+    }
+
+    /** Rewards that would have an effect right now; a server voucher only while some server can still grow. */
+    fun eligibleRewards(): List<Reward> = Reward.entries.filter {
+        it != Reward.SERVER_VOUCHER || nodes.any { n -> n.kind == NodeKind.SERVER && n.level < Tuning.MAX_SERVER_LEVEL }
+    }
+
+    /** Takes choice [index] of the open [rewardOffer] and resumes the simulation. False if nothing is open. */
+    fun chooseReward(index: Int): Boolean {
+        val offer = rewardOffer ?: return false
+        when (offer.choices.getOrNull(index) ?: return false) {
+            Reward.BUDGET -> budget += Rewards.BUDGET
+            Reward.ROUTERS -> routersAvailable += Rewards.ROUTERS
+            Reward.SERVER_VOUCHER -> serverVouchers++
+        }
+        rewardOffer = null
         return true
     }
 
@@ -318,12 +341,25 @@ class World(
         week = target
     }
 
+    /** Runs the next week change right now (unlocks, reward offer), for tests and a future debug menu. */
+    @DebugApi
+    fun advanceToNextWeek() {
+        if (gameOver || rewardOffer != null) return
+        week++
+        time = (week - 1) * Tuning.WEEK_SECONDS
+        onNewWeek()
+    }
+
+    /** Advances the simulation by [dt] seconds. Does nothing after game over or while a [rewardOffer] is open. */
     fun update(dt: Float) {
-        if (gameOver) return
+        if (gameOver || rewardOffer != null) return
         val prevWeek = week
         time += dt
         week = 1 + (time / Tuning.WEEK_SECONDS).toInt()
-        if (week != prevWeek) onNewWeek()
+        if (week != prevWeek) {
+            onNewWeek()
+            return
+        }
 
         clientSpawnTimer -= dt
         if (clientSpawnTimer <= 0f) {
@@ -397,8 +433,7 @@ class World(
     }
 
     private fun onNewWeek() {
-        budget += Tuning.WEEKLY_BUDGET_BONUS
-        routersAvailable++
+        rewardOffer = RewardOffer(week, Rewards.offer(seed, week, eligibleRewards()))
         val news = ArrayList<String>()
         CableType.entries.filter { it.unlockWeek == week }.forEach { news += it.label }
         Device.entries.filter { it.unlockWeek == week }.forEach { news += it.label }
@@ -409,7 +444,7 @@ class World(
             else -> null
         }
         if (server != null && spawnServer(server)) news += "${server.label}-Server"
-        event(if (news.isEmpty()) "$year · +${Tuning.WEEKLY_BUDGET_BONUS} Budget, +1 Router" else "$year · Neu: ${news.joinToString(", ")}")
+        if (news.isNotEmpty()) event("$year · Neu: ${news.joinToString(", ")}")
     }
 }
 

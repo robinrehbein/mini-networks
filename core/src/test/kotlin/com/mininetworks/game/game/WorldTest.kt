@@ -98,7 +98,7 @@ class WorldTest {
         val phone = w.addClient(Device.PHONE, 1, 1)
         val server = w.addServer(Service.CALL, 3, 1)
         w.connect(phone, server, CableType.ISDN)
-        repeat(60 * 20) { w.update(1f / 60f) }
+        repeat(60 * 20) { w.step() }
         assertTrue("expected deliveries, got ${w.delivered}", w.delivered > 0)
         assertFalse(w.gameOver)
     }
@@ -111,7 +111,7 @@ class WorldTest {
         w.connect(router, server, CableType.ISDN)
         val phones = listOf(w.addClient(Device.PHONE, 1, 1), w.addClient(Device.PHONE, 5, 1))
         phones.forEach { w.connect(it, router, CableType.ISDN) }
-        repeat(60 * 60) { w.update(1f / 60f) }
+        repeat(60 * 60) { w.step() }
         assertTrue(w.delivered > 5)
     }
 
@@ -127,7 +127,7 @@ class WorldTest {
             listOf(1 to 1, 3 to 1, 5 to 1, 2 to 2).forEach { (x, y) -> w.connect(w.addClient(Device.PC, x, y), router, CableType.FIBER) }
             repeat(level - 1) { assertTrue(w.upgradeServer(server)) }
             assertEquals(level, server.level)
-            repeat(60 * 60) { w.update(1f / 60f) }
+            repeat(60 * 60) { w.step() }
             return w.delivered
         }
         val slow = deliveredWith(1)
@@ -140,7 +140,7 @@ class WorldTest {
         val w = world()
         w.addServer(Service.MAIL, 4, 1)
         w.addClient(Device.PC, 1, 1)
-        repeat(60 * 180) { if (!w.gameOver) w.update(1f / 60f) }
+        repeat(60 * 180) { if (!w.gameOver) w.step() }
         assertTrue(w.gameOver)
         assertEquals(NodeKind.CLIENT, w.failedNode?.kind)
     }
@@ -154,4 +154,10 @@ class WorldTest {
         val right = w.addRouter(riverX + 2, y)
         assertEquals(4 + World.Tuning.WATER_EXTRA_PER_CELL, w.cableCost(left, right, CableType.ISDN))
     }
+}
+
+/** One fixed simulation step; an open week reward offer is answered with its first choice so play continues. */
+private fun World.step() {
+    if (rewardOffer != null) chooseReward(0)
+    update(1f / 60f)
 }

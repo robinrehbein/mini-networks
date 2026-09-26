@@ -23,7 +23,7 @@ Ziel ist, so viele Pakete wie möglich zuzustellen.
 |---|---|
 | Plattform | Natives Android, Kotlin, **keine Engine**, `SurfaceView` + Canvas (Hardware-Canvas), eigener Game-Thread |
 | Game-Loop | Fester Simulationsschritt 1/60 s mit Akkumulator (`FixedStep`, max. 5 Schritte pro Frame); Touch-Eingaben landen in einer Queue, die der Game-Thread zu Beginn jedes Durchlaufs abarbeitet; Pause bei `onPause`, weiter bei `onResume` |
-| Spiellogik | Gradle-Modul `:core` (Kotlin/JVM, keine Android-Abhängigkeit), per JUnit getestet; Test-/Debug-Hooks (`grant`, `jumpToWeek`) sind öffentlich, aber per Opt-in `@DebugApi` markiert |
+| Spiellogik | Gradle-Modul `:core` (Kotlin/JVM, keine Android-Abhängigkeit), per JUnit getestet; Test-/Debug-Hooks (`grant`, `jumpToWeek`, `advanceToNextWeek`) sind öffentlich, aber per Opt-in `@DebugApi` markiert |
 | Geräte | 8 Gerätetypen mit eigenen Icons und eigenem Dienste-Mix, Freischaltung nach Woche |
 | Dienste | Mail, Telefonie, Gaming, Streaming mit Bandbreite (Paketgröße) und Ping-Limit |
 | Kabel | ISDN, DSL, Kabel, Glasfaser mit Kapazität, Latenz pro Feld, Tempo und Preis pro Feld |
@@ -31,14 +31,15 @@ Ziel ist, so viele Pakete wie möglich zuzustellen.
 | Routing | Dijkstra nach Ping; nur Kabel mit genug Kapazität zählen; fremde Server leiten nicht weiter |
 | Ports | Gerät 2, Server 4, Router 6: Router werden als Verteiler gebraucht |
 | Wasser | Fluss auf der Karte; Kabel darüber kosten 2 Budget extra pro Wasserfeld (gezählt auf den Feldern des gespeicherten Layouts) |
-| Wochen | Alle 45 s: +12 Budget, +1 Router, neue Technik, neue Geräte, neue Server |
+| Wochen | Alle 45 s: neue Technik, neue Geräte, neue Server; die Freischalt-Meldung bleibt sichtbar |
+| Wochen-Belohnungen | Beim Wochenwechsel pausiert die Simulation (`World.rewardOffer`), bis der Spieler eine von **2** Belohnungen wählt: +16 Budget, +2 Router oder Server-Gutschein (nächste Server-Stufe gratis; nur im Angebot, solange ein Server noch wachsen kann). Das Angebot ist deterministisch aus Seed und Woche (`Rewards.offer`), unabhängig vom Spielverlauf. Keine automatische Wochen-Gutschrift mehr. UI: `RewardDialog`, zwei große Karten mit isometrischem Mini-Diorama auf dem Canvas, Wahl per Tippen (Finger runter und hoch auf derselben Karte). WLAN-AP und Cache-Knoten fehlen im Pool, bis es diese Items gibt (P2.1 bzw. später) |
 | Stau | Kabel tragen begrenzte Bandbreite gleichzeitig; Pakete warten an Knoten |
-| Server-Stufen | Tipp auf Server = Aufrüsten, höhere Türme, begrenzter Durchsatz |
+| Server-Stufen | Tipp auf Server = Aufrüsten (zuerst mit Server-Gutschein, sonst mit Budget), höhere Türme, begrenzter Durchsatz; offene Gutscheine stehen im HUD |
 | Game Over | ≥ 6 wartende Anfragen → roter Ring füllt sich in 18 s → „Netz überlastet“ |
 | Grafik | Zwei Stile umschaltbar: **Flat** (Mini-Metro-Look, Übersichtsmodus) und **Isometrisch** (2,5D-Kacheln); beide zeichnen Kabel und Pakete aus demselben Layout, Flat rundet die Ecken nur optisch ab. Die Zieh-Vorschau zeigt genau das Layout und den Preis, die beim Loslassen gebaut werden |
 | Texte | HUD-Texte in `strings.xml` (Deutsch); Ereignistexte der Logik (`lastEvent`) noch fest im Code |
 | Steuerung | Ziehen = Kabel legen (die Zieh-Spur bestimmt den Knick) · Tippen auf Kabel = Upgrade auf gewählte Technik bzw. entfernen · Router-Knopf + Feld tippen |
-| Tests | `:core`: `WorldTest` (Regeln), `CableLayoutTest` (Layout-Form, Kosten = Layout, Wassererkennung, Knick-Wahl, Paketbewegung und Laufzeit), `FixedStepTest` (Zeitschritt, Determinismus); `:app`: `RendererLayoutTest` (beide Stile liefern identische Kabelwege und Paketpositionen), `ScreenshotTest` (Robolectric rendert beide Stile, die Zieh-Vorschau und ein komplettes Spielbild mit HUD nach `docs/screenshots/`) |
+| Tests | `:core`: `WorldTest` (Regeln), `RewardsTest` (Angebot deterministisch und eindeutig, Pause, Wirkung jeder Belohnung, Gutschein-Regeln, Freischalt-Meldung), `CableLayoutTest` (Layout-Form, Kosten = Layout, Wassererkennung, Knick-Wahl, Paketbewegung und Laufzeit), `FixedStepTest` (Zeitschritt, Determinismus); `:app`: `RendererLayoutTest` (beide Stile liefern identische Kabelwege und Paketpositionen), `ScreenshotTest` (Robolectric rendert beide Stile, die Zieh-Vorschau und ein komplettes Spielbild mit HUD, die Wochen-Belohnung über der Iso-Karte und alle Belohnungskarten inkl. gedrückter Karte nach `docs/screenshots/`) |
 
 Die Stilstudie mit vier Looks (Flat, Iso, Pixel, Platine) liegt in `docs/style-explorations.html`.
 
@@ -49,18 +50,21 @@ core/src/main/kotlin/com/mininetworks/game/game/   (Gradle-Modul :core, reines K
   Model.kt                  Service, Device, CableType, Node, Cable, Packet, Route, Geometry
   CableLayout.kt            Cell, Bend, CableLayout (Kabelgeometrie auf dem Raster, Knick-Vorschlag aus der Zieh-Spur)
   World.kt                  Spielzustand, Regeln, Simulation, Routing
+  Rewards.kt                Reward, RewardOffer, deterministische Auswahl der Wochen-Belohnungen
   FixedStep.kt              Fester Zeitschritt (1/60 s, Akkumulator, max. 5 Schritte pro Frame)
   DebugApi.kt               Opt-in-Markierung für Test-/Debug-Hooks
 core/src/test/kotlin/com/mininetworks/game/game/
   WorldTest.kt              Regeltests
   CableLayoutTest.kt        Kabel-Layout: Kosten, Wasser, Knick, Paketbewegung
   FixedStepTest.kt          Zeitschritt und Determinismus
+  RewardsTest.kt            Wochen-Belohnungen
 app/src/main/java/com/mininetworks/game/
   MainActivity.kt           Vollbild-Activity, hostet GameView, startet/stoppt den Game-Thread
   render/Renderer.kt        Renderer-Interface, DeviceIcons, CableStyles, ServiceColors, Shapes
   render/FlatRenderer.kt    Stil A
   render/IsoRenderer.kt     Stil B
   ui/GameView.kt            SurfaceView, Game-Thread, Eingabe-Queue, HUD
+  ui/RewardDialog.kt        Wochen-Belohnung: zwei Karten im Iso-Look auf dem Canvas
 app/src/test/java/com/mininetworks/game/
   render/ScreenshotTest.kt  Rendert Szenen, die Zieh-Vorschau und das Spielbild mit HUD als PNG
   render/RendererLayoutTest.kt  Beide Stile lesen Kabelweg und Paketposition aus dem Modell
@@ -133,7 +137,7 @@ So entsteht ein eigenes kleines Puzzle: WLAN ist billig und flexibel, aber „ei
 
 Am Ende jeder Woche pausiert das Spiel und bietet **2 von 4** Belohnungen zur Wahl an:
 +Budget, +2 Router, 1 WLAN-AP, 1 Rechenzentrums-Upgrade (Server verarbeitet mehr), 1 Cache-Knoten (liefert Streaming lokal aus).
-Der Prototyp vergibt die Belohnungen noch automatisch.
+Umgesetzt in P1.1 mit 2 von 3 (+Budget, +2 Router, Server-Gutschein als „Rechenzentrums-Upgrade“); WLAN-AP und Cache-Knoten kommen in den Pool, sobald es sie gibt.
 
 ### 3.5 Weitere Mechaniken (priorisiert)
 
@@ -172,7 +176,6 @@ Kein Multiplayer, keine Online-Pflicht, kein Shop, keine Werbung im MVP. iOS ers
 
 - Ereignistexte aus der Logik (`World.lastEvent`) sind fest auf Deutsch im Code; die HUD-Texte liegen in `strings.xml`.
 - Keine Kamera; die Karte passt immer komplett auf den Bildschirm.
-- Die Wochen-Belohnungen kommen automatisch statt zur Auswahl.
 - Pakete laufen nur zum Server, nicht zurück.
 - Kein Speichern, keine Einstellungen, kein Menü.
 
@@ -237,8 +240,10 @@ Regeln für alle Pakete:
 
 ### Welle 1 – parallel (4 Agenten)
 
-**P1.1 Wochen-Belohnungen (Logik + UI)** · Dateien: `core/.../Rewards.kt`, `app/.../ui/RewardDialog.kt`
+**P1.1 Wochen-Belohnungen (Logik + UI)** · Dateien: `core/.../Rewards.kt`, `app/.../ui/RewardDialog.kt` · umgesetzt
 - Spiel pausiert am Wochenende, 2 von 4 Belohnungen zur Wahl, deterministisch per Seed.
+- Stand: Pool aus +Budget (16), +2 Router, Server-Gutschein. WLAN-AP (P2.1) und Cache-Knoten sind nicht im Pool, weil es die Items noch nicht gibt;
+  P2.1 ergänzt `Reward` und `World.chooseReward`. Die feste Wochen-Gutschrift (+12 Budget, +1 Router) entfällt dafür (Balancing in Welle 4).
 
 **P1.2 Hin- und Rückweg, Rechenzentrum-Stufe** · Dateien: `core/.../World.kt` (Abschnitt Simulation), `core/.../Packet*`
 - Antwortpakete, Ping zählt beide Wege; Server-Stufe 4 „Rechenzentrum“ (2×2 Felder).

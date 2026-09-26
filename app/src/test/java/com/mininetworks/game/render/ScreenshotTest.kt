@@ -6,9 +6,12 @@ import com.mininetworks.game.game.Bend
 import com.mininetworks.game.game.CableType
 import com.mininetworks.game.game.DebugApi
 import com.mininetworks.game.game.Device
+import com.mininetworks.game.game.Reward
+import com.mininetworks.game.game.RewardOffer
 import com.mininetworks.game.game.Service
 import com.mininetworks.game.game.World
 import com.mininetworks.game.ui.GameView
+import com.mininetworks.game.ui.RewardDialog
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -112,6 +115,38 @@ class ScreenshotTest {
         val bmp = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)
         view.drawSnapshot(Canvas(bmp), scene(), bmp.width, bmp.height, time = 1.3f)
         save(bmp, File(out, "game-hud.png"))
+    }
+
+    /** Week change: the map pauses under the reward choice (isometric main style), the unlock message stays visible. */
+    @Test
+    fun renderRewardChoice() {
+        val out = File(System.getProperty("screenshots.dir") ?: "build/screenshots").apply { mkdirs() }
+        val world = scene()
+        world.jumpToWeek(5)
+        world.advanceToNextWeek()
+        val view = GameView(RuntimeEnvironment.getApplication())
+        val bmp = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)
+        view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 1.3f, style = "Iso")
+        save(bmp, File(out, "reward-choice.png"))
+    }
+
+    /** Every reward card, drawn by the dialog alone on a phone-shaped canvas. */
+    @Test
+    fun renderRewardCards() {
+        val out = File(System.getProperty("screenshots.dir") ?: "build/screenshots").apply { mkdirs() }
+        val world = scene()
+        val dialog = RewardDialog(RuntimeEnvironment.getApplication())
+        val rewards = Reward.entries
+        val bmp = Bitmap.createBitmap(1200, 1080, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        canvas.drawColor(0xFFEEF3EA.toInt())
+        canvas.save()
+        canvas.scale(0.5f, 0.5f)
+        dialog.draw(canvas, world, RewardOffer(7, listOf(rewards[0], rewards[1])), 2400, 1080, time = 0.4f)
+        canvas.translate(0f, 1080f)
+        dialog.draw(canvas, world, RewardOffer(7, listOf(rewards[2], rewards[0])), 2400, 1080, time = 0.9f, pressed = 0)
+        canvas.restore()
+        save(bmp, File(out, "reward-cards.png"))
     }
 
     private fun save(bmp: Bitmap, file: File) = file.outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }

@@ -19,5 +19,20 @@
         <item quantity="one">%1$d Paket zugestellt · Woche %2$d</item>
         <item quantity="other">%1$d Pakete zugestellt · Woche %2$d</item>
     </plurals>
+    <plurals name="hud_vouchers">
+        <item quantity="one">%1$d Server-Gutschein · Server antippen</item>
+        <item quantity="other">%1$d Server-Gutscheine · Server antippen</item>
+    </plurals>
+
+    <string name="reward_prompt">Tippe auf eine Karte, um sie zu wählen</string>
+    <string name="reward_amount_plus">+%1$d</string>
+    <string name="reward_amount_voucher">Gratis</string>
+    <string name="reward_budget_title">Budget</string>
+    <string name="reward_budget_desc">Für neue Kabel und Aufrüstungen</string>
+    <string name="reward_routers_title">Router</string>
+    <string name="reward_routers_desc">Verteiler mit 6 Ports für dein Netz</string>
+    <string name="reward_voucher_title">Server-Gutschein</string>
+    <string name="reward_voucher_desc">Nächste Server-Aufrüstung kostet nichts</string>
+
     <string name="game_over_restart">Tippen für ein neues Spiel</string>
 </resources>

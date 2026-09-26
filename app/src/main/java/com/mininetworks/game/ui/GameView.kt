@@ -46,6 +46,7 @@ import kotlin.math.hypot
  *  - tap a cable: upgrade it to the picked technology, or remove it if it already is that type
  *  - "Router" button, then tap an empty cell: place a router
  *  - "Stil" button: switch between flat and isometric rendering
+ *  - at each week change the world pauses and [RewardDialog] shows two reward cards; tap one to pick it
  */
 class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback {
 
@@ -86,6 +87,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private val dragTrail = ArrayList<Vec2>()
     private var downX = 0f
     private var downY = 0f
+    /** True from a touch-down on the reward dialog until the finger lifts, so that gesture never reaches the map. */
+    private var gestureConsumed = false
+    private var pressedCard: Int? = null
+    private val rewardDialog = RewardDialog(context)
 
     private val density = resources.displayMetrics.density
     private val hudText = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF262B33.toInt(); typeface = Typeface.DEFAULT_BOLD; textSize = 16 * density }
@@ -215,6 +220,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private fun drawFrame(canvas: Canvas) {
         renderer.draw(canvas, world, dragPreview(), animTime)
         drawHud(canvas)
+        world.rewardOffer?.let { rewardDialog.draw(canvas, world, it, surfaceWidth, surfaceHeight, animTime, pressedCard) }
         if (world.gameOver) drawGameOver(canvas)
     }
 
@@ -222,9 +228,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
      * Draws one frame of [snapshotWorld] at the given size into [canvas], for screenshot tests.
      * Only valid while the game thread is not running.
      */
-    internal fun drawSnapshot(canvas: Canvas, snapshotWorld: World, width: Int, height: Int, time: Float) {
+    internal fun drawSnapshot(canvas: Canvas, snapshotWorld: World, width: Int, height: Int, time: Float, style: String? = null) {
         check(loop == null) { "game loop is running" }
         world = snapshotWorld
+        if (style != null) rendererIndex = renderers.indexOfFirst { it.name == style }.also { require(it >= 0) { "unknown style $style" } }
         animTime = time
         handle(Input.Resize(width, height))
         drawFrame(canvas)
@@ -281,10 +288,16 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             context.getString(R.string.hud_resources, world.budget, world.routersAvailable),
             right, pad + hudText.textSize + 20 * density, hudSub,
         )
+        if (world.serverVouchers > 0) {
+            canvas.drawText(
+                resources.getQuantityString(R.plurals.hud_vouchers, world.serverVouchers, world.serverVouchers),
+                right, pad + hudText.textSize + 40 * density, hudSub,
+            )
+        }
         hudSub.textAlign = Paint.Align.LEFT
 
         world.lastEvent?.let {
-            if (world.time - world.lastEventTime < 3.5f) {
+            if (world.rewardOffer == null && world.time - world.lastEventTime < 3.5f) {
                 bigText.textSize = 15 * density
                 canvas.drawText(it, surfaceWidth / 2f, pad + hudText.textSize, bigText)
             }
@@ -354,6 +367,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     }
 
     private fun onTouch(e: Input.Touch) {
+        if (gestureConsumed || (world.rewardOffer != null && e.action == MotionEvent.ACTION_DOWN)) {
+            onRewardTouch(e)
+            return
+        }
         when (e.action) {
             MotionEvent.ACTION_DOWN -> {
                 downX = e.x; downY = e.y
@@ -372,6 +389,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             }
             MotionEvent.ACTION_MOVE -> if (dragFrom != null) trackDrag(renderer.toWorld(e.x, e.y))
             MotionEvent.ACTION_UP -> {
+                if (world.rewardOffer != null) { endDrag(); return }
                 val from = dragFrom
                 val p = renderer.toWorld(e.x, e.y)
                 val isTap = hypot(e.x - downX, e.y - downY) < 12 * density
@@ -386,6 +404,27 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 endDrag()
             }
             MotionEvent.ACTION_CANCEL -> endDrag()
+        }
+    }
+
+    /** While the reward choice is open, a card is picked when the finger goes down and up on the same card. */
+    private fun onRewardTouch(e: Input.Touch) {
+        when (e.action) {
+            MotionEvent.ACTION_DOWN -> {
+                gestureConsumed = true
+                endDrag()
+                pressedCard = rewardDialog.hit(e.x, e.y)
+            }
+            MotionEvent.ACTION_UP -> {
+                val card = pressedCard
+                if (card != null && world.rewardOffer != null && rewardDialog.hit(e.x, e.y) == card) world.chooseReward(card)
+                gestureConsumed = false
+                pressedCard = null
+            }
+            MotionEvent.ACTION_CANCEL -> {
+                gestureConsumed = false
+                pressedCard = null
+            }
         }
     }
 
