@@ -17,6 +17,7 @@ import com.mininetworks.game.game.Service
 import com.mininetworks.game.game.WeekNews
 import com.mininetworks.game.game.World
 import com.mininetworks.game.monetization.Entitlements
+import com.mininetworks.game.monetization.FakeMonetization
 import com.mininetworks.game.render.ServiceColors
 import com.mininetworks.game.ui.menu.MenuAction
 import com.mininetworks.game.ui.menu.SceneryPicker
@@ -492,17 +493,14 @@ class MenuFlowTest {
     @Test
     fun boughtSceneriesArePlayable() {
         val view = newView()
-        val asked = ArrayList<String>()
-        view.entitlements = object : Entitlements {
-            override fun ownsScenery(sceneryId: String) = sceneryId == Scenarios.MOUNTAIN_VILLAGE.id
-            override fun purchaseScenery(sceneryId: String): Boolean {
-                asked += sceneryId
-                return true
-            }
-        }
+        val shop = FakeMonetization(
+            owned = mutableSetOf(Entitlements.sceneryProduct(Scenarios.MOUNTAIN_VILLAGE.id)),
+            prices = mapOf(Entitlements.sceneryProduct(Scenarios.FUTURE.id) to "1,99 €"),
+        )
+        view.monetization = shop
         tap(view, MenuAction.PLAY)
         tapScenery(view, Scenarios.FUTURE.id)
-        assertEquals("a locked scenery asks the store", listOf(Scenarios.FUTURE.id), asked)
+        assertEquals("a locked scenery asks the store", listOf(Entitlements.sceneryProduct(Scenarios.FUTURE.id)), shop.purchases)
         assertEquals(Screen.SCENERIES, view.currentScreen)
         tapScenery(view, Scenarios.MOUNTAIN_VILLAGE.id)
         assertEquals(Screen.PLAYING, view.currentScreen)

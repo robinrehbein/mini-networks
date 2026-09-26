@@ -19,6 +19,8 @@ import com.mininetworks.game.game.RewardOffer
 import com.mininetworks.game.game.Service
 import com.mininetworks.game.game.Tutorial
 import com.mininetworks.game.game.World
+import com.mininetworks.game.monetization.Entitlements
+import com.mininetworks.game.monetization.FakeMonetization
 import com.mininetworks.game.ui.GameView
 import com.mininetworks.game.ui.RewardDialog
 import com.mininetworks.game.ui.Texts
@@ -533,6 +535,45 @@ class ScreenshotTest {
         check(view.currentScreen == Screen.GAME_OVER)
         view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 1.3f, screen = null)
         save(bmp, File(shots, "game-over.png"))
+    }
+
+    /**
+     * Monetization on a landscape phone (docs/PLAN.md 5.1): "remove ads" in the main menu, the pack pill on the scenery
+     * picker, "continue with a video" on the game-over card and the extra router on the week reward screen.
+     */
+    @Test
+    @Config(qualifiers = "de-xhdpi")
+    fun renderMonetization() {
+        val app = RuntimeEnvironment.getApplication()
+        HighscoreStore(app).submit(480)
+        val shop = FakeMonetization(prices = mapOf(Entitlements.REMOVE_ADS to "2,99 €", Entitlements.SCENERY_PACK to "4,99 €"))
+        val bmp = phoneBitmap()
+        fun shot(view: GameView, name: String) {
+            bmp.eraseColor(0)
+            view.drawSnapshot(Canvas(bmp), view.currentWorld, bmp.width, bmp.height, time = 1.3f, screen = null)
+            save(bmp, File(shots, name))
+        }
+
+        val menu = GameView(app).also { it.monetization = shop }
+        shot(menu, "monetization-main-menu.png")
+        menu.drawSnapshot(Canvas(bmp), menu.currentWorld, bmp.width, bmp.height, time = 1.3f, screen = Screen.SCENERIES)
+        shot(menu, "monetization-sceneries.png")
+
+        val world = scene()
+        val phone = world.addClient(Device.PHONE, 8, 9)
+        repeat(World.Tuning.MAX_PENDING) { phone.pending.addLast(Service.CALL) }
+        val over = GameView(app).also { it.monetization = shop }
+        over.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 1.3f, style = "Iso")
+        repeat(60 * 20) { over.advance(1f / 60f) }
+        check(over.currentScreen == Screen.GAME_OVER)
+        shot(over, "monetization-game-over.png")
+
+        val week = scene()
+        week.jumpToWeek(5)
+        week.advanceToNextWeek()
+        val reward = GameView(app).also { it.monetization = shop }
+        reward.drawSnapshot(Canvas(bmp), week, bmp.width, bmp.height, time = 1.3f, style = "Iso")
+        shot(reward, "monetization-reward.png")
     }
 
     /**

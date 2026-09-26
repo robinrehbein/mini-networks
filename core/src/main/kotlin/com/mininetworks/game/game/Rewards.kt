@@ -25,8 +25,13 @@ enum class Reward {
     CELL_TOWER,
 }
 
-/** The open choice of one week: exactly [OFFERED][Rewards.OFFERED] distinct rewards. */
-class RewardOffer(val week: Int, val choices: List<Reward>)
+/**
+ * The open choice of one week: exactly [OFFERED][Rewards.OFFERED] distinct rewards. [bonusClaimed] turns true once the
+ * extra router of this week was taken ([World.claimBonusRouter]).
+ */
+class RewardOffer(val week: Int, val choices: List<Reward>) {
+    var bonusClaimed = false; internal set
+}
 
 /** Reward amounts and the deterministic offer draw. */
 object Rewards {
@@ -35,6 +40,8 @@ object Rewards {
     const val ACCESS_POINTS = 1
     const val CELL_TOWERS = 1
     const val OFFERED = 2
+    /** Routers added by the optional extra on the week screen (a rewarded video, or free without ads). */
+    const val BONUS_ROUTERS = 1
 
     /**
      * The rewards offered in [week] of a game with [seed]: [OFFERED] distinct entries from [eligible], drawn from a

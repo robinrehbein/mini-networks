@@ -145,7 +145,7 @@
         <item quantity="one">Deliver %1$,d packet in %2$s or buy this scenery</item>
         <item quantity="other">Deliver %1$,d packets in %2$s or buy this scenery</item>
     </plurals>
-    <string name="scenery_hint_no_shop">Purchases are not available in this version yet</string>
+    <string name="scenery_hint_no_shop">The shop is not available right now</string>
 
     <!-- Tutorial -->
     <string name="tutorial_kicker">TUTORIAL · %1$d/%2$d</string>
@@ -171,4 +171,14 @@
     </plurals>
     <string name="tutorial_done_title">Well done!</string>
     <string name="tutorial_done_text">You know the basics. Week by week, new devices, services and technologies arrive. Have fun!</string>
+    <!-- Monetization (docs/PLAN.md 5.1) -->
+    <string name="menu_remove_ads">Remove ads · %1$s</string>
+    <string name="settings_privacy">Privacy settings</string>
+    <string name="game_over_continue_ad">Continue · watch a video</string>
+    <string name="game_over_continue">Continue</string>
+    <string name="reward_bonus_router_ad">+1 router · watch a video</string>
+    <string name="reward_bonus_router">+1 extra router</string>
+    <string name="hint_bonus_router">+1 router</string>
+    <string name="hint_continued">Overload rings cleared · once per game</string>
+    <string name="scenery_pack_buy">All sceneries · %1$s</string>
 </resources>

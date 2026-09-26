@@ -136,6 +136,12 @@ class World(
     var gameOver = false; private set
     var failedNode: Node? = null; private set
 
+    /** True once this game went on after a game over ([continueAfterGameOver]); that works only once per game. */
+    var continued = false; private set
+
+    /** True while the game is over and may still go on once ([continueAfterGameOver]); never in a [guided] world. */
+    val canContinue get() = gameOver && !continued && !guided
+
     /** Open week reward choice. While set, the simulation is paused until [chooseReward] is called. */
     var rewardOffer: RewardOffer? = null; private set
 
@@ -489,6 +495,31 @@ class World(
             Reward.CELL_TOWER -> cellTowersAvailable += Rewards.CELL_TOWERS
         }
         rewardOffer = null
+        return true
+    }
+
+    /**
+     * Adds [Rewards.BONUS_ROUTERS] routers on top of the open [rewardOffer] (the rewarded extra of the week screen),
+     * at most once per offer. False if no offer is open or its bonus was already taken.
+     */
+    fun claimBonusRouter(): Boolean {
+        val offer = rewardOffer ?: return false
+        if (offer.bonusClaimed) return false
+        offer.bonusClaimed = true
+        routersAvailable += Rewards.BONUS_ROUTERS
+        return true
+    }
+
+    /**
+     * Lets a lost game go on once: every overload ring is emptied and the simulation resumes where it stopped.
+     * Waiting requests stay, so the player has one ring's time to fix the jam. False unless [canContinue].
+     */
+    fun continueAfterGameOver(): Boolean {
+        if (!canContinue) return false
+        for (n in nodes) n.overload = 0f
+        gameOver = false
+        failedNode = null
+        continued = true
         return true
     }
 
@@ -1022,7 +1053,8 @@ class World(
         cellTowersAvailable = cellTowersAvailable,
         gameOver = gameOver,
         failedNodeId = failedNode?.id,
-        rewardOffer = rewardOffer?.let { RewardOfferSnapshot(it.week, it.choices) },
+        rewardOffer = rewardOffer?.let { RewardOfferSnapshot(it.week, it.choices, it.bonusClaimed) },
+        continued = continued,
         serverVouchers = serverVouchers,
         lastNews = lastNews,
         lastNewsTime = lastNewsTime,
@@ -1080,7 +1112,8 @@ class World(
             w.cellTowersAvailable = s.cellTowersAvailable
             w.gameOver = s.gameOver
             w.serverVouchers = s.serverVouchers
-            w.rewardOffer = s.rewardOffer?.let { RewardOffer(it.week, it.choices) }
+            w.rewardOffer = s.rewardOffer?.let { RewardOffer(it.week, it.choices).apply { bonusClaimed = it.bonusClaimed } }
+            w.continued = s.continued
             w.lastNews = s.lastNews
             w.lastNewsTime = s.lastNewsTime
             w.clientSpawnTimer = s.clientSpawnTimer

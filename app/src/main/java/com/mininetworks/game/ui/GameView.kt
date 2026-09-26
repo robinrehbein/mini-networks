@@ -43,8 +43,11 @@ import com.mininetworks.game.game.Wifi
 import com.mininetworks.game.game.WifiUpgradeError
 import com.mininetworks.game.game.Unlock
 import com.mininetworks.game.game.World
+import com.mininetworks.game.monetization.AdPlacement
 import com.mininetworks.game.monetization.Entitlements
-import com.mininetworks.game.monetization.NoEntitlements
+import com.mininetworks.game.monetization.Monetization
+import com.mininetworks.game.monetization.MonetizationStore
+import com.mininetworks.game.monetization.NoOpMonetization
 import com.mininetworks.game.render.CableStyles
 import com.mininetworks.game.render.DragPreview
 import com.mininetworks.game.render.FlatRenderer
@@ -83,10 +86,17 @@ import kotlin.math.hypot
  * very first launch it opens in the [Tutorial] instead, which can be skipped and replayed from the settings. The
  * tutorial runs as a game on [Screen.PLAYING] with [TutorialOverlay] on top; it is never saved and records no score.
  * "Play" opens the scenery picker ([SceneryPicker]): a scenery is playable once the packet goal of the one before it
- * is reached or it is bought ([entitlements]). The simulation only runs while [Screen.PLAYING]. The game is saved
+ * is reached or it is bought ([monetization]). The simulation only runs while [Screen.PLAYING]. The game is saved
  * ([SaveStore]) when the pause menu opens, when the player leaves to the main menu and when the activity pauses;
  * game over records the best score of its scenery ([HighscoreStore]) and deletes the save, then the camera glides to
  * the failed device before the result card shows.
+ *
+ * Monetization ([Monetization], docs/PLAN.md 5.1): never an ad while playing. Leaving a game-over card counts a
+ * finished game, and [AdPolicy][com.mininetworks.game.monetization.AdPolicy] decides whether an interstitial shows
+ * before the next screen. Rewarded videos are optional: "continue" on the game-over card (once per game, empties the
+ * overload rings) and "+1 router" on the week reward screen; with "remove ads" both come without a video. The main
+ * menu sells "remove ads", the scenery picker single sceneries and the pack, the settings reopen the consent form.
+ * While a full-screen ad is open, touches and back are ignored and the activity pausing does not open the pause menu.
  *
  * Controls:
  *  - drag from a node to another node: lay a cable along the grid (L-shaped; the drag path picks which way it bends)
@@ -117,6 +127,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         class Touch(val action: Int, val x: Float, val y: Float, val pointers: FloatArray, val time: Long) : Input
         data class Resize(val width: Int, val height: Int) : Input
         data object Back : Input
+        /** A full-screen ad for [placement] closed; [earned] is true if its reward was earned. */
+        data class AdResult(val placement: AdPlacement, val earned: Boolean) : Input
     }
 
     // ---------------------------------------------------------------- shared between UI and game thread
@@ -142,8 +154,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     /** Called on the UI thread when back is pressed on the main menu. */
     var onExit: (() -> Unit)? = null
 
-    /** Bought sceneries; the billing package replaces the default. Read on the game thread. */
-    @Volatile var entitlements: Entitlements = NoEntitlements
+    /** Ads and purchases; [NoOpMonetization] unless the activity sets the Play implementation. Read on the game thread. */
+    @Volatile var monetization: Monetization = NoOpMonetization
+    private val monetizationStore = MonetizationStore(context)
+    private val adPolicy = monetizationStore.loadPolicy()
+    /** The full-screen ad that is open right now; its [Input.AdResult] is awaited. */
+    private var pendingAd: AdPlacement? = null
+    /** What leaving the game-over card does once the interstitial closed. */
+    private var afterInterstitial: MenuAction? = null
     private val mainThread = Handler(Looper.getMainLooper())
 
     private var screen = Screen.MAIN_MENU
@@ -271,7 +289,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         sounds.close()
         // Safe: the game thread has ended.
         if (failFocusUntil != null) showGameOverCard()
-        if (screen == Screen.PLAYING) {
+        // A full-screen ad pauses the activity; the game stays where it was (the world waits for the ad's result).
+        if (screen == Screen.PLAYING && pendingAd == null) {
             endDrag()
             screen = Screen.PAUSED
         }
@@ -414,7 +433,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             tutorialOverlay.draw(canvas, it, tutorialFocus(it), renderer, world, ::hudTarget, surfaceWidth, animTime, tutorialPressed)
         }
         if (playing) world.rewardOffer?.let {
-            rewardDialog.draw(canvas, world, it, surfaceWidth, surfaceHeight, animTime, pressedCard)
+            rewardDialog.draw(canvas, world, it, surfaceWidth, surfaceHeight, animTime, pressedCard, bonusLabel(), video = !monetization.adsRemoved)
             // Pause stays reachable during the reward choice, so it is drawn above the dimmed map.
             buttons.firstOrNull { b -> b.id == "pause" }?.let { b -> drawHudButton(canvas, b.rect, context.getString(R.string.button_pause), active = false) }
         }
@@ -422,7 +441,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         if (screen == Screen.SCENERIES) {
             sceneryPicker.draw(
                 canvas, context.getString(R.string.scenery_title), context.getString(R.string.menu_back), sceneryCards(),
-                sceneryHint, surfaceWidth, surfaceHeight, pressedScenery,
+                sceneryHint, surfaceWidth, surfaceHeight, pressedScenery, packLabel(),
             )
         }
     }
@@ -502,7 +521,18 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     /** Screen rectangle of an enabled menu entry in the last drawn frame, for tests. */
     internal fun menuTarget(action: MenuAction): RectF? = menuPanel.targetOf(action)
 
-    /** Screen rectangle of a scenery card (or [SceneryPicker.BACK]) in the last drawn picker, for tests. */
+    /** Screen rectangle of the extra-router pill on the week reward screen in the last drawn frame, for tests. */
+    internal fun bonusTarget(): RectF? = if (world.rewardOffer != null) rewardDialog.bonusTarget() else null
+
+    /** The full-screen ad whose result is awaited, for tests. */
+    internal val awaitedAd: AdPlacement? get() = pendingAd
+
+    /** Hands the result of a full-screen ad to the game thread, as the monetization callbacks do. */
+    internal fun adClosed(placement: AdPlacement, earned: Boolean) {
+        inputs.add(Input.AdResult(placement, earned))
+    }
+
+    /** Screen rectangle of a scenery card (or [SceneryPicker.BACK], [SceneryPicker.PACK]) in the last drawn picker, for tests. */
     internal fun sceneryTarget(id: String): RectF? = if (screen == Screen.SCENERIES) sceneryPicker.targetOf(id) else null
 
     /** Screen rectangle of the HUD button [id] ("pause", "router", "radio:…", "cable:…") in the last drawn frame, for tests. */
@@ -683,8 +713,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 surfaceHeight = input.height
                 layoutRenderers()
             }
-            is Input.Touch -> onTouch(input)
-            Input.Back -> onBack()
+            is Input.Touch -> if (pendingAd == null) onTouch(input)
+            Input.Back -> if (pendingAd == null) onBack()
+            is Input.AdResult -> onAdResult(input)
         }
     }
 
@@ -900,7 +931,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             }
             MotionEvent.ACTION_UP -> {
                 val card = pressedCard
-                if (card != null && world.rewardOffer != null && rewardDialog.hit(e.x, e.y) == card) world.chooseReward(card)
+                if (card != null && world.rewardOffer != null && rewardDialog.hit(e.x, e.y) == card) {
+                    if (card == RewardDialog.BONUS) takeBonusRouter() else world.chooseReward(card)
+                }
                 gestureConsumed = false
                 pressedCard = null
             }
@@ -1031,7 +1064,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 MenuItem.Button(MenuAction.PLAY, context.getString(R.string.menu_play), primary = true),
                 MenuItem.Button(MenuAction.CONTINUE, context.getString(R.string.menu_continue), enabled = gameInProgress || hasSave),
                 MenuItem.Button(MenuAction.SETTINGS, context.getString(R.string.menu_settings)),
-            ),
+            ) + listOfNotNull(removeAdsLabel()?.let { MenuItem.Button(MenuAction.REMOVE_ADS, it) }),
             footer = highscores.best(highscores.lastScenery).takeIf { it > 0 }?.let { context.getString(R.string.menu_best, it) },
             hero = true,
         )
@@ -1060,6 +1093,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 MenuItem.Toggle(MenuAction.TOGGLE_OVERVIEW, context.getString(R.string.settings_overview), settings.overviewMode),
                 MenuItem.Toggle(MenuAction.TOGGLE_COLORBLIND, context.getString(R.string.settings_colorblind), settings.colorblind),
                 MenuItem.Button(MenuAction.TUTORIAL, context.getString(R.string.settings_tutorial)),
+            ) + listOfNotNull(
+                if (monetization.privacyOptionsRequired) MenuItem.Button(MenuAction.PRIVACY, context.getString(R.string.settings_privacy)) else null,
                 MenuItem.Button(MenuAction.BACK, context.getString(R.string.menu_back)),
             ),
             footer = context.getString(R.string.settings_language),
@@ -1071,8 +1106,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 resources.getQuantityString(R.plurals.game_over_stats, world.delivered, world.delivered, world.week),
                 if (newBest) null else context.getString(R.string.game_over_best, highscores.best(world.scenario.id)),
             ),
-            items = listOf(
+            items = listOfNotNull(
                 MenuItem.Button(MenuAction.PLAY_AGAIN, context.getString(R.string.game_over_again), primary = true),
+                secondChanceLabel()?.let { MenuItem.Button(MenuAction.SECOND_CHANCE, it) },
                 MenuItem.Button(MenuAction.MAIN_MENU, context.getString(R.string.menu_main)),
             ),
         )
@@ -1098,6 +1134,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     }
 
     private fun onMenuAction(action: MenuAction) {
+        if (screen == Screen.GAME_OVER && (action == MenuAction.PLAY_AGAIN || action == MenuAction.MAIN_MENU) && interstitialBetweenGames(action)) return
+        runMenuAction(action)
+    }
+
+    private fun runMenuAction(action: MenuAction) {
         when (action) {
             MenuAction.PLAY -> {
                 sceneryHint = null
@@ -1125,7 +1166,104 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             MenuAction.TOGGLE_HAPTICS -> updateSettings(settings.copy(haptics = !settings.haptics))
             MenuAction.TOGGLE_OVERVIEW -> updateSettings(settings.copy(overviewMode = !settings.overviewMode))
             MenuAction.TOGGLE_COLORBLIND -> updateSettings(settings.copy(colorblind = !settings.colorblind))
+            MenuAction.SECOND_CHANCE -> askSecondChance()
+            MenuAction.REMOVE_ADS -> monetization.purchase(Entitlements.REMOVE_ADS)
+            MenuAction.PRIVACY -> monetization.showPrivacyOptions()
         }
+    }
+
+    // ---------------------------------------------------------------- monetization (game thread)
+
+    /**
+     * Counts the game that just ended and, if [AdPolicy][com.mininetworks.game.monetization.AdPolicy] allows it, shows
+     * an interstitial; [action] runs once it closed. Returns false if no ad shows, so [action] runs right away.
+     */
+    private fun interstitialBetweenGames(action: MenuAction): Boolean {
+        adPolicy.gameFinished()
+        val show = adPolicy.interstitialDue(monetization.adsRemoved) &&
+            monetization.showInterstitial { adClosed(AdPlacement.INTERSTITIAL, earned = false) }
+        if (show) {
+            adPolicy.interstitialShown()
+            pendingAd = AdPlacement.INTERSTITIAL
+            afterInterstitial = action
+        }
+        monetizationStore.savePolicy(adPolicy)
+        return show
+    }
+
+    private fun onAdResult(r: Input.AdResult) {
+        if (pendingAd != r.placement) return
+        pendingAd = null
+        when (r.placement) {
+            AdPlacement.INTERSTITIAL -> afterInterstitial?.let {
+                afterInterstitial = null
+                runMenuAction(it)
+            }
+            AdPlacement.CONTINUE -> if (r.earned) secondChance()
+            AdPlacement.BONUS_ROUTER -> if (r.earned) grantBonusRouter()
+        }
+    }
+
+    /** "Continue" on the game-over card, while the lost game may still go on and a video is ready (or ads are removed). */
+    private fun secondChanceLabel(): String? = when {
+        !world.canContinue || tutorial != null -> null
+        monetization.adsRemoved -> context.getString(R.string.game_over_continue)
+        monetization.rewardedReady -> context.getString(R.string.game_over_continue_ad)
+        else -> null
+    }
+
+    private fun askSecondChance() {
+        if (!world.canContinue) return
+        if (monetization.adsRemoved) {
+            secondChance()
+        } else if (monetization.showRewarded { adClosed(AdPlacement.CONTINUE, it) }) {
+            pendingAd = AdPlacement.CONTINUE
+        }
+    }
+
+    /** The lost game goes on with empty overload rings; it counts as a game in progress again and is saved. */
+    private fun secondChance() {
+        if (!world.continueAfterGameOver()) return
+        screen = Screen.PLAYING
+        gameInProgress = true
+        newBest = false
+        autosave()
+        showHint(context.getString(R.string.hint_continued))
+    }
+
+    /** The extra-router pill on the week reward screen, once per week, while a video is ready (or ads are removed). */
+    private fun bonusLabel(): String? {
+        val offer = world.rewardOffer ?: return null
+        return when {
+            offer.bonusClaimed || tutorial != null -> null
+            monetization.adsRemoved -> context.getString(R.string.reward_bonus_router)
+            monetization.rewardedReady -> context.getString(R.string.reward_bonus_router_ad)
+            else -> null
+        }
+    }
+
+    private fun takeBonusRouter() {
+        if (bonusLabel() == null) return
+        click()
+        if (monetization.adsRemoved) {
+            grantBonusRouter()
+        } else if (monetization.showRewarded { adClosed(AdPlacement.BONUS_ROUTER, it) }) {
+            pendingAd = AdPlacement.BONUS_ROUTER
+        }
+    }
+
+    private fun grantBonusRouter() {
+        if (world.claimBonusRouter()) showHint(context.getString(R.string.hint_bonus_router))
+    }
+
+    /** "Remove ads" in the main menu while the store sells it. */
+    private fun removeAdsLabel(): String? =
+        if (monetization.adsRemoved) null else monetization.price(Entitlements.REMOVE_ADS)?.let { context.getString(R.string.menu_remove_ads, it) }
+
+    /** The pack pill on the scenery picker while some purchasable scenery is still locked and the store sells the pack. */
+    private fun packLabel(): String? {
+        if (Scenarios.all.none { it.purchasable && !sceneryUnlocked(it) }) return null
+        return monetization.price(Entitlements.SCENERY_PACK)?.let { context.getString(R.string.scenery_pack_buy, it) }
     }
 
     private fun onBack() {
@@ -1145,7 +1283,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     // ---------------------------------------------------------------- scenery picker (game thread)
 
-    private fun sceneryUnlocked(s: Scenario) = Scenarios.isUnlocked(s, highscores::best, entitlements::ownsScenery)
+    private fun sceneryUnlocked(s: Scenario) = Scenarios.isUnlocked(s, highscores::best, monetization::ownsScenery)
 
     private fun sceneryCards(): List<SceneryCard> = Scenarios.all.map { s ->
         val unlocked = sceneryUnlocked(s)
@@ -1186,6 +1324,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                     screen = Screen.MAIN_MENU
                     return
                 }
+                if (id == SceneryPicker.PACK) {
+                    sceneryHint = if (monetization.purchase(Entitlements.SCENERY_PACK)) null else context.getString(R.string.scenery_hint_no_shop)
+                    return
+                }
                 val s = Scenarios.byId(id) ?: return
                 if (sceneryUnlocked(s)) newGame(s) else sceneryHint = lockedHint(s)
             }
@@ -1195,7 +1337,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     /** Asks the store for a locked scenery; the hint says how to unlock it, or that buying is not possible yet. */
     private fun lockedHint(s: Scenario): String? {
-        if (entitlements.purchaseScenery(s.id)) return null
+        if (monetization.purchaseScenery(s.id)) return null
         val unlock = s.unlock
         return if (unlock is Unlock.Score) {
             resources.getQuantityString(R.plurals.scenery_hint_score, unlock.packets, unlock.packets, texts.scenario(Scenarios.byId(unlock.after)!!))

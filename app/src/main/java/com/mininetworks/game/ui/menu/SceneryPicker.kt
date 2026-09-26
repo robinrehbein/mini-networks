@@ -32,8 +32,8 @@ data class SceneryCard(
 /**
  * The scenery select screen, drawn on the game canvas in the look of the menu cards: a title with a back pill and one
  * card per scenery with an isometric preview of its start map, its era and what makes it special. Locked cards are
- * greyed out with a padlock and show how to unlock them. [hit] maps a tap to a scenery id or [BACK]; it is valid for
- * the last drawn frame.
+ * greyed out with a padlock and show how to unlock them. While the store sells the pack, a pill at the top right buys
+ * it. [hit] maps a tap to a scenery id, [BACK] or [PACK]; it is valid for the last drawn frame.
  */
 class SceneryPicker(context: Context) {
     private val density = context.resources.displayMetrics.density
@@ -54,13 +54,17 @@ class SceneryPicker(context: Context) {
     private val targets = ArrayList<Pair<RectF, String>>()
     private val previews = HashMap<String, Bitmap>()
 
-    /** The scenery id or [BACK] under ([x], [y]), or null. */
+    /** The scenery id, [BACK] or [PACK] under ([x], [y]), or null. */
     fun hit(x: Float, y: Float): String? = targets.firstOrNull { it.first.contains(x, y) }?.second
 
-    /** Where the card of scenery [id] (or the [BACK] pill) was drawn, or null. */
+    /** Where the card of scenery [id] (or the [BACK] or [PACK] pill) was drawn, or null. */
     fun targetOf(id: String): RectF? = targets.firstOrNull { it.second == id }?.first
 
-    fun draw(canvas: Canvas, title: String, back: String, cards: List<SceneryCard>, hint: String?, width: Int, height: Int, pressed: String?) {
+    /** Draws the picker; [pack] labels the pill that buys every scenery, null hides it. */
+    fun draw(
+        canvas: Canvas, title: String, back: String, cards: List<SceneryCard>, hint: String?, width: Int, height: Int, pressed: String?,
+        pack: String? = null,
+    ) {
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), dim)
         targets.clear()
         val wDp = width / density
@@ -83,6 +87,12 @@ class SceneryPicker(context: Context) {
         r.set(x, top + 2f * u, x + backW, top + 38f * u)
         pill(canvas, back, pressed == BACK, u)
         targets += RectF(r) to BACK
+        if (pack != null) {
+            val packW = text.measureText(pack) + 40f * u
+            r.set(x + rowW - packW, top + 2f * u, x + rowW, top + 38f * u)
+            pill(canvas, pack, pressed == PACK, u, primary = true)
+            targets += RectF(r) to PACK
+        }
 
         val cardTop = top + TITLE_DP * u
         for (card in cards) {
@@ -179,17 +189,18 @@ class SceneryPicker(context: Context) {
         canvas.drawCircle(cx, cy + size * 0.25f, size * 0.1f, fillP)
     }
 
-    private fun pill(canvas: Canvas, label: String, down: Boolean, u: Float) {
+    /** A pill button in [r]; a [primary] one is filled with the accent color like the main menu's first button. */
+    private fun pill(canvas: Canvas, label: String, down: Boolean, u: Float, primary: Boolean = false) {
         val depth = 4f * u
         val sink = if (down) depth * 0.8f else 0f
         val radius = r.height() / 2f
-        fillP.color = 0xFFD5DAD2.toInt()
+        fillP.color = if (primary) accent.shade(-0.3f) else 0xFFD5DAD2.toInt()
         canvas.drawRoundRect(r.left, r.top + depth, r.right, r.bottom + depth, radius, radius, fillP)
-        fillP.color = 0xFFFFFFFF.toInt()
+        fillP.color = if (primary) accent else 0xFFFFFFFF.toInt()
         canvas.drawRoundRect(r.left, r.top + sink, r.right, r.bottom + sink, radius, radius, fillP)
         text.textAlign = Paint.Align.CENTER
         text.typeface = Typeface.DEFAULT_BOLD
-        text.color = ink
+        text.color = if (primary) 0xFFFFFFFF.toInt() else ink
         canvas.drawText(label, r.centerX(), r.centerY() + sink + text.textSize * 0.35f, text)
     }
 
@@ -243,6 +254,8 @@ class SceneryPicker(context: Context) {
     companion object {
         /** Target id of the back pill. */
         const val BACK = "back"
+        /** Target id of the pill that buys the scenery pack. */
+        const val PACK = "pack"
         private const val PREVIEW_SEED = 11L
         private const val MARGIN_DP = 16f
         private const val TITLE_DP = 52f

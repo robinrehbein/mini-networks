@@ -18,11 +18,15 @@ import kotlin.math.sin
 
 /**
  * The week reward choice, drawn on the game canvas over the paused map: two large cards, each a thick slab with a
- * small isometric diorama of its reward. [hit] maps a tap to the card index for [World.chooseReward].
+ * small isometric diorama of its reward. [hit] maps a tap to the card index for [World.chooseReward], or to [BONUS]
+ * for the optional extra-router pill below the cards ([World.claimBonusRouter]).
  */
 class RewardDialog(private val context: Context) {
     private val density = context.resources.displayMetrics.density
     private val cards = listOf(RectF(), RectF())
+    private val bonus = RectF()
+    private var bonusShown = false
+    private val play = Path()
     private val drawn = RectF()
     private val path = Path()
     private val fillP = fill(0)
@@ -37,16 +41,31 @@ class RewardDialog(private val context: Context) {
     private var oy = 0f
     private var u = 1f
 
-    /** Index of the card under the screen point, or null. Valid for the last drawn frame. */
-    fun hit(x: Float, y: Float): Int? = cards.indexOfFirst { it.contains(x, y) }.takeIf { it >= 0 }
+    /** Index of the card under the screen point, [BONUS] for the bonus pill, or null. Valid for the last drawn frame. */
+    fun hit(x: Float, y: Float): Int? {
+        if (bonusShown && bonus.contains(x, y)) return BONUS
+        return cards.indexOfFirst { it.contains(x, y) }.takeIf { it >= 0 }
+    }
 
-    fun draw(canvas: Canvas, world: World, offer: RewardOffer, width: Int, height: Int, time: Float, pressed: Int? = null) {
+    /** Where the bonus pill was drawn in the last frame, or null. */
+    fun bonusTarget(): RectF? = if (bonusShown) RectF(bonus) else null
+
+    /**
+     * Draws the choice. [bonus] labels the extra-router pill below the cards, null hides it; [video] adds a play sign
+     * because the extra costs a rewarded video.
+     */
+    fun draw(
+        canvas: Canvas, world: World, offer: RewardOffer, width: Int, height: Int, time: Float, pressed: Int? = null,
+        bonus: String? = null, video: Boolean = false,
+    ) {
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), dim)
         val cardW = minOf(width * 0.3f, height * 0.5f, 320 * density)
         val cardH = minOf(cardW * 1.08f, height * 0.56f)
         val gap = cardW * 0.14f
         val depth = cardW * 0.05f
-        val top = height * 0.28f
+        // With the bonus pill the cards move up, so prompt and pill fit below them.
+        val below = if (bonus != null) cardW * 0.27f + bonusHeight(cardW) + 12f * density else 0f
+        val top = minOf(height * 0.28f, height - cardH - below).coerceAtLeast(cardW * 0.34f)
         val left = (width - 2 * cardW - gap) / 2f
 
         text.typeface = Typeface.DEFAULT_BOLD
@@ -59,14 +78,55 @@ class RewardDialog(private val context: Context) {
             canvas.drawText(texts.news(it, withYear = false), width / 2f, top - cardW * 0.1f, text)
         }
         text.color = 0xFF5B6674.toInt()
-        canvas.drawText(context.getString(R.string.reward_prompt), width / 2f, top + cardH + cardW * 0.2f, text)
+        val promptY = top + cardH + cardW * 0.2f
+        canvas.drawText(context.getString(R.string.reward_prompt), width / 2f, promptY, text)
         text.color = ink
+        bonusShown = bonus != null
+        if (bonus != null) drawBonus(canvas, bonus, video, width, height, promptY + cardW * 0.07f, cardW, pressed == BONUS)
 
         offer.choices.forEachIndexed { i, reward ->
             val r = cards[i]
             r.set(left + i * (cardW + gap), top, left + i * (cardW + gap) + cardW, top + cardH)
             drawCard(canvas, r, depth, sink = if (pressed == i) depth * 0.8f else 0f, reward, time + i * 0.7f)
         }
+    }
+
+    private fun bonusHeight(cardW: Float) = minOf(44f * density, cardW * 0.16f)
+
+    /** The extra-router pill: centered under the prompt at [top], kept on screen, pressed when [down]. */
+    private fun drawBonus(canvas: Canvas, label: String, video: Boolean, width: Int, height: Int, top: Float, cardW: Float, down: Boolean) {
+        val h = bonusHeight(cardW)
+        text.typeface = Typeface.DEFAULT_BOLD
+        text.textSize = h * 0.38f
+        val icon = if (video) h * 0.5f else 0f
+        val w = text.measureText(label) + icon + h * 1.1f
+        val y = top.coerceAtMost(height - h - 12f * density)
+        bonus.set((width - w) / 2f, y, (width + w) / 2f, y + h)
+        val accent = accentOf(Reward.ROUTERS)
+        val depth = h * 0.1f
+        val sink = if (down) depth * 0.8f else 0f
+        fillP.color = accent.shade(-0.3f)
+        canvas.drawRoundRect(bonus.left, bonus.top + depth, bonus.right, bonus.bottom + depth, h / 2f, h / 2f, fillP)
+        fillP.color = accent
+        canvas.drawRoundRect(bonus.left, bonus.top + sink, bonus.right, bonus.bottom + sink, h / 2f, h / 2f, fillP)
+        val textX = bonus.centerX() + icon / 2f
+        if (video) {
+            // A play sign in a white disc, left of the label.
+            val cx = textX - text.measureText(label) / 2f - icon * 0.75f
+            val cy = bonus.centerY() + sink
+            fillP.color = 0xFFFFFFFF.toInt()
+            canvas.drawCircle(cx, cy, icon / 2f, fillP)
+            play.reset()
+            play.moveTo(cx - icon * 0.14f, cy - icon * 0.22f)
+            play.lineTo(cx + icon * 0.24f, cy)
+            play.lineTo(cx - icon * 0.14f, cy + icon * 0.22f)
+            play.close()
+            fillP.color = accent
+            canvas.drawPath(play, fillP)
+        }
+        text.color = 0xFFFFFFFF.toInt()
+        canvas.drawText(label, textX, bonus.centerY() + sink + text.textSize * 0.35f, text)
+        text.color = ink
     }
 
     /** Card [slot] on its slab of thickness [depth]; a pressed card's face sinks by [sink] onto the slab. */
@@ -245,5 +305,10 @@ class RewardDialog(private val context: Context) {
     private fun face(ax: Float, ay: Float, bx: Float, by: Float, cx: Float, cy: Float, dx: Float, dy: Float) {
         path.reset()
         path.moveTo(ax, ay); path.lineTo(bx, by); path.lineTo(cx, cy); path.lineTo(dx, dy); path.close()
+    }
+
+    companion object {
+        /** [hit] result for the extra-router pill. */
+        const val BONUS = -1
     }
 }

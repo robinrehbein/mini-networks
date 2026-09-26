@@ -7,16 +7,25 @@ import android.view.View
 import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.window.OnBackInvokedDispatcher
+import com.mininetworks.game.monetization.PlayMonetization
 import com.mininetworks.game.ui.GameView
 
 class MainActivity : Activity() {
 
     private lateinit var gameView: GameView
+    /** Ads and purchases; null in debug builds, which run with NoOpMonetization unless configured otherwise. */
+    private var monetization: PlayMonetization? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         gameView = GameView(this)
         gameView.onExit = ::finish
+        if (BuildConfig.PLAY_MONETIZATION) {
+            monetization = PlayMonetization(this).also {
+                gameView.monetization = it
+                it.start()
+            }
+        }
         setContentView(gameView)
         hideSystemBars()
         // Back walks the menus (game -> pause menu -> game, settings -> previous screen); on the main menu it exits.
@@ -51,5 +60,10 @@ class MainActivity : Activity() {
     override fun onPause() {
         gameView.pause()
         super.onPause()
+    }
+
+    override fun onDestroy() {
+        monetization?.close()
+        super.onDestroy()
     }
 }

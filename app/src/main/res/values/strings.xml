@@ -148,7 +148,7 @@
         <item quantity="one">Erreiche %1$,d Paket in %2$s oder kaufe die Szenerie</item>
         <item quantity="other">Erreiche %1$,d Pakete in %2$s oder kaufe die Szenerie</item>
     </plurals>
-    <string name="scenery_hint_no_shop">Käufe sind in dieser Version noch nicht möglich</string>
+    <string name="scenery_hint_no_shop">Der Shop ist gerade nicht erreichbar</string>
 
     <!-- Tutorial -->
     <string name="tutorial_kicker">TUTORIAL · %1$d/%2$d</string>
@@ -174,4 +174,14 @@
     </plurals>
     <string name="tutorial_done_title">Geschafft!</string>
     <string name="tutorial_done_text">Du kennst die Grundlagen. Woche für Woche kommen neue Geräte, Dienste und Techniken dazu. Viel Spaß!</string>
+    <!-- Monetization (docs/PLAN.md 5.1) -->
+    <string name="menu_remove_ads">Werbefrei · %1$s</string>
+    <string name="settings_privacy">Datenschutz-Einstellungen</string>
+    <string name="game_over_continue_ad">Weiterspielen · Video ansehen</string>
+    <string name="game_over_continue">Weiterspielen</string>
+    <string name="reward_bonus_router_ad">+1 Router · Video ansehen</string>
+    <string name="reward_bonus_router">+1 Router extra</string>
+    <string name="hint_bonus_router">+1 Router</string>
+    <string name="hint_continued">Die Überlast-Ringe sind leer · einmal pro Partie</string>
+    <string name="scenery_pack_buy">Alle Szenerien · %1$s</string>
 </resources>

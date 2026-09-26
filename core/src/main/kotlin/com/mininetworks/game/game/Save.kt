@@ -53,6 +53,8 @@ data class WorldSnapshot(
     val gameOver: Boolean,
     val failedNodeId: Int?,
     val rewardOffer: RewardOfferSnapshot?,
+    /** [World.continued]: the game already went on once after a game over. */
+    val continued: Boolean = false,
     val serverVouchers: Int,
     val lastNews: WeekNews?,
     val lastNewsTime: Float,
@@ -65,7 +67,7 @@ data class WorldSnapshot(
 )
 
 @Serializable
-data class RewardOfferSnapshot(val week: Int, val choices: List<Reward>)
+data class RewardOfferSnapshot(val week: Int, val choices: List<Reward>, val bonusClaimed: Boolean = false)
 
 @Serializable
 data class NodeSnapshot(

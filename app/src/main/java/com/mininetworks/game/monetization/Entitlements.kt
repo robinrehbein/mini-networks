@@ -1,9 +1,10 @@
 package com.mininetworks.game.monetization
 
+import com.mininetworks.game.game.Scenarios
+
 /**
- * Paid content the player owns (docs/PLAN.md 5.1). The monetization package (P3.4) backs this with Google Play
- * Billing; until then [NoEntitlements] owns nothing and cannot sell anything. Read on the game thread every frame,
- * so implementations answer from memory and pick up finished purchases on their own.
+ * Paid content the player owns (docs/PLAN.md 5.1), the part of [Monetization] the scenery picker needs. Read on the
+ * game thread every frame, so implementations answer from memory and pick up finished purchases on their own.
  */
 interface Entitlements {
     /** True if scenery [sceneryId] was bought on its own or with the [SCENERY_PACK]. */
@@ -18,11 +19,15 @@ interface Entitlements {
 
         /** Play product id of the pack with every purchasable scenery. */
         const val SCENERY_PACK = "scenery_pack"
-    }
-}
 
-/** No purchases: the default until billing exists, and for debug builds and tests. */
-object NoEntitlements : Entitlements {
-    override fun ownsScenery(sceneryId: String) = false
-    override fun purchaseScenery(sceneryId: String) = false
+        /** Play product id of the one-time purchase that removes interstitials. */
+        const val REMOVE_ADS = "remove_ads"
+
+        /** Every one-time product the game sells: "remove ads", each purchasable scenery and the pack. */
+        val PRODUCTS: List<String> =
+            listOf(REMOVE_ADS, SCENERY_PACK) + Scenarios.all.filter { it.purchasable }.map { sceneryProduct(it.id) }
+
+        /** True if the [owned] product ids include scenery [sceneryId], on its own or with the pack. */
+        fun ownsScenery(owned: Set<String>, sceneryId: String) = SCENERY_PACK in owned || sceneryProduct(sceneryId) in owned
+    }
 }

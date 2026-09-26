@@ -12,6 +12,12 @@ import com.mininetworks.game.render.shade
 enum class MenuAction {
     PLAY, CONTINUE, SETTINGS, RESUME, RESTART, MAIN_MENU, BACK, PLAY_AGAIN, TUTORIAL,
     TOGGLE_SOUND, TOGGLE_HAPTICS, TOGGLE_OVERVIEW, TOGGLE_COLORBLIND,
+    /** Game over: go on once (after a rewarded video unless ads are removed). */
+    SECOND_CHANCE,
+    /** Main menu: buy "remove ads". */
+    REMOVE_ADS,
+    /** Settings: the consent form's privacy options. */
+    PRIVACY,
 }
 
 /** One tappable entry of a [MenuPage]. */
