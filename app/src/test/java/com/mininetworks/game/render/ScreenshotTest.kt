@@ -2,7 +2,11 @@ package com.mininetworks.game.render
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.drawable.AdaptiveIconDrawable
 import android.view.MotionEvent
+import com.mininetworks.game.R
 import com.mininetworks.game.data.HighscoreStore
 import com.mininetworks.game.data.SettingsStore
 import com.mininetworks.game.game.Bend
@@ -681,6 +685,59 @@ class ScreenshotTest {
     }
 
     /** Bytes this thread allocated so far (HotSpot's thread bean, by reflection: android.jar has no java.lang.management). */
+    /**
+     * The adaptive launcher icon (P4.3): full 108 dp canvas with the 66 dp safe zone marked, then as the launcher shows it
+     * (circle and rounded-square masks), the themed monochrome layer, and at home-screen size; plus the 512 px Play Store icon.
+     */
+    @Test
+    fun renderLauncherIcon() {
+        val out = File(System.getProperty("screenshots.dir") ?: "build/screenshots").apply { mkdirs() }
+        val icon = RuntimeEnvironment.getApplication().getDrawable(R.mipmap.ic_launcher) as AdaptiveIconDrawable
+        val size = 432
+        val gap = 24
+        val bmp = Bitmap.createBitmap(5 * size + 6 * gap, size + 2 * gap, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        canvas.drawColor(0xFFEEF3EA.toInt())
+        fun layers(x: Float, y: Float, s: Int, mask: Path?, monochrome: Boolean = false) {
+            canvas.save()
+            canvas.translate(x, y)
+            mask?.let { canvas.clipPath(it) }
+            if (monochrome) {
+                canvas.drawColor(0xFFDCE6F0.toInt())
+                icon.monochrome!!.apply { setBounds(0, 0, s, s); setTint(0xFF2B4A63.toInt()); draw(canvas) }
+            } else {
+                for (d in listOf(icon.background, icon.foreground)) { d.setBounds(0, 0, s, s); d.draw(canvas) }
+            }
+            canvas.restore()
+        }
+        fun circle(s: Int) = Path().apply { addCircle(s / 2f, s / 2f, s * 36f / 108f, Path.Direction.CW) }
+        fun squircle(s: Int) = Path().apply {
+            val inset = s * 18f / 108f
+            addRoundRect(inset, inset, s - inset, s - inset, s * 16f / 108f, s * 16f / 108f, Path.Direction.CW)
+        }
+        val y = gap.toFloat()
+        layers(gap.toFloat(), y, size, null)
+        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE; strokeWidth = 2f; color = 0xAAFFFFFF.toInt()
+            canvas.drawCircle(gap + size / 2f, y + size / 2f, size * 33f / 108f, this)
+        }
+        layers(2f * gap + size, y, size, circle(size))
+        layers(3f * gap + 2 * size, y, size, squircle(size))
+        layers(4f * gap + 3 * size, y, size, circle(size), monochrome = true)
+        // Home-screen size: 48 dp at xxhdpi (144 px for the visible circle of a 216 px canvas), plus half of that.
+        val x = 5f * gap + 4 * size
+        layers(x, y, 216, circle(216))
+        layers(x + 40f, y + 240f, 108, circle(108))
+        save(bmp, File(out, "launcher-icon.png"))
+        // Play Store hi-res icon: the central 72 dp a launcher shows, as a full 512 px square (Play applies its own mask).
+        val store = Bitmap.createBitmap(512, 512, Bitmap.Config.ARGB_8888)
+        val storeCanvas = Canvas(store)
+        val full = 512 * 108 / 72
+        val offset = (512 - full) / 2
+        for (d in listOf(icon.background, icon.foreground)) { d.setBounds(offset, offset, offset + full, offset + full); d.draw(storeCanvas) }
+        save(store, File(out, "store-icon-512.png"))
+    }
+
     private fun allocatedBytes(): Long {
         val bean = Class.forName("java.lang.management.ManagementFactory").getMethod("getThreadMXBean").invoke(null)
         return Class.forName("com.sun.management.ThreadMXBean").getMethod("getCurrentThreadAllocatedBytes").invoke(bean) as Long
