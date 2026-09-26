@@ -225,6 +225,26 @@ object CableStyles {
 }
 
 /**
+ * Colors of radio coverage: one hue per WLAN channel, so equal colors mean "same channel"; cell towers are neutral.
+ * Same-channel overlap is always drawn in [INTERFERENCE].
+ */
+object RadioStyles {
+    const val INTERFERENCE = 0xFFD7263D.toInt()
+    private const val TOWER = 0xFF6B7785.toInt()
+
+    fun color(n: Node): Int = when (n.channel) {
+        0 -> TOWER
+        1 -> 0xFF2E86AB.toInt()
+        6 -> 0xFF8E6CC0.toInt()
+        11 -> 0xFF1FA39A.toInt()
+        36 -> 0xFF4F6BD8.toInt()
+        40 -> 0xFFB5569F.toInt()
+        44 -> 0xFF3C9D5D.toInt()
+        else -> 0xFFC98A2B.toInt()
+    }
+}
+
+/**
  * Hand-drawn device icons in screen space, shared by all styles.
  * [s] is the half-size of the icon in pixels. Icons are ink outlines on white so they read at small sizes.
  */
@@ -355,6 +375,47 @@ class DeviceIcons {
         line.strokeWidth = s * 0.05f; canvas.drawCircle(x + s * 0.85f, y - s * 0.8f, s * 0.26f, line)
         body.color = col
         Shapes.draw(canvas, service.shape, x + s * 0.85f, y - s * 0.8f + if (service.shape == Shape.TRIANGLE) s * 0.02f else 0f, s * 0.13f, body)
+    }
+
+    /** WLAN access point: a flat puck with Wi-Fi arcs above it; the LED shows the channel [color]. */
+    fun accessPoint(c: Canvas, x: Float, y: Float, s: Float, color: Int, time: Float) {
+        canvas = c
+        line.color = ink
+        line.strokeWidth = s * 0.14f
+        for (i in 1..3) {
+            val r = s * (0.3f + 0.28f * i)
+            rect.set(x - r, y - s * 0.15f - r, x + r, y - s * 0.15f + r)
+            line.alpha = if (sin(time * 3f - i * 0.9f) > -0.3f) 255 else 90
+            canvas.drawArc(rect, -135f, 90f, false, line)
+        }
+        line.alpha = 255
+        box(x - s * 0.9f, y - s * 0.1f, x + s * 0.9f, y + s * 0.45f, s * 0.22f, 0xFFFFFFFF.toInt(), s)
+        body.color = color
+        canvas.drawCircle(x, y + s * 0.17f, s * 0.11f, body)
+    }
+
+    /** Cell tower: a lattice mast with antenna panels and a blinking warning light on top. */
+    fun cellTower(c: Canvas, x: Float, y: Float, s: Float, time: Float) {
+        canvas = c
+        line.color = ink
+        line.strokeWidth = s * 0.12f
+        val top = y - s * 1.1f
+        val foot = y + s * 0.9f
+        canvas.drawLine(x - s * 0.55f, foot, x, top, line)
+        canvas.drawLine(x + s * 0.55f, foot, x, top, line)
+        line.strokeWidth = s * 0.07f
+        for (i in 1..3) {
+            val f = i / 4f
+            val yy = foot + (top - foot) * f
+            val w = s * 0.55f * (1f - f)
+            canvas.drawLine(x - w, yy, x + w, yy, line)
+            val yn = foot + (top - foot) * (f - 0.25f)
+            val wn = s * 0.55f * (1.25f - f)
+            canvas.drawLine(x - wn, yn, x + w, yy, line)
+        }
+        for (side in listOf(-1f, 1f)) box(x + side * s * 0.32f - s * 0.12f, top + s * 0.2f, x + side * s * 0.32f + s * 0.12f, top + s * 0.62f, s * 0.05f, 0xFFFFFFFF.toInt(), s * 0.6f)
+        body.color = if (sin(time * 2.5f) > 0f) 0xFFE4572E.toInt() else 0xFF8A3A2A.toInt()
+        canvas.drawCircle(x, top, s * 0.13f, body)
     }
 
     fun router(c: Canvas, x: Float, y: Float, s: Float, time: Float) {

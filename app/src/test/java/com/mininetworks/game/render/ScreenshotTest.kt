@@ -9,6 +9,7 @@ import com.mininetworks.game.game.CableType
 import com.mininetworks.game.game.DebugApi
 import com.mininetworks.game.game.Device
 import com.mininetworks.game.game.NodeKind
+import com.mininetworks.game.game.RadioType
 import com.mininetworks.game.game.Reward
 import com.mininetworks.game.game.RewardOffer
 import com.mininetworks.game.game.Service
@@ -175,17 +176,71 @@ class ScreenshotTest {
         val out = File(System.getProperty("screenshots.dir") ?: "build/screenshots").apply { mkdirs() }
         val world = scene()
         val dialog = RewardDialog(RuntimeEnvironment.getApplication())
-        val rewards = Reward.entries
-        val bmp = Bitmap.createBitmap(1200, 1080, Bitmap.Config.ARGB_8888)
+        val bmp = Bitmap.createBitmap(1200, 1620, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
         canvas.drawColor(0xFFEEF3EA.toInt())
         canvas.save()
         canvas.scale(0.5f, 0.5f)
-        dialog.draw(canvas, world, RewardOffer(7, listOf(rewards[0], rewards[1])), 2400, 1080, time = 0.4f)
+        dialog.draw(canvas, world, RewardOffer(7, listOf(Reward.BUDGET, Reward.ROUTERS)), 2400, 1080, time = 0.4f)
         canvas.translate(0f, 1080f)
-        dialog.draw(canvas, world, RewardOffer(7, listOf(rewards[2], rewards[0])), 2400, 1080, time = 0.9f, pressed = 0)
+        dialog.draw(canvas, world, RewardOffer(7, listOf(Reward.SERVER_VOUCHER, Reward.BUDGET)), 2400, 1080, time = 0.9f, pressed = 0)
+        canvas.translate(0f, 1080f)
+        dialog.draw(canvas, world, RewardOffer(7, listOf(Reward.ACCESS_POINT, Reward.CELL_TOWER)), 2400, 1080, time = 1.3f)
         canvas.restore()
         save(bmp, File(out, "reward-cards.png"))
+    }
+
+    /**
+     * Wireless in week 7: two access points on channel 1 overlap (red lens, reduced slots), one moved to channel 6,
+     * one on 5 GHz with its smaller circle, and a cell tower that links only the mobile devices around it.
+     */
+    private fun wirelessScene(): World {
+        val w = World(cols = 16, rows = 10, seed = 3L, spawnInitialNodes = false)
+        for (row in w.water) row.fill(false)
+        w.jumpToWeek(7)
+        w.grant(400, extraAccessPoints = 1, extraCellTowers = 1)
+        val call = w.addServer(Service.CALL, 13, 1)
+        val cdn = w.addServer(Service.STREAMING, 2, 1)
+        val mail = w.addServer(Service.MAIL, 8, 1)
+        val west = w.addRouter(5, 3)
+        val east = w.addRouter(10, 3)
+        check(w.connect(west, east, CableType.FIBER))
+        listOf(cdn, mail).forEach { check(w.connect(west, it, CableType.FIBER)) }
+        check(w.connect(east, call, CableType.FIBER))
+        repeat(2) { listOf(call, cdn, mail).forEach { s -> w.upgradeServer(s) } }
+        val ap1 = w.addRadio(RadioType.WLAN, 3, 6)
+        val ap2 = w.addRadio(RadioType.WLAN, 5, 6)
+        val ap3 = w.addRadio(RadioType.WLAN, 9, 6)
+        val ap4 = w.addRadio(RadioType.WLAN, 7, 8)
+        val tower = w.addRadio(RadioType.CELL, 12, 6)
+        w.cycleChannel(ap3)
+        w.upgradeTo5Ghz(ap4)
+        listOf(ap1, ap2).forEach { check(w.connect(it, west, CableType.FIBER)) }
+        listOf(ap3, ap4, tower).forEach { check(w.connect(it, east, CableType.FIBER)) }
+        for ((device, x, y) in listOf(
+            Triple(Device.LAPTOP, 2, 5), Triple(Device.TABLET, 2, 7), Triple(Device.SMARTPHONE, 4, 7), Triple(Device.TV, 4, 5),
+            Triple(Device.PC, 6, 5), Triple(Device.TABLET, 6, 7), Triple(Device.LAPTOP, 10, 7), Triple(Device.SMARTPHONE, 9, 5),
+            Triple(Device.TV, 7, 9), Triple(Device.SMARTPHONE, 14, 7), Triple(Device.WATCH, 12, 8), Triple(Device.TABLET, 13, 4),
+            Triple(Device.PC, 11, 5),
+        )) w.addClient(device, x, y)
+        repeat(60 * 6) { w.update(1f / 60f) }
+        check(w.interferers(ap1) == listOf(ap2)) { "channel 1 overlap" }
+        return w
+    }
+
+    @Test
+    fun renderWireless() {
+        val world = wirelessScene()
+        for (r in listOf(FlatRenderer(), IsoRenderer())) {
+            val bmp = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)
+            r.layout(bmp.width, bmp.height, world)
+            r.draw(Canvas(bmp), world, drag = null, time = 1.3f)
+            save(bmp, File(shots, "wireless-${r.name.lowercase()}.png"))
+        }
+        val view = GameView(RuntimeEnvironment.getApplication())
+        val bmp = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)
+        view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 1.3f, style = "Iso")
+        save(bmp, File(shots, "wireless-hud.png"))
     }
 
     /**

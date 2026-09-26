@@ -61,11 +61,24 @@ class World(
     val cables = mutableListOf<Cable>()
     val packets = mutableListOf<Packet>()
 
+    private val radioLinkList = ArrayList<RadioLink>()
+
+    /**
+     * Wireless links, derived from the radio nodes and never stored: every radio links the clients it serves within its
+     * radius, nearest first (ties by node id), up to its [radioSlots]. A client already cabled to the radio gets no
+     * radio link to it. Rebuilt whenever nodes, cables, channels or bands change.
+     */
+    val radioLinks: List<RadioLink> get() = radioLinkList
+
     var time = 0f; private set
     var week = 1; private set
     var delivered = 0; private set
     var budget = Tuning.START_BUDGET; private set
     var routersAvailable = Tuning.START_ROUTERS; private set
+    /** WLAN access points in stock, won as [Reward.ACCESS_POINT]. */
+    var accessPointsAvailable = 0; private set
+    /** Cell towers in stock, won as [Reward.CELL_TOWER]. */
+    var cellTowersAvailable = 0; private set
     var gameOver = false; private set
     var failedNode: Node? = null; private set
 
@@ -124,14 +137,18 @@ class World(
     private fun addNode(kind: NodeKind, device: Device?, service: Service?, cx: Int, cy: Int): Node {
         val n = Node(nextId++, kind, device, service, cx, cy)
         n.requestTimer = 2f + rng.nextFloat() * 3f
+        if (kind == NodeKind.ACCESS_POINT) n.channel = Wifi.CHANNELS_2_4_GHZ.first()
         nodes += n
-        routeCache.clear()
+        networkChanged()
         return n
     }
 
     fun addClient(device: Device, cx: Int, cy: Int) = addNode(NodeKind.CLIENT, device, null, cx, cy)
     fun addServer(service: Service, cx: Int, cy: Int) = addNode(NodeKind.SERVER, null, service, cx, cy)
     fun addRouter(cx: Int, cy: Int) = addNode(NodeKind.ROUTER, null, null, cx, cy)
+
+    /** Adds a radio node without using stock, for tests and setups; see [placeRadio]. */
+    fun addRadio(type: RadioType, cx: Int, cy: Int) = addNode(type.kind, null, null, cx, cy)
 
     /** A random free cell inside the [unlocked] block, one cell away from its edge. */
     private fun randomFreeCell(minSpacing: Int = 2): Pair<Int, Int>? {
@@ -206,7 +223,7 @@ class World(
         val cost = cableCost(layout, type)
         cables += Cable(a, b, type, cost, layout, waterCellsOn(layout))
         budget -= cost
-        routeCache.clear()
+        networkChanged()
         return true
     }
 
@@ -234,11 +251,36 @@ class World(
     fun removeCable(c: Cable) {
         if (!cables.remove(c)) return
         budget += c.cost
-        // Requests and responses on or heading into this cable go back into their client's queue.
-        val lost = packets.filter { p -> cableBetween(p.from, p.to) == null }
+        networkChanged()
+    }
+
+    /**
+     * Rebuilds the [radioLinks] and forgets cached routes. Requests and responses on or heading into a link that no
+     * longer exists go back into their client's queue.
+     */
+    private fun networkChanged() {
+        rebuildRadioLinks()
+        routeCache.clear()
+        val lost = packets.filter { p -> p.inTransit && linkBetween(p.from, p.to) == null }
+        if (lost.isEmpty()) return
         lost.forEach { it.origin.pending.addFirst(it.service) }
         packets.removeAll(lost.toSet())
-        routeCache.clear()
+    }
+
+    private fun rebuildRadioLinks() {
+        radioLinkList.clear()
+        for (r in nodes) {
+            val type = r.radio ?: continue
+            val capacity = radioCapacity(r)
+            val slots = radioSlots(r) ?: Int.MAX_VALUE
+            nodes.asSequence()
+                .filter { it.kind == NodeKind.CLIENT && type.serves(it.device!!) && cableBetween(r, it) == null }
+                .map { it to hypot(it.center.x - r.center.x, it.center.y - r.center.y) }
+                .filter { (_, d) -> d <= r.radius + Wifi.EPSILON }
+                .sortedWith(compareBy({ it.second }, { it.first.id }))
+                .take(slots)
+                .forEach { (client, _) -> radioLinkList += RadioLink(r, client, capacity) }
+        }
     }
 
     fun serverRate(n: Node) = Tuning.SERVER_RATE[n.level - 1]
@@ -284,7 +326,12 @@ class World(
 
     /** Rewards that would have an effect right now; a server voucher only while some server can still grow. */
     fun eligibleRewards(): List<Reward> = Reward.entries.filter {
-        it != Reward.SERVER_VOUCHER || nodes.any(::canGrow)
+        when (it) {
+            Reward.SERVER_VOUCHER -> nodes.any(::canGrow)
+            Reward.ACCESS_POINT -> week >= RadioType.WLAN.unlockWeek
+            Reward.CELL_TOWER -> week >= RadioType.CELL.unlockWeek
+            else -> true
+        }
     }
 
     /** Takes choice [index] of the open [rewardOffer] and resumes the simulation. False if nothing is open. */
@@ -294,6 +341,8 @@ class World(
             Reward.BUDGET -> budget += Rewards.BUDGET
             Reward.ROUTERS -> routersAvailable += Rewards.ROUTERS
             Reward.SERVER_VOUCHER -> serverVouchers++
+            Reward.ACCESS_POINT -> accessPointsAvailable += Rewards.ACCESS_POINTS
+            Reward.CELL_TOWER -> cellTowersAvailable += Rewards.CELL_TOWERS
         }
         rewardOffer = null
         return true
@@ -308,6 +357,74 @@ class World(
         return addRouter(cx, cy)
     }
 
+    /** Radios of [type] in stock. */
+    fun radiosAvailable(type: RadioType) = when (type) {
+        RadioType.WLAN -> accessPointsAvailable
+        RadioType.CELL -> cellTowersAvailable
+    }
+
+    /** Places a radio from stock on a free cell, like [placeRouter]. A new access point starts on channel 1. */
+    fun placeRadio(type: RadioType, cx: Int, cy: Int): Node? {
+        if (gameOver || radiosAvailable(type) <= 0 || !isFree(cx, cy)) return null
+        when (type) {
+            RadioType.WLAN -> accessPointsAvailable--
+            RadioType.CELL -> cellTowersAvailable--
+        }
+        return addRadio(type, cx, cy)
+    }
+
+    // ---------------------------------------------------------------- wireless
+
+    /**
+     * Access points that disturb [n]: other access points on the same channel whose radio circles overlap its own.
+     * Empty for every other node.
+     */
+    fun interferers(n: Node): List<Node> {
+        if (n.kind != NodeKind.ACCESS_POINT) return emptyList()
+        return nodes.filter {
+            it !== n && it.kind == NodeKind.ACCESS_POINT && it.channel == n.channel && Wifi.overlaps(n.center, n.radius, it.center, it.radius)
+        }
+    }
+
+    /** Shared capacity of radio [n] after interference ([Wifi.reduced]); 0 for other nodes. */
+    fun radioCapacity(n: Node): Int {
+        val type = n.radio ?: return 0
+        return Wifi.reduced(type.capacity, interferers(n).size)
+    }
+
+    /** How many clients radio [n] links at once after interference, or null for no limit (and for other nodes). */
+    fun radioSlots(n: Node): Int? {
+        val max = n.radio?.maxDevices ?: return null
+        return Wifi.reduced(max, interferers(n).size)
+    }
+
+    /** Switches access point [ap] to the next channel of its band (free). False for other nodes. */
+    fun cycleChannel(ap: Node): Boolean {
+        if (gameOver || ap.kind != NodeKind.ACCESS_POINT) return false
+        val channels = if (ap.fiveGhz) Wifi.CHANNELS_5_GHZ else Wifi.CHANNELS_2_4_GHZ
+        ap.channel = channels[(channels.indexOf(ap.channel) + 1) % channels.size]
+        networkChanged()
+        return true
+    }
+
+    /** Null when [ap] can switch to 5 GHz, otherwise the reason. */
+    fun wifiUpgradeError(ap: Node): WifiUpgradeError? = when {
+        ap.kind != NodeKind.ACCESS_POINT -> WifiUpgradeError.NOT_AN_ACCESS_POINT
+        ap.fiveGhz -> WifiUpgradeError.ALREADY_5_GHZ
+        Wifi.UPGRADE_5_GHZ_COST > budget -> WifiUpgradeError.NO_BUDGET
+        else -> null
+    }
+
+    /** Switches [ap] to 5 GHz for [Wifi.UPGRADE_5_GHZ_COST]: first 5 GHz channel, radius [Wifi.RADIUS_5_GHZ]. */
+    fun upgradeTo5Ghz(ap: Node): Boolean {
+        if (gameOver || wifiUpgradeError(ap) != null) return false
+        budget -= Wifi.UPGRADE_5_GHZ_COST
+        ap.fiveGhz = true
+        ap.channel = Wifi.CHANNELS_5_GHZ.first()
+        networkChanged()
+        return true
+    }
+
     /** The node closest to [p] within [radius], measured to the nearest cell of each node's footprint. */
     fun nodeNear(p: Vec2, radius: Float = 0.7f): Node? =
         nodes.minByOrNull { distance(it, p) }?.takeIf { distance(it, p) <= radius }
@@ -316,8 +433,12 @@ class World(
 
     // ---------------------------------------------------------------- routing
 
+    /** The cable or radio link between [a] and [b], if any. */
+    fun linkBetween(a: Node, b: Node): Link? =
+        cableBetween(a, b) ?: radioLinkList.firstOrNull { (it.radio === a && it.device === b) || (it.radio === b && it.device === a) }
+
     /**
-     * Lowest-ping route from [client] to any server of [service], using only cables wide enough for the
+     * Lowest-ping route from [client] to any server of [service], using only cables and radio links wide enough for the
      * service. Null if none exists or if the best route breaks the service's ping limit. The ping counts both ways,
      * since the response travels the same route back.
      */
@@ -332,6 +453,7 @@ class World(
         routeCache.getOrPut(client.id to service) { computeRoute(client, service) }
 
     private fun computeRoute(client: Node, service: Service): Route? {
+        val links = cables + radioLinkList
         val dist = HashMap<Node, Float>().apply { put(client, 0f) }
         val prev = HashMap<Node, Node>()
         val open = mutableListOf(client)
@@ -346,11 +468,13 @@ class World(
                 while (n != null) { path.add(0, n); n = prev[n] }
                 return Route(path, 2f * dist.getValue(cur))
             }
-            // Only the origin and routers/other clients forward traffic; foreign servers are dead ends.
+            // Only the origin and routers, radios or other clients forward traffic; foreign servers are dead ends.
             if (cur !== client && cur.kind == NodeKind.SERVER) continue
             val hopCost = if (cur === client) 0f else Tuning.ROUTER_MS
-            for (c in cables) {
+            for (c in links) {
                 if (!c.connects(cur) || c.capacity < service.bandwidth) continue
+                // A radio link only carries a client's own traffic: a radio reaches the network through its cables.
+                if (c is RadioLink && cur === c.radio) continue
                 val nb = c.other(cur)
                 val d = dist.getValue(cur) + hopCost + c.latencyMs
                 if (d < (dist[nb] ?: Float.MAX_VALUE)) {
@@ -363,23 +487,28 @@ class World(
         return null
     }
 
-    /** Where [p] is in world space: on its cable's layout, or at the node it waits at. */
+    /** Where [p] is in world space: on its link, or at the node it waits at. */
     fun packetPosition(p: Packet): Vec2 {
         if (!p.inTransit || p.progress < 0f) return if (p.inTransit) p.from.center else p.route.last().center
-        val cable = cableBetween(p.from, p.to) ?: return p.from.center
-        return cable.pointFrom(p.from, p.progress)
+        val link = linkBetween(p.from, p.to) ?: return p.from.center
+        return link.pointFrom(p.from, p.progress)
     }
 
     /** Bandwidth units currently travelling on [c]. */
-    fun cableLoad(c: Cable) = packets.sumOf { if (it.inTransit && it.progress >= 0f && cableBetween(it.from, it.to) === c) it.size else 0 }
+    fun cableLoad(c: Cable) = linkLoad(c)
+
+    /** Bandwidth units currently travelling on the medium of [l]: the cable, or every link of the radio. */
+    fun linkLoad(l: Link) = packets.sumOf { if (it.inTransit && it.progress >= 0f && linkBetween(it.from, it.to)?.medium === l.medium) it.size else 0 }
 
     // ---------------------------------------------------------------- simulation
 
-    /** Adds budget and routers, for tests and a future debug menu. */
+    /** Adds budget, routers and radios, for tests and a future debug menu. */
     @DebugApi
-    fun grant(extraBudget: Int, extraRouters: Int = 0) {
+    fun grant(extraBudget: Int, extraRouters: Int = 0, extraAccessPoints: Int = 0, extraCellTowers: Int = 0) {
         budget += extraBudget
         routersAvailable += extraRouters
+        accessPointsAvailable += extraAccessPoints
+        cellTowersAvailable += extraCellTowers
     }
 
     /** Jumps the calendar without simulating, for tests and a future debug menu. */
@@ -445,14 +574,14 @@ class World(
     }
 
     /**
-     * Sends the oldest request that currently has a valid route and room on its first cable. Packets already waiting
-     * to enter that cable at either end (answers on their way back, traffic passing through) keep their claim on it.
+     * Sends the oldest request that currently has a valid route and room on its first link. Packets already waiting
+     * to enter that link's medium at either end (answers on their way back, traffic passing through) keep their claim on it.
      */
     private fun dispatch(client: Node) {
         for (service in client.pending) {
             val route = routeFor(client, service) ?: continue
-            val first = cableBetween(route.nodes[0], route.nodes[1]) ?: continue
-            if (cableLoad(first) + waitingFor(first) + service.bandwidth > first.capacity) continue
+            val first = linkBetween(route.nodes[0], route.nodes[1]) ?: continue
+            if (linkLoad(first) + waitingFor(first) + service.bandwidth > first.capacity) continue
             packets += Packet(service, client, route.nodes).apply { progress = 0f }
             client.pending.remove(service)
             client.dispatchCooldown = Tuning.DISPATCH_COOLDOWN
@@ -460,9 +589,9 @@ class World(
         }
     }
 
-    /** Bandwidth units waiting at either end of [c] to enter it. */
-    private fun waitingFor(c: Cable) =
-        packets.sumOf { if (it.inTransit && it.progress < 0f && cableBetween(it.from, it.to) === c) it.size else 0 }
+    /** Bandwidth units waiting at either end of a link on the medium of [l] to enter it. */
+    private fun waitingFor(l: Link) =
+        packets.sumOf { if (it.inTransit && it.progress < 0f && linkBetween(it.from, it.to)?.medium === l.medium) it.size else 0 }
 
     /**
      * Moves requests and responses along their routes. A request that reaches its server takes one throughput token
@@ -478,9 +607,9 @@ class World(
         val responses = ArrayList<Packet>()
         for (p in packets) {
             if (p.progress < 0f) continue
-            val cable = cableBetween(p.from, p.to)
-            if (cable == null) { arrived += p; p.origin.pending.addFirst(p.service); continue }
-            p.progress += cable.type.speed * dt / cable.length
+            val link = linkBetween(p.from, p.to)
+            if (link == null) { arrived += p; p.origin.pending.addFirst(p.service); continue }
+            p.progress += link.speed * dt / maxOf(link.length, MIN_LINK_LENGTH)
             if (p.progress < 1f) continue
             val last = p.hop + 1 >= p.route.size - 1
             if (last && !p.isResponse && p.to.tokens < 1f) {
@@ -504,21 +633,22 @@ class World(
         admitWaiting()
     }
 
-    /** Lets waiting packets enter their next cable where it has room, responses first. */
+    /** Lets waiting packets enter their next link where its medium has room, responses first. */
     private fun admitWaiting() {
         val waiting = packets.filter { it.inTransit && it.progress < 0f }
         if (waiting.isEmpty()) return
-        val load = HashMap<Cable, Int>()
-        val blocked = HashMap<Cable, Int>()
+        val load = HashMap<Any, Int>()
+        val blocked = HashMap<Any, Int>()
         for (p in waiting.sortedBy { !it.isResponse }) {
-            val cable = cableBetween(p.from, p.to) ?: continue
-            val used = load.getOrPut(cable) { cableLoad(cable) }
-            val reserved = if (p.isResponse) 0 else blocked[cable] ?: 0
-            if (used + reserved + p.size <= cable.capacity) {
+            val link = linkBetween(p.from, p.to) ?: continue
+            val medium = link.medium
+            val used = load.getOrPut(medium) { linkLoad(link) }
+            val reserved = if (p.isResponse) 0 else blocked[medium] ?: 0
+            if (used + reserved + p.size <= link.capacity) {
                 p.progress = 0f
-                load[cable] = used + p.size
+                load[medium] = used + p.size
             } else if (p.isResponse) {
-                blocked[cable] = (blocked[cable] ?: 0) + p.size
+                blocked[medium] = (blocked[medium] ?: 0) + p.size
             }
         }
     }
@@ -535,8 +665,9 @@ class World(
             else -> null
         }
         val newServers = if (server != null && spawnServer(server)) listOf(server) else emptyList()
-        if (newCables.isNotEmpty() || newDevices.isNotEmpty() || newServers.isNotEmpty()) {
-            lastNews = WeekNews(year, newCables, newDevices, newServers)
+        val newRadios = RadioType.entries.filter { it.unlockWeek == week }
+        if (newCables.isNotEmpty() || newDevices.isNotEmpty() || newServers.isNotEmpty() || newRadios.isNotEmpty()) {
+            lastNews = WeekNews(year, newCables, newDevices, newServers, newRadios)
             lastNewsTime = time
         }
     }
@@ -557,6 +688,8 @@ class World(
         delivered = delivered,
         budget = budget,
         routersAvailable = routersAvailable,
+        accessPointsAvailable = accessPointsAvailable,
+        cellTowersAvailable = cellTowersAvailable,
         gameOver = gameOver,
         failedNodeId = failedNode?.id,
         rewardOffer = rewardOffer?.let { RewardOfferSnapshot(it.week, it.choices) },
@@ -567,7 +700,7 @@ class World(
         nodes = nodes.map {
             NodeSnapshot(
                 it.id, it.kind, it.device, it.service, it.cellX, it.cellY, it.footprint, it.pending.toList(),
-                it.overload, it.level, it.tokens, it.requestTimer, it.dispatchCooldown,
+                it.overload, it.level, it.tokens, it.requestTimer, it.dispatchCooldown, it.channel, it.fiveGhz,
             )
         },
         cables = cables.map { CableSnapshot(it.a.id, it.b.id, it.type, it.cost, it.layout.waypoints.map(::cellOf), it.waterCells) },
@@ -576,6 +709,8 @@ class World(
 
     companion object {
         private const val WATER = '~'
+        /** Radio links to a neighbour can be short; packets on them still take a visible moment. */
+        private const val MIN_LINK_LENGTH = 0.5f
         private const val LAND = '.'
 
         private fun cellOf(p: Vec2) = Cell(p.x.toInt(), p.y.toInt())
@@ -596,6 +731,8 @@ class World(
             w.delivered = s.delivered
             w.budget = s.budget
             w.routersAvailable = s.routersAvailable
+            w.accessPointsAvailable = s.accessPointsAvailable
+            w.cellTowersAvailable = s.cellTowersAvailable
             w.gameOver = s.gameOver
             w.serverVouchers = s.serverVouchers
             w.rewardOffer = s.rewardOffer?.let { RewardOffer(it.week, it.choices) }
@@ -613,6 +750,8 @@ class World(
                     tokens = n.tokens
                     requestTimer = n.requestTimer
                     dispatchCooldown = n.dispatchCooldown
+                    channel = n.channel
+                    fiveGhz = n.fiveGhz
                 }
                 require(byId.put(n.id, node) == null) { "duplicate node id ${n.id}" }
                 w.nodes += node
@@ -621,6 +760,7 @@ class World(
             for (c in s.cables) {
                 w.cables += Cable(node(c.a), node(c.b), c.type, c.cost, CableLayout(c.waypoints.map { it.center }), c.waterCells)
             }
+            w.rebuildRadioLinks()
             for (p in s.packets) {
                 require(p.route.size >= 2 && p.hop in p.route.indices) { "bad packet route" }
                 w.packets += Packet(p.service, node(p.origin), p.route.map(::node), p.isResponse).apply {

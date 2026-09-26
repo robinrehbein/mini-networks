@@ -25,8 +25,11 @@ import com.mininetworks.game.game.Cell
 import com.mininetworks.game.game.FixedStep
 import com.mininetworks.game.game.Node
 import com.mininetworks.game.game.NodeKind
+import com.mininetworks.game.game.RadioType
 import com.mininetworks.game.game.ServerUpgradeError
 import com.mininetworks.game.game.Vec2
+import com.mininetworks.game.game.Wifi
+import com.mininetworks.game.game.WifiUpgradeError
 import com.mininetworks.game.game.World
 import com.mininetworks.game.render.CableStyles
 import com.mininetworks.game.render.DragPreview
@@ -69,7 +72,8 @@ import kotlin.math.hypot
  *  - pick a cable technology in the bottom-left bar (ISDN, DSL, Kabel, Glasfaser)
  *  - tap a server: upgrade its hardware (more throughput, taller stack; tier 4 is a data center on 2×2 cells)
  *  - tap a cable: upgrade it to the picked technology, or remove it if it already is that type
- *  - "Router" button, then tap an empty cell: place a router
+ *  - "Router" button, then tap an empty cell: place a router; "WLAN" and "Mast" place won radios the same way
+ *  - tap an access point: next WLAN channel; hold it: switch it to 5 GHz (costs budget)
  *  - "Pause" button or back: pause menu (resume, settings, restart, main menu)
  *  - settings: sound, haptics, overview mode (flat instead of isometric), colorblind palette
  *  - at each week change the world pauses and [RewardDialog] shows two reward cards; tap one to pick it
@@ -129,7 +133,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private var surfaceWidth = 0
     private var surfaceHeight = 0
 
-    private var routerMode = false
+    /** What the next tap on an empty cell places: [NodeKind.ROUTER] or a radio kind; null while not placing. */
+    private var placing: NodeKind? = null
     private var cableType = CableType.ISDN
     private var animTime = 0f
 
@@ -147,6 +152,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private val dragTrail = ArrayList<Vec2>()
     private var downX = 0f
     private var downY = 0f
+    private var downTime = 0L
     /** True from a touch-down on the reward dialog until the finger lifts, so that gesture never reaches the map. */
     private var gestureConsumed = false
     private var pressedCard: Int? = null
@@ -400,7 +406,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     /** Screen rectangle of an enabled menu entry in the last drawn frame, for tests. */
     internal fun menuTarget(action: MenuAction): RectF? = menuPanel.targetOf(action)
 
-    /** Screen rectangle of the HUD button [id] ("pause", "router", "cable:…") in the last drawn frame, for tests. */
+    /** Screen rectangle of the HUD button [id] ("pause", "router", "radio:…", "cable:…") in the last drawn frame, for tests. */
     internal fun hudTarget(id: String): RectF? = buttons.firstOrNull { it.id == id }?.rect
 
     /** Number of haptic pulses sent (only counted while haptics are on), for tests. */
@@ -506,8 +512,20 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         )) {
             val w = btnText.measureText(label) + 32 * density
             val r = RectF(x - w, y, x, y + bh)
-            drawHudButton(canvas, r, label, active = id == "router" && routerMode)
+            drawHudButton(canvas, r, label, active = id == "router" && placing == NodeKind.ROUTER)
             buttons += Button(id, r)
+            x -= w + gap
+        }
+        // Radios in a second row above, once invented (or won): the bottom row is full on a phone.
+        x = surfaceWidth - pad
+        for (type in RadioType.entries.reversed()) {
+            val stock = world.radiosAvailable(type)
+            if (world.week < type.unlockWeek && stock == 0) continue
+            val label = context.getString(if (type == RadioType.WLAN) R.string.button_access_point else R.string.button_cell_tower, stock)
+            val w = btnText.measureText(label) + 32 * density
+            val r = RectF(x - w, y - bh - gap, x, y - gap)
+            drawHudButton(canvas, r, label, active = placing == type.kind)
+            buttons += Button("radio:${type.name}", r)
             x -= w + gap
         }
         // Cable technology picker, bottom left. Only invented technologies are shown.
@@ -526,7 +544,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             buttons += Button("cable:${t.name}", r)
             cx += w + gap
         }
-        if (routerMode) {
+        if (placing != null) {
             canvas.drawText(context.getString(R.string.hint_place_router), pad, y - 10 * density, hudSub)
         } else if (animTime < hintUntil) {
             hint?.let { canvas.drawText(it, pad, y - 10 * density, hudSub) }
@@ -561,13 +579,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         }
         when (e.action) {
             MotionEvent.ACTION_DOWN -> {
-                downX = e.x; downY = e.y
+                downX = e.x; downY = e.y; downTime = e.time
                 cameraGesture = false
                 buttons.firstOrNull { it.rect.contains(e.x, e.y) }?.let { onButton(it.id); return }
                 val p = renderer.toWorld(e.x, e.y)
-                if (routerMode) {
-                    world.placeRouter(floor(p.x).toInt(), floor(p.y).toInt())
-                    routerMode = false
+                placing?.let { kind ->
+                    place(kind, floor(p.x).toInt(), floor(p.y).toInt())
+                    placing = null
                     return
                 }
                 dragTrail.clear()
@@ -606,6 +624,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 val isTap = hypot(e.x - downX, e.y - downY) < TAP_SLOP_DP * density
                 if (from != null && isTap && from.kind == NodeKind.SERVER) {
                     upgradeServer(from)
+                } else if (from != null && isTap && from.kind == NodeKind.ACCESS_POINT) {
+                    if (e.time - downTime >= LONG_PRESS_MS) upgradeTo5Ghz(from) else cycleChannel(from)
                 } else if (from != null && !isTap) {
                     trackDrag(e.x, e.y)
                     pickNode(e.x, e.y, except = from)?.let {
@@ -692,13 +712,57 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         hintUntil = animTime + HINT_SECONDS
     }
 
+    /** Places a router or radio from stock; a new access point explains its controls. */
+    private fun place(kind: NodeKind, cx: Int, cy: Int) {
+        val radio = RadioType.of(kind)
+        val placed = if (radio == null) world.placeRouter(cx, cy) else world.placeRadio(radio, cx, cy)
+        if (placed?.kind == NodeKind.ACCESS_POINT) showHint(context.getString(R.string.hint_access_point, Wifi.UPGRADE_5_GHZ_COST))
+    }
+
+    private fun cycleChannel(ap: Node) {
+        if (!world.cycleChannel(ap)) return
+        haptic(HapticFeedbackConstants.CLOCK_TICK)
+        val name = texts.node(ap)
+        val clashes = world.interferers(ap).size
+        showHint(
+            if (clashes == 0) context.getString(R.string.hint_channel, name, ap.channel)
+            else resources.getQuantityString(R.plurals.hint_channel_interference, clashes, name, ap.channel, clashes),
+        )
+    }
+
+    private fun upgradeTo5Ghz(ap: Node) {
+        showHint(
+            when (world.wifiUpgradeError(ap)) {
+                null -> {
+                    world.upgradeTo5Ghz(ap)
+                    haptic(HapticFeedbackConstants.VIRTUAL_KEY)
+                    context.getString(R.string.hint_5ghz, texts.node(ap))
+                }
+                WifiUpgradeError.NOT_AN_ACCESS_POINT -> return
+                WifiUpgradeError.ALREADY_5_GHZ -> context.getString(R.string.wifi_error_already_5ghz)
+                WifiUpgradeError.NO_BUDGET -> context.getString(R.string.wifi_error_no_budget, Wifi.UPGRADE_5_GHZ_COST)
+            },
+        )
+    }
+
+    private fun showHint(text: String) {
+        hint = text
+        hintUntil = animTime + HINT_SECONDS
+    }
+
     private fun onButton(id: String) {
         click()
-        when (id) {
-            "pause" -> openPauseMenu()
-            "router" -> routerMode = !routerMode && world.routersAvailable > 0
-            else -> if (id.startsWith("cable:")) cableType = CableType.valueOf(id.removePrefix("cable:"))
+        when {
+            id == "pause" -> openPauseMenu()
+            id == "router" -> togglePlacing(NodeKind.ROUTER, world.routersAvailable)
+            id.startsWith("radio:") -> RadioType.valueOf(id.removePrefix("radio:")).let { togglePlacing(it.kind, world.radiosAvailable(it)) }
+            id.startsWith("cable:") -> cableType = CableType.valueOf(id.removePrefix("cable:"))
         }
+    }
+
+    /** Arms placing [kind] if [stock] allows it; pressing the same button again disarms it. */
+    private fun togglePlacing(kind: NodeKind, stock: Int) {
+        placing = if (placing == kind || stock <= 0) null else kind
     }
 
     // ---------------------------------------------------------------- menus (game thread)
@@ -800,7 +864,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     private fun onBack() {
         when (screen) {
-            Screen.PLAYING -> if (routerMode) routerMode = false else openPauseMenu()
+            Screen.PLAYING -> if (placing != null) placing = null else openPauseMenu()
             Screen.PAUSED -> screen = Screen.PLAYING
             Screen.SETTINGS -> screen = settingsReturn
             Screen.GAME_OVER -> onMenuAction(MenuAction.MAIN_MENU)
@@ -810,7 +874,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     private fun openPauseMenu() {
         endDrag()
-        routerMode = false
+        placing = null
         screen = Screen.PAUSED
         autosave()
     }
@@ -843,7 +907,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         layoutRenderers()
         clock.reset()
         endDrag()
-        routerMode = false
+        placing = null
         pressedCard = null
         gestureConsumed = false
     }
@@ -856,7 +920,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         saveStore.clear()
         hasSave = false
         endDrag()
-        routerMode = false
+        placing = null
         screen = Screen.GAME_OVER
     }
 
@@ -912,5 +976,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         const val TAP_SLOP_DP = 12f
         const val DOUBLE_TAP_MS = 300L
         const val DOUBLE_TAP_SLOP_DP = 40f
+        /** Holding a tap on an access point this long switches it to 5 GHz. */
+        const val LONG_PRESS_MS = 500L
     }
 }

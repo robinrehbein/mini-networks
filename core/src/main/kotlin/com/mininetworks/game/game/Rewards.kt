@@ -5,8 +5,8 @@ import kotlin.random.Random
 /**
  * Rewards the player picks from at each week change (Mini Metro style).
  *
- * The design (docs/PLAN.md 3.4) also lists a WLAN access point and a cache node. Neither item exists in the game yet
- * (WLAN comes with P2.1, caching is unplanned), so they are not part of the pool until their rules are implemented.
+ * The design (docs/PLAN.md 3.4) also lists a cache node; it is not part of the pool until its rules exist.
+ * New entries go at the end: the offer draw shuffles the eligible list in this order.
  */
 enum class Reward {
     /** +[Rewards.BUDGET] budget. */
@@ -17,6 +17,12 @@ enum class Reward {
 
     /** A voucher for one free server hardware tier upgrade. Only offered while some server can still be upgraded. */
     SERVER_VOUCHER,
+
+    /** +[Rewards.ACCESS_POINTS] WLAN access points. Offered from the week WLAN is invented ([RadioType.WLAN]). */
+    ACCESS_POINT,
+
+    /** +[Rewards.CELL_TOWERS] cell towers. Offered from the week mobile radio is invented ([RadioType.CELL]). */
+    CELL_TOWER,
 }
 
 /** The open choice of one week: exactly [OFFERED][Rewards.OFFERED] distinct rewards. */
@@ -26,6 +32,8 @@ class RewardOffer(val week: Int, val choices: List<Reward>)
 object Rewards {
     const val BUDGET = 16
     const val ROUTERS = 2
+    const val ACCESS_POINTS = 1
+    const val CELL_TOWERS = 1
     const val OFFERED = 2
 
     /**

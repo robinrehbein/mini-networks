@@ -13,6 +13,17 @@
     <string name="button_router">Router (%1$d)</string>
     <string name="button_cable">%1$s · %2$d</string>
     <string name="hint_place_router">Tippe auf ein freies Feld</string>
+    <string name="button_access_point">WLAN (%1$d)</string>
+    <string name="button_cell_tower">Mast (%1$d)</string>
+    <string name="hint_access_point">Access Point antippen: Kanal wechseln · halten: 5 GHz für %1$d</string>
+    <string name="hint_channel">%1$s: Kanal %2$d</string>
+    <plurals name="hint_channel_interference">
+        <item quantity="one">%1$s: Kanal %2$d · stört sich mit %3$d Nachbarn</item>
+        <item quantity="other">%1$s: Kanal %2$d · stört sich mit %3$d Nachbarn</item>
+    </plurals>
+    <string name="hint_5ghz">%1$s funkt jetzt auf 5 GHz (Radius 1)</string>
+    <string name="wifi_error_already_5ghz">Funkt schon auf 5 GHz</string>
+    <string name="wifi_error_no_budget">Zu wenig Budget, 5 GHz kostet %1$d</string>
     <string name="hint_map_grew">Die Stadt wächst: neue Felder am Rand</string>
     <string name="server_error_max_level">Rechenzentrum ist die höchste Stufe</string>
     <string name="server_error_no_budget">Zu wenig Budget, Aufrüsten kostet %1$d</string>
@@ -40,6 +51,8 @@
     <string name="cable_coax">Kabel</string>
     <string name="cable_fiber">Glasfaser</string>
     <string name="node_router">Router</string>
+    <string name="node_access_point">WLAN-Access-Point</string>
+    <string name="node_cell_tower">Mobilfunkmast</string>
     <string name="node_server">%1$s-Server</string>
 
     <!-- Week news and cable feedback -->
@@ -63,6 +76,10 @@
     <string name="reward_routers_desc">Verteiler mit 6 Ports für dein Netz</string>
     <string name="reward_voucher_title">Server-Gutschein</string>
     <string name="reward_voucher_desc">Nächste Server-Aufrüstung kostet nichts</string>
+    <string name="reward_access_point_title">WLAN-Access-Point</string>
+    <string name="reward_access_point_desc">Funkt ohne Kabel zu bis zu 4 Geräten im Umkreis</string>
+    <string name="reward_cell_tower_title">Mobilfunkmast</string>
+    <string name="reward_cell_tower_desc">Großer Funkradius, aber nur für Smartphone, Tablet und Uhr</string>
 
     <!-- Menus -->
     <string name="menu_tagline">Vernetze die Stadt – von 1995 bis heute</string>

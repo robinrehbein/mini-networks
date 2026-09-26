@@ -21,16 +21,19 @@ enum class Service(val shape: Shape, val bandwidth: Int, val maxPingMs: Int?) {
     STREAMING(Shape.CIRCLE, 3, null),
 }
 
-/** Client devices. They appear over the eras and each asks for a mix of services. */
-enum class Device(val services: List<Service>, val unlockWeek: Int) {
+/**
+ * Client devices. They appear over the eras and each asks for a mix of services.
+ * [mobile] devices can also use a cell tower ([RadioType.CELL]).
+ */
+enum class Device(val services: List<Service>, val unlockWeek: Int, val mobile: Boolean = false) {
     PC(listOf(Service.MAIL, Service.GAMING), 1),
     PHONE(listOf(Service.CALL), 1),
     LAPTOP(listOf(Service.MAIL, Service.STREAMING, Service.CALL), 2),
     CONSOLE(listOf(Service.GAMING), 3),
-    SMARTPHONE(listOf(Service.CALL, Service.STREAMING, Service.MAIL), 4),
+    SMARTPHONE(listOf(Service.CALL, Service.STREAMING, Service.MAIL), 4, mobile = true),
     TV(listOf(Service.STREAMING), 4),
-    TABLET(listOf(Service.STREAMING, Service.MAIL), 5),
-    WATCH(listOf(Service.CALL), 6),
+    TABLET(listOf(Service.STREAMING, Service.MAIL), 5, mobile = true),
+    WATCH(listOf(Service.CALL), 6, mobile = true),
 }
 
 /**
@@ -50,11 +53,16 @@ enum class CableType(
     FIBER(12, 2.5f, 3.6f, 3, 5),
 }
 
-/** Node roles. [maxPorts] is the default port count; a data center server has more (see [Node.maxPorts]). */
+/**
+ * Node roles. [maxPorts] is the default cable port count; a data center server has more (see [Node.maxPorts]).
+ * Radio nodes ([ACCESS_POINT], [CELL_TOWER]) are cabled like routers and reach clients wirelessly, see [RadioType].
+ */
 enum class NodeKind(val maxPorts: Int) {
     CLIENT(2),
     SERVER(4),
     ROUTER(6),
+    ACCESS_POINT(2),
+    CELL_TOWER(4),
 }
 
 /** Why a server cannot be upgraded right now. The UI maps these to texts. */
@@ -66,9 +74,18 @@ enum class ConnectError { SAME_NODE, ALREADY_CONNECTED, NOT_INVENTED, FROM_PORTS
 /** Why a cable cannot be swapped to another technology. */
 enum class CableUpgradeError { NOT_AN_UPGRADE, NOT_INVENTED, NO_BUDGET }
 
+/** Why an access point cannot switch to 5 GHz. */
+enum class WifiUpgradeError { NOT_AN_ACCESS_POINT, ALREADY_5_GHZ, NO_BUDGET }
+
 /** What a week change brought: the UI shows it as "year · New: ...". */
 @Serializable
-data class WeekNews(val year: Int, val cables: List<CableType>, val devices: List<Device>, val servers: List<Service>)
+data class WeekNews(
+    val year: Int,
+    val cables: List<CableType>,
+    val devices: List<Device>,
+    val servers: List<Service>,
+    val radios: List<RadioType> = emptyList(),
+)
 
 class Node(
     val id: Int,
@@ -109,6 +126,20 @@ class Node(
     /** Server hardware tier 1..MAX_SERVER_LEVEL: more throughput, drawn as a taller stack; the top tier is a data center. */
     var level = 1
 
+    /** Set for radio nodes. */
+    val radio get() = RadioType.of(kind)
+
+    /** WLAN channel of an access point (see [Wifi]); 0 for every other node. */
+    var channel = 0
+        internal set
+
+    /** True once an access point was switched to 5 GHz: more channels, smaller [radius]. */
+    var fiveGhz = false
+        internal set
+
+    /** Reach of a radio node in cells, measured between cell centers; 0 for other nodes. */
+    val radius get() = if (fiveGhz) Wifi.RADIUS_5_GHZ else radio?.radius ?: 0f
+
     /** Token bucket for server throughput: one token per delivered packet. */
     internal var tokens = 0f
 
@@ -118,22 +149,50 @@ class Node(
     override fun toString() = "$kind#$id(${device ?: service ?: ""})@$cellX,$cellY"
 }
 
-/** A laid cable. [layout] runs from [a] to [b]; [waterCells] of it are sea cable. */
-class Cable(val a: Node, val b: Node, var type: CableType, var cost: Int, val layout: CableLayout, val waterCells: Int) {
-    init {
-        require(layout.start == a.center && layout.end == b.center) { "layout must run from a to b" }
-    }
+/** A connection packets travel on between [a] and [b]: a laid [Cable] or an automatic [RadioLink]. */
+sealed interface Link {
+    val a: Node
+    val b: Node
 
-    val capacity get() = type.capacity
-    val length get() = layout.length
-    val latencyMs get() = length * type.msPerCell
-    val crossesWater get() = waterCells > 0
+    /** Bandwidth units in flight at once on the whole [medium]. */
+    val capacity: Int
+    val length: Float
+    val latencyMs: Float
+
+    /** Visual packet speed in cells per second. */
+    val speed: Float
+
+    /** Links with the same medium share [capacity]: a cable is its own medium, all links of one radio share the radio. */
+    val medium: Any
 
     fun other(n: Node) = if (n === a) b else a
     fun connects(n: Node) = n === a || n === b
 
     /** Point at fraction [f] of the way when travelling from [from] to the other end. */
-    fun pointFrom(from: Node, f: Float): Vec2 = layout.pointAt(if (from === a) f else 1f - f)
+    fun pointFrom(from: Node, f: Float): Vec2
+}
+
+/** A laid cable. [layout] runs from [a] to [b]; [waterCells] of it are sea cable. */
+class Cable(
+    override val a: Node,
+    override val b: Node,
+    var type: CableType,
+    var cost: Int,
+    val layout: CableLayout,
+    val waterCells: Int,
+) : Link {
+    init {
+        require(layout.start == a.center && layout.end == b.center) { "layout must run from a to b" }
+    }
+
+    override val capacity get() = type.capacity
+    override val length get() = layout.length
+    override val latencyMs get() = length * type.msPerCell
+    override val speed get() = type.speed
+    override val medium get() = this
+    val crossesWater get() = waterCells > 0
+
+    override fun pointFrom(from: Node, f: Float): Vec2 = layout.pointAt(if (from === a) f else 1f - f)
 }
 
 /** A path from a client to a server. [pingMs] is the round trip: request there plus response back the same way. */

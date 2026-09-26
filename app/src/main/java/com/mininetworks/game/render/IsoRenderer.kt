@@ -1,6 +1,7 @@
 package com.mininetworks.game.render
 
 import android.graphics.Canvas
+import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
@@ -41,6 +42,8 @@ class IsoRenderer : Renderer {
     private val icons = DeviceIcons()
     private val oval = RectF()
     private val labelP = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = Typeface.DEFAULT_BOLD; textAlign = Paint.Align.CENTER }
+    private val airP = stroke(0)
+    private val clip = Path()
 
     /** Isometric map space: one unit per tile width; a tile is half as high as it is wide. */
     override fun toMap(p: Vec2) = Vec2((p.x - p.y) / 2f, (p.x + p.y) / 4f)
@@ -92,6 +95,8 @@ class IsoRenderer : Renderer {
             strokeP.color = st.color; strokeP.strokeWidth = tw * st.width * 0.75f; canvas.drawPath(path, strokeP)
             st.core?.let { strokeP.color = it; strokeP.strokeWidth = tw * st.coreWidth * 0.75f; canvas.drawPath(path, strokeP) }
         }
+        drawRadioCoverage(canvas, world, time)
+
         drag?.let { d ->
             val end = d.layout.end
             polyline(d.layout.waypoints)
@@ -108,7 +113,7 @@ class IsoRenderer : Renderer {
         val items = ArrayList<Pair<Float, () -> Unit>>()
         for (n in world.nodes) {
             val c = n.footprintCenter
-            items += (c.x + c.y) to { drawNode(canvas, n, time, world.serverBusy(n)) }
+            items += (c.x + c.y) to { drawNode(canvas, world, n, time) }
         }
         for (p in world.packets) {
             val pos = packetPosition(world, p)
@@ -140,7 +145,52 @@ class IsoRenderer : Renderer {
         }
     }
 
-    private fun drawNode(canvas: Canvas, n: Node, time: Float, busy: Boolean) {
+    /**
+     * Radio coverage on the ground: a tinted ellipse per radio (the iso view of its circle) in its channel color, red
+     * where two access points on the same channel overlap, and dashed, drifting lines for the links it carries.
+     */
+    private fun drawRadioCoverage(canvas: Canvas, world: World, time: Float) {
+        val radios = world.nodes.filter { it.radius > 0f }
+        if (radios.isEmpty()) return
+        for (n in radios) {
+            val col = RadioStyles.color(n)
+            groundEllipse(n.center, n.radius)
+            fillP.color = col and 0x00FFFFFF or 0x24000000; canvas.drawOval(oval, fillP)
+            strokeP.color = col and 0x00FFFFFF or 0xA0000000.toInt(); strokeP.strokeWidth = tw * 0.018f; canvas.drawOval(oval, strokeP)
+        }
+        for (a in radios) for (b in world.interferers(a)) {
+            if (b.id < a.id) continue
+            groundEllipse(a.center, a.radius)
+            clip.reset(); clip.addOval(oval, Path.Direction.CW)
+            canvas.save()
+            canvas.clipPath(clip)
+            groundEllipse(b.center, b.radius)
+            fillP.color = RadioStyles.INTERFERENCE and 0x00FFFFFF or 0x66000000; canvas.drawOval(oval, fillP)
+            canvas.restore()
+        }
+        for (n in radios) if (world.interferers(n).isNotEmpty()) {
+            groundEllipse(n.center, n.radius)
+            strokeP.color = RadioStyles.INTERFERENCE; strokeP.strokeWidth = tw * 0.022f; canvas.drawOval(oval, strokeP)
+        }
+        val dash = tw * 0.07f
+        airP.pathEffect = DashPathEffect(floatArrayOf(dash, dash * 0.8f), -time * dash * 4f)
+        airP.strokeWidth = tw * 0.025f
+        for (l in world.radioLinks) {
+            airP.color = RadioStyles.color(l.radio)
+            val a = l.radio.center; val b = l.device.center
+            canvas.drawLine(sx(a.x, a.y), sy(a.x, a.y), sx(b.x, b.y), sy(b.x, b.y), airP)
+        }
+    }
+
+    /** The screen ellipse of a ground circle around [c] with radius [r] (in cells), into [oval]. */
+    private fun groundEllipse(c: Vec2, r: Float) {
+        val x = sx(c.x, c.y); val y = sy(c.x, c.y)
+        val hw = r * tw * HALF_SQRT2; val hh = r * th * HALF_SQRT2
+        oval.set(x - hw, y - hh, x + hw, y + hh)
+    }
+
+    private fun drawNode(canvas: Canvas, world: World, n: Node, time: Float) {
+        val busy = world.serverBusy(n)
         val x = n.center.x; val y = n.center.y
         when (n.kind) {
             NodeKind.SERVER -> if (n.isDataCenter) drawDataCenter(canvas, n, time, busy) else {
@@ -178,7 +228,58 @@ class IsoRenderer : Renderer {
                 box(canvas, x, y, 0.4f, 0.15f, 0xFFF5F7F9.toInt(), 0xFFD9DEE3.toInt())
                 icons.router(canvas, sx(x, y), sy(x, y, 0.15f) - tw * 0.08f, tw * 0.17f, time)
             }
+            NodeKind.ACCESS_POINT -> {
+                box(canvas, x, y, 0.36f, 0.3f, 0xFFF5F7F9.toInt(), 0xFFD9DEE3.toInt())
+                icons.accessPoint(canvas, sx(x, y), sy(x, y, 0.3f) - tw * 0.06f, tw * 0.15f, RadioStyles.color(n), time)
+                channelBadge(canvas, n, sx(x, y) + tw * 0.22f, sy(x, y, 0.3f) - tw * 0.2f, world.interferers(n).isNotEmpty())
+            }
+            NodeKind.CELL_TOWER -> drawCellTower(canvas, x, y, time)
         }
+    }
+
+    /** Channel number in a disc: channel color, red rim while the access point suffers interference. */
+    private fun channelBadge(canvas: Canvas, n: Node, bx: Float, by: Float, interfering: Boolean) {
+        val r = tw * 0.1f
+        fillP.color = 0xFFFFFFFF.toInt(); canvas.drawCircle(bx, by, r, fillP)
+        strokeP.color = if (interfering) RadioStyles.INTERFERENCE else RadioStyles.color(n)
+        strokeP.strokeWidth = tw * (if (interfering) 0.03f else 0.02f)
+        canvas.drawCircle(bx, by, r, strokeP)
+        labelP.color = RadioStyles.color(n)
+        labelP.textSize = r * (if (n.channel >= 10) 1.0f else 1.2f)
+        canvas.drawText(n.channel.toString(), bx, by + labelP.textSize * 0.36f, labelP)
+    }
+
+    /** A lattice mast on a concrete foot: four legs meet at the top, braces between them, antenna panels and a light. */
+    private fun drawCellTower(canvas: Canvas, x: Float, y: Float, time: Float) {
+        box(canvas, x, y, 0.56f, 0.08f, 0xFFCBD2D9.toInt(), 0xFFB9C2CC.toInt())
+        val base = 0.08f
+        val height = 2.1f
+        val half = 0.2f
+        fun leg(dx: Float, dy: Float, z: Float) = (1f - (z - base) / height * 0.8f).let { k -> Vec2(x + dx * half * k, y + dy * half * k) }
+        val corners = listOf(-1f to -1f, 1f to -1f, 1f to 1f, -1f to 1f)
+        strokeP.color = 0xFF5B6674.toInt(); strokeP.strokeWidth = tw * 0.02f
+        val top = base + height
+        for ((dx, dy) in corners) {
+            val a = leg(dx, dy, base); val b = leg(dx, dy, top)
+            canvas.drawLine(sx(a.x, a.y), sy(a.x, a.y, base), sx(b.x, b.y), sy(b.x, b.y, top), strokeP)
+        }
+        strokeP.strokeWidth = tw * 0.012f
+        for (level in 1..4) {
+            val z = base + height * level / 5f
+            val zPrev = base + height * (level - 1) / 5f
+            for (i in corners.indices) {
+                val (dx0, dy0) = corners[i]; val (dx1, dy1) = corners[(i + 1) % corners.size]
+                val a = leg(dx0, dy0, z); val b = leg(dx1, dy1, z); val c = leg(dx0, dy0, zPrev)
+                canvas.drawLine(sx(a.x, a.y), sy(a.x, a.y, z), sx(b.x, b.y), sy(b.x, b.y, z), strokeP)
+                canvas.drawLine(sx(c.x, c.y), sy(c.x, c.y, zPrev), sx(b.x, b.y), sy(b.x, b.y, z), strokeP)
+            }
+        }
+        val panelZ = top - 0.55f
+        box(canvas, x - 0.12f, y + 0.02f, 0.1f, 0.4f, 0xFFF5F7F9.toInt(), 0xFFE3E6E1.toInt(), z0 = panelZ)
+        box(canvas, x + 0.02f, y - 0.12f, 0.1f, 0.4f, 0xFFF5F7F9.toInt(), 0xFFE3E6E1.toInt(), z0 = panelZ)
+        box(canvas, x + 0.08f, y + 0.08f, 0.1f, 0.4f, 0xFFF5F7F9.toInt(), 0xFFE3E6E1.toInt(), z0 = panelZ)
+        fillP.color = if (sin(time * 2.5f) > 0f) 0xFFE4572E.toInt() else 0xFF8A3A2A.toInt()
+        canvas.drawCircle(sx(x, y), sy(x, y, top + 0.05f), tw * 0.04f, fillP)
     }
 
     /** Tier 4: a wide, low hall over the 2×2 footprint with rack LEDs on both visible walls and cooling on the roof. */
@@ -254,6 +355,11 @@ class IsoRenderer : Renderer {
         path.reset()
         path.moveTo(sx(x0, y0), sy(x0, y0)); path.lineTo(sx(x1, y1), sy(x1, y1))
         path.lineTo(sx(x1, y1), sy(x1, y1, -0.5f)); path.lineTo(sx(x0, y0), sy(x0, y0, -0.5f)); path.close()
+    }
+
+    private companion object {
+        /** Half of √2: a ground circle of radius r spans r·√2/2 tile widths to each side in iso. */
+        const val HALF_SQRT2 = 0.70710677f
     }
 
     private fun polyline(pts: List<Vec2>) {

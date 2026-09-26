@@ -93,6 +93,8 @@ class RewardDialog(private val context: Context) {
             Reward.BUDGET -> coins(canvas, bob)
             Reward.ROUTERS -> routers(canvas, bob, time)
             Reward.SERVER_VOUCHER -> server(canvas, accent, bob)
+            Reward.ACCESS_POINT -> accessPoint(canvas, accent, bob, time)
+            Reward.CELL_TOWER -> cellTower(canvas, time)
         }
 
         val cx = r.centerX()
@@ -119,24 +121,32 @@ class RewardDialog(private val context: Context) {
         Reward.BUDGET -> 0xFFE9A92B.toInt()
         Reward.ROUTERS -> 0xFF3BA55C.toInt()
         Reward.SERVER_VOUCHER -> 0xFF2E86AB.toInt()
+        Reward.ACCESS_POINT -> 0xFF8E6CC0.toInt()
+        Reward.CELL_TOWER -> 0xFF1FA39A.toInt()
     }
 
     private fun amountOf(reward: Reward) = when (reward) {
         Reward.BUDGET -> context.getString(R.string.reward_amount_plus, Rewards.BUDGET)
         Reward.ROUTERS -> context.getString(R.string.reward_amount_plus, Rewards.ROUTERS)
         Reward.SERVER_VOUCHER -> context.getString(R.string.reward_amount_voucher)
+        Reward.ACCESS_POINT -> context.getString(R.string.reward_amount_plus, Rewards.ACCESS_POINTS)
+        Reward.CELL_TOWER -> context.getString(R.string.reward_amount_plus, Rewards.CELL_TOWERS)
     }
 
     private fun titleOf(reward: Reward) = when (reward) {
         Reward.BUDGET -> R.string.reward_budget_title
         Reward.ROUTERS -> R.string.reward_routers_title
         Reward.SERVER_VOUCHER -> R.string.reward_voucher_title
+        Reward.ACCESS_POINT -> R.string.reward_access_point_title
+        Reward.CELL_TOWER -> R.string.reward_cell_tower_title
     }
 
     private fun descOf(reward: Reward) = when (reward) {
         Reward.BUDGET -> R.string.reward_budget_desc
         Reward.ROUTERS -> R.string.reward_routers_desc
         Reward.SERVER_VOUCHER -> R.string.reward_voucher_desc
+        Reward.ACCESS_POINT -> R.string.reward_access_point_desc
+        Reward.CELL_TOWER -> R.string.reward_cell_tower_desc
     }
 
     private fun wrap(s: String, maxWidth: Float): List<String> {
@@ -206,6 +216,19 @@ class RewardDialog(private val context: Context) {
         path.lineTo(ax - u * 0.32f, ay - u * 0.1f)
         path.close()
         canvas.drawPath(path, fillP)
+    }
+
+    /** An access point on a small plinth inside its tinted radio circle. */
+    private fun accessPoint(canvas: Canvas, color: Int, bob: Float, time: Float) {
+        fillP.color = color and 0x00FFFFFF or 0x33000000
+        canvas.drawOval(sx(0f, 0f) - u * 1.3f, sy(0f, 0f) - u * 0.65f, sx(0f, 0f) + u * 1.3f, sy(0f, 0f) + u * 0.65f, fillP)
+        box(canvas, 0f, 0f, 0.7f, 0.45f, 0xFFF5F7F9.toInt(), 0xFFD9DEE3.toInt())
+        icons.accessPoint(canvas, sx(0f, 0f), sy(0f, 0f, 0.45f + bob) - u * 0.3f, u * 0.55f, color, time)
+    }
+
+    private fun cellTower(canvas: Canvas, time: Float) {
+        box(canvas, 0f, 0f, 0.8f, 0.12f, 0xFFCBD2D9.toInt(), 0xFFB9C2CC.toInt())
+        icons.cellTower(canvas, sx(0f, 0f), sy(0f, 0f, 0.12f) - u * 0.75f, u * 0.75f, time)
     }
 
     private fun box(canvas: Canvas, cx: Float, cy: Float, s: Float, h: Float, top: Int, side: Int, z0: Float = 0f) {

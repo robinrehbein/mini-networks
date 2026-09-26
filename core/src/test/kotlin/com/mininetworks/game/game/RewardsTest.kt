@@ -13,6 +13,9 @@ class RewardsTest {
 
     private val step = 1f / 60f
 
+    /** The pool of the first weeks, before any radio is invented. */
+    private val early = listOf(Reward.BUDGET, Reward.ROUTERS, Reward.SERVER_VOUCHER)
+
     private fun world(seed: Long = 1L) = World(cols = 16, rows = 10, seed = seed, spawnInitialNodes = false)
 
     /** Simulates until the first week change opens an offer. */
@@ -39,7 +42,7 @@ class RewardsTest {
     @Test
     fun offerIsDeterministicPerSeedAndWeekAndVaries() {
         assertEquals(Rewards.offer(42L, 5, Reward.entries), Rewards.offer(42L, 5, Reward.entries))
-        val seen = (0L until 30L).map { Rewards.offer(it, 2, Reward.entries).toSet() }.toSet()
+        val seen = (0L until 30L).map { Rewards.offer(it, 2, early).toSet() }.toSet()
         assertTrue("all three pairs appear across seeds: $seen", seen.size == 3)
     }
 
@@ -70,7 +73,7 @@ class RewardsTest {
     @Test
     fun budgetAndRouterRewardsApply() {
         for (reward in listOf(Reward.BUDGET, Reward.ROUTERS)) {
-            val seed = (0L until 100L).first { reward in Rewards.offer(it, 2, listOf(Reward.BUDGET, Reward.ROUTERS, Reward.SERVER_VOUCHER)) }
+            val seed = (0L until 100L).first { reward in Rewards.offer(it, 2, early) }
             val w = world(seed).also { it.addServer(Service.MAIL, 1, 1) }
             val offer = untilOffer(w)
             val budget = w.budget
@@ -96,7 +99,7 @@ class RewardsTest {
 
     @Test
     fun serverVoucherUpgradesForFree() {
-        val seed = (0L until 100L).first { Reward.SERVER_VOUCHER in Rewards.offer(it, 2, Reward.entries) }
+        val seed = (0L until 100L).first { Reward.SERVER_VOUCHER in Rewards.offer(it, 2, early) }
         val w = world(seed)
         val server = w.addServer(Service.MAIL, 1, 1)
         val offer = untilOffer(w)

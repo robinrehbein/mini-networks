@@ -3,13 +3,17 @@ package com.mininetworks.game.ui
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.view.MotionEvent
+import com.mininetworks.game.game.Cell
 import com.mininetworks.game.game.DebugApi
 import com.mininetworks.game.game.Device
+import com.mininetworks.game.game.NodeKind
+import com.mininetworks.game.game.Wifi
 import com.mininetworks.game.game.Service
 import com.mininetworks.game.game.World
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -91,5 +95,34 @@ class GameViewGestureTest {
         assertTrue("double tap fits the unlocked area again", camera.followsArea)
         repeat(240) { camera.step(1f / 60f) }
         assertEquals(camera.fitScale(view.activeRenderer.mapBounds(world.unlocked)), camera.scale, 1e-3f)
+    }
+
+    @Test
+    fun wlanButtonPlacesAccessPointTapCyclesChannelHoldSwitchesTo5Ghz() {
+        world.jumpToWeek(6)
+        world.grant(0, extraAccessPoints = 1)
+        val bmp = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)
+        view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 0f, style = "Iso")
+        assertNull("cell towers are not invented yet", view.hudTarget("radio:CELL"))
+        val button = view.hudTarget("radio:WLAN")!!
+        view.injectTouch(MotionEvent.ACTION_DOWN, button.centerX(), button.centerY())
+        view.injectTouch(MotionEvent.ACTION_UP, button.centerX(), button.centerY())
+        val cell = view.activeRenderer.toScreen(Cell(world.unlocked.left + 4, world.unlocked.top + 4).center)
+        view.injectTouch(MotionEvent.ACTION_DOWN, cell.x, cell.y)
+        view.injectTouch(MotionEvent.ACTION_UP, cell.x, cell.y)
+        val ap = world.nodes.single { it.kind == NodeKind.ACCESS_POINT }
+        assertEquals(0, world.accessPointsAvailable)
+        assertEquals(1, ap.channel)
+
+        view.injectTouch(MotionEvent.ACTION_DOWN, cell.x, cell.y, time = 1000L)
+        view.injectTouch(MotionEvent.ACTION_UP, cell.x, cell.y, time = 1100L)
+        assertEquals("a tap switches the channel", 6, ap.channel)
+
+        val budget = world.budget
+        view.injectTouch(MotionEvent.ACTION_DOWN, cell.x, cell.y, time = 2000L)
+        view.injectTouch(MotionEvent.ACTION_UP, cell.x, cell.y, time = 2700L)
+        assertTrue("holding switches to 5 GHz", ap.fiveGhz)
+        assertEquals(Wifi.CHANNELS_5_GHZ.first(), ap.channel)
+        assertEquals(budget - Wifi.UPGRADE_5_GHZ_COST, world.budget)
     }
 }

@@ -11,6 +11,17 @@
     <string name="button_router">Router (%1$d)</string>
     <string name="button_cable">%1$s · %2$d</string>
     <string name="hint_place_router">Tap a free cell</string>
+    <string name="button_access_point">Wi-Fi (%1$d)</string>
+    <string name="button_cell_tower">Tower (%1$d)</string>
+    <string name="hint_access_point">Tap the access point to change its channel · hold for 5 GHz (%1$d)</string>
+    <string name="hint_channel">%1$s: channel %2$d</string>
+    <plurals name="hint_channel_interference">
+        <item quantity="one">%1$s: channel %2$d · clashes with %3$d neighbour</item>
+        <item quantity="other">%1$s: channel %2$d · clashes with %3$d neighbours</item>
+    </plurals>
+    <string name="hint_5ghz">%1$s now uses 5 GHz (radius 1)</string>
+    <string name="wifi_error_already_5ghz">Already on 5 GHz</string>
+    <string name="wifi_error_no_budget">Not enough budget, 5 GHz costs %1$d</string>
     <string name="hint_map_grew">The town is growing: new cells at the edge</string>
     <string name="server_error_max_level">The data center is the top tier</string>
     <string name="server_error_no_budget">Not enough budget, the upgrade costs %1$d</string>
@@ -38,6 +49,8 @@
     <string name="cable_coax">Cable</string>
     <string name="cable_fiber">Fiber</string>
     <string name="node_router">Router</string>
+    <string name="node_access_point">Wi-Fi access point</string>
+    <string name="node_cell_tower">Cell tower</string>
     <string name="node_server">%1$s server</string>
 
     <!-- Week news and cable feedback -->
@@ -61,6 +74,10 @@
     <string name="reward_routers_desc">Hubs with 6 ports for your network</string>
     <string name="reward_voucher_title">Server voucher</string>
     <string name="reward_voucher_desc">Your next server upgrade is free</string>
+    <string name="reward_access_point_title">Wi-Fi access point</string>
+    <string name="reward_access_point_desc">Reaches up to 4 devices nearby without cables</string>
+    <string name="reward_cell_tower_title">Cell tower</string>
+    <string name="reward_cell_tower_desc">Wide radio range, but only for smartphones, tablets and watches</string>
 
     <!-- Menus -->
     <string name="menu_tagline">Wire up the town – from 1995 to today</string>

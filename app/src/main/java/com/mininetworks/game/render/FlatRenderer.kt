@@ -2,6 +2,7 @@ package com.mininetworks.game.render
 
 import android.graphics.Canvas
 import android.graphics.CornerPathEffect
+import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
@@ -39,6 +40,8 @@ class FlatRenderer : Renderer {
     private val icons = DeviceIcons()
     private val arcRect = RectF()
     private val labelP = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = Typeface.DEFAULT_BOLD; textAlign = Paint.Align.CENTER }
+    private val airP = stroke(0)
+    private val clip = Path()
 
     /** Flat map space is world space: one map unit per cell. */
     override fun toMap(p: Vec2) = p
@@ -73,6 +76,8 @@ class FlatRenderer : Renderer {
                 cableP.color = alarm and 0x80FFFFFF.toInt(); cableP.strokeWidth = cell * 0.05f; canvas.drawPath(path, cableP)
             }
         }
+
+        drawRadioCoverage(canvas, world, time)
 
         drag?.let { d ->
             val end = d.layout.end
@@ -109,6 +114,17 @@ class FlatRenderer : Renderer {
             val s = toScreen(n.center)
             when (n.kind) {
                 NodeKind.ROUTER -> icons.router(canvas, s.x, s.y, cell * 0.3f, time)
+                NodeKind.ACCESS_POINT -> {
+                    icons.accessPoint(canvas, s.x, s.y, cell * 0.28f, RadioStyles.color(n), time)
+                    val interfering = world.interferers(n).isNotEmpty()
+                    val bx = s.x + cell * 0.36f; val by = s.y - cell * 0.3f; val r = cell * 0.15f
+                    fillP.color = land; canvas.drawCircle(bx, by, r, fillP)
+                    strokeP.color = if (interfering) alarm else RadioStyles.color(n); strokeP.strokeWidth = cell * 0.035f
+                    canvas.drawCircle(bx, by, r, strokeP)
+                    labelP.color = RadioStyles.color(n); labelP.textSize = r * (if (n.channel >= 10) 1.0f else 1.2f)
+                    canvas.drawText(n.channel.toString(), bx, by + labelP.textSize * 0.36f, labelP)
+                }
+                NodeKind.CELL_TOWER -> icons.cellTower(canvas, s.x, s.y, cell * 0.34f, time)
                 NodeKind.SERVER -> if (n.isDataCenter) {
                     val c = toScreen(n.footprintCenter)
                     icons.dataCenter(canvas, n.service!!, world.serverBusy(n), c.x, c.y, cell * 0.85f, time)
@@ -141,6 +157,39 @@ class FlatRenderer : Renderer {
             val s = toScreen(it.center)
             strokeP.color = alarm; strokeP.strokeWidth = cell * 0.05f
             canvas.drawCircle(s.x, s.y, cell * (0.7f + 0.15f * kotlin.math.sin(time * 6f)), strokeP)
+        }
+    }
+
+    /** Radio circles in the channel color, red where same-channel access points overlap, dashed lines for radio links. */
+    private fun drawRadioCoverage(canvas: Canvas, world: World, time: Float) {
+        val radios = world.nodes.filter { it.radius > 0f }
+        if (radios.isEmpty()) return
+        for (n in radios) {
+            val c = toScreen(n.center); val col = RadioStyles.color(n)
+            fillP.color = col and 0x00FFFFFF or 0x1F000000; canvas.drawCircle(c.x, c.y, n.radius * cell, fillP)
+            strokeP.color = col and 0x00FFFFFF or 0x99000000.toInt(); strokeP.strokeWidth = cell * 0.025f
+            canvas.drawCircle(c.x, c.y, n.radius * cell, strokeP)
+        }
+        for (a in radios) for (b in world.interferers(a)) {
+            if (b.id < a.id) continue
+            val ca = toScreen(a.center); val cb = toScreen(b.center)
+            clip.reset(); clip.addCircle(ca.x, ca.y, a.radius * cell, Path.Direction.CW)
+            canvas.save()
+            canvas.clipPath(clip)
+            fillP.color = alarm and 0x00FFFFFF or 0x59000000; canvas.drawCircle(cb.x, cb.y, b.radius * cell, fillP)
+            canvas.restore()
+        }
+        for (n in radios) if (world.interferers(n).isNotEmpty()) {
+            val c = toScreen(n.center)
+            strokeP.color = alarm; strokeP.strokeWidth = cell * 0.03f; canvas.drawCircle(c.x, c.y, n.radius * cell, strokeP)
+        }
+        val dash = cell * 0.1f
+        airP.pathEffect = DashPathEffect(floatArrayOf(dash, dash * 0.8f), -time * dash * 4f)
+        airP.strokeWidth = cell * 0.035f
+        for (l in world.radioLinks) {
+            airP.color = RadioStyles.color(l.radio)
+            val a = toScreen(l.radio.center); val b = toScreen(l.device.center)
+            canvas.drawLine(a.x, a.y, b.x, b.y, airP)
         }
     }
 
