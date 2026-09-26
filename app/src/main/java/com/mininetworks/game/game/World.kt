@@ -30,6 +30,11 @@ class World(
         const val START_ROUTERS = 2
         const val WEEKLY_BUDGET_BONUS = 12
         const val WATER_EXTRA_PER_CELL = 2
+        const val MAX_SERVER_LEVEL = 3
+        /** Packets per second a server can take at level 1, 2, 3. */
+        val SERVER_RATE = floatArrayOf(1.5f, 3f, 5f)
+        /** Budget to reach level 2, 3. */
+        val SERVER_UPGRADE_COST = intArrayOf(8, 16)
     }
 
     private val rng = Random(seed)
@@ -204,6 +209,26 @@ class World(
         routeCache.clear()
     }
 
+    fun serverRate(n: Node) = Tuning.SERVER_RATE[n.level - 1]
+
+    /** Null when the server can be upgraded, otherwise a short German reason for the UI. */
+    fun serverUpgradeError(n: Node): String? = when {
+        n.kind != NodeKind.SERVER -> "Kein Server"
+        n.level >= Tuning.MAX_SERVER_LEVEL -> "Maximale Stufe"
+        Tuning.SERVER_UPGRADE_COST[n.level - 1] > budget -> "Budget reicht nicht"
+        else -> null
+    }
+
+    fun upgradeServer(n: Node): Boolean {
+        if (gameOver || serverUpgradeError(n) != null) return false
+        budget -= Tuning.SERVER_UPGRADE_COST[n.level - 1]
+        n.level++
+        return true
+    }
+
+    /** True while a server has no capacity left and packets queue on its cables. */
+    fun serverBusy(n: Node) = n.kind == NodeKind.SERVER && n.tokens < 1f
+
     fun placeRouter(cx: Int, cy: Int): Node? {
         if (gameOver || routersAvailable <= 0 || !isFree(cx, cy)) return null
         routersAvailable--
@@ -334,6 +359,7 @@ class World(
     }
 
     private fun movePackets(dt: Float) {
+        for (n in nodes) if (n.kind == NodeKind.SERVER) n.tokens = minOf(serverRate(n), n.tokens + serverRate(n) * dt)
         val arrived = ArrayList<Packet>()
         for (p in packets) {
             val cable = cableBetween(p.from, p.to)
@@ -343,8 +369,14 @@ class World(
             }
             p.progress += cable.type.speed * dt / cable.length
             if (p.progress >= 1f) {
+                val last = p.hop + 1 >= p.route.size - 1
+                if (last && p.to.tokens < 1f) {
+                    // Server is saturated: the packet waits at the end of the cable and keeps blocking it.
+                    p.progress = 0.999f
+                    continue
+                }
                 p.hop++
-                if (p.hop >= p.route.size - 1) { arrived += p; delivered++ } else p.progress = -1f
+                if (last) { p.route.last().tokens -= 1f; arrived += p; delivered++ } else p.progress = -1f
             }
         }
         if (arrived.isNotEmpty()) packets.removeAll(arrived.toSet())

@@ -87,7 +87,7 @@ class IsoRenderer : Renderer {
 
         // Painter's algorithm: everything with height is drawn back-to-front by x + y.
         val items = ArrayList<Pair<Float, () -> Unit>>()
-        for (n in world.nodes) items += (n.center.x + n.center.y) to { drawNode(canvas, n, time) }
+        for (n in world.nodes) items += (n.center.x + n.center.y) to { drawNode(canvas, n, time, world.serverBusy(n)) }
         for (p in world.packets) {
             val pos = packetPosition(p)
             items += (pos.x + pos.y + 0.01f) to {
@@ -109,21 +109,29 @@ class IsoRenderer : Renderer {
         }
     }
 
-    private fun drawNode(canvas: Canvas, n: Node, time: Float) {
+    private fun drawNode(canvas: Canvas, n: Node, time: Float, busy: Boolean) {
         val x = n.center.x; val y = n.center.y
         when (n.kind) {
             NodeKind.SERVER -> {
+                // One stacked hardware unit per server level: bigger servers literally tower over the town.
                 val col = ServiceColors.of(n.service!!)
-                box(canvas, x, y, 0.78f, 2.0f, col.shade(0.15f), 0xFFE9ECEF.toInt())
-                for (i in 0 until 4) {
-                    val on = sin(time * 3f + i * 1.7f + x) > 0f
-                    fillP.color = if (on) col else 0xFF9AA3AD.toInt()
-                    val lx = sx(x + 0.39f, y - 0.25f); val ly = sy(x + 0.39f, y - 0.25f, 0.45f + i * 0.38f)
-                    canvas.drawRect(lx - tw * 0.04f, ly - th * 0.08f, lx + tw * 0.06f, ly + th * 0.04f, fillP)
+                val unit = 0.72f
+                for (lv in 0 until n.level) {
+                    box(canvas, x, y, 0.78f, unit - 0.06f, col.shade(0.15f), 0xFFE9ECEF.toInt(), z0 = lv * unit)
+                    for (i in 0 until 2) {
+                        val on = sin(time * 3f + i * 1.7f + lv + x) > 0f
+                        fillP.color = when {
+                            busy -> 0xFFD7263D.toInt()
+                            on -> col
+                            else -> 0xFF9AA3AD.toInt()
+                        }
+                        val lx = sx(x + 0.39f, y - 0.2f); val ly = sy(x + 0.39f, y - 0.2f, lv * unit + 0.2f + i * 0.25f)
+                        canvas.drawRect(lx - tw * 0.04f, ly - th * 0.08f, lx + tw * 0.06f, ly + th * 0.04f, fillP)
+                    }
                 }
-                val bx = sx(x, y); val by = sy(x, y, 2.0f)
+                val top = n.level * unit - 0.06f
                 fillP.color = 0xFFFFFFFF.toInt()
-                Shapes.draw(canvas, n.service.shape, bx, by, tw * 0.1f, fillP)
+                Shapes.draw(canvas, n.service.shape, sx(x, y), sy(x, y, top), tw * 0.1f, fillP)
             }
             NodeKind.CLIENT -> {
                 val d = n.device!!
@@ -141,17 +149,18 @@ class IsoRenderer : Renderer {
         }
     }
 
-    private fun box(canvas: Canvas, cx: Float, cy: Float, s: Float, h: Float, top: Int, side: Int) {
+    private fun box(canvas: Canvas, cx: Float, cy: Float, s: Float, h: Float, top: Int, side: Int, z0: Float = 0f) {
         val x0 = cx - s / 2; val y0 = cy - s / 2; val x1 = cx + s / 2; val y1 = cy + s / 2
+        val z1 = z0 + h
         path.reset()
-        path.moveTo(sx(x0, y1), sy(x0, y1)); path.lineTo(sx(x1, y1), sy(x1, y1))
-        path.lineTo(sx(x1, y1), sy(x1, y1, h)); path.lineTo(sx(x0, y1), sy(x0, y1, h)); path.close()
+        path.moveTo(sx(x0, y1), sy(x0, y1, z0)); path.lineTo(sx(x1, y1), sy(x1, y1, z0))
+        path.lineTo(sx(x1, y1), sy(x1, y1, z1)); path.lineTo(sx(x0, y1), sy(x0, y1, z1)); path.close()
         fillP.color = side.shade(-0.12f); canvas.drawPath(path, fillP)
         path.reset()
-        path.moveTo(sx(x1, y0), sy(x1, y0)); path.lineTo(sx(x1, y1), sy(x1, y1))
-        path.lineTo(sx(x1, y1), sy(x1, y1, h)); path.lineTo(sx(x1, y0), sy(x1, y0, h)); path.close()
+        path.moveTo(sx(x1, y0), sy(x1, y0, z0)); path.lineTo(sx(x1, y1), sy(x1, y1, z0))
+        path.lineTo(sx(x1, y1), sy(x1, y1, z1)); path.lineTo(sx(x1, y0), sy(x1, y0, z1)); path.close()
         fillP.color = side.shade(-0.25f); canvas.drawPath(path, fillP)
-        quad(x0, y0, s, s, h)
+        quad(x0, y0, s, s, z1)
         fillP.color = top; canvas.drawPath(path, fillP)
     }
 

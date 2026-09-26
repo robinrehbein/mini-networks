@@ -80,7 +80,7 @@ class FlatRenderer : Renderer {
             val s = toScreen(n.center)
             when (n.kind) {
                 NodeKind.ROUTER -> icons.router(canvas, s.x, s.y, cell * 0.3f, time)
-                NodeKind.SERVER -> icons.server(canvas, n.service!!, s.x, s.y, cell * 0.34f, time)
+                NodeKind.SERVER -> icons.server(canvas, n.service!!, n.level, world.serverBusy(n), s.x, s.y, cell * 0.34f, time)
                 NodeKind.CLIENT -> {
                     icons.device(canvas, n.device!!, s.x, s.y, cell * 0.3f)
                     n.pending.take(8).forEachIndexed { i, svc ->

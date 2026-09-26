@@ -55,6 +55,9 @@ class ScreenshotTest {
         w.connect(r2, tablet, CableType.COAX)
         w.connect(watch, r1, CableType.DSL)
         w.connect(watch, pc, CableType.DSL)
+        w.upgradeServer(game)
+        w.upgradeServer(cdn)
+        w.upgradeServer(cdn)
         repeat(60 * 25) { w.update(1f / 60f) }
         return w
     }

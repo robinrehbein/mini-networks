@@ -115,6 +115,26 @@ class WorldTest {
     }
 
     @Test
+    fun serverThroughputGrowsWithLevel() {
+        fun deliveredWith(level: Int): Int {
+            val w = world()
+            w.grant(100)
+            val server = w.addServer(Service.MAIL, 4, 5)
+            val router = w.addRouter(4, 3)
+            w.jumpToWeek(CableType.FIBER.unlockWeek)
+            w.connect(router, server, CableType.FIBER)
+            listOf(1 to 1, 3 to 1, 5 to 1, 2 to 2).forEach { (x, y) -> w.connect(w.addClient(Device.PC, x, y), router, CableType.FIBER) }
+            repeat(level - 1) { assertTrue(w.upgradeServer(server)) }
+            assertEquals(level, server.level)
+            repeat(60 * 60) { w.update(1f / 60f) }
+            return w.delivered
+        }
+        val slow = deliveredWith(1)
+        assertTrue("level 1 caps at 1.5/s, got $slow in 60 s", slow <= 60 * 1.5 + 2)
+        assertTrue(deliveredWith(3) >= slow)
+    }
+
+    @Test
     fun unconnectedClientEventuallyOverloads() {
         val w = world()
         w.addServer(Service.MAIL, 4, 1)

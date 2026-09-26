@@ -11,6 +11,7 @@ import android.view.MotionEvent
 import android.view.View
 import com.mininetworks.game.game.CableType
 import com.mininetworks.game.game.Node
+import com.mininetworks.game.game.NodeKind
 import com.mininetworks.game.game.Vec2
 import com.mininetworks.game.game.World
 import com.mininetworks.game.render.CableStyles
@@ -28,6 +29,7 @@ import kotlin.math.hypot
  * Controls:
  *  - drag from a node to another node: lay a cable
  *  - pick a cable technology in the bottom-left bar (ISDN, DSL, Kabel, Glasfaser)
+ *  - tap a server: upgrade its hardware (more throughput, taller stack)
  *  - tap a cable: upgrade it to the picked technology, or remove it if it already is that type
  *  - "Router" button, then tap an empty cell: place a router
  *  - "Stil" button: switch between flat and isometric rendering
@@ -208,7 +210,9 @@ class GameView(context: Context) : View(context), Choreographer.FrameCallback {
                 val from = dragFrom
                 val p = renderer.toWorld(e.x, e.y)
                 val isTap = hypot(e.x - downX, e.y - downY) < 12 * density
-                if (from != null && !isTap) {
+                if (from != null && isTap && from.kind == NodeKind.SERVER) {
+                    world.upgradeServer(from)
+                } else if (from != null && !isTap) {
                     world.nodeNear(p)?.let { if (it !== from) world.connect(from, it, cableType) }
                 } else if (isTap && from == null) {
                     renderer.cableNear(world, p)?.let { if (it.type == cableType) world.removeCable(it) else world.upgrade(it, cableType) }

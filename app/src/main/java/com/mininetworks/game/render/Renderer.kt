@@ -201,24 +201,30 @@ class DeviceIcons {
         }
     }
 
-    /** Rack server in the service color, with blinking LEDs and a white service badge. */
-    fun server(c: Canvas, service: Service, x: Float, y: Float, s: Float, time: Float) {
+    /** Rack server in the service color: one rack unit per [level], red LEDs while [busy], white service badge on top. */
+    fun server(c: Canvas, service: Service, level: Int, busy: Boolean, x: Float, y: Float, s: Float, time: Float) {
         canvas = c
         val col = ServiceColors.of(service)
-        box(x - s * 0.8f, y - s, x + s * 0.8f, y + s, s * 0.14f, col, s)
-        for (i in 0 until 3) {
-            val sy = y - s * 0.55f + i * s * 0.55f
+        val unitH = s * 0.62f
+        val bottom = y + s * 0.8f
+        val top = bottom - unitH * level - s * 0.2f
+        box(x - s * 0.8f, top, x + s * 0.8f, bottom, s * 0.14f, col, s)
+        for (i in 0 until level) {
+            val sy = bottom - s * 0.1f - unitH * (i + 0.5f)
             rect.set(x - s * 0.55f, sy - s * 0.12f, x + s * 0.25f, sy + s * 0.12f)
             body.color = col.shade(-0.3f); canvas.drawRect(rect, body)
-            body.color = if (sin(time * 4f + i * 2.1f + x * 0.01f) > 0f) 0xFF7CF29A.toInt() else col.shade(-0.4f)
+            body.color = when {
+                busy -> 0xFFFF5A5A.toInt()
+                sin(time * 4f + i * 2.1f + x * 0.01f) > 0f -> 0xFF7CF29A.toInt()
+                else -> col.shade(-0.4f)
+            }
             canvas.drawCircle(x + s * 0.5f, sy, s * 0.1f, body)
         }
-        // Badge with the service shape, top right.
         body.color = 0xFFFFFFFF.toInt()
-        canvas.drawCircle(x + s * 0.8f, y - s, s * 0.42f, body)
-        line.strokeWidth = s * 0.1f; canvas.drawCircle(x + s * 0.8f, y - s, s * 0.42f, line)
+        canvas.drawCircle(x + s * 0.8f, top, s * 0.42f, body)
+        line.strokeWidth = s * 0.1f; canvas.drawCircle(x + s * 0.8f, top, s * 0.42f, line)
         body.color = col
-        Shapes.draw(canvas, service.shape, x + s * 0.8f, y - s + if (service.shape == Shape.TRIANGLE) s * 0.04f else 0f, s * 0.22f, body)
+        Shapes.draw(canvas, service.shape, x + s * 0.8f, top + if (service.shape == Shape.TRIANGLE) s * 0.04f else 0f, s * 0.22f, body)
     }
 
     fun router(c: Canvas, x: Float, y: Float, s: Float, time: Float) {

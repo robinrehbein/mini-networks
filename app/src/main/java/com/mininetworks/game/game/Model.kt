@@ -77,6 +77,12 @@ class Node(
     /** 0..1, game over when a client reaches 1. */
     var overload = 0f
 
+    /** Server hardware tier 1..MAX_SERVER_LEVEL: more throughput, drawn as a taller stack. */
+    var level = 1
+
+    /** Token bucket for server throughput: one token per delivered packet. */
+    internal var tokens = 0f
+
     internal var requestTimer = 0f
     internal var dispatchCooldown = 0f
 

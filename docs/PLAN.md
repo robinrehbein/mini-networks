@@ -31,6 +31,7 @@ Ziel ist, so viele Pakete wie möglich zuzustellen.
 | Wasser | Fluss auf der Karte; Kabel darüber kosten 2 Budget extra pro Wasserfeld |
 | Wochen | Alle 45 s: +12 Budget, +1 Router, neue Technik, neue Geräte, neue Server |
 | Stau | Kabel tragen begrenzte Bandbreite gleichzeitig; Pakete warten an Knoten |
+| Server-Stufen | Tipp auf Server = Aufrüsten, höhere Türme, begrenzter Durchsatz |
 | Game Over | ≥ 6 wartende Anfragen → roter Ring füllt sich in 18 s → „Netz überlastet“ |
 | Grafik | Zwei Stile umschaltbar: **Flat** (Mini-Metro, 45°-Kabel) und **Isometrisch** (2,5D-Kacheln) |
 | Steuerung | Ziehen = Kabel legen · Tippen auf Kabel = Upgrade auf gewählte Technik bzw. entfernen · Router-Knopf + Feld tippen |
@@ -125,7 +126,7 @@ Der Prototyp vergibt die Belohnungen noch automatisch.
 
 ### 3.5 Weitere Mechaniken (priorisiert)
 
-1. **Server-Durchsatz:** Server verarbeiten nur N Pakete pro Sekunde, sonst stauen sie sich dort.
+1. **Server-Durchsatz:** umgesetzt (siehe 5.3); fehlt noch: Rechenzentrum als Stufe 4.
 2. **Antworten:** Pakete laufen hin **und zurück**; der Ping zählt beide Wege.
 3. **Kamera/Zoom:** Die Karte wächst mit der Zeit (wie Mini Motorways); Pinch-Zoom und Pan.
 4. **Störungen:** Ein Bagger kappt ein Kabel, ein Stromausfall legt einen Router für 10 s lahm. Selten, angekündigt.
@@ -166,13 +167,40 @@ Kein Multiplayer, keine Online-Pflicht, kein Shop, keine Werbung im MVP. iOS ers
 - Pakete laufen nur zum Server, nicht zurück.
 - Kein Speichern, keine Einstellungen, kein Menü.
 
-## 5. Offene Entscheidungen für euch
+## 5. Entscheidungen
 
-1. **Grafikstil fürs MVP:** Flat (A), Isometrisch (B), Pixel (C) oder Platine (D)? Empfehlung: A oder D fürs MVP, B als späteres Upgrade.
-2. **Name:** „Mini Networks“ ist nah an „Mini Metro“/„Mini Motorways“ (Dinosaur Polo Club). Vor der Veröffentlichung Markenlage prüfen und eigenen Namen erwägen.
-3. **Geschäftsmodell:** Einmalkauf (wie das Vorbild) oder Free-to-play mit Kauf der Vollversion.
-4. **Mindest-Android-Version:** aktuell `minSdk 26` (Android 8), deckt ~97 % ab.
-5. **Epochen-Thema** (1995 → heute) als roter Faden: ja/nein?
+| # | Thema | Entscheidung |
+|---|---|---|
+| 1 | Grafikstil | **2,5D Isometrisch** (Stil B) ist der Hauptstil. Flat bleibt als optionaler „Übersichtsmodus“ in den Einstellungen, weil er bereits existiert und bei großen Karten lesbarer ist. |
+| 2 | Name | Arbeitstitel „Mini Networks“ bleibt im Code; der Anzeigename kommt nur aus `strings.xml` (`app_name`), damit ein Umbenennen eine Zeile ist. Markenprüfung macht das Team. Alternativen: „Packet Town“, „Ping City“, „Netzstadt“, „Uplink“, „Hop“. |
+| 3 | Geschäftsmodell | **Werbung + Einmalkauf „Werbefrei“ + Szenerien.** Details in 5.1. |
+| 4 | Mindest-Android | **minSdk 26** (Android 8.0). Deckt praktisch alle aktiven Geräte ab, und die Werbe- und Billing-SDKs laufen damit. |
+| 5 | Epochen | **Bleibt** als roter Faden innerhalb einer Partie (1995 → heute). Die Szenerien liefern zusätzlich Ort und Startepoche, siehe 5.2. |
+
+### 5.1 Monetarisierung
+
+- **Nie Werbung während des Spielens.** Interstitials nur zwischen Partien, höchstens jede dritte Partie und nicht in den ersten 3 Partien.
+- **Rewarded Ads, freiwillig:** „Weiterspielen“ einmal pro Partie nach Game Over (Überlast-Ringe werden zurückgesetzt), oder +1 Router im Wochen-Menü.
+- **Einmalkauf „Werbefrei“** entfernt Interstitials; Rewarded-Vorteile gibt es dann ohne Video.
+- **Szenerien** schaltet man durch Spielen frei (Punkteziel in der vorherigen Szenerie) oder kauft sie einzeln bzw. als Paket.
+- Technik: Google Mobile Ads SDK (AdMob) mit **UMP-Einwilligungsdialog (DSGVO, Pflicht in der EU)**, Google Play Billing Library.
+  Alles hinter einem Interface `Monetization` im App-Modul; eine `NoOpMonetization` für Debug und Tests. Im Repo nur **Google-Test-IDs**; echte AdMob-IDs und Produkt-IDs trägt das Team später in `local.properties`/CI-Secrets ein.
+
+### 5.2 Szenerien (Karten)
+
+| Szenerie | Startjahr | Besonderheit | Freischaltung |
+|---|---|---|---|
+| Kleinstadt am Fluss | 1995 | Tutorial-Karte, ein Fluss | frei |
+| Großstadt | 1998 | zwei Flüsse, dichte Innenstadt, Hochhäuser verdecken Funk | 1.500 Pakete in Kleinstadt oder Kauf |
+| Insel & Hafen | 2004 | viel Wasser: Seekabel und Richtfunk wichtig | 3.000 Pakete in Großstadt oder Kauf |
+| Bergdorf | 2001 | Berge blockieren Funk, Kabel über Pässe teurer | Kauf oder Paket |
+| Zukunft 2030 | 2030 | Satelliten, 6G, Rechenzentren im Orbit | Kauf oder Paket |
+
+### 5.3 Server-Stufen (umgesetzt im Prototyp)
+
+Server haben Hardware-Stufen 1–3 mit 1,5 / 3 / 5 Paketen pro Sekunde. Ein Tipp auf den Server rüstet für 8 bzw. 16 Budget auf.
+Jede Stufe ist eine zusätzliche gestapelte Rack-Einheit: große Server sind sichtbar höhere Türme. Ist ein Server ausgelastet,
+stauen sich Pakete am Kabelende und die LEDs leuchten rot. Später: Stufe 4 „Rechenzentrum“ (belegt 2×2 Felder).
 
 ## 6. Arbeitspakete für den Ultracode-Workflow
 
@@ -200,8 +228,8 @@ Regeln für alle Pakete:
 **P1.1 Wochen-Belohnungen (Logik + UI)** · Dateien: `core/.../Rewards.kt`, `app/.../ui/RewardDialog.kt`
 - Spiel pausiert am Wochenende, 2 von 4 Belohnungen zur Wahl, deterministisch per Seed.
 
-**P1.2 Hin- und Rückweg, Server-Durchsatz** · Dateien: `core/.../World.kt` (Abschnitt Simulation), `core/.../Packet*`
-- Antwortpakete, Ping zählt beide Wege, Server mit Warteschlange und Durchsatz.
+**P1.2 Hin- und Rückweg, Rechenzentrum-Stufe** · Dateien: `core/.../World.kt` (Abschnitt Simulation), `core/.../Packet*`
+- Antwortpakete, Ping zählt beide Wege; Server-Stufe 4 „Rechenzentrum“ (2×2 Felder).
 
 **P1.3 Kamera: Zoom und Pan, wachsende Karte** · Dateien: `app/.../ui/Camera.kt`, `Renderer`-Projektion
 - Pinch-Zoom, Zwei-Finger-Pan, Karte wächst alle 2 Wochen um einen Ring. Touch-Ziele bleiben ≥ 48 dp.
@@ -215,11 +243,12 @@ Regeln für alle Pakete:
   inkl. WLAN-Interferenz (Kanäle 1/6/11, Kapazitätsverlust bei Überlappung, 5-GHz-Upgrade) laut 3.3, mit Unit-Tests für die Kapazitätsformel
 **P2.2 Neue Dienste: Videocall, Kamera-Upload, Cloud-Backup** · inkl. Icons, Farben, Tests
 **P2.3 Störungen: Bagger und Stromausfall** · Ankündigung, Effekt, Reparatur-Mechanik
-**P2.4 Grafikstil fürs MVP ausbauen** (nach Entscheidung aus 5.1) · Animationen beim Kabellegen, Paket-Zustellung, Game Over
+**P2.4 Isometrischen Stil ausbauen** (Entscheidung 5, Nr. 1): Gebäude-Details, Schatten, Bäume/Deko · Animationen beim Kabellegen, Paket-Zustellung, Game Over
 
 ### Welle 3 – parallel (3 Agenten)
 
-**P3.1 Karten:** 3 Städte mit echten Flussläufen als Daten (JSON), Auswahlbildschirm
+**P3.1 Szenerien:** die 5 Szenerien aus 5.2 als Daten (JSON), Auswahlbildschirm mit Freischaltung
+**P3.4 Monetarisierung:** `Monetization`-Interface, AdMob + UMP + Play Billing laut 5.1, nur Test-IDs
 **P3.2 Audio und Haptik:** SoundPool, Töne je Dienst, Haptik-Feedback
 **P3.3 Tutorial:** 5 geführte Schritte (Kabel legen, Router, Kabeltypen, Ping, Überlast)
 
@@ -233,5 +262,4 @@ Regeln für alle Pakete:
 
 > Setze `docs/PLAN.md` im Repo `robinrehbein/mini-networks` um, beginnend mit Welle 0 und danach Welle 1.
 > Halte dich an die Paket-Grenzen und die Definition von „fertig“ in Abschnitt 6.
-> Offene Entscheidungen aus Abschnitt 5: [hier eure Antworten eintragen].
 > ultracode
