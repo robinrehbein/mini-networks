@@ -1,0 +1,458 @@
+<title>Mini Networks Stilstudie</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Silkscreen&display=swap">
+<style>
+  :root {
+    --bg: #F2F4F6;
+    --surface: #FFFFFF;
+    --ink: #17202B;
+    --muted: #5B6674;
+    --line: #D9DEE4;
+    --accent: #2F5BEA;
+    --chip: #E8ECF4;
+    --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+    --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #10151B; --surface: #18202A; --ink: #E6EBF1; --muted: #9AA6B4;
+      --line: #2A3542; --accent: #8AA6FF; --chip: #222C38; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #10151B; --surface: #18202A; --ink: #E6EBF1; --muted: #9AA6B4;
+    --line: #2A3542; --accent: #8AA6FF; --chip: #222C38; color-scheme: dark;
+  }
+  body { background: var(--bg); color: var(--ink); font: 15px/1.55 var(--body); padding-inline: 16px; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding-block: 40px 64px; display: grid; gap: 40px; }
+  header { display: grid; gap: 12px; max-width: 70ch; }
+  .eyebrow { font: 500 12px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+  h1 { font: 700 clamp(32px, 5vw, 52px)/1.05 var(--display); margin: 0; text-wrap: balance; letter-spacing: -.01em; }
+  h2 { font: 700 24px/1.2 var(--display); margin: 0; text-wrap: balance; }
+  h3 { font: 700 20px/1.2 var(--display); margin: 0; }
+  p { margin: 0; }
+  .lede { color: var(--muted); font-size: 17px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 14px; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 8px; }
+  .legend svg { flex: none; }
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+  @media (max-width: 820px) { .grid { grid-template-columns: 1fr; } }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; }
+  .card canvas { display: block; width: 100%; aspect-ratio: 16 / 10; max-width: 100%; }
+  .card .body { padding: 18px 20px 20px; display: grid; gap: 12px; }
+  .card .head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .tag { font: 500 12px/1 var(--mono); color: var(--muted); letter-spacing: .04em; }
+  .meta { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 13px; }
+  .meta dt { color: var(--muted); font-family: var(--mono); font-size: 12px; padding-top: 2px; }
+  .meta dd { margin: 0; }
+  .dots { font-family: var(--mono); letter-spacing: .1em; color: var(--accent); }
+  .rec { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 24px; display: grid; gap: 14px; max-width: 80ch; }
+  .rec ol { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+  .controls { display: flex; gap: 10px; flex-wrap: wrap; }
+  button { font: 500 13px/1 var(--body); color: var(--ink); background: var(--chip); border: 1px solid var(--line); border-radius: 999px; padding: 9px 14px; cursor: pointer; }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  code { font-family: var(--mono); font-size: .92em; background: var(--chip); padding: 1px 5px; border-radius: 4px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Mini Networks · Look &amp; Feel · Entwurf</div>
+    <h1>Vier Looks für dieselbe Stadt</h1>
+    <p class="lede">Jede Karte zeigt dieselbe Spielszene: drei Server, zwei Router, sieben Kunden, ein Fluss. Pakete laufen live über die Kabel. Der Video-Kunde ganz unten rechts ist überlastet, der rote Ring ist sein Countdown bis Game Over.</p>
+    <div class="legend" aria-label="Legende">
+      <span><svg width="14" height="14" viewBox="0 0 14 14"><circle cx="7" cy="7" r="6" fill="#E4572E"/></svg>Video (Kreis)</span>
+      <span><svg width="14" height="14" viewBox="0 0 14 14"><rect x="1" y="1" width="12" height="12" fill="#2E86AB"/></svg>Mail (Quadrat)</span>
+      <span><svg width="14" height="14" viewBox="0 0 14 14"><path d="M7 1 13 13H1Z" fill="#E9A92B"/></svg>Games (Dreieck)</span>
+      <span>Große Form = Server · kleine Form = Kunde · Punkt = Router</span>
+    </div>
+    <div class="controls">
+      <button id="toggle" type="button" aria-pressed="false">Animation anhalten</button>
+    </div>
+  </header>
+
+  <section class="grid">
+    <article class="card">
+      <canvas id="c-flat" aria-label="Flache 2D-Ansicht der Spielszene"></canvas>
+      <div class="body">
+        <div class="head"><h3>A · Flat Metro</h3><span class="tag">2D · Vektor · 45°-Kabel</span></div>
+        <p>Am nächsten an Mini Metro. Kabel laufen nur waagerecht, senkrecht und diagonal. Die Formen tragen die Information, Farbe unterstützt nur.</p>
+        <dl class="meta">
+          <dt>Aufwand</dt><dd><span class="dots">●○○</span> reiner Android-Canvas, keine Assets</dd>
+          <dt>Handy</dt><dd><span class="dots">●●●</span> sehr gut lesbar, große Touch-Ziele</dd>
+          <dt>Charakter</dt><dd>ruhig, zeitlos, farbenblind-freundlich dank Formen</dd>
+        </dl>
+      </div>
+    </article>
+
+    <article class="card">
+      <canvas id="c-iso" aria-label="Isometrische 2,5D-Ansicht der Spielszene"></canvas>
+      <div class="body">
+        <div class="head"><h3>B · Isometrisch 2,5D</h3><span class="tag">Iso · Kacheln · Motorways-Gefühl</span></div>
+        <p>Kacheln und kleine extrudierte Gebäude. Kabel folgen dem Raster wie Straßen. Server werden zu Rechenzentrums-Türmen mit blinkenden LEDs.</p>
+        <dl class="meta">
+          <dt>Aufwand</dt><dd><span class="dots">●●○</span> Tiefensortierung und Touch-Umrechnung nötig</dd>
+          <dt>Handy</dt><dd><span class="dots">●●○</span> Gebäude verdecken Kabel, Zoom wichtig</dd>
+          <dt>Charakter</dt><dd>wärmer, „Spielzeugstadt“, stärkstes Wachstumsgefühl</dd>
+        </dl>
+      </div>
+    </article>
+
+    <article class="card">
+      <canvas id="c-pixel" aria-label="Pixel-Art-Ansicht der Spielszene"></canvas>
+      <div class="body">
+        <div class="head"><h3>C · Pixel</h3><span class="tag">112×72 px · 16-Farben-Palette</span></div>
+        <p>Die gleiche Logik in niedriger Auflösung gerendert und hart hochskaliert. Diagonalen werden zu sauberen Pixeltreppen, Gras ist gedithert.</p>
+        <dl class="meta">
+          <dt>Aufwand</dt><dd><span class="dots">●●○</span> Sprites zeichnen, Pixel-Font, Skalierung pro Gerät</dd>
+          <dt>Handy</dt><dd><span class="dots">●●○</span> gut, solange die Karte nicht zu groß wird</dd>
+          <dt>Charakter</dt><dd>Retro, nostalgisch, hebt sich vom Original ab</dd>
+        </dl>
+      </div>
+    </article>
+
+    <article class="card">
+      <canvas id="c-pcb" aria-label="Platinen-Ansicht der Spielszene"></canvas>
+      <div class="body">
+        <div class="head"><h3>D · Platine</h3><span class="tag">2D · Kupferbahnen · Silkscreen</span></div>
+        <p>Die Stadt als Leiterplatte: Kabel sind Kupferbahnen mit Vias an den Knicken, Server sind Chips, der Fluss ist eine gefräste Nut. Pakete leuchten wie LEDs.</p>
+        <dl class="meta">
+          <dt>Aufwand</dt><dd><span class="dots">●○○</span> wie Flat, nur andere Farben und Formen</dd>
+          <dt>Handy</dt><dd><span class="dots">●●●</span> hoher Kontrast, dunkles Theme spart Akku (OLED)</dd>
+          <dt>Charakter</dt><dd>eigenständigster Look, passt am besten zu „Netzwerk“</dd>
+        </dl>
+      </div>
+    </article>
+  </section>
+
+  <section class="rec">
+    <div class="eyebrow">Empfehlung</div>
+    <h2>Logik einmal bauen, Look austauschbar halten</h2>
+    <ol>
+      <li>Der Prototyp im Repo trennt Spiellogik (<code>game/</code>) vom Zeichnen (<code>render/</code>). Flat und Isometrisch sind dort schon beide umschaltbar.</li>
+      <li>Für das MVP: <strong>A · Flat</strong> oder <strong>D · Platine</strong>. Beide sind reiner Canvas, schnell, gut lesbar und brauchen keine Grafiker.</li>
+      <li>Isometrisch (B) als späteres Upgrade, wenn das Gameplay steht. Pixel (C) nur, wenn ihr bewusst Retro wollt.</li>
+      <li>Keine Engine nötig: Kotlin + <code>SurfaceView</code>/Canvas reicht für diese Grafik. Eine Engine (libGDX, Godot) lohnt erst bei Partikeln, Shadern oder iOS-Port.</li>
+    </ol>
+  </section>
+</div>
+
+<script>
+(() => {
+  const W = 14, H = 9;
+  const TYPES = { vid: 'circle', mail: 'square', game: 'tri' };
+  const N = {
+    sv: { k: 'server', t: 'vid', x: 2, y: 1 },
+    sg: { k: 'server', t: 'game', x: 11, y: 1 },
+    sm: { k: 'server', t: 'mail', x: 11, y: 6 },
+    r1: { k: 'router', x: 5, y: 4 },
+    r2: { k: 'router', x: 9, y: 4 },
+    c1: { k: 'client', t: 'vid', x: 1, y: 6 },
+    c2: { k: 'client', t: 'mail', x: 3, y: 7 },
+    c3: { k: 'client', t: 'game', x: 6, y: 1 },
+    c4: { k: 'client', t: 'vid', x: 12, y: 8 },
+    c5: { k: 'client', t: 'mail', x: 4, y: 2 },
+    c6: { k: 'client', t: 'game', x: 7, y: 7 },
+    c7: { k: 'client', t: 'vid', x: 13, y: 3 },
+  };
+  for (const id in N) { N[id].id = id; N[id].x += .5; N[id].y += .5; }
+  const E = [['sv','c5'],['c5','r1'],['c1','r1'],['c2','r1'],['r1','r2'],['c3','r2'],['sg','r2'],['r2','sm'],['c6','r2'],['sm','c4'],['c7','sg']];
+  const RIVER = [[7.6,-.6],[7.9,1.5],[7.3,3.5],[7.6,5.5],[8.2,7.5],[8.0,9.6]];
+  const OVERLOADED = 'c4';
+
+  const adj = {}; for (const id in N) adj[id] = [];
+  for (const [a, b] of E) { adj[a].push(b); adj[b].push(a); }
+  function route(from) {
+    const want = N[from].t, prev = { [from]: null }, q = [from];
+    while (q.length) {
+      const cur = q.shift();
+      if (N[cur].k === 'server' && N[cur].t === want) {
+        const r = []; for (let n = cur; n; n = prev[n]) r.unshift(n); return r;
+      }
+      for (const nb of adj[cur]) if (!(nb in prev)) { prev[nb] = cur; q.push(nb); }
+    }
+    return null;
+  }
+  const ROUTES = Object.values(N).filter(n => n.k === 'client').map(n => ({ from: n.id, t: n.t, path: route(n.id) }));
+
+  function distSeg(px, py, ax, ay, bx, by) {
+    const dx = bx - ax, dy = by - ay, l = dx * dx + dy * dy;
+    let u = l ? ((px - ax) * dx + (py - ay) * dy) / l : 0; u = Math.max(0, Math.min(1, u));
+    return Math.hypot(px - ax - u * dx, py - ay - u * dy);
+  }
+  function riverDist(x, y) {
+    let d = 1e9; for (let i = 0; i < RIVER.length - 1; i++) d = Math.min(d, distSeg(x, y, ...RIVER[i], ...RIVER[i + 1])); return d;
+  }
+
+  // Edge geometry: 45°-routing (Metro) or L-routing (grid roads)
+  function octo(a, b) {
+    const dx = b.x - a.x, dy = b.y - a.y, d = Math.min(Math.abs(dx), Math.abs(dy));
+    return [[a.x, a.y], [a.x + Math.sign(dx) * d, a.y + Math.sign(dy) * d], [b.x, b.y]];
+  }
+  function lpath(a, b) { return [[a.x, a.y], [b.x, a.y], [b.x, b.y]]; }
+  function edgePts(a, b, fn) {
+    const fwd = E.some(([p, q]) => p === a && q === b);
+    const pts = fwd ? fn(N[a], N[b]) : fn(N[b], N[a]).reverse();
+    return pts;
+  }
+  function routePolyline(path, fn) {
+    const out = [];
+    for (let i = 0; i < path.length - 1; i++) {
+      const seg = edgePts(path[i], path[i + 1], fn);
+      if (out.length) seg.shift();
+      out.push(...seg);
+    }
+    return out;
+  }
+  function along(pts, f) {
+    let L = 0; const seg = [];
+    for (let i = 0; i < pts.length - 1; i++) { const l = Math.hypot(pts[i+1][0]-pts[i][0], pts[i+1][1]-pts[i][1]); seg.push(l); L += l; }
+    let d = f * L;
+    for (let i = 0; i < seg.length; i++) {
+      if (d <= seg[i] || i === seg.length - 1) { const u = seg[i] ? Math.min(1, d / seg[i]) : 0; return [pts[i][0] + (pts[i+1][0]-pts[i][0]) * u, pts[i][1] + (pts[i+1][1]-pts[i][1]) * u]; }
+      d -= seg[i];
+    }
+    return pts[pts.length - 1];
+  }
+  function packets(fn, t) {
+    const out = [];
+    ROUTES.forEach((r, i) => {
+      const pts = routePolyline(r.path, fn);
+      let L = 0; for (let k = 0; k < pts.length - 1; k++) L += Math.hypot(pts[k+1][0]-pts[k][0], pts[k+1][1]-pts[k][1]);
+      const n = r.from === OVERLOADED ? 1 : 2;
+      for (let j = 0; j < n; j++) {
+        const f = ((t * 1.3 / L) + i * .37 + j / n) % 1;
+        const [x, y] = along(pts, f); out.push({ x, y, t: r.t });
+      }
+    });
+    return out;
+  }
+
+  function shapePath(ctx, s, x, y, r) {
+    ctx.beginPath();
+    if (s === 'circle') ctx.arc(x, y, r, 0, Math.PI * 2);
+    else if (s === 'square') { const q = r * .88; ctx.rect(x - q, y - q, q * 2, q * 2); }
+    else { const h = r * 1.15; ctx.moveTo(x, y - h); ctx.lineTo(x + h * .95, y + h * .7); ctx.lineTo(x - h * .95, y + h * .7); ctx.closePath(); }
+  }
+  function shade(hex, f) {
+    const n = parseInt(hex.slice(1), 16); let r = n >> 16, g = n >> 8 & 255, b = n & 255;
+    const m = v => Math.round(f < 0 ? v * (1 + f) : v + (255 - v) * f);
+    return `rgb(${m(r)},${m(g)},${m(b)})`;
+  }
+  function smoothRiver(ctx, map) {
+    ctx.beginPath();
+    const p = RIVER.map(([x, y]) => map(x, y));
+    ctx.moveTo(...p[0]);
+    for (let i = 1; i < p.length - 1; i++) { const mx = (p[i][0] + p[i+1][0]) / 2, my = (p[i][1] + p[i+1][1]) / 2; ctx.quadraticCurveTo(p[i][0], p[i][1], mx, my); }
+    ctx.lineTo(...p[p.length - 1]);
+  }
+
+  // ---------- A: Flat Metro ----------
+  const FLAT = { land: '#F3F1EC', water: '#C3DCE8', cable: '#39424E', ink: '#262B33', col: { vid: '#E4572E', mail: '#2E86AB', game: '#E9A92B' } };
+  function drawFlat(ctx, w, h, t) {
+    ctx.fillStyle = FLAT.land; ctx.fillRect(0, 0, w, h);
+    const cell = Math.min(w / (W + .6), h / (H + 1.4)), ox = (w - W * cell) / 2, oy = (h - H * cell) / 2 + cell * .35;
+    const m = (x, y) => [ox + x * cell, oy + y * cell];
+    ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    smoothRiver(ctx, m); ctx.strokeStyle = FLAT.water; ctx.lineWidth = cell * 1.1; ctx.stroke();
+    for (const [a, b] of E) {
+      const p = octo(N[a], N[b]).map(([x, y]) => m(x, y));
+      ctx.beginPath(); ctx.moveTo(...p[0]); p.slice(1).forEach(q => ctx.lineTo(...q));
+      ctx.strokeStyle = FLAT.land; ctx.lineWidth = cell * .3; ctx.stroke();
+      ctx.strokeStyle = FLAT.cable; ctx.lineWidth = cell * .15; ctx.stroke();
+    }
+    for (const p of packets(octo, t)) { const [x, y] = m(p.x, p.y); shapePath(ctx, TYPES[p.t], x, y, cell * .13); ctx.fillStyle = FLAT.col[p.t]; ctx.fill(); ctx.lineWidth = cell * .04; ctx.strokeStyle = FLAT.land; ctx.stroke(); }
+    for (const n of Object.values(N)) {
+      const [x, y] = m(n.x, n.y);
+      if (n.k === 'router') { ctx.beginPath(); ctx.arc(x, y, cell * .22, 0, 7); ctx.fillStyle = '#fff'; ctx.fill(); ctx.lineWidth = cell * .08; ctx.strokeStyle = FLAT.ink; ctx.stroke(); }
+      else if (n.k === 'server') { shapePath(ctx, TYPES[n.t], x, y, cell * .42); ctx.fillStyle = FLAT.col[n.t]; ctx.fill(); shapePath(ctx, TYPES[n.t], x, y + (n.t === 'game' ? cell * .05 : 0), cell * .16); ctx.fillStyle = '#fff'; ctx.fill(); }
+      else { shapePath(ctx, TYPES[n.t], x, y, cell * .26); ctx.fillStyle = '#fff'; ctx.fill(); ctx.lineWidth = cell * .08; ctx.strokeStyle = FLAT.ink; ctx.stroke(); }
+    }
+    const o = N[OVERLOADED], [cx, cy] = m(o.x, o.y), prog = (t * .12) % 1;
+    ctx.beginPath(); ctx.arc(cx, cy, cell * .46, -Math.PI / 2, -Math.PI / 2 + prog * Math.PI * 2); ctx.strokeStyle = '#D7263D'; ctx.lineWidth = cell * .07; ctx.stroke();
+    for (let i = 0; i < 4; i++) { shapePath(ctx, 'circle', cx - cell * (.75 + i * .26), cy, cell * .09); ctx.fillStyle = FLAT.col.vid; ctx.fill(); }
+    ctx.restore();
+    ctx.fillStyle = FLAT.ink; ctx.font = `600 ${Math.round(cell * .38)}px "IBM Plex Sans", sans-serif`; ctx.textBaseline = 'top';
+    ctx.fillText('Woche 3', cell * .4, cell * .3);
+    ctx.textAlign = 'right'; ctx.fillText('1 284 Pakete', w - cell * .4, cell * .3); ctx.textAlign = 'left';
+  }
+
+  // ---------- B: Isometric ----------
+  const ISO = { a: '#DDE9D6', b: '#D5E3CD', water: '#8FC3DA', water2: '#A4D0E3', road: '#5B6570', col: { vid: '#EF6F4A', mail: '#3E97C4', game: '#F0B640' } };
+  function drawIso(ctx, w, h, t) {
+    ctx.fillStyle = '#EEF3EA'; ctx.fillRect(0, 0, w, h);
+    const tw = Math.min(w / ((W + H) / 2 + .6), h / ((W + H) / 4 + 1.6)), th = tw / 2;
+    const ox = w / 2 - (W - H) * tw / 4, oy = (h - (W + H) * th / 2) / 2 + th * 1.1;
+    const m = (x, y, z = 0) => [ox + (x - y) * tw / 2, oy + (x + y) * th / 2 - z * th];
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const wet = riverDist(x + .5, y + .5) < .62;
+      ctx.beginPath(); ctx.moveTo(...m(x, y)); ctx.lineTo(...m(x + 1, y)); ctx.lineTo(...m(x + 1, y + 1)); ctx.lineTo(...m(x, y + 1)); ctx.closePath();
+      ctx.fillStyle = wet ? ((x + y) % 2 ? ISO.water : ISO.water2) : ((x + y) % 2 ? ISO.a : ISO.b); ctx.fill();
+    }
+    // Board edge
+    ctx.beginPath(); ctx.moveTo(...m(0, H)); ctx.lineTo(...m(W, H)); ctx.lineTo(...m(W, H, -.5)); ctx.lineTo(...m(0, H, -.5)); ctx.closePath(); ctx.fillStyle = '#B9C9AF'; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(...m(W, 0)); ctx.lineTo(...m(W, H)); ctx.lineTo(...m(W, H, -.5)); ctx.lineTo(...m(W, 0, -.5)); ctx.closePath(); ctx.fillStyle = '#A7BA9C'; ctx.fill();
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    for (const [a, b] of E) {
+      const p = lpath(N[a], N[b]).map(([x, y]) => m(x, y));
+      ctx.beginPath(); ctx.moveTo(...p[0]); p.slice(1).forEach(q => ctx.lineTo(...q));
+      ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = tw * .2; ctx.stroke();
+      ctx.strokeStyle = ISO.road; ctx.lineWidth = tw * .11; ctx.stroke();
+    }
+    function box(cx, cy, s, hgt, top, side) {
+      const x0 = cx - s / 2, y0 = cy - s / 2, x1 = cx + s / 2, y1 = cy + s / 2;
+      const P = (x, y, z) => m(x, y, z);
+      ctx.beginPath(); ctx.moveTo(...P(x0, y1, 0)); ctx.lineTo(...P(x1, y1, 0)); ctx.lineTo(...P(x1, y1, hgt)); ctx.lineTo(...P(x0, y1, hgt)); ctx.closePath(); ctx.fillStyle = shade(side, -.12); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(...P(x1, y0, 0)); ctx.lineTo(...P(x1, y1, 0)); ctx.lineTo(...P(x1, y1, hgt)); ctx.lineTo(...P(x1, y0, hgt)); ctx.closePath(); ctx.fillStyle = shade(side, -.25); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(...P(x0, y0, hgt)); ctx.lineTo(...P(x1, y0, hgt)); ctx.lineTo(...P(x1, y1, hgt)); ctx.lineTo(...P(x0, y1, hgt)); ctx.closePath(); ctx.fillStyle = top; ctx.fill();
+    }
+    const items = [];
+    for (const n of Object.values(N)) items.push({ d: n.x + n.y, draw: () => {
+      if (n.k === 'server') {
+        box(n.x, n.y, .78, 2.0, shade(ISO.col[n.t], .15), '#E9ECEF');
+        for (let i = 0; i < 4; i++) { const on = Math.sin(t * 3 + i * 1.7 + n.x) > 0; const [lx, ly] = m(n.x + .39, n.y - .25 + i * .0, .45 + i * .38); ctx.fillStyle = on ? ISO.col[n.t] : '#9AA3AD'; ctx.fillRect(lx - tw * .04, ly - th * .08, tw * .1, th * .12); }
+      } else if (n.k === 'client') {
+        box(n.x, n.y, .56, .55, ISO.col[n.t], '#FAFAF7');
+        const [rx, ry] = m(n.x, n.y, .55); shapePath(ctx, TYPES[n.t], rx, ry, tw * .07); ctx.fillStyle = '#fff'; ctx.fill();
+      } else {
+        box(n.x, n.y, .32, .35, '#F5F7F9', '#D9DEE3');
+        const [ax, ay] = m(n.x, n.y, .35), [bx, by] = m(n.x, n.y, 1.0);
+        ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.strokeStyle = '#6B7580'; ctx.lineWidth = tw * .025; ctx.stroke();
+        ctx.beginPath(); ctx.arc(bx, by, tw * .04, 0, 7); ctx.fillStyle = Math.sin(t * 5) > 0 ? '#43D17A' : '#2E6B45'; ctx.fill();
+      }
+    }});
+    for (const p of packets(lpath, t)) items.push({ d: p.x + p.y + .01, draw: () => {
+      const [gx, gy] = m(p.x, p.y); ctx.beginPath(); ctx.ellipse(gx, gy, tw * .07, th * .07, 0, 0, 7); ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.fill();
+      const [x, y] = m(p.x, p.y, .35); shapePath(ctx, TYPES[p.t], x, y, tw * .075); ctx.fillStyle = ISO.col[p.t]; ctx.fill(); ctx.lineWidth = tw * .02; ctx.strokeStyle = '#fff'; ctx.stroke();
+    }});
+    items.sort((a, b) => a.d - b.d).forEach(i => i.draw());
+    const o = N[OVERLOADED], [cx, cy] = m(o.x, o.y), prog = (t * .12) % 1;
+    ctx.beginPath(); ctx.ellipse(cx, cy, tw * .55, th * .55, 0, -Math.PI / 2, -Math.PI / 2 + prog * Math.PI * 2); ctx.strokeStyle = '#D7263D'; ctx.lineWidth = tw * .05; ctx.stroke();
+    ctx.fillStyle = '#2F3A34'; ctx.font = `600 ${Math.round(tw * .3)}px "IBM Plex Sans", sans-serif`; ctx.textBaseline = 'top';
+    ctx.fillText('Woche 3', tw * .3, th * .5); ctx.textAlign = 'right'; ctx.fillText('1 284 Pakete', w - tw * .3, th * .5); ctx.textAlign = 'left';
+  }
+
+  // ---------- C: Pixel ----------
+  const PAL = { night: '#1a1c2c', grass: '#38b764', grass2: '#a7f070', deep: '#29366f', water: '#3b5dc9', foam: '#41a6f6', cable: '#333c57', white: '#f4f4f4', grey: '#94b0c2', slate: '#566c86', red: '#b13e53', col: { vid: '#ef7d57', mail: '#73eff7', game: '#ffcd75' } };
+  const PW = 112, PH = 72, PC = 8;
+  const pbuf = document.createElement('canvas'); pbuf.width = PW; pbuf.height = PH;
+  const pterrain = document.createElement('canvas'); pterrain.width = PW; pterrain.height = PH;
+  (() => {
+    const g = pterrain.getContext('2d');
+    for (let y = 0; y < PH; y++) for (let x = 0; x < PW; x++) {
+      const d = riverDist(x / PC, (y - 0) / PC);
+      let c = PAL.grass;
+      if (d < .5) c = ((x + y * 3) % 7 === 0) ? PAL.foam : PAL.water;
+      else if (d < .62) c = PAL.deep;
+      else if ((x * 7 + y * 13) % 23 === 0 || ((x + y) % 2 === 0 && (x * y) % 37 === 1)) c = PAL.grass2;
+      g.fillStyle = c; g.fillRect(x, y, 1, 1);
+    }
+  })();
+  function pline(g, x0, y0, x1, y1, c) {
+    x0 = Math.round(x0); y0 = Math.round(y0); x1 = Math.round(x1); y1 = Math.round(y1);
+    const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1; let err = dx + dy;
+    g.fillStyle = c;
+    for (;;) { g.fillRect(x0, y0, 2, 2); if (x0 === x1 && y0 === y1) break; const e2 = 2 * err; if (e2 >= dy) { err += dy; x0 += sx; } if (e2 <= dx) { err += dx; y0 += sy; } }
+  }
+  const SPR = {
+    circle: ['.###.', '#####', '#####', '#####', '.###.'],
+    square: ['#####', '#####', '#####', '#####', '#####'],
+    tri: ['..#..', '.###.', '.###.', '#####', '#####'],
+  };
+  function sprite(g, rows, x, y, map) { rows.forEach((r, j) => [...r].forEach((ch, i) => { if (map[ch]) { g.fillStyle = map[ch]; g.fillRect(x + i, y + j, 1, 1); } })); }
+  function drawPixel(ctx, w, h, t) {
+    const g = pbuf.getContext('2d');
+    g.drawImage(pterrain, 0, 0);
+    for (const [a, b] of E) { const p = octo(N[a], N[b]).map(([x, y]) => [x * PC - 1, y * PC - 1]); for (let i = 0; i < p.length - 1; i++) pline(g, ...p[i], ...p[i + 1], PAL.cable); }
+    for (const n of Object.values(N)) {
+      const x = Math.round(n.x * PC), y = Math.round(n.y * PC);
+      if (n.k === 'server') {
+        g.fillStyle = PAL.night; g.fillRect(x - 5, y - 6, 11, 12);
+        g.fillStyle = PAL.col[n.t]; g.fillRect(x - 4, y - 5, 9, 3);
+        g.fillStyle = PAL.slate; g.fillRect(x - 4, y - 2, 9, 7);
+        for (let i = 0; i < 3; i++) { g.fillStyle = Math.sin(t * 4 + i * 2 + n.x) > 0 ? PAL.grass2 : PAL.night; g.fillRect(x - 3 + i * 3, y + 1, 2, 1); g.fillRect(x - 3 + i * 3, y + 3, 1, 1); }
+      } else if (n.k === 'client') {
+        sprite(g, ['.......', ...SPR[TYPES[n.t]].map(r => '.' + r + '.'), '.......'].map((r, j) => r), x - 3, y - 3, { '.': PAL.night, '#': PAL.white });
+        sprite(g, SPR[TYPES[n.t]].slice(1, 4).map(r => r.slice(1, 4)), x - 1, y - 1, { '#': PAL.col[n.t] });
+      } else {
+        g.fillStyle = PAL.night; g.fillRect(x - 3, y - 3, 6, 6); g.fillStyle = PAL.grey; g.fillRect(x - 2, y - 2, 4, 4);
+        g.fillStyle = Math.sin(t * 5) > 0 ? PAL.grass2 : PAL.slate; g.fillRect(x - 1, y - 1, 2, 2);
+      }
+    }
+    for (const p of packets(octo, t)) { const x = Math.round(p.x * PC) - 1, y = Math.round(p.y * PC) - 2; g.fillStyle = PAL.night; g.fillRect(x - 1, y - 1, 4, 4); g.fillStyle = PAL.col[p.t]; g.fillRect(x, y, 2, 2); }
+    const o = N[OVERLOADED], ox0 = Math.round(o.x * PC), oy0 = Math.round(o.y * PC), prog = (t * .12) % 1, seg = Math.floor(prog * 16);
+    for (let i = 0; i < seg; i++) { const a = -Math.PI / 2 + i / 16 * Math.PI * 2; g.fillStyle = PAL.red; g.fillRect(Math.round(ox0 + Math.cos(a) * 6) - 1, Math.round(oy0 + Math.sin(a) * 6) - 1, 2, 2); }
+    ctx.fillStyle = PAL.night; ctx.fillRect(0, 0, w, h);
+    const s = Math.max(1, Math.floor(Math.min(w / PW, h / (PH + 8)))), dx = Math.floor((w - PW * s) / 2), dy = Math.floor((h - PH * s) / 2 + 4 * s);
+    ctx.imageSmoothingEnabled = false; ctx.drawImage(pbuf, dx, dy, PW * s, PH * s);
+    ctx.fillStyle = PAL.white; ctx.font = `${Math.max(8, 6 * s)}px Silkscreen, monospace`; ctx.textBaseline = 'middle';
+    ctx.fillText('WOCHE 3', dx + 2 * s, dy - 4 * s); ctx.textAlign = 'right'; ctx.fillStyle = PAL.col.game; ctx.fillText('1284 PKT', dx + PW * s - 2 * s, dy - 4 * s); ctx.textAlign = 'left';
+  }
+
+  // ---------- D: PCB ----------
+  const PCB = { board: '#0E3B2C', dot: '#18543F', slot: '#05170F', copper: '#C8913F', copperHi: '#E3B266', silk: '#E3EEE6', chip: '#15181C', col: { vid: '#FF6A55', mail: '#56CFFF', game: '#FFD65A' } };
+  function drawPcb(ctx, w, h, t) {
+    ctx.fillStyle = PCB.board; ctx.fillRect(0, 0, w, h);
+    const cell = Math.min(w / (W + .6), h / (H + 1.4)), ox = (w - W * cell) / 2, oy = (h - H * cell) / 2 + cell * .35;
+    const m = (x, y) => [ox + x * cell, oy + y * cell];
+    ctx.fillStyle = PCB.dot;
+    for (let y = 0; y <= H * 2; y++) for (let x = 0; x <= W * 2; x++) { const [px, py] = m(x / 2, y / 2); ctx.fillRect(px - 1, py - 1, 2, 2); }
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    smoothRiver(ctx, m); ctx.setLineDash([cell * .12, cell * .12]); ctx.strokeStyle = 'rgba(227,238,230,.45)'; ctx.lineWidth = cell * 1.12; ctx.stroke(); ctx.setLineDash([]);
+    ctx.strokeStyle = PCB.board; ctx.lineWidth = cell * 1.02; ctx.stroke();
+    ctx.strokeStyle = PCB.slot; ctx.lineWidth = cell * .9; ctx.stroke();
+    for (const [a, b] of E) {
+      const p = octo(N[a], N[b]).map(([x, y]) => m(x, y));
+      ctx.beginPath(); ctx.moveTo(...p[0]); p.slice(1).forEach(q => ctx.lineTo(...q));
+      ctx.strokeStyle = PCB.copper; ctx.lineWidth = cell * .13; ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,230,180,.25)'; ctx.lineWidth = cell * .04; ctx.stroke();
+      const [vx, vy] = p[1];
+      if (Math.hypot(vx - p[0][0], vy - p[0][1]) > 2 && Math.hypot(vx - p[2][0], vy - p[2][1]) > 2) { ctx.beginPath(); ctx.arc(vx, vy, cell * .12, 0, 7); ctx.fillStyle = PCB.copperHi; ctx.fill(); ctx.beginPath(); ctx.arc(vx, vy, cell * .05, 0, 7); ctx.fillStyle = PCB.slot; ctx.fill(); }
+    }
+    ctx.font = `500 ${Math.round(cell * .24)}px "IBM Plex Mono", monospace`; ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+    for (const n of Object.values(N)) {
+      const [x, y] = m(n.x, n.y);
+      if (n.k === 'server') {
+        const bw = cell * 1.0, bh = cell * .7;
+        ctx.fillStyle = PCB.copperHi; for (let i = 0; i < 4; i++) { const px = x - bw / 2 + bw * (i + .5) / 4; ctx.fillRect(px - cell * .04, y - bh / 2 - cell * .1, cell * .08, bh + cell * .2); }
+        ctx.fillStyle = PCB.chip; ctx.fillRect(x - bw / 2, y - bh / 2, bw, bh);
+        ctx.beginPath(); ctx.arc(x - bw / 2 + cell * .1, y - bh / 2 + cell * .1, cell * .04, 0, 7); ctx.fillStyle = '#3A3F46'; ctx.fill();
+        ctx.save(); ctx.shadowColor = PCB.col[n.t]; ctx.shadowBlur = cell * .4; shapePath(ctx, TYPES[n.t], x, y + (n.t === 'game' ? cell * .03 : 0), cell * .16); ctx.fillStyle = PCB.col[n.t]; ctx.fill(); ctx.restore();
+        ctx.fillStyle = PCB.silk; ctx.fillText({ vid: 'SRV·VID', mail: 'SRV·MAIL', game: 'SRV·GAME' }[n.t], x, y + bh / 2 + cell * .3);
+      } else if (n.k === 'router') {
+        const s = cell * .5;
+        ctx.fillStyle = PCB.copperHi; for (let i = 0; i < 3; i++) { const o = -s / 2 + s * (i + .5) / 3; ctx.fillRect(x + o - cell * .03, y - s / 2 - cell * .08, cell * .06, s + cell * .16); ctx.fillRect(x - s / 2 - cell * .08, y + o - cell * .03, s + cell * .16, cell * .06); }
+        ctx.fillStyle = PCB.chip; ctx.fillRect(x - s / 2, y - s / 2, s, s);
+        ctx.fillStyle = PCB.silk; ctx.fillText(n.id.toUpperCase(), x, y - s / 2 - cell * .26);
+      } else {
+        ctx.beginPath(); ctx.arc(x, y, cell * .2, 0, 7); ctx.fillStyle = PCB.copperHi; ctx.fill();
+        ctx.beginPath(); ctx.arc(x, y, cell * .09, 0, 7); ctx.fillStyle = PCB.slot; ctx.fill();
+        shapePath(ctx, TYPES[n.t], x, y + (n.t === 'game' ? cell * .05 : 0), cell * .36); ctx.strokeStyle = PCB.silk; ctx.lineWidth = cell * .035; ctx.stroke();
+      }
+    }
+    for (const p of packets(octo, t)) { const [x, y] = m(p.x, p.y); ctx.save(); ctx.shadowColor = PCB.col[p.t]; ctx.shadowBlur = cell * .35; ctx.beginPath(); ctx.arc(x, y, cell * .09, 0, 7); ctx.fillStyle = PCB.col[p.t]; ctx.fill(); ctx.restore(); ctx.beginPath(); ctx.arc(x, y, cell * .04, 0, 7); ctx.fillStyle = '#fff'; ctx.fill(); }
+    const o = N[OVERLOADED], [cx, cy] = m(o.x, o.y), prog = (t * .12) % 1;
+    ctx.save(); ctx.shadowColor = '#FF3B3B'; ctx.shadowBlur = cell * .3; ctx.beginPath(); ctx.arc(cx, cy, cell * .5, -Math.PI / 2, -Math.PI / 2 + prog * Math.PI * 2); ctx.strokeStyle = '#FF4B4B'; ctx.lineWidth = cell * .06; ctx.stroke(); ctx.restore();
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.fillStyle = PCB.silk; ctx.font = `500 ${Math.round(cell * .3)}px "IBM Plex Mono", monospace`;
+    ctx.fillText('MINI-NETWORKS REV.3', cell * .4, cell * .3); ctx.textAlign = 'right'; ctx.fillText('PKT 1284', w - cell * .4, cell * .3); ctx.textAlign = 'left';
+  }
+
+  const views = [['c-flat', drawFlat], ['c-iso', drawIso], ['c-pixel', drawPixel], ['c-pcb', drawPcb]].map(([id, fn]) => ({ el: document.getElementById(id), fn }));
+  function size() {
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    for (const v of views) { const r = v.el.getBoundingClientRect(); v.el.width = Math.max(1, Math.round(r.width * dpr)); v.el.height = Math.max(1, Math.round(r.height * dpr)); }
+  }
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let running = !reduce, t = 6, last = performance.now();
+  const btn = document.getElementById('toggle');
+  function label() { btn.textContent = running ? 'Animation anhalten' : 'Animation starten'; btn.setAttribute('aria-pressed', String(!running)); }
+  btn.addEventListener('click', () => { running = !running; last = performance.now(); label(); if (running) requestAnimationFrame(frame); });
+  function render() { for (const v of views) v.fn(v.el.getContext('2d'), v.el.width, v.el.height, t); }
+  function frame(now) { if (!running) return; t += Math.min(.05, (now - last) / 1000); last = now; render(); requestAnimationFrame(frame); }
+  window.addEventListener('resize', () => { size(); render(); });
+  size(); render(); label();
+  if (document.fonts) document.fonts.ready.then(render);
+  if (running) requestAnimationFrame(frame);
+})();
+</script>
