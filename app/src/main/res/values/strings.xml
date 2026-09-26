@@ -149,4 +149,29 @@
         <item quantity="other">Erreiche %1$,d Pakete in %2$s oder kaufe die Szenerie</item>
     </plurals>
     <string name="scenery_hint_no_shop">Käufe sind in dieser Version noch nicht möglich</string>
+
+    <!-- Tutorial -->
+    <string name="tutorial_kicker">TUTORIAL · %1$d/%2$d</string>
+    <string name="tutorial_skip">Überspringen</string>
+    <string name="tutorial_play">Spielen</string>
+    <string name="tutorial_pause">Tutorial · Schritt %1$d/%2$d</string>
+    <string name="settings_tutorial">Tutorial ansehen</string>
+    <string name="tutorial_cable_title">Kabel legen</string>
+    <string name="tutorial_cable_text">Der PC will Mails verschicken. Zieh mit dem Finger vom PC zum Mail-Server: Das Kabel läuft wie eine Straße über das Raster.</string>
+    <string name="tutorial_router_title">Router setzen</string>
+    <string name="tutorial_router_text">Ein Gerät hat nur 2 Anschlüsse, ein Router 6. Tippe unten auf „Router“ und dann auf ein freies Feld bei den Telefonen.</string>
+    <string name="tutorial_router_connect_text">Verbinde jetzt die Telefone und den Telefonie-Server mit dem Router. Er verteilt die Anrufe.</string>
+    <string name="tutorial_type_title">Kabeltypen</string>
+    <string name="tutorial_type_text">1998: DSL ist erfunden. Es trägt doppelt so viele Pakete wie ISDN und ist doppelt so schnell. Wähle unten DSL.</string>
+    <string name="tutorial_type_upgrade_text">Tippe jetzt auf ein ISDN-Kabel, um es auf DSL aufzurüsten. Du zahlst nur den Unterschied.</string>
+    <string name="tutorial_ping_title">Ping</string>
+    <string name="tutorial_ping_text">2007: Der PC will online spielen. Gaming braucht kurzen Ping, hin und zurück höchstens %1$d ms. Verbinde den PC mit dem Game-Server.</string>
+    <string name="tutorial_ping_slow_text">Ping %1$d ms: zu langsam für Gaming (höchstens %2$d ms). Nur Glasfaser ist schnell genug. Wähle Glasfaser und tippe auf das Kabel.</string>
+    <string name="tutorial_overload_title">Überlast</string>
+    <plurals name="tutorial_overload_text">
+        <item quantity="one">Ein neuer PC ohne Anschluss! Ab %1$d wartenden Anfrage füllt sich ein roter Ring. Ist er voll, ist das Spiel vorbei. Schließ den PC an!</item>
+        <item quantity="other">Ein neuer PC ohne Anschluss! Ab %1$d wartenden Anfragen füllt sich ein roter Ring. Ist er voll, ist das Spiel vorbei. Schließ den PC an!</item>
+    </plurals>
+    <string name="tutorial_done_title">Geschafft!</string>
+    <string name="tutorial_done_text">Du kennst die Grundlagen. Woche für Woche kommen neue Geräte, Dienste und Techniken dazu. Viel Spaß!</string>
 </resources>

@@ -4,7 +4,9 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.view.MotionEvent
 import com.mininetworks.game.data.HighscoreStore
+import com.mininetworks.game.data.SettingsStore
 import com.mininetworks.game.game.Bend
+import com.mininetworks.game.game.Cell
 import com.mininetworks.game.game.CableType
 import com.mininetworks.game.game.DebugApi
 import com.mininetworks.game.game.Device
@@ -15,12 +17,14 @@ import com.mininetworks.game.game.Scenario
 import com.mininetworks.game.game.Scenarios
 import com.mininetworks.game.game.RewardOffer
 import com.mininetworks.game.game.Service
+import com.mininetworks.game.game.Tutorial
 import com.mininetworks.game.game.World
 import com.mininetworks.game.ui.GameView
 import com.mininetworks.game.ui.RewardDialog
 import com.mininetworks.game.ui.Texts
 import com.mininetworks.game.ui.menu.MenuAction
 import com.mininetworks.game.ui.menu.Screen
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -41,6 +45,12 @@ import kotlin.math.abs
 @Config(sdk = [34], qualifiers = "de")
 @OptIn(DebugApi::class)
 class ScreenshotTest {
+
+    /** Menu shots show the app after the first launch; the tutorial has its own shots. */
+    @Before
+    fun tutorialSeen() {
+        SettingsStore(RuntimeEnvironment.getApplication()).tutorialSeen = true
+    }
 
     private fun scene(): World {
         val w = World(cols = 16, rows = 10, seed = 3L, spawnInitialNodes = false)
@@ -669,5 +679,66 @@ class ScreenshotTest {
         bmp.eraseColor(0)
         view.drawSnapshot(Canvas(bmp), view.currentWorld, bmp.width, bmp.height, time = 1.3f, screen = null)
         save(bmp, File(shots, "menu-sceneries-en.png"))
+    }
+
+    /**
+     * The tutorial on a landscape phone, one shot per step as the player gets there: the dragged cable, the router
+     * button, the DSL pick, a DSL cable too slow for gaming, the overload ring, and the finish.
+     */
+    @Test
+    @Config(qualifiers = "de-xhdpi")
+    fun renderTutorial() = tutorialShots("tutorial", allSteps = true)
+
+    /** The first tutorial step in English. */
+    @Test
+    @Config(qualifiers = "en-xhdpi")
+    fun renderTutorialEnglish() = tutorialShots("tutorial-en", allSteps = false)
+
+    private fun tutorialShots(prefix: String, allSteps: Boolean) {
+        val app = RuntimeEnvironment.getApplication()
+        SettingsStore(app).tutorialSeen = false
+        val view = GameView(app)
+        val t: Tutorial = view.currentTutorial!!
+        val w = t.world
+        val bmp = phoneBitmap()
+        var time = 0.3f
+        fun shot(name: String) {
+            bmp.eraseColor(0)
+            view.drawSnapshot(Canvas(bmp), w, bmp.width, bmp.height, time, screen = null)
+            save(bmp, File(shots, "$prefix-$name.png"))
+        }
+        fun play(seconds: Float) {
+            repeat((seconds * 60).toInt()) { view.advance(1f / 60f) }
+            time += seconds
+        }
+        fun tapHud(id: String) {
+            val r = view.hudTarget(id)!!
+            view.injectTouch(MotionEvent.ACTION_DOWN, r.centerX(), r.centerY())
+            view.injectTouch(MotionEvent.ACTION_UP, r.centerX(), r.centerY())
+        }
+        shot("1-cable")
+        play(1f)
+        shot("1-cable")
+        if (!allSteps) return
+        w.connect(t.pc, t.mailServer, CableType.ISDN)
+        play(0.6f)
+        shot("2-router")
+        val router = w.nearestFree(Cell(t.phones[0].cellX - 2, t.phones[0].cellY + 1))!!.let { w.placeRouter(it.x, it.y)!! }
+        for (n in t.phones + t.callServer!!) w.connect(n, router, CableType.ISDN)
+        play(0.6f)
+        shot("3-cable-type")
+        tapHud("cable:DSL")
+        w.upgrade(w.cableBetween(t.pc, t.mailServer)!!, CableType.DSL)
+        play(0.2f)
+        w.connect(t.pc, t.gameServer!!, CableType.DSL)
+        play(3f)
+        shot("4-ping")
+        tapHud("cable:FIBER")
+        w.upgrade(w.cableBetween(t.pc, t.gameServer!!)!!, CableType.FIBER)
+        play(5f)
+        shot("5-overload")
+        w.connect(t.newPc!!, t.mailServer, CableType.DSL)
+        play(1.5f)
+        shot("done")
     }
 }

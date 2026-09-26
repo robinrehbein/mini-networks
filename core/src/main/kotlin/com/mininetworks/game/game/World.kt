@@ -13,6 +13,10 @@ import kotlin.random.Random
  * The map comes from a [Scenario]: its grid is fixed at [cols] × [rows] with the scenario's terrain, but only the
  * [unlocked] block in its middle is in play. It starts at the scenario's start size and grows by one ring of cells
  * every [Tuning.GROWTH_WEEKS] weeks.
+ *
+ * A [guided] world (the tutorial, see [Tutorial]) only moves on when told to: its calendar stands still until
+ * [advanceEra], no clients appear on their own, no incidents are announced, and an overloaded client's ring stops just
+ * short of closing ([Tuning.GUIDED_MAX_OVERLOAD]), so the game never ends. Guided worlds are not saved.
  */
 class World(
     val scenario: Scenario = Scenarios.RIVER_TOWN,
@@ -20,6 +24,7 @@ class World(
     val rows: Int = scenario.rows,
     val seed: Long = 7L,
     private val spawnInitialNodes: Boolean = true,
+    val guided: Boolean = false,
 ) {
     object Tuning {
         const val WEEK_SECONDS = 45f
@@ -63,6 +68,8 @@ class World(
         const val BACKUP_BURST = 2
         /** How long [arrivals] keeps an event, in seconds. */
         const val ARRIVAL_SECONDS = 1f
+        /** Highest overload a client reaches in a [guided] world: the ring nearly closes, but the game goes on. */
+        const val GUIDED_MAX_OVERLOAD = 0.95f
     }
 
     private var rng = ReplayableRandom(seed)
@@ -139,7 +146,8 @@ class World(
     var lastNews: WeekNews? = null; private set
     var lastNewsTime = 0f; private set
 
-    val weekProgress get() = (time % Tuning.WEEK_SECONDS) / Tuning.WEEK_SECONDS
+    /** How far the current week has run, 0 until 1; always 0 in a [guided] world, whose calendar stands still. */
+    val weekProgress get() = if (guided) 0f else (time % Tuning.WEEK_SECONDS) / Tuning.WEEK_SECONDS
 
     /** In-game clock, 0 until 24: [Tuning.DAWN_HOUR] at time 0, one day per [Tuning.DAY_SECONDS]. */
     val hourOfDay get() = hourAt(time)
@@ -207,7 +215,7 @@ class World(
         unlocked.contains(cx, cy) && terrainAt(cx, cy) == Terrain.LAND && nodeAt(Cell(cx, cy)) == null
 
     /** [cell] if it is free, otherwise the closest free cell inside the unlocked block (ring by ring), or null. */
-    private fun nearestFree(cell: Cell): Cell? {
+    fun nearestFree(cell: Cell): Cell? {
         for (r in 0..maxOf(cols, rows)) {
             for (dy in -r..r) for (dx in -r..r) {
                 if (maxOf(abs(dx), abs(dy)) != r) continue
@@ -703,15 +711,15 @@ class World(
         time += dt
         arrivalList.removeAll { time - it.time > Tuning.ARRIVAL_SECONDS }
         if (backupRuns(prevTime, time)) queueBackups()
-        week = 1 + (time / Tuning.WEEK_SECONDS).toInt()
+        if (!guided) week = 1 + (time / Tuning.WEEK_SECONDS).toInt()
         if (week != prevWeek) {
             onNewWeek()
             return
         }
         advanceIncidents(dt)
-        startIncidents(prevTime, time)
+        if (!guided) startIncidents(prevTime, time)
 
-        clientSpawnTimer -= dt
+        if (!guided) clientSpawnTimer -= dt
         if (clientSpawnTimer <= 0f) {
             spawnClient()
             clientSpawnTimer = max(4f, 11f - weeksPlayed * 1.2f) + rng.nextFloat() * 2f
@@ -732,6 +740,7 @@ class World(
             if (n.kind != NodeKind.CLIENT) continue
             n.overload = if (n.pending.size >= Tuning.MAX_PENDING) n.overload + dt / Tuning.OVERLOAD_SECONDS
             else max(0f, n.overload - dt / Tuning.RECOVER_SECONDS)
+            if (guided) n.overload = n.overload.coerceAtMost(Tuning.GUIDED_MAX_OVERLOAD)
             if (n.overload >= 1f) {
                 n.overload = 1f
                 gameOver = true
@@ -953,6 +962,27 @@ class World(
         }
         if (candidates.isEmpty()) return null
         return Incident(IncidentKind.POWER_OUTAGE, null, candidates[r.nextInt(candidates.size)], 0f)
+    }
+
+    /**
+     * Moves a [guided] world's calendar on to week [target] at once: its cables, devices and radios become invented and
+     * are announced together as [lastNews]. Unlike a week change in a normal game, no server appears, the map does not
+     * grow and no reward is offered; the tutorial sets the scene itself.
+     */
+    fun advanceEra(target: Int) {
+        require(guided) { "only a guided world changes eras on demand" }
+        if (target <= week) return
+        val weeks = week + 1..target
+        week = target
+        lastNews = WeekNews(
+            year,
+            CableType.entries.filter { it.unlockWeek in weeks },
+            Device.entries.filter { it.unlockWeek in weeks },
+            emptyList(),
+            RadioType.entries.filter { it.unlockWeek in weeks },
+        )
+        lastNewsTime = time
+        routeCache.clear()
     }
 
     private fun onNewWeek() {

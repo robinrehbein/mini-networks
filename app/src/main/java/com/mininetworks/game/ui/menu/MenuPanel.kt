@@ -10,7 +10,7 @@ import com.mininetworks.game.render.shade
 
 /** What a menu entry does when tapped. */
 enum class MenuAction {
-    PLAY, CONTINUE, SETTINGS, RESUME, RESTART, MAIN_MENU, BACK, PLAY_AGAIN,
+    PLAY, CONTINUE, SETTINGS, RESUME, RESTART, MAIN_MENU, BACK, PLAY_AGAIN, TUTORIAL,
     TOGGLE_SOUND, TOGGLE_HAPTICS, TOGGLE_OVERVIEW, TOGGLE_COLORBLIND,
 }
 

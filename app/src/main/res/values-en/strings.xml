@@ -146,4 +146,29 @@
         <item quantity="other">Deliver %1$,d packets in %2$s or buy this scenery</item>
     </plurals>
     <string name="scenery_hint_no_shop">Purchases are not available in this version yet</string>
+
+    <!-- Tutorial -->
+    <string name="tutorial_kicker">TUTORIAL · %1$d/%2$d</string>
+    <string name="tutorial_skip">Skip</string>
+    <string name="tutorial_play">Play</string>
+    <string name="tutorial_pause">Tutorial · step %1$d/%2$d</string>
+    <string name="settings_tutorial">Play tutorial</string>
+    <string name="tutorial_cable_title">Lay a cable</string>
+    <string name="tutorial_cable_text">The PC wants to send mail. Drag from the PC to the mail server: cables run along the grid like streets.</string>
+    <string name="tutorial_router_title">Place a router</string>
+    <string name="tutorial_router_text">A device has only 2 ports, a router has 6. Tap “Router” below, then a free cell near the phones.</string>
+    <string name="tutorial_router_connect_text">Now connect both phones and the telephony server to the router. It shares out the calls.</string>
+    <string name="tutorial_type_title">Cable types</string>
+    <string name="tutorial_type_text">1998: DSL is invented. It carries twice as many packets as ISDN and is twice as fast. Pick DSL below.</string>
+    <string name="tutorial_type_upgrade_text">Now tap an ISDN cable to upgrade it to DSL. You only pay the difference.</string>
+    <string name="tutorial_ping_title">Ping</string>
+    <string name="tutorial_ping_text">2007: The PC wants to play online. Gaming needs a short ping, at most %1$d ms there and back. Connect the PC to the game server.</string>
+    <string name="tutorial_ping_slow_text">Ping %1$d ms: too slow for gaming (at most %2$d ms). Only fiber is fast enough. Pick fiber and tap the cable.</string>
+    <string name="tutorial_overload_title">Overload</string>
+    <plurals name="tutorial_overload_text">
+        <item quantity="one">A new PC without a connection! From %1$d waiting request on, a red ring fills up. When it closes, the game is over. Connect the PC!</item>
+        <item quantity="other">A new PC without a connection! From %1$d waiting requests on, a red ring fills up. When it closes, the game is over. Connect the PC!</item>
+    </plurals>
+    <string name="tutorial_done_title">Well done!</string>
+    <string name="tutorial_done_text">You know the basics. Week by week, new devices, services and technologies arrive. Have fun!</string>
 </resources>

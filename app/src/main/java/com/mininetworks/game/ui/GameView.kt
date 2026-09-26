@@ -36,6 +36,8 @@ import com.mininetworks.game.game.Scenario
 import com.mininetworks.game.game.Scenarios
 import com.mininetworks.game.game.ServerUpgradeError
 import com.mininetworks.game.game.SoundCues
+import com.mininetworks.game.game.Tutorial
+import com.mininetworks.game.game.TutorialFocus
 import com.mininetworks.game.game.Vec2
 import com.mininetworks.game.game.Wifi
 import com.mininetworks.game.game.WifiUpgradeError
@@ -77,7 +79,9 @@ import kotlin.math.hypot
  * queue, advances the simulation in fixed 1/60 s steps ([FixedStep], at most 5 per frame) and draws to the surface.
  * The UI thread only enqueues [Input]s, so the world is never touched concurrently.
  *
- * Screens ([Screen]): the app opens on the main menu (play, continue the autosave, settings) over a demo town.
+ * Screens ([Screen]): the app opens on the main menu (play, continue the autosave, settings) over a demo town; on the
+ * very first launch it opens in the [Tutorial] instead, which can be skipped and replayed from the settings. The
+ * tutorial runs as a game on [Screen.PLAYING] with [TutorialOverlay] on top; it is never saved and records no score.
  * "Play" opens the scenery picker ([SceneryPicker]): a scenery is playable once the packet goal of the one before it
  * is reached or it is bought ([entitlements]). The simulation only runs while [Screen.PLAYING]. The game is saved
  * ([SaveStore]) when the pause menu opens, when the player leaves to the main menu and when the activity pauses;
@@ -164,6 +168,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private var sceneryHint: String? = null
 
     private var world = DemoCity.build()
+    /** The running tutorial; its world is [world]. Null in a normal game and in the menus. */
+    private var tutorial: Tutorial? = null
+    private val tutorialOverlay = TutorialOverlay(context)
+    /** True from a touch-down on the tutorial bubble until the finger lifts; [tutorialPressed] is the entry under it. */
+    private var tutorialGesture = false
+    private var tutorialPressed: String? = null
     private val iso = IsoRenderer()
     private val flat = FlatRenderer()
     private val renderers: List<Renderer> = listOf(iso, flat)
@@ -237,6 +247,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     init {
         holder.addCallback(this)
         applySettings(settingsStore.load())
+        if (!settingsStore.tutorialSeen && !hasSave) startTutorial()
     }
 
     // ---------------------------------------------------------------- lifecycle (UI thread)
@@ -350,6 +361,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         checkHold()
         if (screen == Screen.PLAYING) {
             clock.advance(frameSeconds) { world.update(it) }
+            tutorial?.update()
             val now = (animTime * 1000).toLong()
             for (cue in soundCues.poll(world)) sounds.play(cue, now)
         } else {
@@ -398,6 +410,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         renderer.draw(canvas, world, if (playing) dragPreview() else null, animTime)
         if (playing) drawHoldProgress(canvas)
         if (hudVisible) drawHud(canvas)
+        if (playing) tutorial?.let {
+            tutorialOverlay.draw(canvas, it, tutorialFocus(it), renderer, world, ::hudTarget, surfaceWidth, animTime, tutorialPressed)
+        }
         if (playing) world.rewardOffer?.let {
             rewardDialog.draw(canvas, world, it, surfaceWidth, surfaceHeight, animTime, pressedCard)
             // Pause stays reachable during the reward choice, so it is drawn above the dimmed map.
@@ -443,6 +458,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         check(loop == null) { "game loop is running" }
         if (world !== snapshotWorld) {
             world = snapshotWorld
+            tutorial = null
             gameInProgress = screen == Screen.PLAYING
         }
         if (screen != null) this.screen = screen
@@ -473,6 +489,15 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     /** The world shown right now, for tests. */
     internal val currentWorld: World get() = world
+
+    /** The running tutorial, for tests. */
+    internal val currentTutorial: Tutorial? get() = tutorial
+
+    /** Screen rectangle of a tutorial bubble button ([TutorialOverlay.SKIP] ...) in the last drawn frame, for tests. */
+    internal fun tutorialTarget(id: String): RectF? = if (tutorial != null) tutorialOverlay.targetOf(id) else null
+
+    /** The cable technology picked in the HUD, for tests. */
+    internal val pickedCable: CableType get() = cableType
 
     /** Screen rectangle of an enabled menu entry in the last drawn frame, for tests. */
     internal fun menuTarget(action: MenuAction): RectF? = menuPanel.targetOf(action)
@@ -582,7 +607,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         hudSub.textAlign = Paint.Align.LEFT
 
         world.lastNews?.let {
-            if (world.rewardOffer == null && world.time - world.lastNewsTime < 3.5f) {
+            if (world.rewardOffer == null && tutorial == null && world.time - world.lastNewsTime < 3.5f) {
                 bigText.textSize = 15 * density
                 canvas.drawText(texts.news(it, withYear = true), surfaceWidth / 2f, pad + hudText.textSize, bigText)
             }
@@ -679,6 +704,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             onMenuTouch(e)
             return
         }
+        if (onTutorialTouch(e)) return
         if (!gestureConsumed && world.rewardOffer != null && e.action == MotionEvent.ACTION_DOWN) {
             buttons.firstOrNull { it.id == "pause" && it.rect.contains(e.x, e.y) }?.let { onButton(it.id); return }
         }
@@ -802,6 +828,66 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private fun isDoubleTap(e: Input.Touch): Boolean {
         val last = emptyTapTime ?: return false
         return e.time - last in 0..DOUBLE_TAP_MS && hypot(e.x - emptyTapX, e.y - emptyTapY) < DOUBLE_TAP_SLOP_DP * density
+    }
+
+    /**
+     * Touches that start on the tutorial bubble stay there: a button is chosen when the finger goes down and up on it,
+     * anything else on the bubble is swallowed. Returns true if the touch was the bubble's.
+     */
+    private fun onTutorialTouch(e: Input.Touch): Boolean {
+        if (tutorial == null) return false
+        if (e.action == MotionEvent.ACTION_DOWN) {
+            val hit = tutorialOverlay.hit(e.x, e.y) ?: return false
+            tutorialGesture = true
+            tutorialPressed = hit
+            endDrag()
+            placing = null
+            return true
+        }
+        if (!tutorialGesture) return false
+        when (e.action) {
+            MotionEvent.ACTION_UP -> {
+                val id = tutorialPressed
+                tutorialGesture = false
+                tutorialPressed = null
+                if (id != null && id != TutorialOverlay.BUBBLE && tutorialOverlay.hit(e.x, e.y) == id) {
+                    click()
+                    onTutorialButton(id)
+                }
+            }
+            MotionEvent.ACTION_CANCEL -> {
+                tutorialGesture = false
+                tutorialPressed = null
+            }
+        }
+        return true
+    }
+
+    private fun onTutorialButton(id: String) {
+        when (id) {
+            TutorialOverlay.SKIP -> {
+                tutorial?.skip()
+                leaveTutorial()
+            }
+            TutorialOverlay.PLAY -> {
+                settingsStore.tutorialSeen = true
+                newGame(Scenarios.RIVER_TOWN)
+            }
+            TutorialOverlay.MENU -> leaveTutorial()
+        }
+    }
+
+    /** Ends the tutorial for good and returns to the main menu. */
+    private fun leaveTutorial() {
+        settingsStore.tutorialSeen = true
+        screen = Screen.MAIN_MENU
+        showWorld(DemoCity.build())
+    }
+
+    /** What the tutorial highlights; while a router is being placed, the phones it should go to instead of the button. */
+    private fun tutorialFocus(t: Tutorial): TutorialFocus {
+        val focus = t.focus(cableType)
+        return if (focus == TutorialFocus.RouterButton && placing == NodeKind.ROUTER) TutorialFocus.Nodes(t.phones) else focus
     }
 
     /** While the reward choice is open, a card is picked when the finger goes down and up on the same card. */
@@ -952,7 +1038,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         Screen.PAUSED -> MenuPage(
             title = context.getString(R.string.pause_title),
             lines = listOf(
-                texts.scenario(world.scenario),
+                tutorial?.let { context.getString(R.string.tutorial_pause, it.number, Tutorial.STEPS) } ?: texts.scenario(world.scenario),
                 context.getString(
                     R.string.pause_status,
                     context.getString(R.string.hud_date, world.year, world.week),
@@ -973,6 +1059,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 MenuItem.Toggle(MenuAction.TOGGLE_HAPTICS, context.getString(R.string.settings_haptics), settings.haptics),
                 MenuItem.Toggle(MenuAction.TOGGLE_OVERVIEW, context.getString(R.string.settings_overview), settings.overviewMode),
                 MenuItem.Toggle(MenuAction.TOGGLE_COLORBLIND, context.getString(R.string.settings_colorblind), settings.colorblind),
+                MenuItem.Button(MenuAction.TUTORIAL, context.getString(R.string.settings_tutorial)),
                 MenuItem.Button(MenuAction.BACK, context.getString(R.string.menu_back)),
             ),
             footer = context.getString(R.string.settings_language),
@@ -1016,7 +1103,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 sceneryHint = null
                 screen = Screen.SCENERIES
             }
-            MenuAction.PLAY_AGAIN, MenuAction.RESTART -> newGame(world.scenario)
+            MenuAction.PLAY_AGAIN, MenuAction.RESTART -> if (tutorial != null) startTutorial() else newGame(world.scenario)
+            MenuAction.TUTORIAL -> {
+                autosave()
+                startTutorial()
+            }
             MenuAction.CONTINUE -> continueGame()
             MenuAction.RESUME -> screen = Screen.PLAYING
             MenuAction.SETTINGS -> {
@@ -1026,6 +1117,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             MenuAction.BACK -> screen = settingsReturn
             MenuAction.MAIN_MENU -> {
                 autosave()
+                if (tutorial != null) settingsStore.tutorialSeen = true
                 screen = Screen.MAIN_MENU
                 if (!gameInProgress) showWorld(DemoCity.build())
             }
@@ -1146,8 +1238,19 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         cableType = w.unlockedCables.first()
     }
 
-    private fun showWorld(w: World) {
+    /** Starts the tutorial from its first step; it is not a game in progress, so it is neither saved nor scored. */
+    private fun startTutorial() {
+        val t = Tutorial.start()
+        screen = Screen.PLAYING
+        showWorld(t.world, t)
+        cableType = t.world.unlockedCables.first()
+    }
+
+    private fun showWorld(w: World, withTutorial: Tutorial? = null) {
         world = w
+        tutorial = withTutorial
+        tutorialGesture = false
+        tutorialPressed = null
         failFocusUntil = null
         gameInProgress = false
         layoutRenderers()
@@ -1213,10 +1316,16 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         if (settings.sound) post { playSoundEffect(SoundEffectConstants.CLICK) }
     }
 
-    /** Fits every style to the unlocked area, keeping the HUD rows free; the demo town sits beside the main menu card. */
+    /**
+     * Fits every style to the unlocked area, keeping the HUD rows (and the tutorial bubble) free; the demo town sits
+     * beside the main menu card. Waits for the first surface size.
+     */
     private fun layoutRenderers() {
+        if (surfaceWidth <= 0 || surfaceHeight <= 0) return
         val insets = if ((screen == Screen.MAIN_MENU || screen == Screen.SCENERIES) && !gameInProgress) {
             ViewInsets(surfaceWidth * 0.55f, 24 * density, 16 * density, 24 * density)
+        } else if (tutorial != null) {
+            ViewInsets(tutorialOverlay.reservedRight(surfaceWidth) + 8 * density, 56 * density, 8 * density, 68 * density)
         } else {
             ViewInsets(8 * density, 56 * density, 8 * density, 68 * density)
         }

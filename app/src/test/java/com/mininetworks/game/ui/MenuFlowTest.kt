@@ -8,6 +8,7 @@ import com.mininetworks.game.audio.ServicePitch
 import com.mininetworks.game.audio.Sound
 import com.mininetworks.game.data.HighscoreStore
 import com.mininetworks.game.data.SaveStore
+import com.mininetworks.game.data.SettingsStore
 import com.mininetworks.game.game.CableType
 import com.mininetworks.game.game.DebugApi
 import com.mininetworks.game.game.Scenarios
@@ -29,6 +30,7 @@ import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -43,6 +45,12 @@ class MenuFlowTest {
 
     private val app get() = RuntimeEnvironment.getApplication()
     private val bmp = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)
+
+    /** These tests start after the tutorial; [TutorialFlowTest] covers the first launch. */
+    @Before
+    fun tutorialSeen() {
+        SettingsStore(app).tutorialSeen = true
+    }
 
     @After
     fun resetPalette() {
