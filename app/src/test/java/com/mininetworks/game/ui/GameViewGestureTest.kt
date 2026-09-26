@@ -1,0 +1,95 @@
+package com.mininetworks.game.ui
+
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.view.MotionEvent
+import com.mininetworks.game.game.DebugApi
+import com.mininetworks.game.game.Device
+import com.mininetworks.game.game.Service
+import com.mininetworks.game.game.World
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.annotation.Config
+
+/** Touch input on the map: one finger lays cables, two fingers and empty-ground drags move the camera. */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
+@OptIn(DebugApi::class)
+class GameViewGestureTest {
+
+    private lateinit var view: GameView
+    private lateinit var world: World
+
+    @Before
+    fun setUp() {
+        world = World(seed = 2L, spawnInitialNodes = false)
+        for (row in world.water) row.fill(false)
+        world.grant(100)
+        view = GameView(RuntimeEnvironment.getApplication())
+        val bmp = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)
+        view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 0f, style = "Iso")
+    }
+
+    private val camera get() = view.activeRenderer.camera
+
+    @Test
+    fun oneFingerDragFromNodeLaysCable() {
+        val pc = world.addClient(Device.PC, 10, 7)
+        val mail = world.addServer(Service.MAIL, 14, 9)
+        val a = view.activeRenderer.toScreen(pc.center)
+        val b = view.activeRenderer.toScreen(mail.center)
+        val scale = camera.scale
+        view.injectTouch(MotionEvent.ACTION_DOWN, a.x + 10f, a.y)
+        view.injectTouch(MotionEvent.ACTION_MOVE, (a.x + b.x) / 2f, (a.y + b.y) / 2f)
+        view.injectTouch(MotionEvent.ACTION_UP, b.x - 10f, b.y)
+        assertNotNull(world.cableBetween(pc, mail))
+        assertEquals("laying a cable does not move the camera", scale, camera.scale, 0f)
+        assertTrue(camera.followsArea)
+    }
+
+    @Test
+    fun secondFingerCancelsCableAndPinchZooms() {
+        val pc = world.addClient(Device.PC, 10, 7)
+        val mail = world.addServer(Service.MAIL, 14, 9)
+        val a = view.activeRenderer.toScreen(pc.center)
+        val b = view.activeRenderer.toScreen(mail.center)
+        val scale = camera.scale
+        view.injectTouch(MotionEvent.ACTION_DOWN, a.x, a.y)
+        view.injectTouch(MotionEvent.ACTION_POINTER_DOWN, a.x, a.y, floatArrayOf(a.x, a.y, 900f, 450f))
+        val spread = floatArrayOf(a.x - 100f, a.y, 1000f, 450f)
+        view.injectTouch(MotionEvent.ACTION_MOVE, spread[0], spread[1], spread)
+        view.injectTouch(MotionEvent.ACTION_POINTER_UP, spread[0], spread[1], floatArrayOf(1000f, 450f))
+        view.injectTouch(MotionEvent.ACTION_MOVE, b.x, b.y, floatArrayOf(b.x, b.y))
+        view.injectTouch(MotionEvent.ACTION_UP, b.x, b.y, floatArrayOf())
+        assertTrue("fingers spread: zoomed in", camera.scale > scale * 1.1f)
+        assertFalse(camera.followsArea)
+        assertTrue("no cable from a pinch", world.cables.isEmpty())
+    }
+
+    @Test
+    fun dragOnEmptyGroundPansAndDoubleTapFits() {
+        val before = view.activeRenderer.toWorld(800f, 450f)
+        view.injectTouch(MotionEvent.ACTION_DOWN, 800f, 450f, time = 0L)
+        view.injectTouch(MotionEvent.ACTION_MOVE, 900f, 500f, time = 50L)
+        view.injectTouch(MotionEvent.ACTION_UP, 900f, 500f, time = 100L)
+        val moved = view.activeRenderer.toScreen(before)
+        assertEquals(900f, moved.x, 0.5f)
+        assertEquals(500f, moved.y, 0.5f)
+        assertFalse(camera.followsArea)
+
+        view.injectTouch(MotionEvent.ACTION_DOWN, 700f, 300f, time = 1000L)
+        view.injectTouch(MotionEvent.ACTION_UP, 700f, 300f, time = 1060L)
+        view.injectTouch(MotionEvent.ACTION_DOWN, 705f, 302f, time = 1200L)
+        view.injectTouch(MotionEvent.ACTION_UP, 705f, 302f, time = 1260L)
+        assertTrue("double tap fits the unlocked area again", camera.followsArea)
+        repeat(240) { camera.step(1f / 60f) }
+        assertEquals(camera.fitScale(view.activeRenderer.mapBounds(world.unlocked)), camera.scale, 1e-3f)
+    }
+}
