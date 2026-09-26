@@ -479,6 +479,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     // ---------------------------------------------------------------- HUD
 
+    /** The day/night line under the date; only shown once a server with nightly demand exists. */
+    internal fun clockLabel(): String? {
+        if (world.availableServices.none { it.demand == Demand.NIGHTLY }) return null
+        val now = texts.clock(world.hourOfDay)
+        return if (world.isNight) context.getString(R.string.hud_clock_night, now, texts.clock(World.Tuning.BACKUP_HOUR))
+        else context.getString(R.string.hud_clock_day, now)
+    }
+
     private fun drawHud(canvas: Canvas) {
         val pad = 16 * density
         canvas.drawText(context.getString(R.string.hud_date, world.year, world.week), pad, pad + hudText.textSize, hudText)
@@ -486,12 +494,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         val barW = 110 * density
         canvas.drawRoundRect(pad, barY, pad + barW, barY + 4 * density, 2 * density, 2 * density, barBg)
         canvas.drawRoundRect(pad, barY, pad + barW * world.weekProgress, barY + 4 * density, 2 * density, 2 * density, barFg)
-        if (world.availableServices.any { it.demand == Demand.NIGHTLY }) {
-            val now = texts.clock(world.hourOfDay)
-            val label = if (world.isNight) context.getString(R.string.hud_clock_night, now, texts.clock(World.Tuning.BACKUP_HOUR))
-            else context.getString(R.string.hud_clock_day, now)
-            canvas.drawText(label, pad, barY + 4 * density + 6 * density + hudSub.textSize, hudSub)
-        }
+        clockLabel()?.let { canvas.drawText(it, pad, barY + 4 * density + 6 * density + hudSub.textSize, hudSub) }
 
         val right = surfaceWidth - pad
         hudText.textAlign = Paint.Align.RIGHT

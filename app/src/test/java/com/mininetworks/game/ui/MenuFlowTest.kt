@@ -272,6 +272,33 @@ class MenuFlowTest {
     }
 
     @Test
+    fun clockCutsToTenMinutesAndWrapsPastMidnight() {
+        val t = Texts(app)
+        assertEquals("00:00", t.clock(0f))
+        assertEquals("02:00", t.clock(2f))
+        assertEquals("02:10", t.clock(2f + 1f / 6f))
+        assertEquals("13:50", t.clock(13.99f))
+        assertEquals("23:50", t.clock(23.99f))
+        assertEquals("00:00", t.clock(24f))
+        assertEquals("01:30", t.clock(25.5f))
+    }
+
+    @Test
+    @Config(qualifiers = "de")
+    fun hudShowsTheClockOnlyOnceANightlyServerExists() {
+        val view = newView()
+        val w = World(cols = 16, rows = 10, seed = 1L, spawnInitialNodes = false)
+        w.addServer(Service.MAIL, 1, 1)
+        w.addServer(Service.CAMERA_UPLOAD, 5, 1)
+        view.drawSnapshot(Canvas(bmp), w, bmp.width, bmp.height, time = 0f)
+        assertNull("no nightly service yet", view.clockLabel())
+        w.addServer(Service.CLOUD_BACKUP, 9, 1)
+        assertEquals("Tag · 06:00", view.clockLabel())
+        repeat((World.Tuning.DAY_SECONDS * 0.8f * 60).toInt()) { w.update(1f / 60f) }
+        assertEquals("Nacht · 01:10 · Backups um 02:00", view.clockLabel())
+    }
+
+    @Test
     @Config(qualifiers = "de")
     fun germanSystemLanguage() {
         assertEquals("Spielen", app.getString(R.string.menu_play))

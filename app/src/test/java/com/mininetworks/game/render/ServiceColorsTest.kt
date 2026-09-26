@@ -1,5 +1,6 @@
 package com.mininetworks.game.render
 
+import com.mininetworks.game.game.CableType
 import com.mininetworks.game.game.Service
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -13,7 +14,8 @@ import kotlin.math.pow
  * The colorblind palette keeps every pair of services apart under simulated protanopia and deuteranopia
  * (Machado et al. 2009, severity 1), measured as CIE76 ΔE in Lab. The default palette does not, which is why it exists.
  * Dichromats see a two-dimensional color space (lightness and blue-yellow), so seven services cannot all keep the
- * ΔE 30 that four could; [MIN_DELTA_E] is 25, and the shapes stay the primary signal.
+ * ΔE 30 that four could; [MIN_DELTA_E] is 25, and the shapes stay the primary signal. Every service in both palettes
+ * also keeps [MIN_DARK_DELTA_E] from the dark cables and the icon ink.
  */
 class ServiceColorsTest {
 
@@ -46,12 +48,24 @@ class ServiceColorsTest {
         assertTrue(minDistance(ServiceColors::defaultOf, DEUTAN) < MIN_DELTA_E)
     }
 
+    @Test
+    fun packetsStandApartFromDarkCablesAndInk() {
+        val dark = listOf(CableStyles.of(CableType.DSL).color, CableStyles.of(CableType.COAX).color, INK)
+        for ((palette, mats) in listOf(ServiceColors::defaultOf to listOf(IDENTITY), ServiceColors::colorblindOf to listOf(IDENTITY, PROTAN, DEUTAN))) {
+            for (s in Service.entries) for (m in mats) for (d in dark) {
+                val e = distance(lab(simulate(palette(s), m)), lab(simulate(d, m)))
+                assertTrue("$s vs ${Integer.toHexString(d)}: ΔE $e", e >= MIN_DARK_DELTA_E)
+            }
+        }
+    }
+
+    private fun distance(a: DoubleArray, b: DoubleArray) = hypot(hypot(a[0] - b[0], a[1] - b[1]), a[2] - b[2])
+
     private fun minDistance(palette: (Service) -> Int, m: Array<DoubleArray>): Double {
         val labs = Service.entries.map { lab(simulate(palette(it), m)) }
         var min = Double.MAX_VALUE
         for (i in labs.indices) for (j in i + 1 until labs.size) {
-            val a = labs[i]; val b = labs[j]
-            min = minOf(min, hypot(hypot(a[0] - b[0], a[1] - b[1]), a[2] - b[2]))
+            min = minOf(min, distance(labs[i], labs[j]))
         }
         return min
     }
@@ -77,6 +91,9 @@ class ServiceColorsTest {
 
     private companion object {
         const val MIN_DELTA_E = 25.0
+        /** Packets travel over DSL and coax cables and sit next to ink-drawn icons. */
+        const val MIN_DARK_DELTA_E = 30.0
+        const val INK = 0xFF262B33.toInt()
         val IDENTITY = arrayOf(doubleArrayOf(1.0, 0.0, 0.0), doubleArrayOf(0.0, 1.0, 0.0), doubleArrayOf(0.0, 0.0, 1.0))
         val PROTAN = arrayOf(
             doubleArrayOf(0.152286, 1.052583, -0.204868),

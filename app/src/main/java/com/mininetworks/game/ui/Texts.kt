@@ -66,9 +66,9 @@ class Texts(private val context: Context) {
         },
     )
 
-    /** Clock time for an in-game [hour] (0 until 24), in steps of ten minutes. */
+    /** Clock time for an in-game [hour], cut down to ten minutes; hours past 24 wrap to the next day. */
     fun clock(hour: Float): String {
-        val minutes = (hour * 60f).toInt() / 10 * 10
+        val minutes = (hour * 6f + 1e-3f).toInt() * 10
         return context.getString(R.string.clock_time, minutes / 60 % 24, minutes % 60)
     }
 

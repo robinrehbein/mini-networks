@@ -128,8 +128,11 @@ class IsoRenderer : Renderer {
                     strokeP.color = ServiceColors.of(p.service); strokeP.strokeWidth = tw * 0.025f
                     Shapes.draw(canvas, p.service.shape, px, py, r * 0.8f, strokeP)
                 } else {
+                    // Requests: filled, with a light rim so they stay visible on dark cables.
                     fillP.color = ServiceColors.of(p.service)
                     Shapes.draw(canvas, p.service.shape, px, py, r, fillP)
+                    strokeP.color = landA; strokeP.strokeWidth = tw * 0.02f
+                    Shapes.draw(canvas, p.service.shape, px, py, r, strokeP)
                 }
             }
         }

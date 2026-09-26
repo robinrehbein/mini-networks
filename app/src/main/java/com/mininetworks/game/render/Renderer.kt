@@ -212,7 +212,8 @@ fun stroke(color: Int, width: Float = 1f) = Paint(Paint.ANTI_ALIAS_FLAG).apply {
 /**
  * Service colors of the active palette. The default palette puts green, amber and red side by side, which blur
  * together with red-green color blindness; [colorblind] switches to hues based on the Okabe-Ito set, tuned so that all
- * seven stay apart (lightness carries what the hue cannot).
+ * seven stay apart (lightness carries what the hue cannot). No service may be as dark as the DSL/coax cables or the
+ * icon ink, or its packets vanish on them.
  * Shapes carry the information either way. Set from the game thread (settings), read while drawing.
  */
 object ServiceColors {
@@ -226,7 +227,7 @@ object ServiceColors {
         Service.GAMING -> 0xFFE9A92B.toInt()
         Service.STREAMING -> 0xFFE4572E.toInt()
         Service.VIDEO_CALL -> 0xFF8E5BC6.toInt()
-        Service.CAMERA_UPLOAD -> 0xFF4A5561.toInt()
+        Service.CAMERA_UPLOAD -> 0xFFE0529C.toInt()
         Service.CLOUD_BACKUP -> 0xFF6CC4EC.toInt()
     }
 
@@ -236,7 +237,7 @@ object ServiceColors {
         Service.GAMING -> 0xFFF0E442.toInt()
         Service.STREAMING -> 0xFFD55E00.toInt()
         Service.VIDEO_CALL -> 0xFFCA7BA5.toInt()
-        Service.CAMERA_UPLOAD -> 0xFF444444.toInt()
+        Service.CAMERA_UPLOAD -> 0xFF3D2BD9.toInt()
         Service.CLOUD_BACKUP -> 0xFF95DAFF.toInt()
     }
 }
