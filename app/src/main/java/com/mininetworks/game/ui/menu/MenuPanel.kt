@@ -169,7 +169,9 @@ class MenuPanel(context: Context) {
         text.typeface = Typeface.DEFAULT_BOLD
         text.textSize = 16f * u
         text.color = ink
-        canvas.drawText(fit(t.label, tx - r.left - 28f * u), r.left + 16f * u, r.centerY() + text.textSize * 0.35f, text)
+        val room = tx - r.left - 28f * u
+        text.textSize = maxOf(MIN_LABEL_SP, minOf(16f, 16f * room / text.measureText(t.label))) * u
+        canvas.drawText(fit(t.label, room), r.left + 16f * u, r.centerY() + text.textSize * 0.35f, text)
     }
 
     /** A rounded face on a darker slab of thickness [depth]; a pressed face sinks by [sink] onto the slab. */
@@ -198,6 +200,7 @@ class MenuPanel(context: Context) {
         const val ITEM_DP = 48f
         const val GAP_DP = 10f
         const val SLAB_DP = 8f
+        const val MIN_LABEL_SP = 13f
         const val ELLIPSIS = "…"
     }
 }

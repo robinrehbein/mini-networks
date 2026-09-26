@@ -73,6 +73,7 @@ import kotlin.math.hypot
  *  - "Pause" button or back: pause menu (resume, settings, restart, main menu)
  *  - settings: sound, haptics, overview mode (flat instead of isometric), colorblind palette
  *  - at each week change the world pauses and [RewardDialog] shows two reward cards; tap one to pick it
+ *    ("Pause" stays tappable above the dialog; resuming returns to the choice)
  */
 class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback {
 
@@ -332,8 +333,19 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         val playing = screen == Screen.PLAYING
         renderer.draw(canvas, world, if (playing) dragPreview() else null, animTime)
         if (hudVisible) drawHud(canvas)
-        if (playing) world.rewardOffer?.let { rewardDialog.draw(canvas, world, it, surfaceWidth, surfaceHeight, animTime, pressedCard) }
+        if (playing) world.rewardOffer?.let {
+            rewardDialog.draw(canvas, world, it, surfaceWidth, surfaceHeight, animTime, pressedCard)
+            // Pause stays reachable during the reward choice, so it is drawn above the dimmed map.
+            buttons.firstOrNull { b -> b.id == "pause" }?.let { b -> drawHudButton(canvas, b.rect, context.getString(R.string.button_pause), active = false) }
+        }
         menuPage()?.let { menuPanel.draw(canvas, it, surfaceWidth, surfaceHeight, pressedAction) }
+    }
+
+    private fun drawHudButton(canvas: Canvas, r: RectF, label: String, active: Boolean) {
+        val h = r.height()
+        canvas.drawRoundRect(r, h / 2, h / 2, if (active) btnActive else btnFill)
+        btnText.color = if (active) 0xFFFFFFFF.toInt() else 0xFF262B33.toInt()
+        canvas.drawText(label, r.centerX(), r.centerY() + btnText.textSize * 0.35f, btnText)
     }
 
     /** The HUD shows under the in-game menus, not under the main menu. */
@@ -387,6 +399,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     /** Screen rectangle of an enabled menu entry in the last drawn frame, for tests. */
     internal fun menuTarget(action: MenuAction): RectF? = menuPanel.targetOf(action)
+
+    /** Screen rectangle of the HUD button [id] ("pause", "router", "cable:…") in the last drawn frame, for tests. */
+    internal fun hudTarget(id: String): RectF? = buttons.firstOrNull { it.id == id }?.rect
 
     /** Number of haptic pulses sent (only counted while haptics are on), for tests. */
     internal var hapticPulses = 0
@@ -491,10 +506,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         )) {
             val w = btnText.measureText(label) + 32 * density
             val r = RectF(x - w, y, x, y + bh)
-            val active = id == "router" && routerMode
-            canvas.drawRoundRect(r, bh / 2, bh / 2, if (active) btnActive else btnFill)
-            btnText.color = if (active) 0xFFFFFFFF.toInt() else 0xFF262B33.toInt()
-            canvas.drawText(label, r.centerX(), r.centerY() + btnText.textSize * 0.35f, btnText)
+            drawHudButton(canvas, r, label, active = id == "router" && routerMode)
             buttons += Button(id, r)
             x -= w + gap
         }
@@ -539,6 +551,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         if (screen != Screen.PLAYING) {
             onMenuTouch(e)
             return
+        }
+        if (!gestureConsumed && world.rewardOffer != null && e.action == MotionEvent.ACTION_DOWN) {
+            buttons.firstOrNull { it.id == "pause" && it.rect.contains(e.x, e.y) }?.let { onButton(it.id); return }
         }
         if (gestureConsumed || (world.rewardOffer != null && e.action == MotionEvent.ACTION_DOWN)) {
             onRewardTouch(e)

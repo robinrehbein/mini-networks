@@ -10,6 +10,7 @@ import com.mininetworks.game.game.CableType
 import com.mininetworks.game.game.DebugApi
 import com.mininetworks.game.game.Device
 import com.mininetworks.game.game.Service
+import com.mininetworks.game.game.WeekNews
 import com.mininetworks.game.game.World
 import com.mininetworks.game.render.ServiceColors
 import com.mininetworks.game.ui.menu.MenuAction
@@ -240,6 +241,34 @@ class MenuFlowTest {
         view.advance(0f)
         org.robolectric.shadows.ShadowLooper.idleMainLooper()
         assertTrue(exited)
+    }
+
+    @Test
+    fun pauseButtonWorksDuringTheRewardChoice() {
+        val view = newView()
+        tap(view, MenuAction.PLAY)
+        val world = view.currentWorld
+        world.jumpToWeek(1)
+        world.advanceToNextWeek()
+        val offer = world.rewardOffer
+        assertNotNull(offer)
+        draw(view)
+        val pause = view.hudTarget("pause") ?: throw AssertionError("no pause button")
+        view.injectTouch(MotionEvent.ACTION_DOWN, pause.centerX(), pause.centerY())
+        view.injectTouch(MotionEvent.ACTION_UP, pause.centerX(), pause.centerY())
+        view.advance(0f)
+        assertEquals(Screen.PAUSED, view.currentScreen)
+        draw(view)
+        tap(view, MenuAction.RESUME)
+        assertEquals(Screen.PLAYING, view.currentScreen)
+        assertEquals("the choice is still open", offer, world.rewardOffer)
+    }
+
+    @Test
+    @Config(qualifiers = "de")
+    fun newsListsItemsWithTheLocalSeparator() {
+        val news = WeekNews(2010, emptyList(), listOf(Device.WATCH), listOf(Service.CALL))
+        assertEquals("Neu: Smartwatch, Telefonie-Server", Texts(app).news(news, withYear = false))
     }
 
     @Test
