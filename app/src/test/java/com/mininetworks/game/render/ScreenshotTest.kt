@@ -3,12 +3,15 @@ package com.mininetworks.game.render
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import com.mininetworks.game.game.CableType
+import com.mininetworks.game.game.DebugApi
 import com.mininetworks.game.game.Device
 import com.mininetworks.game.game.Service
 import com.mininetworks.game.game.World
+import com.mininetworks.game.ui.GameView
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.io.File
@@ -21,6 +24,7 @@ import java.io.File
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34])
+@OptIn(DebugApi::class)
 class ScreenshotTest {
 
     private fun scene(): World {
@@ -70,7 +74,19 @@ class ScreenshotTest {
             val bmp = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)
             r.layout(bmp.width, bmp.height, world)
             r.draw(Canvas(bmp), world, drag = null, time = 1.3f)
-            File(out, "prototype-${r.name.lowercase()}.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            save(bmp, File(out, "prototype-${r.name.lowercase()}.png"))
         }
     }
+
+    /** Full game frame as the SurfaceView draws it: default (flat) renderer plus HUD. */
+    @Test
+    fun renderGameFrameWithHud() {
+        val out = File(System.getProperty("screenshots.dir") ?: "build/screenshots").apply { mkdirs() }
+        val view = GameView(RuntimeEnvironment.getApplication())
+        val bmp = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)
+        view.drawSnapshot(Canvas(bmp), scene(), bmp.width, bmp.height, time = 1.3f)
+        save(bmp, File(out, "game-hud.png"))
+    }
+
+    private fun save(bmp: Bitmap, file: File) = file.outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
 }

@@ -114,7 +114,8 @@ class IsoRenderer : Renderer {
         when (n.kind) {
             NodeKind.SERVER -> {
                 // One stacked hardware unit per server level: bigger servers literally tower over the town.
-                val col = ServiceColors.of(n.service!!)
+                val service = n.service!!
+                val col = ServiceColors.of(service)
                 val unit = 0.72f
                 for (lv in 0 until n.level) {
                     box(canvas, x, y, 0.78f, unit - 0.06f, col.shade(0.15f), 0xFFE9ECEF.toInt(), z0 = lv * unit)
@@ -131,7 +132,7 @@ class IsoRenderer : Renderer {
                 }
                 val top = n.level * unit - 0.06f
                 fillP.color = 0xFFFFFFFF.toInt()
-                Shapes.draw(canvas, n.service.shape, sx(x, y), sy(x, y, top), tw * 0.1f, fillP)
+                Shapes.draw(canvas, service.shape, sx(x, y), sy(x, y, top), tw * 0.1f, fillP)
             }
             NodeKind.CLIENT -> {
                 val d = n.device!!

@@ -21,8 +21,9 @@ Ziel ist, so viele Pakete wie möglich zuzustellen.
 
 | Bereich | Stand |
 |---|---|
-| Plattform | Natives Android, Kotlin, **keine Engine**, eigene `View` + Canvas, Game-Loop über `Choreographer` |
-| Spiellogik | `game/World.kt`: reines Kotlin ohne Android-Abhängigkeit, per JUnit getestet |
+| Plattform | Natives Android, Kotlin, **keine Engine**, `SurfaceView` + Canvas (Hardware-Canvas), eigener Game-Thread |
+| Game-Loop | Fester Simulationsschritt 1/60 s mit Akkumulator (`FixedStep`, max. 5 Schritte pro Frame); Touch-Eingaben landen in einer Queue, die der Game-Thread zu Beginn jedes Durchlaufs abarbeitet; Pause bei `onPause`, weiter bei `onResume` |
+| Spiellogik | Gradle-Modul `:core` (Kotlin/JVM, keine Android-Abhängigkeit), per JUnit getestet; Test-/Debug-Hooks (`grant`, `jumpToWeek`) sind öffentlich, aber per Opt-in `@DebugApi` markiert |
 | Geräte | 8 Gerätetypen mit eigenen Icons und eigenem Dienste-Mix, Freischaltung nach Woche |
 | Dienste | Mail, Telefonie, Gaming, Streaming mit Bandbreite (Paketgröße) und Ping-Limit |
 | Kabel | ISDN, DSL, Kabel, Glasfaser mit Kapazität, Latenz pro Feld, Tempo und Preis pro Feld |
@@ -34,32 +35,38 @@ Ziel ist, so viele Pakete wie möglich zuzustellen.
 | Server-Stufen | Tipp auf Server = Aufrüsten, höhere Türme, begrenzter Durchsatz |
 | Game Over | ≥ 6 wartende Anfragen → roter Ring füllt sich in 18 s → „Netz überlastet“ |
 | Grafik | Zwei Stile umschaltbar: **Flat** (Mini-Metro, 45°-Kabel) und **Isometrisch** (2,5D-Kacheln) |
+| Texte | HUD-Texte in `strings.xml` (Deutsch); Ereignistexte der Logik (`lastEvent`) noch fest im Code |
 | Steuerung | Ziehen = Kabel legen · Tippen auf Kabel = Upgrade auf gewählte Technik bzw. entfernen · Router-Knopf + Feld tippen |
-| Tests | `WorldTest` (Regeln), `ScreenshotTest` (Robolectric rendert beide Stile nach `docs/screenshots/`) |
+| Tests | `:core`: `WorldTest` (Regeln), `FixedStepTest` (Zeitschritt, Determinismus); `:app`: `ScreenshotTest` (Robolectric rendert beide Stile und ein komplettes Spielbild mit HUD nach `docs/screenshots/`) |
 
 Die Stilstudie mit vier Looks (Flat, Iso, Pixel, Platine) liegt in `docs/style-explorations.html`.
 
 ### Dateien
 
 ```
+core/src/main/kotlin/com/mininetworks/game/game/   (Gradle-Modul :core, reines Kotlin/JVM)
+  Model.kt                  Service, Device, CableType, Node, Cable, Packet, Route, Geometry
+  World.kt                  Spielzustand, Regeln, Simulation, Routing
+  FixedStep.kt              Fester Zeitschritt (1/60 s, Akkumulator, max. 5 Schritte pro Frame)
+  DebugApi.kt               Opt-in-Markierung für Test-/Debug-Hooks
+core/src/test/kotlin/com/mininetworks/game/game/
+  WorldTest.kt              Regeltests
+  FixedStepTest.kt          Zeitschritt und Determinismus
 app/src/main/java/com/mininetworks/game/
-  MainActivity.kt           Vollbild-Activity, hostet GameView
-  game/Model.kt             Service, Device, CableType, Node, Cable, Packet, Route, Geometry
-  game/World.kt             Spielzustand, Regeln, Simulation, Routing
+  MainActivity.kt           Vollbild-Activity, hostet GameView, startet/stoppt den Game-Thread
   render/Renderer.kt        Renderer-Interface, DeviceIcons, CableStyles, ServiceColors, Shapes
   render/FlatRenderer.kt    Stil A
   render/IsoRenderer.kt     Stil B
-  ui/GameView.kt            Game-Loop, HUD, Touch-Eingabe
+  ui/GameView.kt            SurfaceView, Game-Thread, Eingabe-Queue, HUD
 app/src/test/java/com/mininetworks/game/
-  game/WorldTest.kt         Regeltests
-  render/ScreenshotTest.kt  Rendert Szenen als PNG
+  render/ScreenshotTest.kt  Rendert Szenen und das Spielbild mit HUD als PNG
 ```
 
 ### Bauen und Prüfen
 
 ```bash
 echo "sdk.dir=$ANDROID_HOME" > local.properties   # Android SDK 35 nötig
-./gradlew testDebugUnitTest      # Regeln + Screenshots nach docs/screenshots/
+./gradlew testDebugUnitTest      # :core-Regeltests + Screenshots nach docs/screenshots/
 ./gradlew assembleDebug          # APK: app/build/outputs/apk/debug/app-debug.apk
 ```
 
@@ -150,7 +157,7 @@ Kein Multiplayer, keine Online-Pflicht, kein Shop, keine Werbung im MVP. iOS ers
 - **Fester Simulationsschritt.** `World.update` wird mit festen 1/60 s aufgerufen (Akkumulator), damit Replays und Tests deterministisch sind.
 - **Renderer-Interface.** Jeder Stil implementiert `Renderer` (Projektion hin und zurück, Kabelgeometrie, Zeichnen).
   Neue Stile (Pixel, Platine) sind reine Zusatzarbeit ohne Eingriff in die Logik.
-- **SurfaceView mit eigenem Render-Thread** statt `View.invalidate()`, sobald Zoom/Pan und größere Karten kommen.
+- **SurfaceView mit eigenem Game-Thread** statt `View.invalidate()` (umgesetzt in P0.1).
 - **Speichern:** `kotlinx.serialization` → JSON in `filesDir`, automatisch beim Pausieren. Highscores per DataStore.
 - **Audio:** `SoundPool` für kurze Klänge (Paket zugestellt = Ton nach Dienst), leise generative Musik später.
 - **Haptik:** kurzes Feedback beim Einrasten eines Kabels.
@@ -161,7 +168,7 @@ Kein Multiplayer, keine Online-Pflicht, kein Shop, keine Werbung im MVP. iOS ers
 
 - Die Spiellogik rechnet Kabellänge, Kosten und Wasser immer mit 45°-Geometrie. Der Iso-Renderer zeichnet L-Wege.
   Soll: Geometrie pro Kabel im Modell speichern (`CableLayout`), Renderer lesen sie nur.
-- HUD-Texte sind fest auf Deutsch im Code.
+- Ereignistexte aus der Logik (`World.lastEvent`) sind fest auf Deutsch im Code; die HUD-Texte liegen in `strings.xml`.
 - Keine Kamera; die Karte passt immer komplett auf den Bildschirm.
 - Die Wochen-Belohnungen kommen automatisch statt zur Auswahl.
 - Pakete laufen nur zum Server, nicht zurück.

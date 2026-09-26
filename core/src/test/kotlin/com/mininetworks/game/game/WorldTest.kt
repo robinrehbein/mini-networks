@@ -7,6 +7,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+@OptIn(DebugApi::class)
 class WorldTest {
 
     /** Empty world; the river never reaches the left 6 columns, so tests control every node there. */

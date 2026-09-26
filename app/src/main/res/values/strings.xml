@@ -1,4 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Mini Networks</string>
+
+    <string name="hud_date">%1$d · Woche %2$d</string>
+    <plurals name="hud_delivered">
+        <item quantity="one">%1$d Paket</item>
+        <item quantity="other">%1$d Pakete</item>
+    </plurals>
+    <string name="hud_resources">Budget %1$d  ·  Router %2$d</string>
+    <string name="button_pause">Pause</string>
+    <string name="button_resume">Weiter</string>
+    <string name="button_style">Stil: %1$s</string>
+    <string name="button_router">Router (%1$d)</string>
+    <string name="button_cable">%1$s · %2$d</string>
+    <string name="hint_place_router">Tippe auf ein freies Feld</string>
+    <string name="game_over_title">Netz überlastet</string>
+    <plurals name="game_over_stats">
+        <item quantity="one">%1$d Paket zugestellt · Woche %2$d</item>
+        <item quantity="other">%1$d Pakete zugestellt · Woche %2$d</item>
+    </plurals>
+    <string name="game_over_restart">Tippen für ein neues Spiel</string>
 </resources>

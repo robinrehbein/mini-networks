@@ -32,8 +32,13 @@ class MainActivity : Activity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        gameView.resume()
+    }
+
     override fun onPause() {
-        super.onPause()
         gameView.pause()
+        super.onPause()
     }
 }

@@ -14,4 +14,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "MiniNetworks"
-include(":app")
+include(":app", ":core")

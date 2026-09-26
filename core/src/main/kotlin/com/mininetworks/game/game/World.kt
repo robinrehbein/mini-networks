@@ -293,13 +293,15 @@ class World(
     // ---------------------------------------------------------------- simulation
 
     /** Adds budget and routers, for tests and a future debug menu. */
-    internal fun grant(extraBudget: Int, extraRouters: Int = 0) {
+    @DebugApi
+    fun grant(extraBudget: Int, extraRouters: Int = 0) {
         budget += extraBudget
         routersAvailable += extraRouters
     }
 
     /** Jumps the calendar without simulating, for tests and a future debug menu. */
-    internal fun jumpToWeek(target: Int) {
+    @DebugApi
+    fun jumpToWeek(target: Int) {
         time = (target - 1) * Tuning.WEEK_SECONDS
         week = target
     }
