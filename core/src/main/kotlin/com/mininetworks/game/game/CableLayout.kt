@@ -1,5 +1,6 @@
 package com.mininetworks.game.game
 
+import kotlinx.serialization.Serializable
 import kotlin.math.abs
 import kotlin.math.floor
 
@@ -7,6 +8,7 @@ import kotlin.math.floor
 enum class Bend { HORIZONTAL_FIRST, VERTICAL_FIRST }
 
 /** A grid cell. */
+@Serializable
 data class Cell(val x: Int, val y: Int) {
     val center get() = Vec2(x + 0.5f, y + 0.5f)
 }

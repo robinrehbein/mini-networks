@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Mini Networks</string>
+    <string name="app_name" translatable="false">Mini Networks</string>
 
+    <!-- HUD -->
     <string name="hud_date">%1$d · Woche %2$d</string>
     <plurals name="hud_delivered">
         <item quantity="one">%1$d Paket</item>
@@ -9,8 +10,6 @@
     </plurals>
     <string name="hud_resources">Budget %1$d  ·  Router %2$d</string>
     <string name="button_pause">Pause</string>
-    <string name="button_resume">Weiter</string>
-    <string name="button_style">Stil: %1$s</string>
     <string name="button_router">Router (%1$d)</string>
     <string name="button_cable">%1$s · %2$d</string>
     <string name="hint_place_router">Tippe auf ein freies Feld</string>
@@ -18,16 +17,42 @@
     <string name="server_error_max_level">Rechenzentrum ist die höchste Stufe</string>
     <string name="server_error_no_budget">Zu wenig Budget, Aufrüsten kostet %1$d</string>
     <string name="server_error_no_space">Rechenzentrum braucht 2×2 freie Felder am Server</string>
-    <string name="game_over_title">Netz überlastet</string>
-    <plurals name="game_over_stats">
-        <item quantity="one">%1$d Paket zugestellt · Woche %2$d</item>
-        <item quantity="other">%1$d Pakete zugestellt · Woche %2$d</item>
-    </plurals>
     <plurals name="hud_vouchers">
         <item quantity="one">%1$d Server-Gutschein · Server antippen</item>
         <item quantity="other">%1$d Server-Gutscheine · Server antippen</item>
     </plurals>
 
+    <!-- Names of game objects -->
+    <string name="service_mail">Mail</string>
+    <string name="service_call">Telefonie</string>
+    <string name="service_gaming">Gaming</string>
+    <string name="service_streaming">Streaming</string>
+    <string name="device_pc">PC</string>
+    <string name="device_phone">Telefon</string>
+    <string name="device_laptop">Laptop</string>
+    <string name="device_console">Konsole</string>
+    <string name="device_smartphone">Smartphone</string>
+    <string name="device_tv">Smart-TV</string>
+    <string name="device_tablet">Tablet</string>
+    <string name="device_watch">Smartwatch</string>
+    <string name="cable_isdn">ISDN</string>
+    <string name="cable_dsl">DSL</string>
+    <string name="cable_coax">Kabel</string>
+    <string name="cable_fiber">Glasfaser</string>
+    <string name="node_router">Router</string>
+    <string name="node_server">%1$s-Server</string>
+
+    <!-- Week news and cable feedback -->
+    <string name="news_with_year">%1$d · %2$s</string>
+    <string name="news_items">Neu: %1$s</string>
+    <string name="drag_cost">%1$s · %2$d</string>
+    <string name="connect_error_same_node">Gleicher Knoten</string>
+    <string name="connect_error_already_connected">Schon verbunden</string>
+    <string name="connect_error_not_invented">%1$s noch nicht erfunden</string>
+    <string name="connect_error_ports_full">%1$s: alle Ports belegt</string>
+    <string name="connect_error_no_budget">Budget reicht nicht</string>
+
+    <!-- Week rewards -->
     <string name="reward_prompt">Tippe auf eine Karte, um sie zu wählen</string>
     <string name="reward_amount_plus">+%1$d</string>
     <string name="reward_amount_voucher">Gratis</string>
@@ -38,5 +63,31 @@
     <string name="reward_voucher_title">Server-Gutschein</string>
     <string name="reward_voucher_desc">Nächste Server-Aufrüstung kostet nichts</string>
 
-    <string name="game_over_restart">Tippen für ein neues Spiel</string>
+    <!-- Menus -->
+    <string name="menu_tagline">Vernetze die Stadt – von 1995 bis heute</string>
+    <string name="menu_play">Spielen</string>
+    <string name="menu_continue">Fortsetzen</string>
+    <string name="menu_settings">Einstellungen</string>
+    <string name="menu_best">Bestwert: %1$d</string>
+    <string name="pause_title">Pause</string>
+    <string name="pause_status">%1$s  ·  %2$s</string>
+    <string name="menu_resume">Weiter</string>
+    <string name="menu_restart">Neu starten</string>
+    <string name="menu_main">Hauptmenü</string>
+    <string name="menu_back">Zurück</string>
+    <string name="settings_sound">Ton</string>
+    <string name="settings_haptics">Haptik</string>
+    <string name="settings_overview">Übersichtsmodus (flache Karte)</string>
+    <string name="settings_colorblind">Farbenblind-Palette</string>
+    <string name="settings_language">Die Sprache folgt der Systemsprache</string>
+
+    <!-- Game over -->
+    <string name="game_over_title">Netz überlastet</string>
+    <plurals name="game_over_stats">
+        <item quantity="one">%1$d Paket zugestellt · Woche %2$d</item>
+        <item quantity="other">%1$d Pakete zugestellt · Woche %2$d</item>
+    </plurals>
+    <string name="game_over_best">Bestwert: %1$d</string>
+    <string name="game_over_new_best">Neuer Bestwert!</string>
+    <string name="game_over_again">Nochmal</string>
 </resources>

@@ -1,9 +1,11 @@
 package com.mininetworks.game.game
 
+import kotlinx.serialization.Serializable
 import kotlin.math.max
 import kotlin.math.min
 
 /** A block of grid cells: columns [left] until [right], rows [top] until [bottom] (right and bottom exclusive). */
+@Serializable
 data class CellRect(val left: Int, val top: Int, val right: Int, val bottom: Int) {
     val width get() = right - left
     val height get() = bottom - top

@@ -27,6 +27,7 @@ class RewardDialog(private val context: Context) {
     private val path = Path()
     private val fillP = fill(0)
     private val icons = DeviceIcons()
+    private val texts = Texts(context)
     private val dim = fill(0xD9F3F1EC.toInt())
     private val ink = 0xFF262B33.toInt()
     private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; color = ink }
@@ -54,8 +55,8 @@ class RewardDialog(private val context: Context) {
         text.typeface = Typeface.DEFAULT
         text.textSize = cardW * 0.065f
         // This week's unlock message, without the year the heading already shows.
-        world.lastEvent?.takeIf { world.lastEventTime == world.time }?.let {
-            canvas.drawText(it.removePrefix("${world.year} · "), width / 2f, top - cardW * 0.1f, text)
+        world.lastNews?.takeIf { world.lastNewsTime == world.time }?.let {
+            canvas.drawText(texts.news(it, withYear = false), width / 2f, top - cardW * 0.1f, text)
         }
         text.color = 0xFF5B6674.toInt()
         canvas.drawText(context.getString(R.string.reward_prompt), width / 2f, top + cardH + cardW * 0.2f, text)

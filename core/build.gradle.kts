@@ -3,6 +3,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 // Pure Kotlin/JVM game logic: no Android dependency, fast JVM tests, portable to other front ends.
 plugins {
     id("org.jetbrains.kotlin.jvm")
+    id("org.jetbrains.kotlin.plugin.serialization")
 }
 
 java {
@@ -17,6 +18,8 @@ kotlin {
 }
 
 dependencies {
+    // Save games: the world snapshot is written as JSON (docs/PLAN.md 4.1).
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
     testImplementation("junit:junit:4.13.2")
 }
 

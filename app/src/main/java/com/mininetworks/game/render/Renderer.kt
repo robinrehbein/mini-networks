@@ -29,8 +29,10 @@ class DragPreview(
     val target: Node?,
     val type: CableType,
     val layout: CableLayout,
-    val error: String?,
-    val cost: Int?,
+    /** True if releasing here would not build the cable; the preview is drawn in the alarm color. */
+    val blocked: Boolean,
+    /** Text above the pointer: the cable and its price, or why it cannot be built. */
+    val label: String?,
 )
 
 /**
@@ -185,13 +187,28 @@ fun stroke(color: Int, width: Float = 1f) = Paint(Paint.ANTI_ALIAS_FLAG).apply {
     strokeJoin = Paint.Join.ROUND
 }
 
-/** Fixed game palette per service. Kept in one place so a colorblind mode can swap it later. */
+/**
+ * Service colors of the active palette. The default palette puts green, amber and red side by side, which blur
+ * together with red-green color blindness; [colorblind] switches to hues from the Okabe-Ito set that stay apart.
+ * Shapes carry the information either way. Set from the game thread (settings), read while drawing.
+ */
 object ServiceColors {
-    fun of(s: Service) = when (s) {
+    @Volatile var colorblind = false
+
+    fun of(s: Service) = if (colorblind) colorblindOf(s) else defaultOf(s)
+
+    fun defaultOf(s: Service) = when (s) {
         Service.MAIL -> 0xFF2E86AB.toInt()
         Service.CALL -> 0xFF3BA55C.toInt()
         Service.GAMING -> 0xFFE9A92B.toInt()
         Service.STREAMING -> 0xFFE4572E.toInt()
+    }
+
+    fun colorblindOf(s: Service) = when (s) {
+        Service.MAIL -> 0xFF0072B2.toInt()
+        Service.CALL -> 0xFF009E73.toInt()
+        Service.GAMING -> 0xFFF0E442.toInt()
+        Service.STREAMING -> 0xFFD55E00.toInt()
     }
 }
 

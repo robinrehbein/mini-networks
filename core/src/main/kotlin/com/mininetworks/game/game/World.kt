@@ -5,7 +5,6 @@ import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlin.math.sin
-import kotlin.random.Random
 
 /**
  * The complete game state and rules. Pure Kotlin, no Android types, so it can be unit-tested on the JVM
@@ -47,7 +46,7 @@ class World(
         const val GROWTH_WEEKS = 2
     }
 
-    private val rng = Random(seed)
+    private var rng = ReplayableRandom(seed)
     private var nextId = 0
 
     val water = Array(rows) { BooleanArray(cols) }
@@ -76,9 +75,9 @@ class World(
     /** Free server tier upgrades won as [Reward.SERVER_VOUCHER]; the next server upgrades spend these before budget. */
     var serverVouchers = 0; private set
 
-    /** Short German message for the HUD, e.g. "Neu: Glasfaser". */
-    var lastEvent: String? = null; private set
-    var lastEventTime = 0f; private set
+    /** What the last week change unlocked, for the HUD; set at [lastNewsTime]. */
+    var lastNews: WeekNews? = null; private set
+    var lastNewsTime = 0f; private set
 
     val weekProgress get() = (time % Tuning.WEEK_SECONDS) / Tuning.WEEK_SECONDS
     val year get() = Tuning.FIRST_YEAR + (week - 1) * Tuning.YEARS_PER_WEEK
@@ -162,11 +161,6 @@ class World(
         return true
     }
 
-    private fun event(msg: String) {
-        lastEvent = msg
-        lastEventTime = time
-    }
-
     // ---------------------------------------------------------------- player actions
 
     fun cableBetween(a: Node, b: Node) = cables.firstOrNull { (it.a === a && it.b === b) || (it.a === b && it.b === a) }
@@ -194,14 +188,14 @@ class World(
 
     fun cableCost(a: Node, b: Node, type: CableType, bend: Bend? = null) = cableCost(planLayout(a, b, bend), type)
 
-    /** Null when the cable is allowed, otherwise a short German reason for the UI. */
-    fun connectError(a: Node, b: Node, type: CableType, bend: Bend? = null): String? = when {
-        a === b || a.cell == b.cell -> "Gleicher Knoten"
-        cableBetween(a, b) != null -> "Schon verbunden"
-        type.unlockWeek > week -> "${type.label} noch nicht erfunden"
-        ports(a) >= a.maxPorts -> "${a.label}: alle Ports belegt"
-        ports(b) >= b.maxPorts -> "${b.label}: alle Ports belegt"
-        cableCost(a, b, type, bend) > budget -> "Budget reicht nicht"
+    /** Null when the cable from [a] to [b] is allowed, otherwise the reason. */
+    fun connectError(a: Node, b: Node, type: CableType, bend: Bend? = null): ConnectError? = when {
+        a === b || a.cell == b.cell -> ConnectError.SAME_NODE
+        cableBetween(a, b) != null -> ConnectError.ALREADY_CONNECTED
+        type.unlockWeek > week -> ConnectError.NOT_INVENTED
+        ports(a) >= a.maxPorts -> ConnectError.FROM_PORTS_FULL
+        ports(b) >= b.maxPorts -> ConnectError.TO_PORTS_FULL
+        cableCost(a, b, type, bend) > budget -> ConnectError.NO_BUDGET
         else -> null
     }
 
@@ -217,12 +211,12 @@ class World(
     }
 
     /** Swap an existing cable to a better technology, paying only the difference. */
-    fun upgradeError(c: Cable, type: CableType): String? {
+    fun upgradeError(c: Cable, type: CableType): CableUpgradeError? {
         val diff = cableCost(c.layout, type) - c.cost
         return when {
-            type.ordinal <= c.type.ordinal -> "Kein Upgrade"
-            type.unlockWeek > week -> "${type.label} noch nicht erfunden"
-            diff > budget -> "Budget reicht nicht"
+            type.ordinal <= c.type.ordinal -> CableUpgradeError.NOT_AN_UPGRADE
+            type.unlockWeek > week -> CableUpgradeError.NOT_INVENTED
+            diff > budget -> CableUpgradeError.NO_BUDGET
             else -> null
         }
     }
@@ -532,25 +526,113 @@ class World(
     private fun onNewWeek() {
         unlocked = unlockedArea(week)
         rewardOffer = RewardOffer(week, Rewards.offer(seed, week, eligibleRewards()))
-        val news = ArrayList<String>()
-        CableType.entries.filter { it.unlockWeek == week }.forEach { news += it.label }
-        Device.entries.filter { it.unlockWeek == week }.forEach { news += it.label }
+        val newCables = CableType.entries.filter { it.unlockWeek == week }
+        val newDevices = Device.entries.filter { it.unlockWeek == week }
         val server = when {
             week == 3 -> Service.GAMING
             week == 4 -> Service.STREAMING
             week >= 6 && week % 2 == 0 -> Service.entries[rng.nextInt(Service.entries.size)]
             else -> null
         }
-        if (server != null && spawnServer(server)) news += "${server.label}-Server"
-        if (news.isNotEmpty()) event("$year · Neu: ${news.joinToString(", ")}")
+        val newServers = if (server != null && spawnServer(server)) listOf(server) else emptyList()
+        if (newCables.isNotEmpty() || newDevices.isNotEmpty() || newServers.isNotEmpty()) {
+            lastNews = WeekNews(year, newCables, newDevices, newServers)
+            lastNewsTime = time
+        }
+    }
+
+    // ---------------------------------------------------------------- save
+
+    /** The complete state as plain data, see [Save]. */
+    fun snapshot() = WorldSnapshot(
+        cols = cols,
+        rows = rows,
+        seed = seed,
+        randomDraws = rng.draws,
+        nextId = nextId,
+        water = water.map { row -> String(CharArray(row.size) { if (row[it]) WATER else LAND }) },
+        unlocked = unlocked,
+        time = time,
+        week = week,
+        delivered = delivered,
+        budget = budget,
+        routersAvailable = routersAvailable,
+        gameOver = gameOver,
+        failedNodeId = failedNode?.id,
+        rewardOffer = rewardOffer?.let { RewardOfferSnapshot(it.week, it.choices) },
+        serverVouchers = serverVouchers,
+        lastNews = lastNews,
+        lastNewsTime = lastNewsTime,
+        clientSpawnTimer = clientSpawnTimer,
+        nodes = nodes.map {
+            NodeSnapshot(
+                it.id, it.kind, it.device, it.service, it.cellX, it.cellY, it.footprint, it.pending.toList(),
+                it.overload, it.level, it.tokens, it.requestTimer, it.dispatchCooldown,
+            )
+        },
+        cables = cables.map { CableSnapshot(it.a.id, it.b.id, it.type, it.cost, it.layout.waypoints.map(::cellOf), it.waterCells) },
+        packets = packets.map { PacketSnapshot(it.service, it.origin.id, it.route.map(Node::id), it.isResponse, it.hop, it.progress) },
+    )
+
+    companion object {
+        private const val WATER = '~'
+        private const val LAND = '.'
+
+        private fun cellOf(p: Vec2) = Cell(p.x.toInt(), p.y.toInt())
+
+        /**
+         * Rebuilds a world from [s]. The restored world continues exactly like the saved one would have, random draws
+         * included. Throws [IllegalArgumentException] if the snapshot is inconsistent.
+         */
+        fun restore(s: WorldSnapshot): World {
+            require(s.water.size == s.rows && s.water.all { it.length == s.cols }) { "water does not match the grid" }
+            val w = World(s.cols, s.rows, s.seed, spawnInitialNodes = false)
+            for (y in 0 until s.rows) for (x in 0 until s.cols) w.water[y][x] = s.water[y][x] == WATER
+            w.rng = ReplayableRandom.restore(s.seed, s.randomDraws)
+            w.nextId = s.nextId
+            w.unlocked = s.unlocked
+            w.time = s.time
+            w.week = s.week
+            w.delivered = s.delivered
+            w.budget = s.budget
+            w.routersAvailable = s.routersAvailable
+            w.gameOver = s.gameOver
+            w.serverVouchers = s.serverVouchers
+            w.rewardOffer = s.rewardOffer?.let { RewardOffer(it.week, it.choices) }
+            w.lastNews = s.lastNews
+            w.lastNewsTime = s.lastNewsTime
+            w.clientSpawnTimer = s.clientSpawnTimer
+            val byId = HashMap<Int, Node>()
+            for (n in s.nodes) {
+                require(n.footprint.isNotEmpty()) { "node ${n.id} has no footprint" }
+                val node = Node(n.id, n.kind, n.device, n.service, n.cellX, n.cellY).apply {
+                    footprint = n.footprint
+                    pending.addAll(n.pending)
+                    overload = n.overload
+                    level = n.level
+                    tokens = n.tokens
+                    requestTimer = n.requestTimer
+                    dispatchCooldown = n.dispatchCooldown
+                }
+                require(byId.put(n.id, node) == null) { "duplicate node id ${n.id}" }
+                w.nodes += node
+            }
+            fun node(id: Int) = requireNotNull(byId[id]) { "unknown node $id" }
+            for (c in s.cables) {
+                w.cables += Cable(node(c.a), node(c.b), c.type, c.cost, CableLayout(c.waypoints.map { it.center }), c.waterCells)
+            }
+            for (p in s.packets) {
+                require(p.route.size >= 2 && p.hop in p.route.indices) { "bad packet route" }
+                w.packets += Packet(p.service, node(p.origin), p.route.map(::node), p.isResponse).apply {
+                    hop = p.hop
+                    progress = p.progress
+                }
+            }
+            w.failedNode = s.failedNodeId?.let(::node)
+            return w
+        }
     }
 }
 
 /** Block origins relative to the server cell for [World.dataCenterFootprint], in order of preference. */
 private val DATA_CENTER_ORIGINS = listOf(0 to 0, -1 to 0, 0 to -1, -1 to -1)
-
-val Node.label get() = device?.label ?: when (kind) {
-    NodeKind.SERVER -> "Server"
-    NodeKind.ROUTER -> "Router"
-    NodeKind.CLIENT -> "Kunde"
-}

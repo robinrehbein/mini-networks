@@ -22,8 +22,8 @@ Ziel ist, so viele Pakete wie möglich zuzustellen.
 | Bereich | Stand |
 |---|---|
 | Plattform | Natives Android, Kotlin, **keine Engine**, `SurfaceView` + Canvas (Hardware-Canvas), eigener Game-Thread |
-| Game-Loop | Fester Simulationsschritt 1/60 s mit Akkumulator (`FixedStep`, max. 5 Schritte pro Frame); Touch-Eingaben landen in einer Queue, die der Game-Thread zu Beginn jedes Durchlaufs abarbeitet; Pause bei `onPause`, weiter bei `onResume` |
-| Spiellogik | Gradle-Modul `:core` (Kotlin/JVM, keine Android-Abhängigkeit), per JUnit getestet; Test-/Debug-Hooks (`grant`, `jumpToWeek`, `advanceToNextWeek`) sind öffentlich, aber per Opt-in `@DebugApi` markiert |
+| Game-Loop | Fester Simulationsschritt 1/60 s mit Akkumulator (`FixedStep`, max. 5 Schritte pro Frame); Touch- und Zurück-Eingaben landen in einer Queue, die der Game-Thread zu Beginn jedes Durchlaufs abarbeitet; die Simulation läuft nur auf dem Spiel-Bildschirm (`Screen.PLAYING`); `onPause` stoppt den Thread, öffnet das Pause-Menü und speichert |
+| Spiellogik | Gradle-Modul `:core` (Kotlin/JVM, keine Android-Abhängigkeit), per JUnit getestet; Test-/Debug-Hooks (`grant`, `jumpToWeek`, `advanceToNextWeek`) sind öffentlich, aber per Opt-in `@DebugApi` markiert. Die Logik liefert nur IDs, keine Texte: Enums ohne Anzeigenamen, Fehler als `ConnectError`/`CableUpgradeError`/`ServerUpgradeError`, Wochen-Neuheiten als `WeekNews` |
 | Geräte | 8 Gerätetypen mit eigenen Icons und eigenem Dienste-Mix, Freischaltung nach Woche |
 | Dienste | Mail, Telefonie, Gaming, Streaming mit Bandbreite (Paketgröße) und Ping-Limit für Hin- und Rückweg (Telefonie 300 ms, Gaming 110 ms: Gaming über Distanz braucht Glasfaser) |
 | Kabel | ISDN, DSL, Kabel, Glasfaser mit Kapazität, Latenz pro Feld, Tempo und Preis pro Feld |
@@ -39,11 +39,15 @@ Ziel ist, so viele Pakete wie möglich zuzustellen.
 | Wochen-Belohnungen | Beim Wochenwechsel pausiert die Simulation (`World.rewardOffer`), bis der Spieler eine von **2** Belohnungen wählt: +16 Budget, +2 Router oder Server-Gutschein (nächste Server-Stufe gratis; nur im Angebot, solange ein Server noch wachsen kann). Das Angebot ist deterministisch aus Seed und Woche (`Rewards.offer`), unabhängig vom Spielverlauf. Keine automatische Wochen-Gutschrift mehr. UI: `RewardDialog`, zwei große Karten mit isometrischem Mini-Diorama auf dem Canvas, Wahl per Tippen (Finger runter und hoch auf derselben Karte). WLAN-AP und Cache-Knoten fehlen im Pool, bis es diese Items gibt (P2.1 bzw. später) |
 | Stau | Kabel tragen begrenzte Bandbreite gleichzeitig; Pakete warten an Knoten |
 | Server-Stufen | Tipp auf Server = Aufrüsten (zuerst mit Server-Gutschein, sonst mit Budget), höhere Türme, begrenzter Durchsatz; offene Gutscheine stehen im HUD. Stufe 4 **Rechenzentrum** (siehe 5.3): belegt 2×2 Felder, 8 Ports, 8 Anfragen/s, breites isometrisches Gebäude. Geht das Aufrüsten nicht, liefert `World.serverUpgradeError` einen Grund (`ServerUpgradeError`), den das HUD kurz als Text aus `strings.xml` anzeigt |
-| Game Over | ≥ 6 wartende Anfragen → roter Ring füllt sich in 18 s → „Netz überlastet“ |
-| Grafik | Zwei Stile umschaltbar: **Flat** (Mini-Metro-Look, Übersichtsmodus) und **Isometrisch** (2,5D-Kacheln); beide zeichnen Kabel und Pakete aus demselben Layout, Flat rundet die Ecken nur optisch ab. Die Zieh-Vorschau zeigt genau das Layout und den Preis, die beim Loslassen gebaut werden. Beide Stile zeichnen durch ihre Kamera (Zoom/Pan) |
-| Texte | HUD-Texte in `strings.xml` (Deutsch); Ereignistexte der Logik (`lastEvent`) noch fest im Code |
-| Steuerung | Ziehen von einem Knoten = Kabel legen (die Zieh-Spur bestimmt den Knick) · Tippen auf Kabel = Upgrade auf gewählte Technik bzw. entfernen · Router-Knopf + Feld tippen · Pinch = Zoom · zwei Finger oder Ziehen auf leerem Boden = Pan · Doppeltipp auf leeren Boden = Block einpassen |
-| Tests | `:core`: `WorldTest` (Regeln), `RoundTripTest` (Anfrage wird Antwort, Zustellung erst bei Rückkehr, gleiche Laufzeit zurück, Antworten teilen Kabelkapazität, wartende Antworten vor neuen Anfragen, Dauerdurchsatz bei Rückstau auf direktem ISDN-/DSL-Kabel und bei ausgelastetem Server, Ping = beide Wege, Gaming über Distanz nur mit Glasfaser), `DataCenterTest` (2×2-Belegung, Ausweich-Block, Fehler ohne Platz bzw. bei Wasser, Gutschein-Eignung, belegte Felder, 8 Ports, Durchsatz 5/s gegen 8/s), `RewardsTest` (Angebot deterministisch und eindeutig, Pause, Wirkung jeder Belohnung, Gutschein-Regeln, Freischalt-Meldung), `CableLayoutTest` (Layout-Form, Kosten = Layout, Wassererkennung, Knick-Wahl, Paketbewegung und Laufzeit), `FixedStepTest` (Zeitschritt, Determinismus), `MapGrowthTest` (Startblock, ein Ring alle 2 Wochen, Klemmen am Rand je Seite, Spawns nur im Block auch nach dem Wachsen, Router und Rechenzentrum nur auf freigeschalteten Feldern); `:app`: `CameraTest` (JVM: Einpassen mit HUD-Rändern, Hin-/Rückrechnung bei jedem Zoom/Pan, Zoom um den Pivot, Grenzen, Animation, Zwei-Finger-Geste), `RendererCameraTest` (beide Stile: Welt → Bildschirm → Welt inkl. Kamera, Startblick passt den Block ein, Zoom-Bereich, Mitwachsen nur ohne Spieler-Eingriff, Touch-Ziele ≥ 48 dp bei jedem Zoom und jeder Dichte), `GameViewGestureTest` (Ein-Finger-Kabel, zweiter Finger bricht ab und zoomt, Pan auf leerem Boden, Doppeltipp), `RendererLayoutTest` (beide Stile liefern identische Kabelwege und Paketpositionen), `ScreenshotTest` (Robolectric rendert beide Stile, die Zieh-Vorschau und ein komplettes Spielbild mit HUD, die Wochen-Belohnung über der Iso-Karte, alle Belohnungskarten inkl. gedrückter Karte, Hin-/Rückweg mit Rechenzentrum in beiden Stilen (`round-trip-*.png`), die gewachsene Stadt eingepasst und ganz herausgezoomt (`map-grown-*.png`, `map-overview-*.png`), einen Pinch-Zoom (`camera-zoom-iso.png`) und den Start einer neuen Partie im Iso-Stil (`new-game-iso.png`) nach `docs/screenshots/`) |
+| Game Over | ≥ 6 wartende Anfragen → roter Ring füllt sich in 18 s → Karte „Netz überlastet“ mit zugestellten Paketen, Woche und Bestwert (bzw. „Neuer Bestwert!“), Knöpfe „Nochmal“ und „Hauptmenü“ |
+| Menüs | Auf den Canvas gezeichnet im Look der Belohnungskarten (`ui/menu/MenuPanel`: helle Karte auf einer Platte, runde Pillen-Knöpfe, die beim Drücken einsinken; skaliert auf kurze Querformat-Bildschirme). **Hauptmenü** (Spielen, Fortsetzen, Einstellungen, Bestwert) links neben einer festen Demo-Stadt (`DemoCity`, Iso), **Pause-Menü** (Weiter, Einstellungen, Neu starten, Hauptmenü), **Einstellungen**, **Game Over**. Zurück-Taste: Spiel → Pause-Menü → Spiel, Einstellungen → vorheriger Bildschirm, Game Over → Hauptmenü, Hauptmenü → App beenden. Auswahl wie bei den Karten: Finger runter und hoch auf demselben Eintrag |
+| Speichern | `Save` in `:core`: `World.snapshot()` → `WorldSnapshot` (kotlinx.serialization, JSON, mit Versionsnummer) und `World.restore`. Der Snapshot enthält den kompletten Zustand inkl. Paketen, Kabel-Layouts, offenem Belohnungsangebot und Zufallsgenerator (`ReplayableRandom` zählt die Ziehungen und spielt sie beim Laden nach), sodass ein geladenes Spiel exakt so weiterläuft wie das Original. `SaveStore` schreibt `savegame.json` in `filesDir` (erst in eine Temp-Datei, dann umbenennen) beim Öffnen des Pause-Menüs, beim Wechsel ins Hauptmenü und bei `onPause`; Game Over löscht den Stand. Beschädigte oder fremde Dateien werden ignoriert |
+| Bestwert | `HighscoreStore` (SharedPreferences): bester Wert (zugestellte Pakete) je Szenerie; bisher nur die Standard-Szenerie `river_town` |
+| Einstellungen | `SettingsStore` (SharedPreferences): **Ton** (schaltet vorerst nur den System-Klick der Knöpfe, Spielklänge kommen mit P3.2), **Haptik** (kurzer Tick beim Einrasten auf einen Zielknoten, Impuls beim Verlegen des Kabels), **Übersichtsmodus** (Flat statt Iso; ersetzt den früheren „Stil“-Knopf), **Farbenblind-Palette** (`ServiceColors.colorblind`, Okabe-Ito-Töne, getestet mit simulierter Prot- und Deuteranopie). Die Sprache folgt dem System |
+| Grafik | **Isometrisch** (2,5D-Kacheln) ist der Standard, **Flat** (Mini-Metro-Look) ist der Übersichtsmodus in den Einstellungen; beide zeichnen Kabel und Pakete aus demselben Layout, Flat rundet die Ecken nur optisch ab. Die Zieh-Vorschau zeigt genau das Layout und den Preis, die beim Loslassen gebaut werden. Beide Stile zeichnen durch ihre Kamera (Zoom/Pan) |
+| Texte | Alle UI-Texte in `strings.xml`: Deutsch als Standard (`values/`), Englisch in `values-en/`; die Sprache folgt dem System. Namen von Diensten, Geräten, Kabeln und Knoten sowie Fehler- und Neuheiten-Texte übersetzt `ui/Texts` aus den IDs der Logik |
+| Steuerung | Ziehen von einem Knoten = Kabel legen (die Zieh-Spur bestimmt den Knick) · Tippen auf Kabel = Upgrade auf gewählte Technik bzw. entfernen · Router-Knopf + Feld tippen · Pinch = Zoom · zwei Finger oder Ziehen auf leerem Boden = Pan · Doppeltipp auf leeren Boden = Block einpassen · „Pause“ oder Zurück = Pause-Menü |
+| Tests | `:core`: `WorldTest` (Regeln), `RoundTripTest` (Anfrage wird Antwort, Zustellung erst bei Rückkehr, gleiche Laufzeit zurück, Antworten teilen Kabelkapazität, wartende Antworten vor neuen Anfragen, Dauerdurchsatz bei Rückstau auf direktem ISDN-/DSL-Kabel und bei ausgelastetem Server, Ping = beide Wege, Gaming über Distanz nur mit Glasfaser), `DataCenterTest` (2×2-Belegung, Ausweich-Block, Fehler ohne Platz bzw. bei Wasser, Gutschein-Eignung, belegte Felder, 8 Ports, Durchsatz 5/s gegen 8/s), `RewardsTest` (Angebot deterministisch und eindeutig, Pause, Wirkung jeder Belohnung, Gutschein-Regeln, Freischalt-Meldung), `CableLayoutTest` (Layout-Form, Kosten = Layout, Wassererkennung, Knick-Wahl, Paketbewegung und Laufzeit), `FixedStepTest` (Zeitschritt, Determinismus), `MapGrowthTest` (Startblock, ein Ring alle 2 Wochen, Klemmen am Rand je Seite, Spawns nur im Block auch nach dem Wachsen, Router und Rechenzentrum nur auf freigeschalteten Feldern), `SaveTest` (JSON hin und zurück ergibt denselben Snapshot, ein geladenes Spiel läuft 2 Minuten exakt wie das Original weiter, Speichern ändert den Verlauf nicht, offenes Belohnungsangebot, Game Over mit ausgefallenem Knoten, eigenes Wasser, beschädigte/fremde Dateien → null, `ReplayableRandom` = `Random(seed)`); `:app`: `MenuFlowTest` (Start im Hauptmenü über der stehenden Demo-Stadt, Spielen/Pause/Weiter, Autosave bei Pause-Menü und `onPause`, „Fortsetzen“ nach Neustart der View stellt denselben Snapshot her, Hauptmenü aus der Pause behält das Spiel, Game Over speichert den Bestwert und löscht den Stand, Einstellungen wirken sofort und bleiben erhalten, Haptik folgt der Einstellung, Zurück im Hauptmenü beendet, Deutsch als Standard/Fallback und Englisch per Systemsprache), `ServiceColorsTest` (Farbenblind-Palette bleibt bei simulierter Prot-/Deuteranopie unterscheidbar, die Standard-Palette nicht), `CameraTest` (JVM: Einpassen mit HUD-Rändern, Hin-/Rückrechnung bei jedem Zoom/Pan, Zoom um den Pivot, Grenzen, Animation, Zwei-Finger-Geste), `RendererCameraTest` (beide Stile: Welt → Bildschirm → Welt inkl. Kamera, Startblick passt den Block ein, Zoom-Bereich, Mitwachsen nur ohne Spieler-Eingriff, Touch-Ziele ≥ 48 dp bei jedem Zoom und jeder Dichte), `GameViewGestureTest` (Ein-Finger-Kabel, zweiter Finger bricht ab und zoomt, Pan auf leerem Boden, Doppeltipp), `RendererLayoutTest` (beide Stile liefern identische Kabelwege und Paketpositionen), `ScreenshotTest` (Robolectric rendert beide Stile, die Zieh-Vorschau und ein komplettes Spielbild mit HUD, die Wochen-Belohnung über der Iso-Karte, alle Belohnungskarten inkl. gedrückter Karte, Hin-/Rückweg mit Rechenzentrum in beiden Stilen (`round-trip-*.png`), die gewachsene Stadt eingepasst und ganz herausgezoomt (`map-grown-*.png`, `map-overview-*.png`), einen Pinch-Zoom (`camera-zoom-iso.png`), den Start einer neuen Partie im Iso-Stil (`new-game-iso.png`), Hauptmenü deutsch und englisch (`menu-main.png`, `menu-main-en.png`), Pause-Menü und Einstellungen (`menu-pause.png`, `menu-settings.png`), Game Over (`game-over.png`) und die Farbenblind-Palette (`palette-colorblind-iso.png`) nach `docs/screenshots/`; Texte deutsch, Menüs als Querformat-Handy 800 × 360 dp) |
 
 Die Stilstudie mit vier Looks (Flat, Iso, Pixel, Platine) liegt in `docs/style-explorations.html`.
 
@@ -51,12 +55,14 @@ Die Stilstudie mit vier Looks (Flat, Iso, Pixel, Platine) liegt in `docs/style-e
 
 ```
 core/src/main/kotlin/com/mininetworks/game/game/   (Gradle-Modul :core, reines Kotlin/JVM)
-  Model.kt                  Service, Device, CableType, Node (inkl. Footprint), ServerUpgradeError, Cable, Packet (Anfrage/Antwort), Route, Geometry
+  Model.kt                  Service, Device, CableType, Node (inkl. Footprint), ServerUpgradeError, ConnectError, CableUpgradeError, WeekNews, Cable, Packet (Anfrage/Antwort), Route, Geometry
   CellRect.kt               Rechteckiger Feldblock (freigeschalteter Bereich, Wachsen um Ringe)
   CableLayout.kt            Cell, Bend, CableLayout (Kabelgeometrie auf dem Raster, Knick-Vorschlag aus der Zieh-Spur)
   World.kt                  Spielzustand, Regeln, Simulation, Routing
   Rewards.kt                Reward, RewardOffer, deterministische Auswahl der Wochen-Belohnungen
   FixedStep.kt              Fester Zeitschritt (1/60 s, Akkumulator, max. 5 Schritte pro Frame)
+  Save.kt                   Save (JSON), WorldSnapshot und Teil-Snapshots
+  ReplayableRandom.kt       Zufallsgenerator wie Random(seed), der sich speichern und wiederherstellen lässt
   DebugApi.kt               Opt-in-Markierung für Test-/Debug-Hooks
 core/src/test/kotlin/com/mininetworks/game/game/
   WorldTest.kt              Regeltests
@@ -66,20 +72,33 @@ core/src/test/kotlin/com/mininetworks/game/game/
   FixedStepTest.kt          Zeitschritt und Determinismus
   RewardsTest.kt            Wochen-Belohnungen
   MapGrowthTest.kt          Wachsende Karte
+  SaveTest.kt               Speichern und Laden
 app/src/main/java/com/mininetworks/game/
-  MainActivity.kt           Vollbild-Activity, hostet GameView, startet/stoppt den Game-Thread
+  MainActivity.kt           Vollbild-Activity, hostet GameView, startet/stoppt den Game-Thread, leitet Zurück weiter
+  data/SaveStore.kt         Autosave-Datei in filesDir
+  data/SettingsStore.kt     GameSettings in SharedPreferences
+  data/HighscoreStore.kt    Bestwert je Szenerie in SharedPreferences
   render/Renderer.kt        Renderer-Interface (Projektion in Map-Einheiten, Picking in Bildschirm-Pixeln), TouchTargets, DeviceIcons, CableStyles, ServiceColors, Shapes
   render/Camera.kt          Camera (Zoom, Pan, Einpassen, Animation), TwoFingerGesture, MapRect, ViewInsets
   render/FlatRenderer.kt    Stil A
   render/IsoRenderer.kt     Stil B
-  ui/GameView.kt            SurfaceView, Game-Thread, Eingabe-Queue, HUD
+  ui/GameView.kt            SurfaceView, Game-Thread, Eingabe-Queue, HUD, Bildschirm-Wechsel (Menüs, Speichern, Einstellungen)
   ui/RewardDialog.kt        Wochen-Belohnung: zwei Karten im Iso-Look auf dem Canvas
+  ui/Texts.kt               Anzeigetexte zu den IDs der Logik (aus strings.xml)
+  ui/menu/MenuPanel.kt      MenuPage, MenuItem, MenuAction und das Zeichnen der Menükarten
+  ui/menu/Screen.kt         Hauptmenü, Spiel, Pause, Einstellungen, Game Over
+  ui/menu/DemoCity.kt       Feste Demo-Stadt hinter dem Hauptmenü
+app/src/main/res/
+  values/strings.xml        Deutsch (Standard)
+  values-en/strings.xml     Englisch
 app/src/test/java/com/mininetworks/game/
   render/ScreenshotTest.kt  Rendert Szenen, die Zieh-Vorschau und das Spielbild mit HUD als PNG
   render/RendererLayoutTest.kt  Beide Stile lesen Kabelweg und Paketposition aus dem Modell
   render/CameraTest.kt      Kamera-Mathematik auf der JVM
   render/RendererCameraTest.kt  Projektion inkl. Kamera, Einpassen, Mitwachsen, Touch-Ziele
+  render/ServiceColorsTest.kt  Farbenblind-Palette
   ui/GameViewGestureTest.kt Kabel ziehen, Pinch, Pan, Doppeltipp
+  ui/MenuFlowTest.kt        Menüs, Autosave, Fortsetzen, Bestwert, Einstellungen, Sprache
 ```
 
 ### Bauen und Prüfen
@@ -178,7 +197,7 @@ Kein Multiplayer, keine Online-Pflicht, kein Shop, keine Werbung im MVP. iOS ers
 - **Renderer-Interface.** Jeder Stil implementiert `Renderer` (Projektion hin und zurück, Kabelgeometrie, Zeichnen).
   Neue Stile (Pixel, Platine) sind reine Zusatzarbeit ohne Eingriff in die Logik.
 - **SurfaceView mit eigenem Game-Thread** statt `View.invalidate()` (umgesetzt in P0.1).
-- **Speichern:** `kotlinx.serialization` → JSON in `filesDir`, automatisch beim Pausieren. Highscores per DataStore.
+- **Speichern:** `kotlinx.serialization` → JSON in `filesDir`, automatisch beim Pausieren. Highscores und Einstellungen per SharedPreferences (umgesetzt in P1.4; DataStore bräuchte AndroidX und Coroutines für zwei Handvoll Werte).
 - **Audio:** `SoundPool` für kurze Klänge (Paket zugestellt = Ton nach Dienst), leise generative Musik später.
 - **Haptik:** kurzes Feedback beim Einrasten eines Kabels.
 - **Sprachen:** Deutsch und Englisch über `strings.xml`; die Logik liefert nur IDs, keine Texte.
@@ -186,10 +205,10 @@ Kein Multiplayer, keine Online-Pflicht, kein Shop, keine Werbung im MVP. iOS ers
 
 ### 4.2 Bekannte Vereinfachungen im Prototyp (bewusst)
 
-- Ereignistexte aus der Logik (`World.lastEvent`) sind fest auf Deutsch im Code; die HUD-Texte liegen in `strings.xml`.
 - Kein Sichtbarkeits-Culling: der Iso-Stil zeichnet immer alle 640 Kacheln (Performance-Check in Welle 4).
 - Der Fluss läuft über das ganze Raster, auch durch gesperrte Felder; eigene Karten kommen mit den Szenerien (P3.1).
-- Kein Speichern, keine Einstellungen, kein Menü.
+- Der Ton-Schalter wirkt bisher nur auf den System-Klick der Menü- und HUD-Knöpfe; eigene Klänge kommen mit P3.2.
+- Die Demo-Stadt hinter dem Hauptmenü steht still (nur die LEDs blinken).
 
 ## 5. Entscheidungen
 
@@ -273,8 +292,12 @@ Regeln für alle Pakete:
   Zusätzlich verschiebt Ziehen auf leerem Boden die Karte. Die Wochenlogik und Balancing-Werte sind unverändert;
   mehr Fläche heißt aber längere Kabel und mehr Streuung der Geräte (Balancing in Welle 4).
 
-**P1.4 Speichern, Menü, Einstellungen** · Dateien: `app/.../ui/menu/*`, `core/.../Save.kt`
+**P1.4 Speichern, Menü, Einstellungen** · Dateien: `app/.../ui/menu/*`, `core/.../Save.kt` · umgesetzt
 - Hauptmenü, Pause-Menü, Autosave, Highscore je Karte, Einstellungen (Ton, Haptik, Farbpalette, Sprache).
+- Stand: Menüs auf dem Canvas im Iso-Karten-Look; Speicher-Klassen liegen in `app/.../data/` statt `ui/menu/`, weil sie keine UI sind.
+  Alle Texte der Logik sind jetzt IDs (Enums ohne `label`, `connectError` liefert `ConnectError`, `lastEvent` wurde zu `lastNews: WeekNews`),
+  Englisch liegt in `values-en/`. Highscores per SharedPreferences statt DataStore (keine neue Abhängigkeit).
+  Neue Abhängigkeit: `kotlinx-serialization-json` in `:core`. Der Ton-Schalter hat bis P3.2 nur den Knopf-Klick.
 
 ### Welle 2 – parallel (4 Agenten)
 

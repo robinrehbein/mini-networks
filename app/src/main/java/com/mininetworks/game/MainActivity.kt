@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.view.View
 import android.view.WindowInsets
 import android.view.WindowInsetsController
+import android.window.OnBackInvokedDispatcher
 import com.mininetworks.game.ui.GameView
 
 class MainActivity : Activity() {
@@ -15,8 +16,18 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         gameView = GameView(this)
+        gameView.onExit = ::finish
         setContentView(gameView)
         hideSystemBars()
+        // Back walks the menus (game -> pause menu -> game, settings -> previous screen); on the main menu it exits.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            onBackInvokedDispatcher.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT) { gameView.back() }
+        }
+    }
+
+    @Deprecated("Replaced by OnBackInvokedDispatcher on Android 13+, still used below that.")
+    override fun onBackPressed() {
+        gameView.back()
     }
 
     private fun hideSystemBars() {

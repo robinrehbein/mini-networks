@@ -150,9 +150,11 @@ class RewardsTest {
         val w = world()
         w.addServer(Service.MAIL, 1, 1)
         untilOffer(w)
-        val msg = w.lastEvent
-        assertNotNull(msg)
-        assertTrue(msg!!, msg.contains(CableType.DSL.label))
-        assertNotEquals(-1, msg.indexOf(Device.LAPTOP.label))
+        val news = w.lastNews
+        assertNotNull(news)
+        assertEquals(w.time, w.lastNewsTime)
+        assertEquals(w.year, news!!.year)
+        assertEquals(listOf(CableType.DSL), news.cables)
+        assertEquals(listOf(Device.LAPTOP), news.devices)
     }
 }

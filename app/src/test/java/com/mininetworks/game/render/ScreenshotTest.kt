@@ -2,6 +2,8 @@ package com.mininetworks.game.render
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.view.MotionEvent
+import com.mininetworks.game.data.HighscoreStore
 import com.mininetworks.game.game.Bend
 import com.mininetworks.game.game.CableType
 import com.mininetworks.game.game.DebugApi
@@ -13,6 +15,9 @@ import com.mininetworks.game.game.Service
 import com.mininetworks.game.game.World
 import com.mininetworks.game.ui.GameView
 import com.mininetworks.game.ui.RewardDialog
+import com.mininetworks.game.ui.Texts
+import com.mininetworks.game.ui.menu.MenuAction
+import com.mininetworks.game.ui.menu.Screen
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -24,12 +29,13 @@ import kotlin.math.abs
 
 /**
  * Renders a fixed scene with every renderer into docs/screenshots/, using Robolectric's native graphics.
+ * Texts are German (the default language) unless a test asks for another locale.
  * Lets anyone (human or agent) check visuals without an emulator:
  *   ./gradlew testDebugUnitTest --tests '*ScreenshotTest*'
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-@Config(sdk = [34])
+@Config(sdk = [34], qualifiers = "de")
 @OptIn(DebugApi::class)
 class ScreenshotTest {
 
@@ -129,8 +135,8 @@ class ScreenshotTest {
             target = target,
             type = CableType.FIBER,
             layout = world.planLayout(from, target, bend),
-            error = world.connectError(from, target, CableType.FIBER, bend),
-            cost = world.cableCost(from, target, CableType.FIBER, bend),
+            blocked = world.connectError(from, target, CableType.FIBER, bend) != null,
+            label = "${Texts(RuntimeEnvironment.getApplication()).cable(CableType.FIBER)} · ${world.cableCost(from, target, CableType.FIBER, bend)}",
         )
         for (r in listOf(FlatRenderer(), IsoRenderer())) {
             val bmp = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)
@@ -140,7 +146,7 @@ class ScreenshotTest {
         }
     }
 
-    /** Full game frame as the SurfaceView draws it: default (flat) renderer plus HUD. */
+    /** Full game frame as the SurfaceView draws it: default (isometric) renderer plus HUD. */
     @Test
     fun renderGameFrameWithHud() {
         val out = File(System.getProperty("screenshots.dir") ?: "build/screenshots").apply { mkdirs() }
@@ -247,6 +253,85 @@ class ScreenshotTest {
         val bmp = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)
         view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 1.3f, style = "Iso")
         save(bmp, File(out, "new-game-iso.png"))
+    }
+
+    private val shots get() = File(System.getProperty("screenshots.dir") ?: "build/screenshots").apply { mkdirs() }
+
+    /** Landscape phone: 800 × 360 dp at 2x. */
+    private fun phoneBitmap() = Bitmap.createBitmap(1600, 720, Bitmap.Config.ARGB_8888)
+
+    /** Main menu over the demo town, with a best score (German, the default language). */
+    @Test
+    @Config(qualifiers = "de-xhdpi")
+    fun renderMainMenu() {
+        HighscoreStore(RuntimeEnvironment.getApplication()).submit(1234)
+        val view = GameView(RuntimeEnvironment.getApplication())
+        val bmp = phoneBitmap()
+        view.drawSnapshot(Canvas(bmp), view.currentWorld, bmp.width, bmp.height, time = 1.3f, screen = null)
+        save(bmp, File(shots, "menu-main.png"))
+    }
+
+    /** The main menu with an English system language. */
+    @Test
+    @Config(qualifiers = "en-xhdpi")
+    fun renderMainMenuEnglish() {
+        val view = GameView(RuntimeEnvironment.getApplication())
+        val bmp = phoneBitmap()
+        view.drawSnapshot(Canvas(bmp), view.currentWorld, bmp.width, bmp.height, time = 1.3f, screen = null)
+        save(bmp, File(shots, "menu-main-en.png"))
+    }
+
+    /** Pause menu over the running game, and the settings reached from it. */
+    @Test
+    @Config(qualifiers = "de-xhdpi")
+    fun renderPauseAndSettings() {
+        val view = GameView(RuntimeEnvironment.getApplication())
+        val world = scene()
+        val bmp = phoneBitmap()
+        view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 1.3f, style = "Iso")
+        view.back()
+        view.advance(0f)
+        view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 1.3f, screen = null)
+        save(bmp, File(shots, "menu-pause.png"))
+        val settings = view.menuTarget(MenuAction.SETTINGS)!!
+        view.injectTouch(MotionEvent.ACTION_DOWN, settings.centerX(), settings.centerY())
+        view.injectTouch(MotionEvent.ACTION_UP, settings.centerX(), settings.centerY())
+        bmp.eraseColor(0)
+        view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 1.3f, screen = null)
+        save(bmp, File(shots, "menu-settings.png"))
+    }
+
+    /** Game over: score, and the previous best that it did not beat. */
+    @Test
+    @Config(qualifiers = "de-xhdpi")
+    fun renderGameOver() {
+        HighscoreStore(RuntimeEnvironment.getApplication()).submit(480)
+        val world = scene()
+        val phone = world.addClient(Device.PHONE, 8, 9)
+        repeat(World.Tuning.MAX_PENDING) { phone.pending.addLast(Service.CALL) }
+        val view = GameView(RuntimeEnvironment.getApplication())
+        val bmp = phoneBitmap()
+        view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 1.3f, style = "Iso")
+        repeat(60 * 20) { view.advance(1f / 60f) }
+        check(view.currentScreen == Screen.GAME_OVER)
+        view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 1.3f, screen = null)
+        save(bmp, File(shots, "game-over.png"))
+    }
+
+    /** The isometric scene with the colorblind palette. */
+    @Test
+    fun renderColorblindPalette() {
+        val world = scene()
+        ServiceColors.colorblind = true
+        try {
+            val r = IsoRenderer()
+            val bmp = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)
+            r.layout(bmp.width, bmp.height, world)
+            r.draw(Canvas(bmp), world, drag = null, time = 1.3f)
+            save(bmp, File(shots, "palette-colorblind-iso.png"))
+        } finally {
+            ServiceColors.colorblind = false
+        }
     }
 
     private fun save(bmp: Bitmap, file: File) = file.outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }

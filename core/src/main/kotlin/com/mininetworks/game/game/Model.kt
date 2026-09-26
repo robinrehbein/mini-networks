@@ -1,5 +1,6 @@
 package com.mininetworks.game.game
 
+import kotlinx.serialization.Serializable
 import kotlin.math.hypot
 import kotlin.math.min
 
@@ -11,25 +12,25 @@ enum class Shape { CIRCLE, SQUARE, TRIANGLE, DIAMOND }
 /**
  * What a device wants from the network. Each service has a bandwidth need (packet size in capacity units)
  * and optionally a round-trip ping limit: real-time services fail on slow routes even when bandwidth is free.
- * The shape is the primary signal (colorblind-safe), color only supports it.
+ * The shape is the primary signal (colorblind-safe), color only supports it. Names come from the UI's string resources.
  */
-enum class Service(val label: String, val shape: Shape, val bandwidth: Int, val maxPingMs: Int?) {
-    MAIL("Mail", Shape.SQUARE, 1, null),
-    CALL("Telefonie", Shape.DIAMOND, 1, 300),
-    GAMING("Gaming", Shape.TRIANGLE, 1, 110),
-    STREAMING("Streaming", Shape.CIRCLE, 3, null),
+enum class Service(val shape: Shape, val bandwidth: Int, val maxPingMs: Int?) {
+    MAIL(Shape.SQUARE, 1, null),
+    CALL(Shape.DIAMOND, 1, 300),
+    GAMING(Shape.TRIANGLE, 1, 110),
+    STREAMING(Shape.CIRCLE, 3, null),
 }
 
 /** Client devices. They appear over the eras and each asks for a mix of services. */
-enum class Device(val label: String, val services: List<Service>, val unlockWeek: Int) {
-    PC("PC", listOf(Service.MAIL, Service.GAMING), 1),
-    PHONE("Telefon", listOf(Service.CALL), 1),
-    LAPTOP("Laptop", listOf(Service.MAIL, Service.STREAMING, Service.CALL), 2),
-    CONSOLE("Konsole", listOf(Service.GAMING), 3),
-    SMARTPHONE("Smartphone", listOf(Service.CALL, Service.STREAMING, Service.MAIL), 4),
-    TV("Smart-TV", listOf(Service.STREAMING), 4),
-    TABLET("Tablet", listOf(Service.STREAMING, Service.MAIL), 5),
-    WATCH("Smartwatch", listOf(Service.CALL), 6),
+enum class Device(val services: List<Service>, val unlockWeek: Int) {
+    PC(listOf(Service.MAIL, Service.GAMING), 1),
+    PHONE(listOf(Service.CALL), 1),
+    LAPTOP(listOf(Service.MAIL, Service.STREAMING, Service.CALL), 2),
+    CONSOLE(listOf(Service.GAMING), 3),
+    SMARTPHONE(listOf(Service.CALL, Service.STREAMING, Service.MAIL), 4),
+    TV(listOf(Service.STREAMING), 4),
+    TABLET(listOf(Service.STREAMING, Service.MAIL), 5),
+    WATCH(listOf(Service.CALL), 6),
 }
 
 /**
@@ -37,17 +38,16 @@ enum class Device(val label: String, val services: List<Service>, val unlockWeek
  * capacity: bandwidth units in flight at once. msPerCell: latency per grid cell. speed: visual packet speed.
  */
 enum class CableType(
-    val label: String,
     val capacity: Int,
     val msPerCell: Float,
     val speed: Float,
     val costPerCell: Int,
     val unlockWeek: Int,
 ) {
-    ISDN("ISDN", 2, 22f, 1.4f, 1, 1),
-    DSL("DSL", 4, 11f, 2.0f, 1, 2),
-    COAX("Kabel", 6, 8f, 2.4f, 2, 3),
-    FIBER("Glasfaser", 12, 2.5f, 3.6f, 3, 5),
+    ISDN(2, 22f, 1.4f, 1, 1),
+    DSL(4, 11f, 2.0f, 1, 2),
+    COAX(6, 8f, 2.4f, 2, 3),
+    FIBER(12, 2.5f, 3.6f, 3, 5),
 }
 
 /** Node roles. [maxPorts] is the default port count; a data center server has more (see [Node.maxPorts]). */
@@ -59,6 +59,16 @@ enum class NodeKind(val maxPorts: Int) {
 
 /** Why a server cannot be upgraded right now. The UI maps these to texts. */
 enum class ServerUpgradeError { NOT_A_SERVER, MAX_LEVEL, NO_BUDGET, NO_SPACE }
+
+/** Why a cable cannot be laid. [FROM_PORTS_FULL] and [TO_PORTS_FULL] name the drag's start or end node. */
+enum class ConnectError { SAME_NODE, ALREADY_CONNECTED, NOT_INVENTED, FROM_PORTS_FULL, TO_PORTS_FULL, NO_BUDGET }
+
+/** Why a cable cannot be swapped to another technology. */
+enum class CableUpgradeError { NOT_AN_UPGRADE, NOT_INVENTED, NO_BUDGET }
+
+/** What a week change brought: the UI shows it as "year · New: ...". */
+@Serializable
+data class WeekNews(val year: Int, val cables: List<CableType>, val devices: List<Device>, val servers: List<Service>)
 
 class Node(
     val id: Int,

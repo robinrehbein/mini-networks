@@ -78,13 +78,15 @@ class FlatRenderer : Renderer {
             val end = d.layout.end
             polyline(d.layout.waypoints)
             val st = CableStyles.of(d.type)
-            cableP.color = if (d.error == null) st.color and 0x99FFFFFF.toInt() else alarm
+            cableP.color = if (d.blocked) alarm else st.color and 0x99FFFFFF.toInt()
             cableP.strokeWidth = cell * maxOf(st.width, 0.12f)
             canvas.drawPath(path, cableP)
-            val s = toScreen(end)
-            labelP.textSize = cell * 0.36f
-            labelP.color = if (d.error == null) ink else alarm
-            canvas.drawText(d.error ?: "${d.type.label} · ${d.cost}", s.x, s.y - cell * 0.7f, labelP)
+            d.label?.let {
+                val s = toScreen(end)
+                labelP.textSize = cell * 0.36f
+                labelP.color = if (d.blocked) alarm else ink
+                canvas.drawText(it, s.x, s.y - cell * 0.7f, labelP)
+            }
         }
 
         for (p in world.packets) {

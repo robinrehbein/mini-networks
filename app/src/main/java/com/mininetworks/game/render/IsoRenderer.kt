@@ -96,10 +96,12 @@ class IsoRenderer : Renderer {
             val end = d.layout.end
             polyline(d.layout.waypoints)
             val st = CableStyles.of(d.type)
-            strokeP.color = if (d.error == null) st.color and 0x99FFFFFF.toInt() else alarm
+            strokeP.color = if (d.blocked) alarm else st.color and 0x99FFFFFF.toInt()
             strokeP.strokeWidth = tw * maxOf(st.width, 0.12f) * 0.75f; canvas.drawPath(path, strokeP)
-            labelP.textSize = tw * 0.28f; labelP.color = if (d.error == null) 0xFF2F3A34.toInt() else alarm
-            canvas.drawText(d.error ?: "${d.type.label} · ${d.cost}", sx(end.x, end.y), sy(end.x, end.y) - th * 1.6f, labelP)
+            d.label?.let {
+                labelP.textSize = tw * 0.28f; labelP.color = if (d.blocked) alarm else 0xFF2F3A34.toInt()
+                canvas.drawText(it, sx(end.x, end.y), sy(end.x, end.y) - th * 1.6f, labelP)
+            }
         }
 
         // Painter's algorithm: everything with height is drawn back-to-front by x + y.
