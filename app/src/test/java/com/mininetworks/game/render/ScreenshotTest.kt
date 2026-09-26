@@ -523,6 +523,59 @@ class ScreenshotTest {
         save(bmp, File(shots, "game-over.png"))
     }
 
+    /**
+     * The isometric style up close: trees, pines, bushes and a house on free land, soft shadows, the river shimmer,
+     * a cable being laid (half grown, spark at its tip), rings where requests reach the server and delivered packets
+     * rising above their devices.
+     */
+    @Test
+    fun renderIsoPolish() {
+        val w = World(cols = 12, rows = 8, seed = 5L, spawnInitialNodes = false)
+        w.incidentsEnabled = false
+        w.jumpToWeek(3)
+        w.grant(200)
+        val mail = w.addServer(Service.MAIL, 2, 2)
+        val router = w.addRouter(4, 5)
+        w.connect(router, mail, CableType.DSL)
+        val clients = listOf(w.addClient(Device.PC, 1, 5), w.addClient(Device.LAPTOP, 4, 1), w.addClient(Device.PHONE, 2, 7))
+        for (c in clients) w.connect(c, router, CableType.DSL)
+        repeat(2) { check(w.upgradeServer(mail)) }
+        val late = w.addClient(Device.TV, 9, 6)
+        var s = 0
+        while (s++ < 60 * 30) {
+            clients.forEach { if (it.pending.size < 2) it.pending.addLast(Service.MAIL) }
+            w.update(1f / 60f)
+            val fresh = w.arrivals.filter { w.time - it.time < 0.25f }
+            if (s > 60 * 6 && fresh.any { it.isResponse } && fresh.any { !it.isResponse }) break
+        }
+        check(w.connect(late, router, CableType.COAX))
+        repeat(12) { w.update(1f / 60f) }
+        val r = IsoRenderer()
+        val bmp = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)
+        r.layout(bmp.width, bmp.height, w)
+        r.camera.zoomBy(1.35f, bmp.width / 2f, bmp.height / 2f)
+        r.draw(Canvas(bmp), w, drag = null, time = 1.3f)
+        save(bmp, File(shots, "iso-polish.png"))
+    }
+
+    /** Game over, first second: the camera glides towards the device whose queue overflowed, red ripples around it. */
+    @Test
+    @Config(qualifiers = "de-xhdpi")
+    fun renderGameOverFocus() {
+        val world = scene()
+        val phone = world.addClient(Device.PHONE, 8, 9)
+        repeat(World.Tuning.MAX_PENDING) { phone.pending.addLast(Service.CALL) }
+        val view = GameView(RuntimeEnvironment.getApplication())
+        val bmp = phoneBitmap()
+        view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 1.3f, style = "Iso")
+        var s = 0
+        while (!world.gameOver && s++ < 60 * 30) view.advance(1f / 60f)
+        repeat(60) { view.advance(1f / 60f) }
+        check(view.currentScreen == Screen.PLAYING)
+        view.drawCurrent(Canvas(bmp))
+        save(bmp, File(shots, "game-over-focus.png"))
+    }
+
     /** The isometric scene with the colorblind palette. */
     @Test
     fun renderColorblindPalette() {

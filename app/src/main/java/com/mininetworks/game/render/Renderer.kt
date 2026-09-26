@@ -91,6 +91,14 @@ interface Renderer {
         camera.panBounds = whole
     }
 
+    /**
+     * Glides the camera gently to [n] and zooms in by [zoom] (within the zoom range), e.g. to show which device failed.
+     */
+    fun focusOn(n: Node, zoom: Float = FOCUS_ZOOM) {
+        val m = toMap(n.footprintCenter)
+        camera.glideTo(m.x, m.y, camera.scale * zoom, gentle = true)
+    }
+
     /** How a cable runs in world space; always the layout stored in the model, so every style agrees. */
     fun cablePath(c: Cable): List<Vec2> = c.layout.waypoints
 
@@ -126,6 +134,8 @@ interface Renderer {
         const val ZOOM_OUT_SLACK = 0.9f
         const val ZOOM_IN_COLS = 6
         const val ZOOM_IN_ROWS = 4
+        /** Zoom factor of [focusOn]. */
+        const val FOCUS_ZOOM = 1.6f
     }
 }
 

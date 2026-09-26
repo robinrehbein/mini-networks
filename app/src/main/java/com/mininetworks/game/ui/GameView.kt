@@ -70,7 +70,7 @@ import kotlin.math.hypot
  * Screens ([Screen]): the app opens on the main menu (play, continue the autosave, settings) over a demo town.
  * The simulation only runs while [Screen.PLAYING]. The game is saved ([SaveStore]) when the pause menu opens, when the
  * player leaves to the main menu and when the activity pauses; game over records the best score ([HighscoreStore])
- * and deletes the save.
+ * and deletes the save, then the camera glides to the failed device before the result card shows.
  *
  * Controls:
  *  - drag from a node to another node: lay a cable along the grid (L-shaped; the drag path picks which way it bends)
@@ -126,6 +126,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private var settingsReturn = Screen.MAIN_MENU
     /** True while [world] is a real game that is not over (not the demo town). */
     private var gameInProgress = false
+    /**
+     * After game over the camera first glides to the failed device; the game-over card follows at this [animTime]
+     * (or on the next tap). Null otherwise.
+     */
+    private var failFocusUntil: Float? = null
     private var newBest = false
     private val menuPanel = MenuPanel(context)
     private var pressedAction: MenuAction? = null
@@ -224,6 +229,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             loop = null
         }
         // Safe: the game thread has ended.
+        if (failFocusUntil != null) showGameOverCard()
         if (screen == Screen.PLAYING) {
             endDrag()
             screen = Screen.PAUSED
@@ -314,6 +320,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         checkHold()
         if (screen == Screen.PLAYING) clock.advance(frameSeconds) { world.update(it) } else clock.reset()
         checkGameOver()
+        failFocusUntil?.let { if (animTime >= it) showGameOverCard() }
         followArea()
         renderer.camera.step(animStep)
     }
@@ -401,6 +408,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         animTime = time
         handle(Input.Resize(width, height))
         checkGameOver()
+        drawFrame(canvas)
+    }
+
+    /** Draws the current state as it is (no resize, no screen change), for tests. */
+    internal fun drawCurrent(canvas: Canvas) {
+        check(loop == null) { "game loop is running" }
         drawFrame(canvas)
     }
 
@@ -603,6 +616,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     }
 
     private fun onTouch(e: Input.Touch) {
+        if (failFocusUntil != null) {
+            if (e.action == MotionEvent.ACTION_UP) showGameOverCard()
+            return
+        }
         if (screen != Screen.PLAYING) {
             onMenuTouch(e)
             return
@@ -957,7 +974,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     private fun onBack() {
         when (screen) {
-            Screen.PLAYING -> if (placing != null) placing = null else openPauseMenu()
+            Screen.PLAYING -> when {
+                failFocusUntil != null -> showGameOverCard()
+                placing != null -> placing = null
+                else -> openPauseMenu()
+            }
             Screen.PAUSED -> screen = Screen.PLAYING
             Screen.SETTINGS -> screen = settingsReturn
             Screen.GAME_OVER -> onMenuAction(MenuAction.MAIN_MENU)
@@ -996,6 +1017,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     private fun showWorld(w: World) {
         world = w
+        failFocusUntil = null
         gameInProgress = false
         layoutRenderers()
         clock.reset()
@@ -1005,7 +1027,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         gestureConsumed = false
     }
 
-    /** Game over while playing: record the score, drop the save and show the result. */
+    /**
+     * Game over while playing: record the score and drop the save, then let the camera glide to the failed device for
+     * [GAME_OVER_FOCUS_SECONDS] before the result card shows.
+     */
     private fun checkGameOver() {
         if (screen != Screen.PLAYING || !world.gameOver || !gameInProgress) return
         gameInProgress = false
@@ -1014,6 +1039,17 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         hasSave = false
         endDrag()
         placing = null
+        val failed = world.failedNode
+        if (failed == null) {
+            screen = Screen.GAME_OVER
+            return
+        }
+        renderer.focusOn(failed)
+        failFocusUntil = animTime + GAME_OVER_FOCUS_SECONDS
+    }
+
+    private fun showGameOverCard() {
+        failFocusUntil = null
         screen = Screen.GAME_OVER
     }
 
@@ -1065,6 +1101,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         const val TRAIL_SPACING = 0.2f
         const val MAX_TRAIL = 256
         const val HINT_SECONDS = 2.5f
+        /** How long the camera shows the failed device before the game-over card. */
+        const val GAME_OVER_FOCUS_SECONDS = 1.6f
         const val MAX_INCIDENT_LINES = 4
         /** A finger that moves less than this is a tap. */
         const val TAP_SLOP_DP = 12f

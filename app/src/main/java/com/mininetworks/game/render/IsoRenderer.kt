@@ -1,22 +1,28 @@
 package com.mininetworks.game.render
 
+import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
+import com.mininetworks.game.game.Cable
 import com.mininetworks.game.game.Cell
 import com.mininetworks.game.game.CellRect
+import com.mininetworks.game.game.Geometry
 import com.mininetworks.game.game.Incident
 import com.mininetworks.game.game.IncidentKind
 import com.mininetworks.game.game.Incidents
 import com.mininetworks.game.game.Node
 import com.mininetworks.game.game.NodeKind
+import com.mininetworks.game.game.Service
 import com.mininetworks.game.game.Vec2
 import com.mininetworks.game.game.World
+import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.floor
+import kotlin.math.hypot
 import kotlin.math.sin
 
 /** Style B from docs/style-explorations.html: isometric tiles, extruded buildings, grid-aligned cables. */
@@ -51,6 +57,17 @@ class IsoRenderer : Renderer {
     private val airP = stroke(0)
     private val cutP = stroke(IncidentStyles.CUT)
     private val clip = Path()
+    private val shimmerP = stroke(0)
+
+    /** Ground layer cache: tiles, board, shadows and decorations of [groundMap] as seen from [groundView]. */
+    private var groundBitmap: Bitmap? = null
+    private var groundCanvas: Canvas? = null
+    private var groundMap = 0L
+    private var groundView: ViewKey? = null
+    /** Camera of the previous frame: the cache is only rebuilt once the view holds still. */
+    private var lastView: ViewKey? = null
+
+    private data class ViewKey(val scale: Float, val focusX: Float, val focusY: Float, val width: Int, val height: Int)
 
     /** Isometric map space: one unit per tile width; a tile is half as high as it is wide. */
     override fun toMap(p: Vec2) = Vec2((p.x - p.y) / 2f, (p.x + p.y) / 4f)
@@ -73,30 +90,12 @@ class IsoRenderer : Renderer {
     private fun sy(x: Float, y: Float, z: Float = 0f) = camera.toScreenY((x + y) / 4f - z / 2f)
 
     override fun draw(canvas: Canvas, world: World, drag: DragPreview?, time: Float) {
-        canvas.drawColor(0xFFEEF3EA.toInt())
-        val open = world.unlocked
-        for (y in 0 until world.rows) for (x in 0 until world.cols) {
-            quad(x.toFloat(), y.toFloat(), 1f, 1f, 0f)
-            val even = (x + y) % 2 == 0
-            fillP.color = when {
-                !open.contains(x, y) && world.water[y][x] -> if (even) lockedWaterA else lockedWaterB
-                !open.contains(x, y) -> if (even) lockedLandA else lockedLandB
-                world.water[y][x] -> if (even) waterA else waterB
-                else -> if (even) landA else landB
-            }
-            canvas.drawPath(path, fillP)
-        }
-        // Board edges give the "toy on a table" look.
-        val w = world.cols.toFloat(); val h = world.rows.toFloat()
-        side(0f, h, w, h); fillP.color = 0xFFB9C9AF.toInt(); canvas.drawPath(path, fillP)
-        side(w, 0f, w, h); fillP.color = 0xFFA7BA9C.toInt(); canvas.drawPath(path, fillP)
-        if (open != world.bounds) {
-            quad(open.left.toFloat(), open.top.toFloat(), open.width.toFloat(), open.height.toFloat(), 0f)
-            strokeP.color = edge; strokeP.strokeWidth = tw * 0.03f; canvas.drawPath(path, strokeP)
-        }
+        drawGroundLayer(canvas, world)
+        drawWaterShimmer(canvas, world, time)
 
         for (c in world.cables) {
-            polyline(cablePath(c))
+            val grow = growth(world, c)
+            if (grow < 1f) partialPolyline(cablePath(c), grow) else polyline(cablePath(c))
             val st = CableStyles.of(c.type)
             strokeP.color = 0xB3FFFFFF.toInt(); strokeP.strokeWidth = tw * (st.width * 0.75f + 0.08f); canvas.drawPath(path, strokeP)
             strokeP.color = st.color; strokeP.strokeWidth = tw * st.width * 0.75f; canvas.drawPath(path, strokeP)
@@ -107,6 +106,7 @@ class IsoRenderer : Renderer {
                 cutP.strokeWidth = tw * st.width * 0.6f
                 canvas.drawPath(path, cutP)
             }
+            if (grow < 1f) drawCableTip(canvas, c, grow)
         }
         drawRadioCoverage(canvas, world, time)
         for (i in world.incidents) drawIncidentGround(canvas, i, time)
@@ -122,6 +122,9 @@ class IsoRenderer : Renderer {
                 canvas.drawText(it, sx(end.x, end.y), sy(end.x, end.y) - th * 1.6f, labelP)
             }
         }
+
+        drawArrivalRings(canvas, world)
+        world.failedNode?.let { drawFailedPulse(canvas, it, time) }
 
         // Painter's algorithm: everything with height is drawn back-to-front by x + y.
         val items = ArrayList<Pair<Float, () -> Unit>>()
@@ -163,6 +166,340 @@ class IsoRenderer : Renderer {
             oval.set(cx - tw * 0.55f, cy - th * 0.55f, cx + tw * 0.55f, cy + th * 0.55f)
             strokeP.color = alarm; strokeP.strokeWidth = tw * 0.05f
             canvas.drawArc(oval, -90f, 360f * n.overload, false, strokeP)
+        }
+        drawDeliveryPops(canvas, world)
+    }
+
+    // ---------------------------------------------------------------- ground layer
+
+    /**
+     * Draws the static ground (tiles, board, shadows, decorations). It comes from a cached bitmap while the map and
+     * the view are unchanged; after a change it is drawn directly until the camera holds still for a frame, then
+     * cached again, so a pan or pinch never pays for rebuilding and uploading a bitmap every frame.
+     */
+    private fun drawGroundLayer(canvas: Canvas, world: World) {
+        val view = ViewKey(camera.scale, camera.focusX, camera.focusY, canvas.width, canvas.height)
+        val map = mapSignature(world)
+        val still = view == lastView
+        lastView = view
+        val cached = groundBitmap
+        if (cached != null && view == groundView && map == groundMap) {
+            canvas.drawBitmap(cached, 0f, 0f, null)
+            return
+        }
+        if (!still || canvas.width <= 0 || canvas.height <= 0) {
+            drawGround(canvas, world)
+            return
+        }
+        val bmp = cached?.takeIf { it.width == canvas.width && it.height == canvas.height }
+            ?: Bitmap.createBitmap(canvas.width, canvas.height, Bitmap.Config.ARGB_8888).also {
+                cached?.recycle()
+                groundBitmap = it
+                groundCanvas = Canvas(it)
+            }
+        drawGround(groundCanvas!!, world)
+        groundView = view
+        groundMap = map
+        canvas.drawBitmap(bmp, 0f, 0f, null)
+    }
+
+    /** True if the next frame of [world] with the current camera would come from the ground cache; for tests. */
+    internal fun groundCached(world: World, width: Int, height: Int) =
+        groundBitmap != null && groundView == ViewKey(camera.scale, camera.focusX, camera.focusY, width, height) &&
+            groundMap == mapSignature(world)
+
+    /** Changes whenever anything drawn into the ground layer may change: water, unlocked area, nodes, cables. */
+    private fun mapSignature(world: World): Long {
+        var h = System.identityHashCode(world).toLong()
+        fun mix(v: Int) { h = (h xor v.toLong()) * 0x100000001B3L }
+        val u = world.unlocked
+        mix(u.left); mix(u.top); mix(u.right); mix(u.bottom)
+        for (y in 0 until world.rows) for (x in 0 until world.cols) if (world.water[y][x]) mix(y * 4096 + x)
+        mix(world.nodes.size)
+        for (n in world.nodes) { mix(n.id); mix(n.kind.ordinal); mix(n.cellX); mix(n.cellY); mix(n.level) }
+        mix(world.cables.size)
+        for (c in world.cables) {
+            mix(c.a.id); mix(c.b.id)
+            for (p in c.layout.waypoints) { mix(p.x.toRawBits()); mix(p.y.toRawBits()) }
+        }
+        return h
+    }
+
+    private fun drawGround(c: Canvas, world: World) {
+        c.drawColor(BACKGROUND)
+        val open = world.unlocked
+        val seed = world.seed
+        for (y in 0 until world.rows) for (x in 0 until world.cols) {
+            quad(x.toFloat(), y.toFloat(), 1f, 1f, 0f)
+            val even = (x + y) % 2 == 0
+            val base = when {
+                !open.contains(x, y) && world.water[y][x] -> if (even) lockedWaterA else lockedWaterB
+                !open.contains(x, y) -> if (even) lockedLandA else lockedLandB
+                world.water[y][x] -> if (even) waterA else waterB
+                else -> if (even) landA else landB
+            }
+            fillP.color = base.shade(Scenery.tileVariation(seed, x, y) * TILE_VARIATION)
+            c.drawPath(path, fillP)
+        }
+        // Board edges give the "toy on a table" look.
+        val w = world.cols.toFloat(); val h = world.rows.toFloat()
+        side(0f, h, w, h); fillP.color = 0xFFB9C9AF.toInt(); c.drawPath(path, fillP)
+        side(w, 0f, w, h); fillP.color = 0xFFA7BA9C.toInt(); c.drawPath(path, fillP)
+        if (open != world.bounds) {
+            quad(open.left.toFloat(), open.top.toFloat(), open.width.toFloat(), open.height.toFloat(), 0f)
+            strokeP.color = edge; strokeP.strokeWidth = tw * 0.03f; c.drawPath(path, strokeP)
+        }
+        val taken = Scenery.occupied(world)
+        for (y in 0 until world.rows) for (x in 0 until world.cols) {
+            if (world.water[y][x] || Cell(x, y) in taken || Scenery.planned(seed, x, y) != null) continue
+            drawGrass(c, seed, x, y, open.contains(x, y))
+        }
+        for (n in world.nodes) drawShadow(c, n)
+        for ((cell, d) in Scenery.decorations(world, taken)) drawDecor(c, seed, cell, d, open.contains(cell.x, cell.y))
+    }
+
+    /** Tufts of grass and a few flowers on some bare land cells. */
+    private fun drawGrass(c: Canvas, seed: Long, x: Int, y: Int, open: Boolean) {
+        val r = Scenery.unit(seed, x, y, 4)
+        if (r > 0.34f) return
+        val px = x + 0.2f + 0.6f * Scenery.unit(seed, x, y, 5)
+        val py = y + 0.2f + 0.6f * Scenery.unit(seed, x, y, 6)
+        val gx = sx(px, py); val gy = sy(px, py)
+        val k = tw * 0.035f
+        strokeP.color = (if (open) GRASS else wash(GRASS)); strokeP.strokeWidth = tw * 0.012f
+        for (i in 0 until 2) {
+            val ox = gx + i * k * 1.6f
+            c.drawLine(ox - k * 0.6f, gy - k, ox, gy, strokeP)
+            c.drawLine(ox, gy - k * 1.3f, ox, gy, strokeP)
+            c.drawLine(ox + k * 0.6f, gy - k, ox, gy, strokeP)
+        }
+        if (r < 0.07f) {
+            fillP.color = if (open) (if (r < 0.035f) FLOWER_A else FLOWER_B) else wash(FLOWER_A)
+            for (i in 0 until 3) c.drawCircle(gx - k * 1.8f + i * k * 1.3f, gy + k * (0.7f + (i % 2) * 0.5f), tw * 0.011f, fillP)
+        }
+    }
+
+    /** Soft drop shadow of a node on the ground, cast away from the light (upper left) by its height. */
+    private fun drawShadow(c: Canvas, n: Node) {
+        val f = n.footprintCenter
+        when (n.kind) {
+            NodeKind.SERVER -> if (n.isDataCenter) groundShadow(c, f.x, f.y, 1.86f, 1.4f) else groundShadow(c, f.x, f.y, 0.78f, n.level * 0.72f)
+            NodeKind.CLIENT -> groundShadow(c, f.x, f.y, 0.5f, 0.45f)
+            NodeKind.ROUTER -> groundShadow(c, f.x, f.y, 0.4f, 0.35f)
+            NodeKind.ACCESS_POINT -> groundShadow(c, f.x, f.y, 0.36f, 0.45f)
+            NodeKind.CELL_TOWER -> {
+                groundShadow(c, f.x, f.y, 0.56f, 0.1f)
+                groundShadow(c, f.x, f.y, 0.22f, 2.1f)
+            }
+        }
+    }
+
+    /**
+     * The ground shadow of an [s]-wide block of height [h] at ([cx], [cy]): its footprint swept away from the light,
+     * drawn in a few widening, faint passes so the edge is soft (works on hardware canvases without blur filters).
+     */
+    private fun groundShadow(c: Canvas, cx: Float, cy: Float, s: Float, h: Float) {
+        val dx = minOf(h * 0.6f, 1.4f); val dy = minOf(h * 0.22f, 0.5f)
+        for (pass in SHADOW_SPREAD.indices) {
+            val e = SHADOW_SPREAD[pass] * (0.6f + 0.4f * minOf(h, 1.5f))
+            val x0 = cx - s / 2 - e; val x1 = cx + s / 2 + e
+            val y0 = cy - s / 2 - e; val y1 = cy + s / 2 + e
+            path.reset()
+            path.moveTo(sx(x0, y0), sy(x0, y0)); path.lineTo(sx(x1, y0), sy(x1, y0))
+            path.lineTo(sx(x1 + dx, y0 + dy), sy(x1 + dx, y0 + dy)); path.lineTo(sx(x1 + dx, y1 + dy), sy(x1 + dx, y1 + dy))
+            path.lineTo(sx(x0 + dx, y1 + dy), sy(x0 + dx, y1 + dy)); path.lineTo(sx(x0, y1), sy(x0, y1)); path.close()
+            fillP.color = SHADOW_ALPHA[pass] shl 24
+            c.drawPath(path, fillP)
+        }
+    }
+
+    /** A small tree, pine, bush or house, jittered inside its cell; washed out outside the unlocked area. */
+    private fun drawDecor(c: Canvas, seed: Long, cell: Cell, d: Decor, open: Boolean) {
+        val x = cell.x + 0.5f + (Scenery.unit(seed, cell.x, cell.y, 11) - 0.5f) * 0.3f
+        val y = cell.y + 0.5f + (Scenery.unit(seed, cell.x, cell.y, 12) - 0.5f) * 0.3f
+        val k = 0.85f + 0.3f * Scenery.unit(seed, cell.x, cell.y, 13)
+        fun col(v: Int) = if (open) v else wash(v)
+        if (d != Decor.HOUSE) {
+            groundEllipse(Vec2(x + 0.13f * k, y + 0.05f * k), 0.17f * k)
+            fillP.color = 0x22000000; c.drawOval(oval, fillP)
+        }
+        val gx = sx(x, y)
+        when (d) {
+            Decor.TREE -> {
+                strokeP.color = col(TRUNK); strokeP.strokeWidth = tw * 0.035f
+                c.drawLine(gx, sy(x, y), gx, sy(x, y, 0.16f * k), strokeP)
+                val cy = sy(x, y, 0.3f * k); val r = tw * 0.12f * k
+                fillP.color = col(LEAF_DARK); c.drawCircle(gx, cy, r, fillP)
+                fillP.color = col(LEAF); c.drawCircle(gx - r * 0.18f, cy - r * 0.18f, r * 0.78f, fillP)
+            }
+            Decor.PINE -> {
+                strokeP.color = col(TRUNK); strokeP.strokeWidth = tw * 0.03f
+                c.drawLine(gx, sy(x, y), gx, sy(x, y, 0.1f * k), strokeP)
+                for ((z0, z1, half) in listOf(Triple(0.08f, 0.42f, 0.12f), Triple(0.24f, 0.56f, 0.09f))) {
+                    val b = sy(x, y, z0 * k); val t = sy(x, y, z1 * k); val hw = tw * half * k
+                    path.reset(); path.moveTo(gx, t); path.lineTo(gx + hw, b); path.lineTo(gx - hw, b); path.close()
+                    fillP.color = col(PINE_DARK); c.drawPath(path, fillP)
+                    path.reset(); path.moveTo(gx, t); path.lineTo(gx, b); path.lineTo(gx - hw, b); path.close()
+                    fillP.color = col(PINE); c.drawPath(path, fillP)
+                }
+            }
+            Decor.BUSH -> {
+                val cy = sy(x, y, 0.06f); val r = tw * 0.065f * k
+                fillP.color = col(LEAF_DARK)
+                c.drawCircle(gx - r * 0.7f, cy, r, fillP); c.drawCircle(gx + r * 0.7f, cy, r, fillP)
+                fillP.color = col(LEAF); c.drawCircle(gx, cy - r * 0.45f, r * 1.05f, fillP)
+            }
+            Decor.HOUSE -> drawHouse(c, x, y, k, ::col)
+        }
+    }
+
+    /** A cottage: light walls with a door and a window, gable roof with the ridge along x. */
+    private fun drawHouse(c: Canvas, x: Float, y: Float, k: Float, col: (Int) -> Int) {
+        val hx = 0.2f * k; val hy = 0.16f * k
+        val x0 = x - hx; val x1 = x + hx; val y0 = y - hy; val y1 = y + hy
+        groundShadowRect(c, x0, y0, x1, y1, 0.3f * k)
+        val z1 = 0.17f * k; val zr = z1 + 0.14f * k; val ym = y
+        val wall = col(HOUSE_WALL)
+        boxRect(c, x0, y0, x1, y1, 0f, z1, wall, wall)
+        fillP.color = col(HOUSE_DOOR)
+        faceY(y1, x - 0.04f * k, x + 0.03f * k, 0f, 0.11f * k); c.drawPath(path, fillP)
+        fillP.color = col(HOUSE_WINDOW)
+        faceX(x1, y - 0.06f * k, y + 0.04f * k, 0.06f * k, 0.12f * k); c.drawPath(path, fillP)
+        val o = 0.03f * k
+        val roof = col(HOUSE_ROOF)
+        poly(x0 - o, y0 - o, z1, x1 + o, y0 - o, z1, x1 + o, ym, zr, x0 - o, ym, zr)
+        fillP.color = roof.shade(0.12f); c.drawPath(path, fillP)
+        poly(x1, y0, z1, x1, y1, z1, x1, ym, zr)
+        fillP.color = wall.shade(-0.25f); c.drawPath(path, fillP)
+        poly(x0 - o, y1 + o, z1, x1 + o, y1 + o, z1, x1 + o, ym, zr, x0 - o, ym, zr)
+        fillP.color = roof; c.drawPath(path, fillP)
+    }
+
+    private fun groundShadowRect(c: Canvas, x0: Float, y0: Float, x1: Float, y1: Float, h: Float) =
+        groundShadow(c, (x0 + x1) / 2, (y0 + y1) / 2, maxOf(x1 - x0, y1 - y0), h)
+
+    /** Closed polygon through world points given as x, y, z triples, into [path]. */
+    private fun poly(vararg p: Float) {
+        path.reset()
+        for (i in p.indices step 3) {
+            val px = sx(p[i], p[i + 1]); val py = sy(p[i], p[i + 1], p[i + 2])
+            if (i == 0) path.moveTo(px, py) else path.lineTo(px, py)
+        }
+        path.close()
+    }
+
+    /** [color] faded towards the locked ground, for decorations outside the unlocked area. */
+    private fun wash(color: Int) = blend(color, lockedLandA, 0.6f)
+
+    // ---------------------------------------------------------------- animations
+
+    /** Light streaks drifting down the river; two per water cell, each fading in and out on its own phase. */
+    private fun drawWaterShimmer(canvas: Canvas, world: World, time: Float) {
+        shimmerP.strokeWidth = tw * 0.024f
+        val open = world.unlocked
+        for (y in 0 until world.rows) for (x in 0 until world.cols) {
+            if (!world.water[y][x]) continue
+            for (k in 0 until 2) {
+                val t = time * SHIMMER_SPEED + Scenery.unit(world.seed, x, y, 20 + k)
+                val phase = t - floor(t)
+                val a = sin(phase * PI.toFloat())
+                val px = x + 0.22f + 0.56f * Scenery.unit(world.seed, x, y, 22 + k)
+                val py = y + 0.12f + phase * 0.62f
+                val alpha = (a * (if (open.contains(x, y)) 170f else 80f)).toInt()
+                shimmerP.color = (alpha shl 24) or 0xFFFFFF
+                canvas.drawLine(sx(px, py), sy(px, py), sx(px, py + 0.2f), sy(px, py + 0.2f), shimmerP)
+            }
+        }
+    }
+
+    /** 0..1: how much of [c] is laid, easing out over [layDuration] after it was built. */
+    private fun growth(world: World, c: Cable): Float {
+        val t = ((world.time - c.builtAt) / layDuration(c)).coerceIn(0f, 1f)
+        return 1f - (1f - t) * (1f - t)
+    }
+
+    private fun layDuration(c: Cable) = (0.15f + c.layout.length * 0.06f).coerceAtMost(0.6f)
+
+    /** The first [f] of the polyline through [pts], into [path]. */
+    private fun partialPolyline(pts: List<Vec2>, f: Float) {
+        path.reset()
+        var left = Geometry.polylineLength(pts) * f
+        path.moveTo(sx(pts[0].x, pts[0].y), sy(pts[0].x, pts[0].y))
+        for (i in 0 until pts.size - 1) {
+            val a = pts[i]; val b = pts[i + 1]
+            val seg = hypot(b.x - a.x, b.y - a.y)
+            if (seg >= left) {
+                val u = if (seg > 0f) left / seg else 0f
+                val px = a.x + (b.x - a.x) * u; val py = a.y + (b.y - a.y) * u
+                path.lineTo(sx(px, py), sy(px, py))
+                return
+            }
+            path.lineTo(sx(b.x, b.y), sy(b.x, b.y))
+            left -= seg
+        }
+    }
+
+    /** A bright spark at the growing end of a cable being laid. */
+    private fun drawCableTip(canvas: Canvas, c: Cable, f: Float) {
+        val p = c.layout.pointAt(f)
+        val x = sx(p.x, p.y); val y = sy(p.x, p.y)
+        fillP.color = 0x66FFFFFF; canvas.drawCircle(x, y, tw * 0.11f, fillP)
+        fillP.color = CableStyles.of(c.type).color; canvas.drawCircle(x, y, tw * 0.055f, fillP)
+        fillP.color = 0xFFFFFFFF.toInt(); canvas.drawCircle(x, y, tw * 0.03f, fillP)
+    }
+
+    /** Rings on the ground where a request reached its server (in the service color) or a response came home. */
+    private fun drawArrivalRings(canvas: Canvas, world: World) {
+        for (a in world.arrivals) {
+            val t = (world.time - a.time) / if (a.isResponse) DELIVERY_POP else SERVER_POP
+            if (t !in 0f..1f) continue
+            val base = when {
+                a.isResponse -> 0.32f
+                a.node.isDataCenter -> 1.25f
+                else -> 0.55f
+            }
+            groundEllipse(a.node.footprintCenter, base * (1f + 0.7f * t))
+            strokeP.color = ServiceColors.of(a.service) and 0xFFFFFF or ((1f - t) * 220f).toInt().shl(24)
+            strokeP.strokeWidth = tw * 0.035f * (1f - 0.5f * t)
+            canvas.drawOval(oval, strokeP)
+        }
+    }
+
+    /** A delivered response rises as a small shape above its device and fades out. */
+    private fun drawDeliveryPops(canvas: Canvas, world: World) {
+        for (a in world.arrivals) {
+            if (!a.isResponse) continue
+            val t = (world.time - a.time) / DELIVERY_POP
+            if (t !in 0f..1f) continue
+            val c = a.node.center
+            val x = sx(c.x, c.y); val y = sy(c.x, c.y, 0.2f) - tw * (0.5f + 0.3f * t)
+            val alpha = ((1f - t * t) * 255f).toInt().shl(24)
+            val r = tw * 0.055f * (0.7f + 0.6f * sin(minOf(t * 3f, 1f) * PI.toFloat() / 2f))
+            fillP.color = ServiceColors.of(a.service) and 0xFFFFFF or alpha
+            Shapes.draw(canvas, a.service.shape, x, y, r, fillP)
+            strokeP.color = 0xFFFFFF or alpha; strokeP.strokeWidth = tw * 0.015f
+            Shapes.draw(canvas, a.service.shape, x, y, r, strokeP)
+        }
+    }
+
+    /** Scale of a server's badge: a short bounce each time a request arrives. */
+    private fun badgePop(world: World, n: Node): Float {
+        val last = world.arrivals.lastOrNull { !it.isResponse && it.node === n } ?: return 1f
+        val t = (world.time - last.time) / BADGE_POP
+        return if (t in 0f..1f) 1f + 0.45f * sin(t * PI.toFloat()) else 1f
+    }
+
+    /** Game over: red ripples around the device whose queue overflowed. */
+    private fun drawFailedPulse(canvas: Canvas, n: Node, time: Float) {
+        groundEllipse(n.center, 0.55f)
+        fillP.color = alarm and 0xFFFFFF or 0x40000000; canvas.drawOval(oval, fillP)
+        strokeP.strokeWidth = tw * 0.04f
+        for (k in 0 until 3) {
+            val u = time * 0.7f + k / 3f
+            val t = u - floor(u)
+            groundEllipse(n.center, 0.55f + 1.4f * t)
+            strokeP.color = alarm and 0xFFFFFF or ((1f - t) * 210f).toInt().shl(24)
+            canvas.drawOval(oval, strokeP)
         }
     }
 
@@ -214,7 +551,7 @@ class IsoRenderer : Renderer {
         val busy = world.serverBusy(n)
         val x = n.center.x; val y = n.center.y
         when (n.kind) {
-            NodeKind.SERVER -> if (n.isDataCenter) drawDataCenter(canvas, n, time, busy) else {
+            NodeKind.SERVER -> if (n.isDataCenter) drawDataCenter(canvas, n, time, busy, badgePop(world, n)) else {
                 // One stacked hardware unit per server level: bigger servers literally tower over the town.
                 val service = n.service!!
                 val col = ServiceColors.of(service)
@@ -234,7 +571,7 @@ class IsoRenderer : Renderer {
                 }
                 val top = n.level * unit - 0.06f
                 fillP.color = 0xFFFFFFFF.toInt()
-                Shapes.draw(canvas, service.shape, sx(x, y), sy(x, y, top), tw * 0.1f, fillP)
+                Shapes.draw(canvas, service.shape, sx(x, y), sy(x, y, top), tw * 0.1f * badgePop(world, n), fillP)
             }
             NodeKind.CLIENT -> {
                 val d = n.device!!
@@ -417,7 +754,7 @@ class IsoRenderer : Renderer {
     }
 
     /** Tier 4: a wide, low hall over the 2×2 footprint with rack LEDs on both visible walls and cooling on the roof. */
-    private fun drawDataCenter(canvas: Canvas, n: Node, time: Float, busy: Boolean) {
+    private fun drawDataCenter(canvas: Canvas, n: Node, time: Float, busy: Boolean, pop: Float) {
         val service = n.service!!
         val col = ServiceColors.of(service)
         val c = n.footprintCenter
@@ -443,10 +780,10 @@ class IsoRenderer : Renderer {
         box(canvas, c.x - 0.38f, c.y - 0.38f, 0.42f, 0.16f, 0xFF5B6674.toInt(), 0xFFB9C2CC.toInt(), z0 = roof)
         box(canvas, c.x + 0.12f, c.y - 0.38f, 0.42f, 0.16f, 0xFF5B6674.toInt(), 0xFFB9C2CC.toInt(), z0 = roof)
         val bx = sx(c.x + 0.2f, c.y + 0.25f); val by = sy(c.x + 0.2f, c.y + 0.25f, roof)
-        oval.set(bx - tw * 0.2f, by - th * 0.2f, bx + tw * 0.2f, by + th * 0.2f)
+        oval.set(bx - tw * 0.2f * pop, by - th * 0.2f * pop, bx + tw * 0.2f * pop, by + th * 0.2f * pop)
         fillP.color = 0xFFFFFFFF.toInt(); canvas.drawOval(oval, fillP)
         fillP.color = col
-        Shapes.draw(canvas, service.shape, bx, by - th * 0.04f, tw * 0.08f, fillP)
+        Shapes.draw(canvas, service.shape, bx, by - th * 0.04f, tw * 0.08f * pop, fillP)
     }
 
     /** Wall patch on the plane y = [y], from x [xa] to [xb] and height [za] to [zb]. */
@@ -500,6 +837,36 @@ class IsoRenderer : Renderer {
         /** Router and access point bases without power. */
         const val DARK_TOP = 0xFF6E7781.toInt()
         const val DARK_SIDE = 0xFF59616B.toInt()
+        const val BACKGROUND = 0xFFEEF3EA.toInt()
+        /** Largest brightness change of a ground tile (see [Scenery.tileVariation]). */
+        const val TILE_VARIATION = 0.035f
+        /** Outward spread (cells) and alpha of the soft shadow passes, outermost first. */
+        val SHADOW_SPREAD = floatArrayOf(0.1f, 0.05f, 0f)
+        val SHADOW_ALPHA = intArrayOf(0x10, 0x12, 0x1A)
+        const val GRASS = 0xFFB3C9A6.toInt()
+        const val FLOWER_A = 0xFFFFFFFF.toInt()
+        const val FLOWER_B = 0xFFF2D06B.toInt()
+        const val TRUNK = 0xFF8A6A4A.toInt()
+        const val LEAF = 0xFF93C47D.toInt()
+        const val LEAF_DARK = 0xFF6FA262.toInt()
+        const val PINE = 0xFF6FA87A.toInt()
+        const val PINE_DARK = 0xFF4E8660.toInt()
+        const val HOUSE_WALL = 0xFFF4EDE0.toInt()
+        const val HOUSE_ROOF = 0xFFC9694F.toInt()
+        const val HOUSE_DOOR = 0xFF8A6A4A.toInt()
+        const val HOUSE_WINDOW = 0xFFBFD6E6.toInt()
+        /** Seconds of the ring where a request reaches a server, of a delivery pop, and of the badge bounce. */
+        const val SERVER_POP = 0.7f
+        const val DELIVERY_POP = 0.8f
+        const val BADGE_POP = 0.3f
+        /** Streak cycles per second on the water. */
+        const val SHIMMER_SPEED = 0.35f
+
+        /** Linear mix of two opaque colors, [f] = 0 gives [a]. */
+        fun blend(a: Int, b: Int, f: Float): Int {
+            fun ch(shift: Int) = (((a shr shift) and 0xFF) * (1f - f) + ((b shr shift) and 0xFF) * f).toInt() shl shift
+            return (0xFF shl 24) or ch(16) or ch(8) or ch(0)
+        }
     }
 
     private fun polyline(pts: List<Vec2>) {

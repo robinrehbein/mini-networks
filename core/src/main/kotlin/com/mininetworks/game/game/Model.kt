@@ -234,6 +234,10 @@ class Cable(
     override val medium get() = this
     val crossesWater get() = waterCells > 0
 
+    /** [World.time] when the cable was laid, for the laying animation; minus infinity for loaded cables. */
+    var builtAt = Float.NEGATIVE_INFINITY
+        internal set
+
     override fun pointFrom(from: Node, f: Float): Vec2 = layout.pointAt(if (from === a) f else 1f - f)
 }
 
@@ -241,6 +245,12 @@ class Cable(
 class Route(val nodes: List<Node>, val pingMs: Float) {
     val oneWayMs get() = pingMs / 2f
 }
+
+/**
+ * A packet reaching the end of a leg, for effects: a request arriving at its server ([isResponse] false, [node] is the
+ * server) or a response delivered to its client ([isResponse] true, [node] is the client), at [World.time] [time].
+ */
+class Arrival(val node: Node, val service: Service, val isResponse: Boolean, val time: Float)
 
 /**
  * A packet on its way. A request travels [route] from its [origin] client to a server; there it turns into a response

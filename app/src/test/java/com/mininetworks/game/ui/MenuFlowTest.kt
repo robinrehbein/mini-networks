@@ -172,6 +172,36 @@ class MenuFlowTest {
     }
 
     @Test
+    fun gameOverFirstFocusesTheFailedDevice() {
+        val view = newView()
+        view.drawSnapshot(Canvas(bmp), doomedGame(2), bmp.width, bmp.height, time = 0f)
+        val camera = view.activeRenderer.camera
+        val fitted = camera.scale
+        var s = 0
+        while (!view.currentWorld.gameOver && s++ < 60 * 30) view.advance(1f / 60f)
+        view.advance(1f / 60f)
+        assertEquals("the map stays visible while the camera moves", Screen.PLAYING, view.currentScreen)
+        assertTrue(camera.isAnimating)
+        assertTrue("save is dropped right away", !SaveStore(app.filesDir).exists)
+        play(view, 1f)
+        assertEquals(Screen.PLAYING, view.currentScreen)
+        assertTrue("zooms in", camera.scale > fitted * 1.3f)
+        val failed = view.currentWorld.failedNode!!
+        val onScreen = view.activeRenderer.toScreen(failed.center)
+        assertEquals(bmp.width / 2f, onScreen.x, bmp.width * 0.1f)
+        play(view, 1f)
+        assertEquals(Screen.GAME_OVER, view.currentScreen)
+
+        view.drawSnapshot(Canvas(bmp), doomedGame(2), bmp.width, bmp.height, time = 0f)
+        s = 0
+        while (!view.currentWorld.gameOver && s++ < 60 * 30) view.advance(1f / 60f)
+        view.advance(1f / 60f)
+        view.injectTouch(MotionEvent.ACTION_DOWN, 10f, 10f)
+        view.injectTouch(MotionEvent.ACTION_UP, 10f, 10f)
+        assertEquals("a tap skips to the result", Screen.GAME_OVER, view.currentScreen)
+    }
+
+    @Test
     fun settingsApplyAndPersist() {
         val view = newView()
         assertEquals("isometric is the main style", "Iso", view.activeRenderer.name)

@@ -58,6 +58,8 @@ class World(
         /** Every night at this hour, clients queue [BACKUP_BURST] requests of each [Demand.NIGHTLY] service they use. */
         const val BACKUP_HOUR = 2f
         const val BACKUP_BURST = 2
+        /** How long [arrivals] keeps an event, in seconds. */
+        const val ARRIVAL_SECONDS = 1f
     }
 
     private var rng = ReplayableRandom(seed)
@@ -74,6 +76,14 @@ class World(
     val nodes = mutableListOf<Node>()
     val cables = mutableListOf<Cable>()
     val packets = mutableListOf<Packet>()
+
+    private val arrivalList = ArrayList<Arrival>()
+
+    /**
+     * Requests that reached their server and responses delivered to their client within the last
+     * [Tuning.ARRIVAL_SECONDS], oldest first. Only for effects: not saved, no influence on the simulation.
+     */
+    val arrivals: List<Arrival> get() = arrivalList
 
     private val radioLinkList = ArrayList<RadioLink>()
 
@@ -258,7 +268,7 @@ class World(
         if (gameOver || connectError(a, b, type, bend) != null) return false
         val layout = planLayout(a, b, bend)
         val cost = cableCost(layout, type)
-        cables += Cable(a, b, type, cost, layout, waterCellsOn(layout))
+        cables += Cable(a, b, type, cost, layout, waterCellsOn(layout)).also { it.builtAt = time }
         budget -= cost
         networkChanged()
         return true
@@ -629,6 +639,7 @@ class World(
         val prevWeek = week
         val prevTime = time
         time += dt
+        arrivalList.removeAll { time - it.time > Tuning.ARRIVAL_SECONDS }
         if (backupRuns(prevTime, time)) queueBackups()
         week = 1 + (time / Tuning.WEEK_SECONDS).toInt()
         if (week != prevWeek) {
@@ -753,9 +764,14 @@ class World(
             p.hop++
             when {
                 !last -> p.progress = -1f
-                p.isResponse -> { arrived += p; delivered++ }
+                p.isResponse -> {
+                    arrived += p
+                    delivered++
+                    arrivalList += Arrival(p.origin, p.service, isResponse = true, time)
+                }
                 else -> {
                     p.route.last().tokens -= 1f
+                    arrivalList += Arrival(p.route.last(), p.service, isResponse = false, time)
                     arrived += p
                     responses += Packet(p.service, p.origin, p.route.asReversed(), isResponse = true)
                 }
