@@ -6,6 +6,7 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
+import com.mininetworks.game.game.CellRect
 import com.mininetworks.game.game.NodeKind
 import com.mininetworks.game.game.Vec2
 import com.mininetworks.game.game.World
@@ -20,10 +21,15 @@ class FlatRenderer : Renderer {
     private val ink = 0xFF262B33.toInt()
     private val alarm = 0xFFD7263D.toInt()
 
-    private var cell = 1f
-    private var ox = 0f
-    private var oy = 0f
+    private val backdrop = 0xFFD3CFC5.toInt()
+    /** Veil over cells that are not unlocked yet. */
+    private val lockedVeil = 0x66C9C4B8
+    private val edge = 0x55262B33
+
+    override val camera = Camera()
+    private val cell get() = camera.scale
     override val unitPx get() = cell
+    private var cornerRadius = 0f
 
     private val fillP = fill(0)
     private val strokeP = stroke(0)
@@ -34,19 +40,28 @@ class FlatRenderer : Renderer {
     private val arcRect = RectF()
     private val labelP = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = Typeface.DEFAULT_BOLD; textAlign = Paint.Align.CENTER }
 
-    override fun layout(width: Int, height: Int, world: World) {
-        cell = minOf(width / (world.cols + 0.6f), height / (world.rows + 2.2f))
-        ox = (width - world.cols * cell) / 2f
-        oy = (height - world.rows * cell) / 2f + cell * 0.2f
-        cableP.pathEffect = CornerPathEffect(cell * 0.35f)
-    }
+    /** Flat map space is world space: one map unit per cell. */
+    override fun toMap(p: Vec2) = p
+    override fun fromMap(mx: Float, my: Float) = Vec2(mx, my)
 
-    override fun toScreen(p: Vec2) = Vec2(ox + p.x * cell, oy + p.y * cell)
-    override fun toWorld(sx: Float, sy: Float) = Vec2((sx - ox) / cell, (sy - oy) / cell)
+    /** Room for icons above the cells and request queues to the right of them. */
+    override fun mapBounds(area: CellRect) =
+        MapRect(area.left - 0.3f, area.top - 0.6f, area.right + 0.9f, area.bottom + 0.3f)
 
     override fun draw(canvas: Canvas, world: World, drag: DragPreview?, time: Float) {
-        canvas.drawColor(land)
+        if (cornerRadius != cell * 0.35f) {
+            cornerRadius = cell * 0.35f
+            cableP.pathEffect = CornerPathEffect(cornerRadius)
+        }
+        canvas.drawColor(backdrop)
+        val grid = screenRect(world.bounds)
+        fillP.color = land; canvas.drawRect(grid, fillP)
+        strokeP.color = edge; strokeP.strokeWidth = cell * 0.03f; canvas.drawRect(grid, strokeP)
+        canvas.save()
+        canvas.clipRect(grid)
         drawRiver(canvas, world)
+        canvas.restore()
+        drawLockedArea(canvas, world, grid)
 
         for (c in world.cables) {
             polyline(cablePath(c))
@@ -144,6 +159,25 @@ class FlatRenderer : Renderer {
         val last = toScreen(pts.last()); path.lineTo(last.x, last.y)
         strokeP.color = waterColor; strokeP.strokeWidth = cell * 1.0f
         canvas.drawPath(path, strokeP)
+    }
+
+    /** Veils everything outside the unlocked block and outlines the block. */
+    private fun drawLockedArea(canvas: Canvas, world: World, grid: RectF) {
+        if (world.unlocked == world.bounds) return
+        val open = screenRect(world.unlocked)
+        fillP.color = lockedVeil
+        canvas.drawRect(grid.left, grid.top, grid.right, open.top, fillP)
+        canvas.drawRect(grid.left, open.bottom, grid.right, grid.bottom, fillP)
+        canvas.drawRect(grid.left, open.top, open.left, open.bottom, fillP)
+        canvas.drawRect(open.right, open.top, grid.right, open.bottom, fillP)
+        strokeP.color = edge; strokeP.strokeWidth = cell * 0.04f
+        canvas.drawRect(open, strokeP)
+    }
+
+    private fun screenRect(r: CellRect): RectF {
+        val a = toScreen(Vec2(r.left.toFloat(), r.top.toFloat()))
+        val b = toScreen(Vec2(r.right.toFloat(), r.bottom.toFloat()))
+        return RectF(a.x, a.y, b.x, b.y)
     }
 
     private fun polyline(pts: List<Vec2>) {

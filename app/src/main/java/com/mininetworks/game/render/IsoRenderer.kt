@@ -5,6 +5,7 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
+import com.mininetworks.game.game.CellRect
 import com.mininetworks.game.game.Node
 import com.mininetworks.game.game.NodeKind
 import com.mininetworks.game.game.Vec2
@@ -21,10 +22,17 @@ class IsoRenderer : Renderer {
     private val waterB = 0xFFA4D0E3.toInt()
     private val alarm = 0xFFD7263D.toInt()
 
-    private var tw = 1f
-    private var th = 1f
-    private var ox = 0f
-    private var oy = 0f
+    /** Tiles that are not unlocked yet: washed-out versions of the land and water colors. */
+    private val lockedLandA = 0xFFE3E6E0.toInt()
+    private val lockedLandB = 0xFFDDE1DA.toInt()
+    private val lockedWaterA = 0xFFC4D8E1.toInt()
+    private val lockedWaterB = 0xFFCDDEE6.toInt()
+    private val edge = 0x8C2F3A34.toInt()
+
+    override val camera = Camera()
+    /** Tile width and height in pixels at the current zoom. */
+    private val tw get() = camera.scale
+    private val th get() = camera.scale / 2f
     override val unitPx get() = tw * 0.7f
 
     private val fillP = fill(0)
@@ -34,36 +42,48 @@ class IsoRenderer : Renderer {
     private val oval = RectF()
     private val labelP = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = Typeface.DEFAULT_BOLD; textAlign = Paint.Align.CENTER }
 
-    override fun layout(width: Int, height: Int, world: World) {
-        val span = (world.cols + world.rows).toFloat()
-        tw = minOf(width / (span / 2f + 0.6f), height / (span / 4f + 2.4f))
-        th = tw / 2f
-        ox = width / 2f - (world.cols - world.rows) * tw / 4f
-        oy = (height - span * th / 2f) / 2f + th * 1.4f
-    }
+    /** Isometric map space: one unit per tile width; a tile is half as high as it is wide. */
+    override fun toMap(p: Vec2) = Vec2((p.x - p.y) / 2f, (p.x + p.y) / 4f)
 
-    private fun sx(x: Float, y: Float) = ox + (x - y) * tw / 2f
-    private fun sy(x: Float, y: Float, z: Float = 0f) = oy + (x + y) * th / 2f - z * th
-
-    override fun toScreen(p: Vec2) = Vec2(sx(p.x, p.y), sy(p.x, p.y))
-
-    override fun toWorld(sx: Float, sy: Float): Vec2 {
-        val a = (sx - ox) / (tw / 2f) // x - y
-        val b = (sy - oy) / (th / 2f) // x + y
+    override fun fromMap(mx: Float, my: Float): Vec2 {
+        val a = 2f * mx // x - y
+        val b = 4f * my // x + y
         return Vec2((a + b) / 2f, (b - a) / 2f)
     }
 
+    /** The diamond of [area] plus room for tall buildings above and the board edge below. */
+    override fun mapBounds(area: CellRect) = MapRect(
+        (area.left - area.bottom) / 2f - 0.3f,
+        (area.left + area.top) / 4f - 1.1f,
+        (area.right - area.top) / 2f + 0.4f,
+        (area.right + area.bottom) / 4f + 0.4f,
+    )
+
+    private fun sx(x: Float, y: Float) = camera.toScreenX((x - y) / 2f)
+    private fun sy(x: Float, y: Float, z: Float = 0f) = camera.toScreenY((x + y) / 4f - z / 2f)
+
     override fun draw(canvas: Canvas, world: World, drag: DragPreview?, time: Float) {
         canvas.drawColor(0xFFEEF3EA.toInt())
+        val open = world.unlocked
         for (y in 0 until world.rows) for (x in 0 until world.cols) {
             quad(x.toFloat(), y.toFloat(), 1f, 1f, 0f)
-            fillP.color = if (world.water[y][x]) (if ((x + y) % 2 == 0) waterA else waterB) else (if ((x + y) % 2 == 0) landA else landB)
+            val even = (x + y) % 2 == 0
+            fillP.color = when {
+                !open.contains(x, y) && world.water[y][x] -> if (even) lockedWaterA else lockedWaterB
+                !open.contains(x, y) -> if (even) lockedLandA else lockedLandB
+                world.water[y][x] -> if (even) waterA else waterB
+                else -> if (even) landA else landB
+            }
             canvas.drawPath(path, fillP)
         }
         // Board edges give the "toy on a table" look.
         val w = world.cols.toFloat(); val h = world.rows.toFloat()
         side(0f, h, w, h); fillP.color = 0xFFB9C9AF.toInt(); canvas.drawPath(path, fillP)
         side(w, 0f, w, h); fillP.color = 0xFFA7BA9C.toInt(); canvas.drawPath(path, fillP)
+        if (open != world.bounds) {
+            quad(open.left.toFloat(), open.top.toFloat(), open.width.toFloat(), open.height.toFloat(), 0f)
+            strokeP.color = edge; strokeP.strokeWidth = tw * 0.03f; canvas.drawPath(path, strokeP)
+        }
 
         for (c in world.cables) {
             polyline(cablePath(c))

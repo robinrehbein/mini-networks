@@ -14,6 +14,7 @@
     <string name="button_router">Router (%1$d)</string>
     <string name="button_cable">%1$s · %2$d</string>
     <string name="hint_place_router">Tippe auf ein freies Feld</string>
+    <string name="hint_map_grew">Die Stadt wächst: neue Felder am Rand</string>
     <string name="server_error_max_level">Rechenzentrum ist die höchste Stufe</string>
     <string name="server_error_no_budget">Zu wenig Budget, Aufrüsten kostet %1$d</string>
     <string name="server_error_no_space">Rechenzentrum braucht 2×2 freie Felder am Server</string>

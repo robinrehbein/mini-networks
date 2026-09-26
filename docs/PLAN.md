@@ -31,16 +31,19 @@ Ziel ist, so viele Pakete wie möglich zuzustellen.
 | Routing | Dijkstra nach Ping; nur Kabel mit genug Kapazität zählen; fremde Server leiten nicht weiter. `Route.pingMs` ist der Ping hin und zurück (2 × einfacher Weg), `Route.oneWayMs` der einfache Weg |
 | Hin- und Rückweg | Eine Anfrage läuft zum Server, verbraucht dort eine Durchsatz-Marke und wird zur Antwort (`Packet.isResponse`), die dieselbe Route zurückläuft. Erst wenn die Antwort beim Gerät ankommt, zählt das Paket als zugestellt. Antworten belegen Kabelkapazität wie Anfragen; pro Schritt fahren erst alle Pakete und kommen an, dann steigen wartende Pakete ein: Antworten vor Anfragen, und eine Anfrage bekommt nur Platz, den keine auf dasselbe Kabel wartende Antwort braucht (das gilt am Gerät wie an jedem Router). Ein Gerät schickt nur dann eine neue Anfrage los, wenn nach allen an beiden Enden wartenden Paketen noch Platz auf dem ersten Kabel ist. So können Anfragen mit Rückstau weder das direkte Kabel noch eine Router-Strecke zustopfen, und Antworten stauen sich nicht am Server (getestet auch mit mehreren Geräten hinter einem Router). Wird ein Kabel entfernt, geht auch eine unterwegs verlorene Antwort als Anfrage zurück in die Warteschlange. Antworten sind kleiner und nur umrandet gezeichnet |
 | Ports | Gerät 2, Server 4, Rechenzentrum 8, Router 6: Router werden als Verteiler gebraucht (`Node.maxPorts`) |
+| Karte und Wachstum | Festes Raster 32 × 20 (`World.bounds`), aber nur der freigeschaltete Block `World.unlocked` ist im Spiel: Start 16 × 10 in der Mitte, alle 2 Wochen (Woche 3, 5, 7 …) ein Ring mehr, jede Seite hält am Rasterrand an (`World.unlockedArea(week)`, deterministisch aus der Woche; ab Woche 17 ist alles frei). Geräte und Server entstehen nur im Block (ein Feld Abstand zu seinem Rand), Router und Rechenzentrums-Felder nur auf freigeschalteten Feldern (`isFree`). Außerhalb wird gedimmt gezeichnet (Iso: ausgewaschene Kacheln, Flat: Schleier), der Block hat eine Umrandung. Wächst die Karte, zeigt das HUD nach der Belohnungswahl „Die Stadt wächst“ |
+| Kamera | `render/Camera.kt` (reines Kotlin): Zoom und Pan über jeder Projektion. Jeder Stil bildet die Welt erst in seine „Map-Einheiten“ ab (`Renderer.toMap`/`fromMap`, Flat 1:1, Iso eine Einheit pro Kachelbreite), die Kamera macht daraus Pixel; jeder Stil hat eine eigene Kamera. Pinch-Zoom um den Fingermittelpunkt (`TwoFingerGesture`), Zwei-Finger-Pan, Ziehen auf leerem Boden verschiebt ebenfalls, Doppeltipp auf leeren Boden passt den Block wieder ein (weich animiert). Ein-Finger-Ziehen von einem Knoten legt weiter Kabel; ein zweiter Finger bricht das Kabel ab. Zoom-Grenzen: hinaus bis das ganze Raster sichtbar ist, hinein bis etwa 6 × 4 Felder; die Bildmitte bleibt über dem Raster. Der Startblick passt den Block zwischen die HUD-Zeilen; wächst die Karte, zoomt die Kamera mit, solange der Spieler sie nicht selbst bewegt hat |
+| Touch-Ziele | Knoten und Kabel werden in Bildschirm-Pixeln getroffen (`Renderer.nodeAtScreen`/`cableAtScreen`, `TouchTargets`): Radius mindestens 24 dp, also ≥ 48 dp Ziel bei jedem Zoom |
 | Wasser | Fluss auf der Karte; Kabel darüber kosten 2 Budget extra pro Wasserfeld (gezählt auf den Feldern des gespeicherten Layouts) |
 | Wochen | Alle 45 s: neue Technik, neue Geräte, neue Server; die Freischalt-Meldung bleibt sichtbar |
 | Wochen-Belohnungen | Beim Wochenwechsel pausiert die Simulation (`World.rewardOffer`), bis der Spieler eine von **2** Belohnungen wählt: +16 Budget, +2 Router oder Server-Gutschein (nächste Server-Stufe gratis; nur im Angebot, solange ein Server noch wachsen kann). Das Angebot ist deterministisch aus Seed und Woche (`Rewards.offer`), unabhängig vom Spielverlauf. Keine automatische Wochen-Gutschrift mehr. UI: `RewardDialog`, zwei große Karten mit isometrischem Mini-Diorama auf dem Canvas, Wahl per Tippen (Finger runter und hoch auf derselben Karte). WLAN-AP und Cache-Knoten fehlen im Pool, bis es diese Items gibt (P2.1 bzw. später) |
 | Stau | Kabel tragen begrenzte Bandbreite gleichzeitig; Pakete warten an Knoten |
 | Server-Stufen | Tipp auf Server = Aufrüsten (zuerst mit Server-Gutschein, sonst mit Budget), höhere Türme, begrenzter Durchsatz; offene Gutscheine stehen im HUD. Stufe 4 **Rechenzentrum** (siehe 5.3): belegt 2×2 Felder, 8 Ports, 8 Anfragen/s, breites isometrisches Gebäude. Geht das Aufrüsten nicht, liefert `World.serverUpgradeError` einen Grund (`ServerUpgradeError`), den das HUD kurz als Text aus `strings.xml` anzeigt |
 | Game Over | ≥ 6 wartende Anfragen → roter Ring füllt sich in 18 s → „Netz überlastet“ |
-| Grafik | Zwei Stile umschaltbar: **Flat** (Mini-Metro-Look, Übersichtsmodus) und **Isometrisch** (2,5D-Kacheln); beide zeichnen Kabel und Pakete aus demselben Layout, Flat rundet die Ecken nur optisch ab. Die Zieh-Vorschau zeigt genau das Layout und den Preis, die beim Loslassen gebaut werden |
+| Grafik | Zwei Stile umschaltbar: **Flat** (Mini-Metro-Look, Übersichtsmodus) und **Isometrisch** (2,5D-Kacheln); beide zeichnen Kabel und Pakete aus demselben Layout, Flat rundet die Ecken nur optisch ab. Die Zieh-Vorschau zeigt genau das Layout und den Preis, die beim Loslassen gebaut werden. Beide Stile zeichnen durch ihre Kamera (Zoom/Pan) |
 | Texte | HUD-Texte in `strings.xml` (Deutsch); Ereignistexte der Logik (`lastEvent`) noch fest im Code |
-| Steuerung | Ziehen = Kabel legen (die Zieh-Spur bestimmt den Knick) · Tippen auf Kabel = Upgrade auf gewählte Technik bzw. entfernen · Router-Knopf + Feld tippen |
-| Tests | `:core`: `WorldTest` (Regeln), `RoundTripTest` (Anfrage wird Antwort, Zustellung erst bei Rückkehr, gleiche Laufzeit zurück, Antworten teilen Kabelkapazität, wartende Antworten vor neuen Anfragen, Dauerdurchsatz bei Rückstau auf direktem ISDN-/DSL-Kabel und bei ausgelastetem Server, Ping = beide Wege, Gaming über Distanz nur mit Glasfaser), `DataCenterTest` (2×2-Belegung, Ausweich-Block, Fehler ohne Platz bzw. bei Wasser, Gutschein-Eignung, belegte Felder, 8 Ports, Durchsatz 5/s gegen 8/s), `RewardsTest` (Angebot deterministisch und eindeutig, Pause, Wirkung jeder Belohnung, Gutschein-Regeln, Freischalt-Meldung), `CableLayoutTest` (Layout-Form, Kosten = Layout, Wassererkennung, Knick-Wahl, Paketbewegung und Laufzeit), `FixedStepTest` (Zeitschritt, Determinismus); `:app`: `RendererLayoutTest` (beide Stile liefern identische Kabelwege und Paketpositionen), `ScreenshotTest` (Robolectric rendert beide Stile, die Zieh-Vorschau und ein komplettes Spielbild mit HUD, die Wochen-Belohnung über der Iso-Karte, alle Belohnungskarten inkl. gedrückter Karte sowie Hin-/Rückweg mit Rechenzentrum in beiden Stilen (`round-trip-*.png`) nach `docs/screenshots/`) |
+| Steuerung | Ziehen von einem Knoten = Kabel legen (die Zieh-Spur bestimmt den Knick) · Tippen auf Kabel = Upgrade auf gewählte Technik bzw. entfernen · Router-Knopf + Feld tippen · Pinch = Zoom · zwei Finger oder Ziehen auf leerem Boden = Pan · Doppeltipp auf leeren Boden = Block einpassen |
+| Tests | `:core`: `WorldTest` (Regeln), `RoundTripTest` (Anfrage wird Antwort, Zustellung erst bei Rückkehr, gleiche Laufzeit zurück, Antworten teilen Kabelkapazität, wartende Antworten vor neuen Anfragen, Dauerdurchsatz bei Rückstau auf direktem ISDN-/DSL-Kabel und bei ausgelastetem Server, Ping = beide Wege, Gaming über Distanz nur mit Glasfaser), `DataCenterTest` (2×2-Belegung, Ausweich-Block, Fehler ohne Platz bzw. bei Wasser, Gutschein-Eignung, belegte Felder, 8 Ports, Durchsatz 5/s gegen 8/s), `RewardsTest` (Angebot deterministisch und eindeutig, Pause, Wirkung jeder Belohnung, Gutschein-Regeln, Freischalt-Meldung), `CableLayoutTest` (Layout-Form, Kosten = Layout, Wassererkennung, Knick-Wahl, Paketbewegung und Laufzeit), `FixedStepTest` (Zeitschritt, Determinismus), `MapGrowthTest` (Startblock, ein Ring alle 2 Wochen, Klemmen am Rand je Seite, Spawns nur im Block auch nach dem Wachsen, Router und Rechenzentrum nur auf freigeschalteten Feldern); `:app`: `CameraTest` (JVM: Einpassen mit HUD-Rändern, Hin-/Rückrechnung bei jedem Zoom/Pan, Zoom um den Pivot, Grenzen, Animation, Zwei-Finger-Geste), `RendererCameraTest` (beide Stile: Welt → Bildschirm → Welt inkl. Kamera, Startblick passt den Block ein, Zoom-Bereich, Mitwachsen nur ohne Spieler-Eingriff, Touch-Ziele ≥ 48 dp bei jedem Zoom und jeder Dichte), `GameViewGestureTest` (Ein-Finger-Kabel, zweiter Finger bricht ab und zoomt, Pan auf leerem Boden, Doppeltipp), `RendererLayoutTest` (beide Stile liefern identische Kabelwege und Paketpositionen), `ScreenshotTest` (Robolectric rendert beide Stile, die Zieh-Vorschau und ein komplettes Spielbild mit HUD, die Wochen-Belohnung über der Iso-Karte, alle Belohnungskarten inkl. gedrückter Karte, Hin-/Rückweg mit Rechenzentrum in beiden Stilen (`round-trip-*.png`), die gewachsene Stadt eingepasst und ganz herausgezoomt (`map-grown-*.png`, `map-overview-*.png`), einen Pinch-Zoom (`camera-zoom-iso.png`) und den Start einer neuen Partie im Iso-Stil (`new-game-iso.png`) nach `docs/screenshots/`) |
 
 Die Stilstudie mit vier Looks (Flat, Iso, Pixel, Platine) liegt in `docs/style-explorations.html`.
 
@@ -49,6 +52,7 @@ Die Stilstudie mit vier Looks (Flat, Iso, Pixel, Platine) liegt in `docs/style-e
 ```
 core/src/main/kotlin/com/mininetworks/game/game/   (Gradle-Modul :core, reines Kotlin/JVM)
   Model.kt                  Service, Device, CableType, Node (inkl. Footprint), ServerUpgradeError, Cable, Packet (Anfrage/Antwort), Route, Geometry
+  CellRect.kt               Rechteckiger Feldblock (freigeschalteter Bereich, Wachsen um Ringe)
   CableLayout.kt            Cell, Bend, CableLayout (Kabelgeometrie auf dem Raster, Knick-Vorschlag aus der Zieh-Spur)
   World.kt                  Spielzustand, Regeln, Simulation, Routing
   Rewards.kt                Reward, RewardOffer, deterministische Auswahl der Wochen-Belohnungen
@@ -61,9 +65,11 @@ core/src/test/kotlin/com/mininetworks/game/game/
   CableLayoutTest.kt        Kabel-Layout: Kosten, Wasser, Knick, Paketbewegung
   FixedStepTest.kt          Zeitschritt und Determinismus
   RewardsTest.kt            Wochen-Belohnungen
+  MapGrowthTest.kt          Wachsende Karte
 app/src/main/java/com/mininetworks/game/
   MainActivity.kt           Vollbild-Activity, hostet GameView, startet/stoppt den Game-Thread
-  render/Renderer.kt        Renderer-Interface, DeviceIcons, CableStyles, ServiceColors, Shapes
+  render/Renderer.kt        Renderer-Interface (Projektion in Map-Einheiten, Picking in Bildschirm-Pixeln), TouchTargets, DeviceIcons, CableStyles, ServiceColors, Shapes
+  render/Camera.kt          Camera (Zoom, Pan, Einpassen, Animation), TwoFingerGesture, MapRect, ViewInsets
   render/FlatRenderer.kt    Stil A
   render/IsoRenderer.kt     Stil B
   ui/GameView.kt            SurfaceView, Game-Thread, Eingabe-Queue, HUD
@@ -71,6 +77,9 @@ app/src/main/java/com/mininetworks/game/
 app/src/test/java/com/mininetworks/game/
   render/ScreenshotTest.kt  Rendert Szenen, die Zieh-Vorschau und das Spielbild mit HUD als PNG
   render/RendererLayoutTest.kt  Beide Stile lesen Kabelweg und Paketposition aus dem Modell
+  render/CameraTest.kt      Kamera-Mathematik auf der JVM
+  render/RendererCameraTest.kt  Projektion inkl. Kamera, Einpassen, Mitwachsen, Touch-Ziele
+  ui/GameViewGestureTest.kt Kabel ziehen, Pinch, Pan, Doppeltipp
 ```
 
 ### Bauen und Prüfen
@@ -146,7 +155,7 @@ Umgesetzt in P1.1 mit 2 von 3 (+Budget, +2 Router, Server-Gutschein als „Reche
 
 1. **Server-Durchsatz:** umgesetzt inkl. Rechenzentrum als Stufe 4 (siehe 5.3).
 2. **Antworten:** umgesetzt in P1.2: Pakete laufen hin **und zurück**; der Ping zählt beide Wege.
-3. **Kamera/Zoom:** Die Karte wächst mit der Zeit (wie Mini Motorways); Pinch-Zoom und Pan.
+3. **Kamera/Zoom:** umgesetzt in P1.3: Die Karte wächst mit der Zeit (wie Mini Motorways); Pinch-Zoom und Pan.
 4. **Störungen:** Ein Bagger kappt ein Kabel, ein Stromausfall legt einen Router für 10 s lahm. Selten, angekündigt.
 5. **Cache/CDN-Knoten:** Liefert Streaming aus der Nähe und entlastet das Backbone.
 6. **Karten:** Echte Städte mit Flüssen (Berlin/Spree, Hamburg/Elbe, Köln/Rhein, München/Isar), jeweils mit eigener Freischaltung.
@@ -178,7 +187,8 @@ Kein Multiplayer, keine Online-Pflicht, kein Shop, keine Werbung im MVP. iOS ers
 ### 4.2 Bekannte Vereinfachungen im Prototyp (bewusst)
 
 - Ereignistexte aus der Logik (`World.lastEvent`) sind fest auf Deutsch im Code; die HUD-Texte liegen in `strings.xml`.
-- Keine Kamera; die Karte passt immer komplett auf den Bildschirm.
+- Kein Sichtbarkeits-Culling: der Iso-Stil zeichnet immer alle 640 Kacheln (Performance-Check in Welle 4).
+- Der Fluss läuft über das ganze Raster, auch durch gesperrte Felder; eigene Karten kommen mit den Szenerien (P3.1).
 - Kein Speichern, keine Einstellungen, kein Menü.
 
 ## 5. Entscheidungen
@@ -257,8 +267,11 @@ Regeln für alle Pakete:
 - Stand: Ping-Limits auf Hin- und Rückweg umgestellt (Telefonie 150 → 300 ms, Gaming 60 → 110 ms, also etwas strenger als vorher);
   Antworten haben Vorrang beim Einfädeln, auch gegenüber neuen Anfragen des Geräts (Dispatch hält Platz für wartende Pakete frei). Balancing der Stufe-4-Kosten (28) in Welle 4.
 
-**P1.3 Kamera: Zoom und Pan, wachsende Karte** · Dateien: `app/.../ui/Camera.kt`, `Renderer`-Projektion
+**P1.3 Kamera: Zoom und Pan, wachsende Karte** · Dateien: `app/.../render/Camera.kt`, `Renderer`-Projektion, `core/.../CellRect.kt`, `World` (freigeschalteter Block) · umgesetzt
 - Pinch-Zoom, Zwei-Finger-Pan, Karte wächst alle 2 Wochen um einen Ring. Touch-Ziele bleiben ≥ 48 dp.
+- Stand: `Camera` liegt in `render/` statt `ui/`, weil beide Renderer sie besitzen (sonst Paket-Zyklus ui ↔ render).
+  Zusätzlich verschiebt Ziehen auf leerem Boden die Karte. Die Wochenlogik und Balancing-Werte sind unverändert;
+  mehr Fläche heißt aber längere Kabel und mehr Streuung der Geräte (Balancing in Welle 4).
 
 **P1.4 Speichern, Menü, Einstellungen** · Dateien: `app/.../ui/menu/*`, `core/.../Save.kt`
 - Hauptmenü, Pause-Menü, Autosave, Highscore je Karte, Einstellungen (Ton, Haptik, Farbpalette, Sprache).

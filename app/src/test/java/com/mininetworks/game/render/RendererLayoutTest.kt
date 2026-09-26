@@ -22,7 +22,7 @@ class RendererLayoutTest {
 
     @Test
     fun stylesShareCablePathsAndPacketPositions() {
-        val w = World(seed = 1L, spawnInitialNodes = false)
+        val w = World(cols = 16, rows = 10, seed = 1L, spawnInitialNodes = false)
         for (row in w.water) row.fill(false)
         w.grant(100)
         w.jumpToWeek(CableType.DSL.unlockWeek)

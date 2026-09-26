@@ -10,10 +10,13 @@ import kotlin.random.Random
 /**
  * The complete game state and rules. Pure Kotlin, no Android types, so it can be unit-tested on the JVM
  * and drawn by any renderer (flat, isometric, pixel ...).
+ *
+ * The grid is fixed at [cols] × [rows], but only the [unlocked] block in its middle is in play. It starts at
+ * [Tuning.START_COLS] × [Tuning.START_ROWS] and grows by one ring of cells every [Tuning.GROWTH_WEEKS] weeks.
  */
 class World(
-    val cols: Int = 16,
-    val rows: Int = 10,
+    val cols: Int = 32,
+    val rows: Int = 20,
     val seed: Long = 7L,
     private val spawnInitialNodes: Boolean = true,
 ) {
@@ -37,12 +40,24 @@ class World(
         val SERVER_RATE = floatArrayOf(1.5f, 3f, 5f, 8f)
         /** Budget to reach level 2, 3, 4. */
         val SERVER_UPGRADE_COST = intArrayOf(8, 16, 28)
+        /** Size of the playable block in week 1. */
+        const val START_COLS = 16
+        const val START_ROWS = 10
+        /** The playable block grows by one ring of cells every this many weeks. */
+        const val GROWTH_WEEKS = 2
     }
 
     private val rng = Random(seed)
     private var nextId = 0
 
     val water = Array(rows) { BooleanArray(cols) }
+
+    /** The whole grid, including cells that are not unlocked yet. */
+    val bounds = CellRect(0, 0, cols, rows)
+
+    /** The playable block: nodes spawn and routers are placed only here; the rest of the grid is drawn dimmed. */
+    var unlocked = unlockedArea(1); private set
+
     val nodes = mutableListOf<Node>()
     val cables = mutableListOf<Cable>()
     val packets = mutableListOf<Packet>()
@@ -71,14 +86,18 @@ class World(
     private val unlockedDevices get() = Device.entries.filter { it.unlockWeek <= week }
     val availableServices get() = nodes.filter { it.kind == NodeKind.SERVER }.mapNotNull { it.service }.toSet()
 
+    /** The [unlocked] block in [week]: the start block plus one ring per [Tuning.GROWTH_WEEKS] weeks, within [bounds]. */
+    fun unlockedArea(week: Int): CellRect =
+        CellRect.centered(bounds, Tuning.START_COLS, Tuning.START_ROWS).expand((week - 1) / Tuning.GROWTH_WEEKS, bounds)
+
     private var clientSpawnTimer = 6f
     private val routeCache = HashMap<Pair<Int, Service>, Route?>()
 
     init {
         carveRiver()
         if (spawnInitialNodes) {
-            addServer(Service.MAIL, 2, 2)
-            addServer(Service.CALL, cols - 3, rows - 3)
+            addServer(Service.MAIL, unlocked.left + 2, unlocked.top + 2)
+            addServer(Service.CALL, unlocked.right - 3, unlocked.bottom - 3)
             repeat(3) { spawnClient() }
         }
     }
@@ -96,8 +115,9 @@ class World(
 
     fun isWater(cx: Int, cy: Int) = cy in 0 until rows && cx in 0 until cols && water[cy][cx]
 
+    /** True if ([cx], [cy]) is unlocked, dry and not covered by a node. */
     fun isFree(cx: Int, cy: Int): Boolean =
-        cx in 0 until cols && cy in 0 until rows && !water[cy][cx] && nodeAt(Cell(cx, cy)) == null
+        unlocked.contains(cx, cy) && !water[cy][cx] && nodeAt(Cell(cx, cy)) == null
 
     /** The node whose footprint covers [cell], if any. */
     fun nodeAt(cell: Cell): Node? = nodes.firstOrNull { cell in it.footprint }
@@ -114,10 +134,13 @@ class World(
     fun addServer(service: Service, cx: Int, cy: Int) = addNode(NodeKind.SERVER, null, service, cx, cy)
     fun addRouter(cx: Int, cy: Int) = addNode(NodeKind.ROUTER, null, null, cx, cy)
 
+    /** A random free cell inside the [unlocked] block, one cell away from its edge. */
     private fun randomFreeCell(minSpacing: Int = 2): Pair<Int, Int>? {
+        val area = unlocked
+        if (area.width < 3 || area.height < 3) return null
         repeat(300) {
-            val cx = 1 + rng.nextInt(cols - 2)
-            val cy = 1 + rng.nextInt(rows - 2)
+            val cx = area.left + 1 + rng.nextInt(area.width - 2)
+            val cy = area.top + 1 + rng.nextInt(area.height - 2)
             if (isFree(cx, cy) && nodes.all { n -> n.footprint.all { max(abs(it.x - cx), abs(it.y - cy)) >= minSpacing } }) return cx to cy
         }
         return null
@@ -370,6 +393,7 @@ class World(
     fun jumpToWeek(target: Int) {
         time = (target - 1) * Tuning.WEEK_SECONDS
         week = target
+        unlocked = unlockedArea(week)
     }
 
     /** Runs the next week change right now (unlocks, reward offer), for tests and a future debug menu. */
@@ -506,6 +530,7 @@ class World(
     }
 
     private fun onNewWeek() {
+        unlocked = unlockedArea(week)
         rewardOffer = RewardOffer(week, Rewards.offer(seed, week, eligibleRewards()))
         val news = ArrayList<String>()
         CableType.entries.filter { it.unlockWeek == week }.forEach { news += it.label }

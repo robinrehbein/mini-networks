@@ -6,6 +6,7 @@ import com.mininetworks.game.game.Bend
 import com.mininetworks.game.game.CableType
 import com.mininetworks.game.game.DebugApi
 import com.mininetworks.game.game.Device
+import com.mininetworks.game.game.NodeKind
 import com.mininetworks.game.game.Reward
 import com.mininetworks.game.game.RewardOffer
 import com.mininetworks.game.game.Service
@@ -19,6 +20,7 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.io.File
+import kotlin.math.abs
 
 /**
  * Renders a fixed scene with every renderer into docs/screenshots/, using Robolectric's native graphics.
@@ -32,7 +34,7 @@ import java.io.File
 class ScreenshotTest {
 
     private fun scene(): World {
-        val w = World(seed = 3L, spawnInitialNodes = false)
+        val w = World(cols = 16, rows = 10, seed = 3L, spawnInitialNodes = false)
         w.jumpToWeek(6)
         w.grant(200)
         val mail = w.addServer(Service.MAIL, 2, 1)
@@ -178,6 +180,73 @@ class ScreenshotTest {
         dialog.draw(canvas, world, RewardOffer(7, listOf(rewards[2], rewards[0])), 2400, 1080, time = 0.9f, pressed = 0)
         canvas.restore()
         save(bmp, File(out, "reward-cards.png"))
+    }
+
+    /**
+     * A 32×20 city in week 5: two rings have grown around the 16×10 start block. Every client is wired to the
+     * nearest server it can use so the network carries traffic.
+     */
+    private fun grownCity(): World {
+        val w = World(seed = 4L)
+        repeat(60 * 45 * 4 + 60 * 5) {
+            if (w.rewardOffer != null) w.chooseReward(0)
+            w.nodes.forEach { it.pending.clear() }
+            w.update(1f / 60f)
+        }
+        w.grant(600)
+        for (client in w.nodes.filter { it.kind == NodeKind.CLIENT }) {
+            val server = w.nodes
+                .filter { it.kind == NodeKind.SERVER && it.service in client.device!!.services && w.ports(it) < it.maxPorts }
+                .minByOrNull { abs(it.cellX - client.cellX) + abs(it.cellY - client.cellY) } ?: continue
+            w.connect(client, server, CableType.DSL)
+        }
+        repeat(60 * 3) { w.update(1f / 60f) }
+        return w
+    }
+
+    /** The grown city: fitted to the unlocked block, and zoomed out to the whole grid with the locked rings dimmed. */
+    @Test
+    fun renderGrowingMap() {
+        val out = File(System.getProperty("screenshots.dir") ?: "build/screenshots").apply { mkdirs() }
+        val world = grownCity()
+        check(world.unlocked == world.unlockedArea(5) && world.unlocked != world.unlockedArea(1))
+        for (r in listOf(FlatRenderer(), IsoRenderer())) {
+            val bmp = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)
+            r.layout(bmp.width, bmp.height, world)
+            r.draw(Canvas(bmp), world, drag = null, time = 1.3f)
+            save(bmp, File(out, "map-grown-${r.name.lowercase()}.png"))
+            r.camera.zoomBy(0.01f, bmp.width / 2f, bmp.height / 2f)
+            bmp.eraseColor(0)
+            r.draw(Canvas(bmp), world, drag = null, time = 1.3f)
+            save(bmp, File(out, "map-overview-${r.name.lowercase()}.png"))
+        }
+    }
+
+    /** Pinch-zoomed close-up (isometric main style) around a spot off the screen centre. */
+    @Test
+    fun renderZoomedIn() {
+        val out = File(System.getProperty("screenshots.dir") ?: "build/screenshots").apply { mkdirs() }
+        val world = grownCity()
+        val r = IsoRenderer()
+        val bmp = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)
+        r.layout(bmp.width, bmp.height, world)
+        val g = TwoFingerGesture()
+        g.start(700f, 400f, 900f, 400f)
+        g.move(560f, 380f, 1000f, 380f, r.camera)
+        r.draw(Canvas(bmp), world, drag = null, time = 1.3f)
+        save(bmp, File(out, "camera-zoom-iso.png"))
+    }
+
+    /** First frame of a new game in the isometric main style: the view fits the 16×10 start block between the HUD rows. */
+    @Test
+    fun renderNewGameIso() {
+        val out = File(System.getProperty("screenshots.dir") ?: "build/screenshots").apply { mkdirs() }
+        val view = GameView(RuntimeEnvironment.getApplication())
+        val world = World(seed = 4L)
+        repeat(60 * 20) { world.update(1f / 60f) }
+        val bmp = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)
+        view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 1.3f, style = "Iso")
+        save(bmp, File(out, "new-game-iso.png"))
     }
 
     private fun save(bmp: Bitmap, file: File) = file.outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }

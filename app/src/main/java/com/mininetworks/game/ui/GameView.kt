@@ -25,6 +25,9 @@ import com.mininetworks.game.render.DragPreview
 import com.mininetworks.game.render.FlatRenderer
 import com.mininetworks.game.render.IsoRenderer
 import com.mininetworks.game.render.Renderer
+import com.mininetworks.game.render.TouchTargets
+import com.mininetworks.game.render.TwoFingerGesture
+import com.mininetworks.game.render.ViewInsets
 import com.mininetworks.game.render.fill
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.locks.ReentrantLock
@@ -42,6 +45,7 @@ import kotlin.math.hypot
  *
  * Controls:
  *  - drag from a node to another node: lay a cable along the grid (L-shaped; the drag path picks which way it bends)
+ *  - drag on empty ground or with two fingers: pan; pinch: zoom; double tap on empty ground: fit the playable area
  *  - pick a cable technology in the bottom-left bar (ISDN, DSL, Kabel, Glasfaser)
  *  - tap a server: upgrade its hardware (more throughput, taller stack; tier 4 is a data center on 2×2 cells)
  *  - tap a cable: upgrade it to the picked technology, or remove it if it already is that type
@@ -53,7 +57,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     /** Events handed from the UI thread to the game thread. */
     private sealed interface Input {
-        data class Touch(val action: Int, val x: Float, val y: Float) : Input
+        /**
+         * One touch event. [pointers] holds x, y pairs of every finger that stays down after this event
+         * (a lifting finger is left out); [time] is the event time in milliseconds.
+         */
+        class Touch(val action: Int, val x: Float, val y: Float, val pointers: FloatArray, val time: Long) : Input
         data class Resize(val width: Int, val height: Int) : Input
     }
 
@@ -88,6 +96,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     private var dragFrom: Node? = null
     private var dragEnd: Vec2? = null
+    /** Pointer of the current drag in screen pixels, used to pick the target node in screen space. */
+    private var dragEndScreen: Vec2? = null
     /** Pointer samples of the current drag in world space; they decide which way the cable bends. */
     private val dragTrail = ArrayList<Vec2>()
     private var downX = 0f
@@ -96,6 +106,21 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private var gestureConsumed = false
     private var pressedCard: Int? = null
     private val rewardDialog = RewardDialog(context)
+
+    /** True from a second finger touching down (or a double tap) until all fingers are up: only the camera moves. */
+    private var cameraGesture = false
+    private val pinch = TwoFingerGesture()
+    /** True while a one-finger gesture that started on empty ground may pan the map. */
+    private var panArmed = false
+    /** One-finger pan: last pointer position, null until the finger leaves the tap slop. */
+    private var panFrom: Vec2? = null
+    /** Time and place of the last tap that hit nothing, to detect a double tap. */
+    private var emptyTapTime: Long? = null
+    private var emptyTapX = 0f
+    private var emptyTapY = 0f
+    /** The unlocked area the cameras were last framed for; a change means the map grew. */
+    private var framedArea = world.unlocked
+    private var growthHintPending = false
 
     private val density = resources.displayMetrics.density
     private val hudText = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF262B33.toInt(); typeface = Typeface.DEFAULT_BOLD; textSize = 16 * density }
@@ -152,7 +177,15 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(e: MotionEvent): Boolean {
-        inputs.add(Input.Touch(e.actionMasked, e.x, e.y))
+        val lifting = if (e.actionMasked == MotionEvent.ACTION_POINTER_UP) e.actionIndex else -1
+        val pointers = FloatArray(2 * (e.pointerCount - if (lifting >= 0) 1 else 0))
+        var k = 0
+        for (i in 0 until e.pointerCount) {
+            if (i == lifting) continue
+            pointers[k++] = e.getX(i)
+            pointers[k++] = e.getY(i)
+        }
+        inputs.add(Input.Touch(e.actionMasked, e.x, e.y, pointers, e.eventTime))
         return true
     }
 
@@ -200,8 +233,25 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     /** One loop iteration: apply queued input, then advance the simulation in fixed steps. */
     private fun tick(frameSeconds: Float) {
         while (true) handle(inputs.poll() ?: break)
-        animTime += frameSeconds.coerceAtMost(MAX_ANIM_STEP)
+        val animStep = frameSeconds.coerceAtMost(MAX_ANIM_STEP)
+        animTime += animStep
         if (paused) clock.reset() else clock.advance(frameSeconds) { world.update(it) }
+        followArea()
+        renderer.camera.step(animStep)
+    }
+
+    /** When the map grew: widen every style's zoom range, follow the new area, and say so once the reward is picked. */
+    private fun followArea() {
+        if (world.unlocked != framedArea) {
+            framedArea = world.unlocked
+            renderers.forEach { it.onAreaChanged(world) }
+            growthHintPending = true
+        }
+        if (growthHintPending && world.rewardOffer == null) {
+            growthHintPending = false
+            hint = context.getString(R.string.hint_map_grew)
+            hintUntil = animTime + HINT_SECONDS
+        }
     }
 
     private fun render() {
@@ -242,10 +292,22 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         drawFrame(canvas)
     }
 
+    /** The active style, for tests. */
+    internal val activeRenderer: Renderer get() = renderer
+
+    /**
+     * Feeds one touch event straight to the input handling, for tests; [pointers] as in [Input.Touch].
+     * Only valid while the game thread is not running.
+     */
+    internal fun injectTouch(action: Int, x: Float, y: Float, pointers: FloatArray = floatArrayOf(x, y), time: Long = 0L) {
+        check(loop == null) { "game loop is running" }
+        handle(Input.Touch(action, x, y, pointers, time))
+    }
+
     private fun dragPreview(): DragPreview? {
         val from = dragFrom ?: return null
         val end = dragEnd ?: return null
-        val target = world.nodeNear(end)?.takeIf { it !== from }
+        val target = dragEndScreen?.let { pickNode(it.x, it.y, except = from) }
         val toCell = target?.cell ?: Cell(floor(end.x).toInt(), floor(end.y).toInt())
         val bend = dragBend(from.cell, toCell)
         val layout = world.planLayout(from.cell, toCell, bend)
@@ -262,8 +324,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     private fun dragBend(from: Cell, to: Cell): Bend? = CableLayout.suggestBend(from, to, dragTrail)
 
-    private fun trackDrag(p: Vec2) {
+    private fun trackDrag(sx: Float, sy: Float) {
+        val p = renderer.toWorld(sx, sy)
         dragEnd = p
+        dragEndScreen = Vec2(sx, sy)
         val last = dragTrail.lastOrNull()
         if ((last == null || hypot(p.x - last.x, p.y - last.y) >= TRAIL_SPACING) && dragTrail.size < MAX_TRAIL) dragTrail += p
     }
@@ -271,8 +335,15 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private fun endDrag() {
         dragFrom = null
         dragEnd = null
+        dragEndScreen = null
+        panArmed = false
+        panFrom = null
         dragTrail.clear()
     }
+
+    /** Node under a finger at ([sx], [sy]), with a touch target of at least 48 dp at any zoom. */
+    private fun pickNode(sx: Float, sy: Float, except: Node? = null): Node? =
+        renderer.nodeAtScreen(world, sx, sy, TouchTargets.nodeRadiusPx(renderer, density), except)
 
     // ---------------------------------------------------------------- HUD
 
@@ -369,7 +440,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             is Input.Resize -> {
                 surfaceWidth = input.width
                 surfaceHeight = input.height
-                renderers.forEach { it.layout(surfaceWidth, surfaceHeight, world) }
+                layoutRenderers()
             }
             is Input.Touch -> onTouch(input)
         }
@@ -383,6 +454,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         when (e.action) {
             MotionEvent.ACTION_DOWN -> {
                 downX = e.x; downY = e.y
+                cameraGesture = false
                 if (world.gameOver) { restart(); return }
                 buttons.firstOrNull { it.rect.contains(e.x, e.y) }?.let { onButton(it.id); return }
                 val p = renderer.toWorld(e.x, e.y)
@@ -391,29 +463,87 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                     routerMode = false
                     return
                 }
-                val radius = maxOf(0.7f, 28 * density / renderer.unitPx)
                 dragTrail.clear()
-                dragFrom = world.nodeNear(p, radius)
-                trackDrag(p)
+                dragFrom = pickNode(e.x, e.y)
+                if (dragFrom == null && isDoubleTap(e)) {
+                    renderer.fitArea(world, animate = true)
+                    emptyTapTime = null
+                    cameraGesture = true
+                    return
+                }
+                panArmed = dragFrom == null
+                trackDrag(e.x, e.y)
             }
-            MotionEvent.ACTION_MOVE -> if (dragFrom != null) trackDrag(renderer.toWorld(e.x, e.y))
+            MotionEvent.ACTION_POINTER_DOWN -> {
+                // A second finger turns any gesture into camera movement; a half-drawn cable is dropped.
+                endDrag()
+                cameraGesture = true
+                startPinch(e)
+            }
+            MotionEvent.ACTION_MOVE -> when {
+                cameraGesture -> if (e.pointers.size >= 4) {
+                    pinch.move(e.pointers[0], e.pointers[1], e.pointers[2], e.pointers[3], renderer.camera)
+                }
+                dragFrom != null -> trackDrag(e.x, e.y)
+                panArmed -> panWithOneFinger(e)
+            }
+            MotionEvent.ACTION_POINTER_UP -> if (cameraGesture) startPinch(e)
             MotionEvent.ACTION_UP -> {
-                if (world.rewardOffer != null) { endDrag(); return }
+                if (cameraGesture || world.rewardOffer != null) {
+                    cameraGesture = false
+                    pinch.stop()
+                    endDrag()
+                    return
+                }
                 val from = dragFrom
-                val p = renderer.toWorld(e.x, e.y)
-                val isTap = hypot(e.x - downX, e.y - downY) < 12 * density
+                val isTap = hypot(e.x - downX, e.y - downY) < TAP_SLOP_DP * density
                 if (from != null && isTap && from.kind == NodeKind.SERVER) {
                     upgradeServer(from)
                 } else if (from != null && !isTap) {
-                    trackDrag(p)
-                    world.nodeNear(p)?.let { if (it !== from) world.connect(from, it, cableType, dragBend(from.cell, it.cell)) }
-                } else if (isTap && from == null) {
-                    renderer.cableNear(world, p)?.let { if (it.type == cableType) world.removeCable(it) else world.upgrade(it, cableType) }
+                    trackDrag(e.x, e.y)
+                    pickNode(e.x, e.y, except = from)?.let { world.connect(from, it, cableType, dragBend(from.cell, it.cell)) }
+                } else if (isTap && from == null && panArmed) {
+                    val cable = renderer.cableAtScreen(world, e.x, e.y, TouchTargets.cableRadiusPx(renderer, density))
+                    if (cable == null) {
+                        emptyTapTime = e.time; emptyTapX = e.x; emptyTapY = e.y
+                    } else if (cable.type == cableType) {
+                        world.removeCable(cable)
+                    } else {
+                        world.upgrade(cable, cableType)
+                    }
                 }
                 endDrag()
             }
-            MotionEvent.ACTION_CANCEL -> endDrag()
+            MotionEvent.ACTION_CANCEL -> {
+                cameraGesture = false
+                pinch.stop()
+                endDrag()
+            }
         }
+    }
+
+    /** (Re)starts the two-finger gesture from the fingers still down, or stops it if fewer than two remain. */
+    private fun startPinch(e: Input.Touch) {
+        val p = e.pointers
+        if (p.size >= 4) pinch.start(p[0], p[1], p[2], p[3]) else pinch.stop()
+    }
+
+    /** A drag that started on empty ground moves the map once it leaves the tap slop. */
+    private fun panWithOneFinger(e: Input.Touch) {
+        val last = panFrom
+        if (last == null) {
+            if (hypot(e.x - downX, e.y - downY) >= TAP_SLOP_DP * density) panFrom = Vec2(e.x, e.y).also {
+                renderer.camera.panBy(e.x - downX, e.y - downY)
+            }
+            return
+        }
+        renderer.camera.panBy(e.x - last.x, e.y - last.y)
+        panFrom = Vec2(e.x, e.y)
+    }
+
+    private fun isDoubleTap(e: Input.Touch): Boolean {
+        val last = emptyTapTime ?: return false
+        return e.time - last in 0..DOUBLE_TAP_MS && hypot(e.x - emptyTapX, e.y - emptyTapY) < DOUBLE_TAP_SLOP_DP * density
     }
 
     /** While the reward choice is open, a card is picked when the finger goes down and up on the same card. */
@@ -456,10 +586,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private fun onButton(id: String) {
         when (id) {
             "pause" -> paused = !paused
-            "style" -> {
-                rendererIndex = (rendererIndex + 1) % renderers.size
-                renderer.layout(surfaceWidth, surfaceHeight, world)
-            }
+            "style" -> rendererIndex = (rendererIndex + 1) % renderers.size
             "router" -> routerMode = !routerMode && world.routersAvailable > 0
             else -> if (id.startsWith("cable:")) cableType = CableType.valueOf(id.removePrefix("cable:"))
         }
@@ -467,11 +594,19 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     private fun restart() {
         world = World(seed = System.currentTimeMillis())
-        renderers.forEach { it.layout(surfaceWidth, surfaceHeight, world) }
+        layoutRenderers()
         clock.reset()
         paused = false
         routerMode = false
         cableType = CableType.ISDN
+    }
+
+    /** Fits every style to the unlocked area, keeping the HUD rows free. */
+    private fun layoutRenderers() {
+        val insets = ViewInsets(8 * density, 56 * density, 8 * density, 68 * density)
+        renderers.forEach { it.layout(surfaceWidth, surfaceHeight, world, insets) }
+        framedArea = world.unlocked
+        growthHintPending = false
     }
 
     private companion object {
@@ -483,5 +618,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         const val TRAIL_SPACING = 0.2f
         const val MAX_TRAIL = 256
         const val HINT_SECONDS = 2.5f
+        /** A finger that moves less than this is a tap. */
+        const val TAP_SLOP_DP = 12f
+        const val DOUBLE_TAP_MS = 300L
+        const val DOUBLE_TAP_SLOP_DP = 40f
     }
 }

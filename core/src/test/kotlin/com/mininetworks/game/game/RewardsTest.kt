@@ -13,7 +13,7 @@ class RewardsTest {
 
     private val step = 1f / 60f
 
-    private fun world(seed: Long = 1L) = World(seed = seed, spawnInitialNodes = false)
+    private fun world(seed: Long = 1L) = World(cols = 16, rows = 10, seed = seed, spawnInitialNodes = false)
 
     /** Simulates until the first week change opens an offer. */
     private fun untilOffer(w: World): RewardOffer {

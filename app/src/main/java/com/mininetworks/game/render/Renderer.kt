@@ -7,6 +7,7 @@ import android.graphics.RectF
 import com.mininetworks.game.game.Cable
 import com.mininetworks.game.game.CableLayout
 import com.mininetworks.game.game.CableType
+import com.mininetworks.game.game.CellRect
 import com.mininetworks.game.game.Device
 import com.mininetworks.game.game.Geometry
 import com.mininetworks.game.game.Node
@@ -15,6 +16,7 @@ import com.mininetworks.game.game.Service
 import com.mininetworks.game.game.Shape
 import com.mininetworks.game.game.Vec2
 import com.mininetworks.game.game.World
+import kotlin.math.hypot
 import kotlin.math.sin
 
 /**
@@ -33,25 +35,65 @@ class DragPreview(
 
 /**
  * A visual style. Renderers only read the [World]; they never change it.
- * Every style owns its own projection so input (touch -> world) always matches what is on screen.
+ * Every style owns its own projection so input (touch -> world) always matches what is on screen:
+ * world -> map units ([toMap], fixed per style) -> screen pixels ([camera], zoom and pan).
  */
 interface Renderer {
     val name: String
 
-    fun layout(width: Int, height: Int, world: World)
+    /** Zoom and pan of this style's view. */
+    val camera: Camera
+
+    /** World units on the ground plane -> this style's map units (before zoom and pan). */
+    fun toMap(p: Vec2): Vec2
+
+    /** Map units -> world units on the ground plane; inverse of [toMap]. */
+    fun fromMap(mx: Float, my: Float): Vec2
+
+    /** Map-space box that shows [area] with everything drawn on it (buildings, queues, board edge). */
+    fun mapBounds(area: CellRect): MapRect
 
     /** World units -> screen pixels, on the ground plane. */
-    fun toScreen(p: Vec2): Vec2
+    fun toScreen(p: Vec2): Vec2 = camera.toScreen(toMap(p))
 
     /** Screen pixels -> world units, on the ground plane. */
-    fun toWorld(sx: Float, sy: Float): Vec2
+    fun toWorld(sx: Float, sy: Float): Vec2 = camera.toMap(sx, sy).let { fromMap(it.x, it.y) }
+
+    /** Sets the view size and fits the camera to the world's unlocked area. */
+    fun layout(width: Int, height: Int, world: World, insets: ViewInsets = ViewInsets.NONE) {
+        camera.setViewport(width, height, insets)
+        fitArea(world, animate = false)
+    }
+
+    /** Zooms so the unlocked area fills the view, e.g. on a double tap. */
+    fun fitArea(world: World, animate: Boolean) {
+        updateLimits(world)
+        camera.fit(mapBounds(world.unlocked), animate)
+    }
+
+    /** Call when the unlocked area grew: widens the limits and, unless the player moved the view, follows the area. */
+    fun onAreaChanged(world: World) {
+        updateLimits(world)
+        if (camera.followsArea) camera.fit(mapBounds(world.unlocked), animate = true)
+    }
+
+    /**
+     * Zoom range: out to the whole grid (and a bit more), in until about [ZOOM_IN_COLS] × [ZOOM_IN_ROWS] cells fill the view.
+     * The screen centre stays over the grid.
+     */
+    fun updateLimits(world: World) {
+        val whole = mapBounds(world.bounds)
+        val out = minOf(camera.fitScale(whole), camera.fitScale(mapBounds(world.unlocked))) * ZOOM_OUT_SLACK
+        camera.setZoomRange(out, camera.fitScale(mapBounds(CellRect(0, 0, ZOOM_IN_COLS, ZOOM_IN_ROWS))))
+        camera.panBounds = whole
+    }
 
     /** How a cable runs in world space; always the layout stored in the model, so every style agrees. */
     fun cablePath(c: Cable): List<Vec2> = c.layout.waypoints
 
     fun draw(canvas: Canvas, world: World, drag: DragPreview?, time: Float)
 
-    /** Size of one world unit on screen, used by the HUD to scale touch targets. */
+    /** Size of one world unit on screen at the current zoom. */
     val unitPx: Float
 
     fun packetPosition(world: World, p: Packet): Vec2 = world.packetPosition(p)
@@ -59,7 +101,44 @@ interface Renderer {
     fun cableNear(world: World, p: Vec2, radius: Float = 0.35f): Cable? =
         world.cables.minByOrNull { Geometry.distToPolyline(p, cablePath(it)) }
             ?.takeIf { Geometry.distToPolyline(p, cablePath(it)) <= radius }
+
+    /**
+     * The node closest to screen point ([sx], [sy]) within [radiusPx], measured to its footprint cells on screen,
+     * ignoring [except].
+     */
+    fun nodeAtScreen(world: World, sx: Float, sy: Float, radiusPx: Float, except: Node? = null): Node? {
+        val p = Vec2(sx, sy)
+        fun dist(n: Node) = n.footprint.minOf { distance(toScreen(it.center), p) }
+        return world.nodes.filter { it !== except }.minByOrNull(::dist)?.takeIf { dist(it) <= radiusPx }
+    }
+
+    /** The cable closest to screen point ([sx], [sy]) within [radiusPx]; both projections keep straight lines straight. */
+    fun cableAtScreen(world: World, sx: Float, sy: Float, radiusPx: Float): Cable? {
+        val p = Vec2(sx, sy)
+        fun dist(c: Cable) = Geometry.distToPolyline(p, cablePath(c).map(::toScreen))
+        return world.cables.minByOrNull(::dist)?.takeIf { dist(it) <= radiusPx }
+    }
+
+    companion object {
+        const val ZOOM_OUT_SLACK = 0.9f
+        const val ZOOM_IN_COLS = 6
+        const val ZOOM_IN_ROWS = 4
+    }
 }
+
+/** Minimum touch target sizes; picking works in screen space so targets keep this size at every zoom. */
+object TouchTargets {
+    /** Android's recommended minimum touch target. */
+    const val MIN_DP = 48f
+
+    /** Pick radius around a node: half a 48 dp target, or more when zoomed in far. */
+    fun nodeRadiusPx(renderer: Renderer, density: Float) = maxOf(MIN_DP / 2f * density, 0.7f * renderer.unitPx)
+
+    /** Pick radius around a cable. */
+    fun cableRadiusPx(renderer: Renderer, density: Float) = maxOf(MIN_DP / 2f * density, 0.35f * renderer.unitPx)
+}
+
+private fun distance(a: Vec2, b: Vec2) = hypot(a.x - b.x, a.y - b.y)
 
 /** Shape helpers shared by all styles. */
 object Shapes {
