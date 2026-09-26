@@ -1,10 +1,7 @@
 package com.mininetworks.game.game
 
-import kotlin.math.abs
 import kotlin.math.hypot
-import kotlin.math.max
 import kotlin.math.min
-import kotlin.math.sign
 
 /** Point in world space. One unit = one grid cell. */
 data class Vec2(val x: Float, val y: Float)
@@ -69,7 +66,8 @@ class Node(
     val cellX: Int,
     val cellY: Int,
 ) {
-    val center = Vec2(cellX + 0.5f, cellY + 0.5f)
+    val cell = Cell(cellX, cellY)
+    val center = cell.center
 
     /** Requests waiting to be sent (clients only), oldest first. */
     val pending = ArrayDeque<Service>()
@@ -89,13 +87,22 @@ class Node(
     override fun toString() = "$kind#$id(${device ?: service ?: ""})@$cellX,$cellY"
 }
 
-class Cable(val a: Node, val b: Node, var type: CableType, var cost: Int, val crossesWater: Boolean) {
+/** A laid cable. [layout] runs from [a] to [b]; [waterCells] of it are sea cable. */
+class Cable(val a: Node, val b: Node, var type: CableType, var cost: Int, val layout: CableLayout, val waterCells: Int) {
+    init {
+        require(layout.start == a.center && layout.end == b.center) { "layout must run from a to b" }
+    }
+
     val capacity get() = type.capacity
-    val length: Float = Geometry.polylineLength(Geometry.octo(a.center, b.center))
+    val length get() = layout.length
     val latencyMs get() = length * type.msPerCell
+    val crossesWater get() = waterCells > 0
 
     fun other(n: Node) = if (n === a) b else a
     fun connects(n: Node) = n === a || n === b
+
+    /** Point at fraction [f] of the way when travelling from [from] to the other end. */
+    fun pointFrom(from: Node, f: Float): Vec2 = layout.pointAt(if (from === a) f else 1f - f)
 }
 
 class Route(val nodes: List<Node>, val pingMs: Float)
@@ -118,17 +125,6 @@ class Packet(val service: Service, val origin: Node, val route: List<Node>) {
 }
 
 object Geometry {
-    /** Mini-Metro routing: diagonal first, then straight. Returns 3 points (middle may equal an end). */
-    fun octo(a: Vec2, b: Vec2): List<Vec2> {
-        val dx = b.x - a.x
-        val dy = b.y - a.y
-        val d = min(abs(dx), abs(dy))
-        return listOf(a, Vec2(a.x + sign(dx) * d, a.y + sign(dy) * d), b)
-    }
-
-    /** Grid routing for isometric roads: horizontal first, then vertical. */
-    fun lPath(a: Vec2, b: Vec2): List<Vec2> = listOf(a, Vec2(b.x, a.y), b)
-
     fun polylineLength(pts: List<Vec2>): Float {
         var l = 0f
         for (i in 0 until pts.size - 1) l += hypot(pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y)
@@ -162,6 +158,4 @@ object Geometry {
         for (i in 0 until pts.size - 1) d = min(d, distToSegment(p, pts[i], pts[i + 1]))
         return d
     }
-
-    fun chebyshev(a: Node, b: Node) = max(abs(a.cellX - b.cellX), abs(a.cellY - b.cellY))
 }

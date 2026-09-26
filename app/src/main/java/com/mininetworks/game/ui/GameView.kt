@@ -10,7 +10,10 @@ import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import com.mininetworks.game.R
+import com.mininetworks.game.game.Bend
+import com.mininetworks.game.game.CableLayout
 import com.mininetworks.game.game.CableType
+import com.mininetworks.game.game.Cell
 import com.mininetworks.game.game.FixedStep
 import com.mininetworks.game.game.Node
 import com.mininetworks.game.game.NodeKind
@@ -37,7 +40,7 @@ import kotlin.math.hypot
  * The UI thread only enqueues [Input]s, so the world is never touched concurrently.
  *
  * Controls:
- *  - drag from a node to another node: lay a cable
+ *  - drag from a node to another node: lay a cable along the grid (L-shaped; the drag path picks which way it bends)
  *  - pick a cable technology in the bottom-left bar (ISDN, DSL, Kabel, Glasfaser)
  *  - tap a server: upgrade its hardware (more throughput, taller stack)
  *  - tap a cable: upgrade it to the picked technology, or remove it if it already is that type
@@ -79,6 +82,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     private var dragFrom: Node? = null
     private var dragEnd: Vec2? = null
+    /** Pointer samples of the current drag in world space; they decide which way the cable bends. */
+    private val dragTrail = ArrayList<Vec2>()
     private var downX = 0f
     private var downY = 0f
 
@@ -229,14 +234,32 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         val from = dragFrom ?: return null
         val end = dragEnd ?: return null
         val target = world.nodeNear(end)?.takeIf { it !== from }
+        val toCell = target?.cell ?: Cell(floor(end.x).toInt(), floor(end.y).toInt())
+        val bend = dragBend(from.cell, toCell)
+        val layout = world.planLayout(from.cell, toCell, bend)
         return DragPreview(
             from = from,
             end = end,
             target = target,
             type = cableType,
-            error = target?.let { world.connectError(from, it, cableType) },
-            cost = target?.let { world.cableCost(from, it, cableType) },
+            layout = layout,
+            error = target?.let { world.connectError(from, it, cableType, bend) },
+            cost = target?.let { world.cableCost(layout, cableType) },
         )
+    }
+
+    private fun dragBend(from: Cell, to: Cell): Bend? = CableLayout.suggestBend(from, to, dragTrail)
+
+    private fun trackDrag(p: Vec2) {
+        dragEnd = p
+        val last = dragTrail.lastOrNull()
+        if ((last == null || hypot(p.x - last.x, p.y - last.y) >= TRAIL_SPACING) && dragTrail.size < MAX_TRAIL) dragTrail += p
+    }
+
+    private fun endDrag() {
+        dragFrom = null
+        dragEnd = null
+        dragTrail.clear()
     }
 
     // ---------------------------------------------------------------- HUD
@@ -343,10 +366,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                     return
                 }
                 val radius = maxOf(0.7f, 28 * density / renderer.unitPx)
+                dragTrail.clear()
                 dragFrom = world.nodeNear(p, radius)
-                dragEnd = p
+                trackDrag(p)
             }
-            MotionEvent.ACTION_MOVE -> if (dragFrom != null) dragEnd = renderer.toWorld(e.x, e.y)
+            MotionEvent.ACTION_MOVE -> if (dragFrom != null) trackDrag(renderer.toWorld(e.x, e.y))
             MotionEvent.ACTION_UP -> {
                 val from = dragFrom
                 val p = renderer.toWorld(e.x, e.y)
@@ -354,13 +378,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 if (from != null && isTap && from.kind == NodeKind.SERVER) {
                     world.upgradeServer(from)
                 } else if (from != null && !isTap) {
-                    world.nodeNear(p)?.let { if (it !== from) world.connect(from, it, cableType) }
+                    trackDrag(p)
+                    world.nodeNear(p)?.let { if (it !== from) world.connect(from, it, cableType, dragBend(from.cell, it.cell)) }
                 } else if (isTap && from == null) {
                     renderer.cableNear(world, p)?.let { if (it.type == cableType) world.removeCable(it) else world.upgrade(it, cableType) }
                 }
-                dragFrom = null; dragEnd = null
+                endDrag()
             }
-            MotionEvent.ACTION_CANCEL -> { dragFrom = null; dragEnd = null }
+            MotionEvent.ACTION_CANCEL -> endDrag()
         }
     }
 
@@ -390,5 +415,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         const val MIN_FRAME_NANOS = 8_000_000L
         /** Longest animation step per frame, so animations do not jump after a stall. */
         const val MAX_ANIM_STEP = 0.05f
+        /** Minimum distance between two drag trail samples, in cells. */
+        const val TRAIL_SPACING = 0.2f
+        const val MAX_TRAIL = 256
     }
 }

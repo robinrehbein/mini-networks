@@ -80,7 +80,7 @@ class WorldTest {
         assertTrue(w.connect(c, b, CableType.ISDN))
         assertNotNull("client has only 2 ports", w.connectError(c, d, CableType.ISDN))
         w.removeCable(w.cableBetween(c, a)!!)
-        assertEquals(budget - 2, w.budget)
+        assertEquals("the L to (3,3) walks 4 cells", budget - 4, w.budget)
         assertNull(w.connectError(c, d, CableType.ISDN))
     }
 

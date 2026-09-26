@@ -5,6 +5,7 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import com.mininetworks.game.game.Cable
+import com.mininetworks.game.game.CableLayout
 import com.mininetworks.game.game.CableType
 import com.mininetworks.game.game.Device
 import com.mininetworks.game.game.Geometry
@@ -16,8 +17,19 @@ import com.mininetworks.game.game.Vec2
 import com.mininetworks.game.game.World
 import kotlin.math.sin
 
-/** A cable the player is currently dragging. `end` is in world space. */
-class DragPreview(val from: Node, val end: Vec2, val target: Node?, val type: CableType, val error: String?, val cost: Int?)
+/**
+ * A cable the player is currently dragging. `end` is the pointer in world space; [layout] is the grid path that will be
+ * built (to [target], or to the hovered cell while no target is under the pointer).
+ */
+class DragPreview(
+    val from: Node,
+    val end: Vec2,
+    val target: Node?,
+    val type: CableType,
+    val layout: CableLayout,
+    val error: String?,
+    val cost: Int?,
+)
 
 /**
  * A visual style. Renderers only read the [World]; they never change it.
@@ -34,22 +46,19 @@ interface Renderer {
     /** Screen pixels -> world units, on the ground plane. */
     fun toWorld(sx: Float, sy: Float): Vec2
 
-    /** How a cable is laid out in this style (world space). */
-    fun cablePath(a: Node, b: Node): List<Vec2> = Geometry.octo(a.center, b.center)
+    /** How a cable runs in world space; always the layout stored in the model, so every style agrees. */
+    fun cablePath(c: Cable): List<Vec2> = c.layout.waypoints
 
     fun draw(canvas: Canvas, world: World, drag: DragPreview?, time: Float)
 
     /** Size of one world unit on screen, used by the HUD to scale touch targets. */
     val unitPx: Float
 
-    fun packetPosition(p: Packet): Vec2 {
-        val pts = cablePath(p.from, p.to)
-        return if (p.progress < 0f) p.from.center else Geometry.pointAlong(pts, p.progress)
-    }
+    fun packetPosition(world: World, p: Packet): Vec2 = world.packetPosition(p)
 
     fun cableNear(world: World, p: Vec2, radius: Float = 0.35f): Cable? =
-        world.cables.minByOrNull { Geometry.distToPolyline(p, cablePath(it.a, it.b)) }
-            ?.takeIf { Geometry.distToPolyline(p, cablePath(it.a, it.b)) <= radius }
+        world.cables.minByOrNull { Geometry.distToPolyline(p, cablePath(it)) }
+            ?.takeIf { Geometry.distToPolyline(p, cablePath(it)) <= radius }
 }
 
 /** Shape helpers shared by all styles. */

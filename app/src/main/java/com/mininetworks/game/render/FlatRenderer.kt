@@ -1,16 +1,17 @@
 package com.mininetworks.game.render
 
 import android.graphics.Canvas
+import android.graphics.CornerPathEffect
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
-import com.mininetworks.game.game.Geometry
 import com.mininetworks.game.game.NodeKind
 import com.mininetworks.game.game.Vec2
 import com.mininetworks.game.game.World
 
-/** Style A from docs/style-explorations.html: Mini-Metro-like, flat vector, 45° cables. */
+/** Style A from docs/style-explorations.html: Mini-Metro-like, flat vector.
+ * Cables follow the same grid layout as in the isometric style, with softly rounded corners. */
 class FlatRenderer : Renderer {
     override val name = "Flat"
 
@@ -26,6 +27,8 @@ class FlatRenderer : Renderer {
 
     private val fillP = fill(0)
     private val strokeP = stroke(0)
+    /** Cable strokes: rounded corners, purely visual (packets follow the exact grid layout). */
+    private val cableP = stroke(0)
     private val path = Path()
     private val icons = DeviceIcons()
     private val arcRect = RectF()
@@ -35,6 +38,7 @@ class FlatRenderer : Renderer {
         cell = minOf(width / (world.cols + 0.6f), height / (world.rows + 2.2f))
         ox = (width - world.cols * cell) / 2f
         oy = (height - world.rows * cell) / 2f + cell * 0.2f
+        cableP.pathEffect = CornerPathEffect(cell * 0.35f)
     }
 
     override fun toScreen(p: Vec2) = Vec2(ox + p.x * cell, oy + p.y * cell)
@@ -45,23 +49,23 @@ class FlatRenderer : Renderer {
         drawRiver(canvas, world)
 
         for (c in world.cables) {
-            polyline(cablePath(c.a, c.b))
+            polyline(cablePath(c))
             val st = CableStyles.of(c.type)
-            strokeP.color = land; strokeP.strokeWidth = cell * (st.width + 0.12f); canvas.drawPath(path, strokeP)
-            strokeP.color = st.color; strokeP.strokeWidth = cell * st.width; canvas.drawPath(path, strokeP)
-            st.core?.let { strokeP.color = it; strokeP.strokeWidth = cell * st.coreWidth; canvas.drawPath(path, strokeP) }
+            cableP.color = land; cableP.strokeWidth = cell * (st.width + 0.12f); canvas.drawPath(path, cableP)
+            cableP.color = st.color; cableP.strokeWidth = cell * st.width; canvas.drawPath(path, cableP)
+            st.core?.let { cableP.color = it; cableP.strokeWidth = cell * st.coreWidth; canvas.drawPath(path, cableP) }
             if (world.cableLoad(c) >= c.capacity) {
-                strokeP.color = alarm and 0x80FFFFFF.toInt(); strokeP.strokeWidth = cell * 0.05f; canvas.drawPath(path, strokeP)
+                cableP.color = alarm and 0x80FFFFFF.toInt(); cableP.strokeWidth = cell * 0.05f; canvas.drawPath(path, cableP)
             }
         }
 
         drag?.let { d ->
-            val end = d.target?.center ?: d.end
-            polyline(Geometry.octo(d.from.center, end))
+            val end = d.layout.end
+            polyline(d.layout.waypoints)
             val st = CableStyles.of(d.type)
-            strokeP.color = if (d.error == null) st.color and 0x99FFFFFF.toInt() else alarm
-            strokeP.strokeWidth = cell * maxOf(st.width, 0.12f)
-            canvas.drawPath(path, strokeP)
+            cableP.color = if (d.error == null) st.color and 0x99FFFFFF.toInt() else alarm
+            cableP.strokeWidth = cell * maxOf(st.width, 0.12f)
+            canvas.drawPath(path, cableP)
             val s = toScreen(end)
             labelP.textSize = cell * 0.36f
             labelP.color = if (d.error == null) ink else alarm
@@ -69,7 +73,7 @@ class FlatRenderer : Renderer {
         }
 
         for (p in world.packets) {
-            val s = toScreen(packetPosition(p))
+            val s = toScreen(packetPosition(world, p))
             fillP.color = ServiceColors.of(p.service)
             Shapes.draw(canvas, p.service.shape, s.x, s.y, cell * (0.09f + 0.03f * p.size), fillP)
             strokeP.color = land; strokeP.strokeWidth = cell * 0.035f

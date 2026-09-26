@@ -5,7 +5,6 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
-import com.mininetworks.game.game.Geometry
 import com.mininetworks.game.game.Node
 import com.mininetworks.game.game.NodeKind
 import com.mininetworks.game.game.Vec2
@@ -54,8 +53,6 @@ class IsoRenderer : Renderer {
         return Vec2((a + b) / 2f, (b - a) / 2f)
     }
 
-    override fun cablePath(a: Node, b: Node) = Geometry.lPath(a.center, b.center)
-
     override fun draw(canvas: Canvas, world: World, drag: DragPreview?, time: Float) {
         canvas.drawColor(0xFFEEF3EA.toInt())
         for (y in 0 until world.rows) for (x in 0 until world.cols) {
@@ -69,15 +66,15 @@ class IsoRenderer : Renderer {
         side(w, 0f, w, h); fillP.color = 0xFFA7BA9C.toInt(); canvas.drawPath(path, fillP)
 
         for (c in world.cables) {
-            polyline(cablePath(c.a, c.b))
+            polyline(cablePath(c))
             val st = CableStyles.of(c.type)
             strokeP.color = 0xB3FFFFFF.toInt(); strokeP.strokeWidth = tw * (st.width * 0.75f + 0.08f); canvas.drawPath(path, strokeP)
             strokeP.color = st.color; strokeP.strokeWidth = tw * st.width * 0.75f; canvas.drawPath(path, strokeP)
             st.core?.let { strokeP.color = it; strokeP.strokeWidth = tw * st.coreWidth * 0.75f; canvas.drawPath(path, strokeP) }
         }
         drag?.let { d ->
-            val end = d.target?.center ?: d.end
-            polyline(Geometry.lPath(d.from.center, end))
+            val end = d.layout.end
+            polyline(d.layout.waypoints)
             val st = CableStyles.of(d.type)
             strokeP.color = if (d.error == null) st.color and 0x99FFFFFF.toInt() else alarm
             strokeP.strokeWidth = tw * maxOf(st.width, 0.12f) * 0.75f; canvas.drawPath(path, strokeP)
@@ -89,7 +86,7 @@ class IsoRenderer : Renderer {
         val items = ArrayList<Pair<Float, () -> Unit>>()
         for (n in world.nodes) items += (n.center.x + n.center.y) to { drawNode(canvas, n, time, world.serverBusy(n)) }
         for (p in world.packets) {
-            val pos = packetPosition(p)
+            val pos = packetPosition(world, p)
             items += (pos.x + pos.y + 0.01f) to {
                 oval.set(sx(pos.x, pos.y) - tw * 0.07f, sy(pos.x, pos.y) - th * 0.07f, sx(pos.x, pos.y) + tw * 0.07f, sy(pos.x, pos.y) + th * 0.07f)
                 fillP.color = 0x2E000000; canvas.drawOval(oval, fillP)

@@ -27,17 +27,18 @@ Ziel ist, so viele Pakete wie möglich zuzustellen.
 | Geräte | 8 Gerätetypen mit eigenen Icons und eigenem Dienste-Mix, Freischaltung nach Woche |
 | Dienste | Mail, Telefonie, Gaming, Streaming mit Bandbreite (Paketgröße) und Ping-Limit |
 | Kabel | ISDN, DSL, Kabel, Glasfaser mit Kapazität, Latenz pro Feld, Tempo und Preis pro Feld |
+| Kabel-Layout | Jedes Kabel speichert sein `CableLayout` im Modell: L-förmiger Weg über Feldmitten wie eine Straße, keine Diagonalen. Die Zieh-Spur des Spielers wählt, ob erst waagerecht oder erst senkrecht; ohne klare Spur gewinnt die Variante mit weniger Wasserfeldern. Länge, Latenz, Kosten (gelaufene Felder × Preis + Wasserzuschlag), Wassererkennung und Paketbewegung kommen aus dem Layout |
 | Routing | Dijkstra nach Ping; nur Kabel mit genug Kapazität zählen; fremde Server leiten nicht weiter |
 | Ports | Gerät 2, Server 4, Router 6: Router werden als Verteiler gebraucht |
-| Wasser | Fluss auf der Karte; Kabel darüber kosten 2 Budget extra pro Wasserfeld |
+| Wasser | Fluss auf der Karte; Kabel darüber kosten 2 Budget extra pro Wasserfeld (gezählt auf den Feldern des gespeicherten Layouts) |
 | Wochen | Alle 45 s: +12 Budget, +1 Router, neue Technik, neue Geräte, neue Server |
 | Stau | Kabel tragen begrenzte Bandbreite gleichzeitig; Pakete warten an Knoten |
 | Server-Stufen | Tipp auf Server = Aufrüsten, höhere Türme, begrenzter Durchsatz |
 | Game Over | ≥ 6 wartende Anfragen → roter Ring füllt sich in 18 s → „Netz überlastet“ |
-| Grafik | Zwei Stile umschaltbar: **Flat** (Mini-Metro, 45°-Kabel) und **Isometrisch** (2,5D-Kacheln) |
+| Grafik | Zwei Stile umschaltbar: **Flat** (Mini-Metro-Look, Übersichtsmodus) und **Isometrisch** (2,5D-Kacheln); beide zeichnen Kabel und Pakete aus demselben Layout, Flat rundet die Ecken nur optisch ab. Die Zieh-Vorschau zeigt genau das Layout und den Preis, die beim Loslassen gebaut werden |
 | Texte | HUD-Texte in `strings.xml` (Deutsch); Ereignistexte der Logik (`lastEvent`) noch fest im Code |
-| Steuerung | Ziehen = Kabel legen · Tippen auf Kabel = Upgrade auf gewählte Technik bzw. entfernen · Router-Knopf + Feld tippen |
-| Tests | `:core`: `WorldTest` (Regeln), `FixedStepTest` (Zeitschritt, Determinismus); `:app`: `ScreenshotTest` (Robolectric rendert beide Stile und ein komplettes Spielbild mit HUD nach `docs/screenshots/`) |
+| Steuerung | Ziehen = Kabel legen (die Zieh-Spur bestimmt den Knick) · Tippen auf Kabel = Upgrade auf gewählte Technik bzw. entfernen · Router-Knopf + Feld tippen |
+| Tests | `:core`: `WorldTest` (Regeln), `CableLayoutTest` (Layout-Form, Kosten = Layout, Wassererkennung, Knick-Wahl, Paketbewegung und Laufzeit), `FixedStepTest` (Zeitschritt, Determinismus); `:app`: `RendererLayoutTest` (beide Stile liefern identische Kabelwege und Paketpositionen), `ScreenshotTest` (Robolectric rendert beide Stile, die Zieh-Vorschau und ein komplettes Spielbild mit HUD nach `docs/screenshots/`) |
 
 Die Stilstudie mit vier Looks (Flat, Iso, Pixel, Platine) liegt in `docs/style-explorations.html`.
 
@@ -46,11 +47,13 @@ Die Stilstudie mit vier Looks (Flat, Iso, Pixel, Platine) liegt in `docs/style-e
 ```
 core/src/main/kotlin/com/mininetworks/game/game/   (Gradle-Modul :core, reines Kotlin/JVM)
   Model.kt                  Service, Device, CableType, Node, Cable, Packet, Route, Geometry
+  CableLayout.kt            Cell, Bend, CableLayout (Kabelgeometrie auf dem Raster, Knick-Vorschlag aus der Zieh-Spur)
   World.kt                  Spielzustand, Regeln, Simulation, Routing
   FixedStep.kt              Fester Zeitschritt (1/60 s, Akkumulator, max. 5 Schritte pro Frame)
   DebugApi.kt               Opt-in-Markierung für Test-/Debug-Hooks
 core/src/test/kotlin/com/mininetworks/game/game/
   WorldTest.kt              Regeltests
+  CableLayoutTest.kt        Kabel-Layout: Kosten, Wasser, Knick, Paketbewegung
   FixedStepTest.kt          Zeitschritt und Determinismus
 app/src/main/java/com/mininetworks/game/
   MainActivity.kt           Vollbild-Activity, hostet GameView, startet/stoppt den Game-Thread
@@ -59,7 +62,8 @@ app/src/main/java/com/mininetworks/game/
   render/IsoRenderer.kt     Stil B
   ui/GameView.kt            SurfaceView, Game-Thread, Eingabe-Queue, HUD
 app/src/test/java/com/mininetworks/game/
-  render/ScreenshotTest.kt  Rendert Szenen und das Spielbild mit HUD als PNG
+  render/ScreenshotTest.kt  Rendert Szenen, die Zieh-Vorschau und das Spielbild mit HUD als PNG
+  render/RendererLayoutTest.kt  Beide Stile lesen Kabelweg und Paketposition aus dem Modell
 ```
 
 ### Bauen und Prüfen
@@ -166,8 +170,6 @@ Kein Multiplayer, keine Online-Pflicht, kein Shop, keine Werbung im MVP. iOS ers
 
 ### 4.2 Bekannte Vereinfachungen im Prototyp (bewusst)
 
-- Die Spiellogik rechnet Kabellänge, Kosten und Wasser immer mit 45°-Geometrie. Der Iso-Renderer zeichnet L-Wege.
-  Soll: Geometrie pro Kabel im Modell speichern (`CableLayout`), Renderer lesen sie nur.
 - Ereignistexte aus der Logik (`World.lastEvent`) sind fest auf Deutsch im Code; die HUD-Texte liegen in `strings.xml`.
 - Keine Kamera; die Karte passt immer komplett auf den Bildschirm.
 - Die Wochen-Belohnungen kommen automatisch statt zur Auswahl.
@@ -225,10 +227,13 @@ Regeln für alle Pakete:
 - `SurfaceView` + Render-Thread statt `View`.
 - Fertig: alle bestehenden Tests grün, App läuft wie vorher.
 
-**P0.2 Kabel-Layout im Modell**
+**P0.2 Kabel-Layout im Modell (Iso-first)** · umgesetzt
 - `CableLayout` (Liste von Rasterpunkten) pro Kabel speichern; Kosten, Wasser und Länge daraus berechnen.
-- Renderer lesen die Geometrie nur noch aus dem Modell. Iso und Flat nutzen dasselbe Layout (Flat zeichnet 45°, Iso projiziert).
+- Kabel laufen wie Straßen als L über das Raster (keine Diagonalen); die Zieh-Spur wählt den Knick, sonst weniger Wasser.
+- Renderer lesen die Geometrie nur noch aus dem Modell. Iso und Flat nutzen dasselbe Layout (Flat rundet die Ecken optisch, Iso projiziert).
 - Fertig: Test, dass Kosten und Packet-Position in beiden Renderern übereinstimmen.
+- Bekannt: Kabel dürfen sich Felder teilen und durch fremde Knoten-Felder laufen; durch die längeren L-Wege steigt der Ping
+  diagonaler Verbindungen (Balancing in Welle 4).
 
 ### Welle 1 – parallel (4 Agenten)
 

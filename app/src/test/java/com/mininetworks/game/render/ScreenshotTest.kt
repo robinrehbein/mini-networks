@@ -2,6 +2,7 @@ package com.mininetworks.game.render
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import com.mininetworks.game.game.Bend
 import com.mininetworks.game.game.CableType
 import com.mininetworks.game.game.DebugApi
 import com.mininetworks.game.game.Device
@@ -75,6 +76,31 @@ class ScreenshotTest {
             r.layout(bmp.width, bmp.height, world)
             r.draw(Canvas(bmp), world, drag = null, time = 1.3f)
             save(bmp, File(out, "prototype-${r.name.lowercase()}.png"))
+        }
+    }
+
+    /** A cable being dragged: the preview shows the exact grid layout and price that a release would build. */
+    @Test
+    fun renderDragPreview() {
+        val out = File(System.getProperty("screenshots.dir") ?: "build/screenshots").apply { mkdirs() }
+        val world = scene()
+        val from = world.nodes.first { it.device == Device.TABLET }
+        val target = world.nodes.first { it.service == Service.GAMING }
+        val bend = Bend.VERTICAL_FIRST
+        val preview = DragPreview(
+            from = from,
+            end = target.center,
+            target = target,
+            type = CableType.FIBER,
+            layout = world.planLayout(from, target, bend),
+            error = world.connectError(from, target, CableType.FIBER, bend),
+            cost = world.cableCost(from, target, CableType.FIBER, bend),
+        )
+        for (r in listOf(FlatRenderer(), IsoRenderer())) {
+            val bmp = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)
+            r.layout(bmp.width, bmp.height, world)
+            r.draw(Canvas(bmp), world, preview, time = 1.3f)
+            save(bmp, File(out, "drag-preview-${r.name.lowercase()}.png"))
         }
     }
 

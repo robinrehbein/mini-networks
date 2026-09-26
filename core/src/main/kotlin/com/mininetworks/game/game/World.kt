@@ -140,39 +140,44 @@ class World(
 
     fun ports(n: Node) = cables.count { it.connects(n) }
 
-    /** Cable cost in budget units: grid length times type price, water cells cost extra (sea cable). */
-    fun cableCost(a: Node, b: Node, type: CableType): Int =
-        Geometry.chebyshev(a, b) * type.costPerCell + waterCellsOn(a, b) * Tuning.WATER_EXTRA_PER_CELL
-
-    fun waterCellsOn(a: Node, b: Node): Int {
-        val pts = Geometry.octo(a.center, b.center)
-        val len = Geometry.polylineLength(pts)
-        val steps = max(1, (len * 4).toInt())
-        val seen = HashSet<Int>()
-        for (i in 0..steps) {
-            val p = Geometry.pointAlong(pts, i / steps.toFloat())
-            val cx = p.x.toInt()
-            val cy = p.y.toInt()
-            if (isWater(cx, cy)) seen += cy * cols + cx
-        }
-        return seen.size
+    /**
+     * The layout a new cable from [a] to [b] gets: an L along the grid with the given [bend], or, without one,
+     * the bend that crosses fewer water cells (horizontal first on a tie).
+     */
+    fun planLayout(a: Cell, b: Cell, bend: Bend? = null): CableLayout {
+        if (bend != null) return CableLayout.between(a, b, bend)
+        val h = CableLayout.between(a, b, Bend.HORIZONTAL_FIRST)
+        val v = CableLayout.between(a, b, Bend.VERTICAL_FIRST)
+        return if (waterCellsOn(v) < waterCellsOn(h)) v else h
     }
 
+    fun planLayout(a: Node, b: Node, bend: Bend? = null) = planLayout(a.cell, b.cell, bend)
+
+    fun waterCellsOn(layout: CableLayout) = layout.cells.count { isWater(it.x, it.y) }
+
+    /** Cable cost in budget units: cells walked times type price, water cells cost extra (sea cable). */
+    fun cableCost(layout: CableLayout, type: CableType): Int =
+        layout.steps * type.costPerCell + waterCellsOn(layout) * Tuning.WATER_EXTRA_PER_CELL
+
+    fun cableCost(a: Node, b: Node, type: CableType, bend: Bend? = null) = cableCost(planLayout(a, b, bend), type)
+
     /** Null when the cable is allowed, otherwise a short German reason for the UI. */
-    fun connectError(a: Node, b: Node, type: CableType): String? = when {
-        a === b -> "Gleicher Knoten"
+    fun connectError(a: Node, b: Node, type: CableType, bend: Bend? = null): String? = when {
+        a === b || a.cell == b.cell -> "Gleicher Knoten"
         cableBetween(a, b) != null -> "Schon verbunden"
         type.unlockWeek > week -> "${type.label} noch nicht erfunden"
         ports(a) >= a.kind.maxPorts -> "${a.label}: alle Ports belegt"
         ports(b) >= b.kind.maxPorts -> "${b.label}: alle Ports belegt"
-        cableCost(a, b, type) > budget -> "Budget reicht nicht"
+        cableCost(a, b, type, bend) > budget -> "Budget reicht nicht"
         else -> null
     }
 
-    fun connect(a: Node, b: Node, type: CableType): Boolean {
-        if (gameOver || connectError(a, b, type) != null) return false
-        val cost = cableCost(a, b, type)
-        cables += Cable(a, b, type, cost, waterCellsOn(a, b) > 0)
+    /** Lays a cable along [planLayout] with [bend]. */
+    fun connect(a: Node, b: Node, type: CableType, bend: Bend? = null): Boolean {
+        if (gameOver || connectError(a, b, type, bend) != null) return false
+        val layout = planLayout(a, b, bend)
+        val cost = cableCost(layout, type)
+        cables += Cable(a, b, type, cost, layout, waterCellsOn(layout))
         budget -= cost
         routeCache.clear()
         return true
@@ -180,7 +185,7 @@ class World(
 
     /** Swap an existing cable to a better technology, paying only the difference. */
     fun upgradeError(c: Cable, type: CableType): String? {
-        val diff = cableCost(c.a, c.b, type) - c.cost
+        val diff = cableCost(c.layout, type) - c.cost
         return when {
             type.ordinal <= c.type.ordinal -> "Kein Upgrade"
             type.unlockWeek > week -> "${type.label} noch nicht erfunden"
@@ -191,7 +196,7 @@ class World(
 
     fun upgrade(c: Cable, type: CableType): Boolean {
         if (gameOver || upgradeError(c, type) != null) return false
-        val newCost = cableCost(c.a, c.b, type)
+        val newCost = cableCost(c.layout, type)
         budget -= newCost - c.cost
         c.cost = newCost
         c.type = type
@@ -285,6 +290,13 @@ class World(
             }
         }
         return null
+    }
+
+    /** Where [p] is in world space: on its cable's layout, or at the node it waits at. */
+    fun packetPosition(p: Packet): Vec2 {
+        if (!p.inTransit || p.progress < 0f) return if (p.inTransit) p.from.center else p.route.last().center
+        val cable = cableBetween(p.from, p.to) ?: return p.from.center
+        return cable.pointFrom(p.from, p.progress)
     }
 
     /** Bandwidth units currently travelling on [c]. */
