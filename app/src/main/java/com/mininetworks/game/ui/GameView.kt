@@ -153,6 +153,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private var downX = 0f
     private var downY = 0f
     private var downTime = 0L
+    /** Access point under a finger that has not moved yet; holding it for [LONG_PRESS_MS] switches it to 5 GHz. */
+    private var holdAp: Node? = null
+    private var holdStart = 0f
+    /** True once a hold fired, so lifting the finger does nothing more. */
+    private var holdFired = false
     /** True from a touch-down on the reward dialog until the finger lifts, so that gesture never reaches the map. */
     private var gestureConsumed = false
     private var pressedCard: Int? = null
@@ -178,6 +183,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private val hudSub = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF5B6674.toInt(); textSize = 13 * density }
     private val btnFill = fill(0xE6FFFFFF.toInt())
     private val btnActive = fill(0xFF262B33.toInt())
+    private val holdRing = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND }
     private val btnText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; textSize = 14 * density }
     private val barBg = fill(0x33262B33)
     private val swatch = fill(0)
@@ -297,6 +303,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         while (true) handle(inputs.poll() ?: break)
         val animStep = frameSeconds.coerceAtMost(MAX_ANIM_STEP)
         animTime += animStep
+        checkHold()
         if (screen == Screen.PLAYING) clock.advance(frameSeconds) { world.update(it) } else clock.reset()
         checkGameOver()
         followArea()
@@ -338,6 +345,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private fun drawFrame(canvas: Canvas) {
         val playing = screen == Screen.PLAYING
         renderer.draw(canvas, world, if (playing) dragPreview() else null, animTime)
+        if (playing) drawHoldProgress(canvas)
         if (hudVisible) drawHud(canvas)
         if (playing) world.rewardOffer?.let {
             rewardDialog.draw(canvas, world, it, surfaceWidth, surfaceHeight, animTime, pressedCard)
@@ -423,6 +431,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     }
 
     private fun dragPreview(): DragPreview? {
+        if (holdAp != null) return null
         val from = dragFrom ?: return null
         val end = dragEnd ?: return null
         val target = dragEndScreen?.let { pickNode(it.x, it.y, except = from) }
@@ -597,10 +606,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                     return
                 }
                 panArmed = dragFrom == null
+                holdAp = dragFrom?.takeIf { it.kind == NodeKind.ACCESS_POINT }
+                holdStart = animTime
+                holdFired = false
                 trackDrag(e.x, e.y)
             }
             MotionEvent.ACTION_POINTER_DOWN -> {
                 // A second finger turns any gesture into camera movement; a half-drawn cable is dropped.
+                holdAp = null
                 endDrag()
                 cameraGesture = true
                 startPinch(e)
@@ -609,11 +622,20 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 cameraGesture -> if (e.pointers.size >= 4) {
                     pinch.move(e.pointers[0], e.pointers[1], e.pointers[2], e.pointers[3], renderer.camera)
                 }
-                dragFrom != null -> trackDrag(e.x, e.y)
+                dragFrom != null -> {
+                    if (hypot(e.x - downX, e.y - downY) >= TAP_SLOP_DP * density) holdAp = null
+                    trackDrag(e.x, e.y)
+                }
                 panArmed -> panWithOneFinger(e)
             }
             MotionEvent.ACTION_POINTER_UP -> if (cameraGesture) startPinch(e)
             MotionEvent.ACTION_UP -> {
+                holdAp = null
+                if (holdFired) {
+                    holdFired = false
+                    endDrag()
+                    return
+                }
                 if (cameraGesture || world.rewardOffer != null) {
                     cameraGesture = false
                     pinch.stop()
@@ -644,6 +666,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 endDrag()
             }
             MotionEvent.ACTION_CANCEL -> {
+                holdAp = null
+                holdFired = false
                 cameraGesture = false
                 pinch.stop()
                 endDrag()
@@ -728,6 +752,33 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             if (clashes == 0) context.getString(R.string.hint_channel, name, ap.channel)
             else resources.getQuantityString(R.plurals.hint_channel_interference, clashes, name, ap.channel, clashes),
         )
+    }
+
+    /** Fires a hold on an access point as soon as it lasted [LONG_PRESS_MS], not only when the finger lifts. */
+    private fun checkHold() {
+        val ap = holdAp ?: return
+        if (screen != Screen.PLAYING || world.rewardOffer != null || ap !in world.nodes) {
+            holdAp = null
+            return
+        }
+        if (animTime - holdStart < LONG_PRESS_MS / 1000f) return
+        holdAp = null
+        holdFired = true
+        upgradeTo5Ghz(ap)
+    }
+
+    /** A ring around a held 2.4 GHz access point that fills up until the hold switches it to 5 GHz. */
+    private fun drawHoldProgress(canvas: Canvas) {
+        val ap = holdAp?.takeIf { !it.fiveGhz } ?: return
+        val f = ((animTime - holdStart) * 1000f - HOLD_RING_DELAY_MS) / (LONG_PRESS_MS - HOLD_RING_DELAY_MS)
+        if (f <= 0f) return
+        val c = renderer.toScreen(ap.center)
+        val r = HOLD_RING_DP * density
+        holdRing.strokeWidth = 5 * density
+        holdRing.color = 0x33262B33
+        canvas.drawCircle(c.x, c.y, r, holdRing)
+        holdRing.color = HOLD_RING_COLOR
+        canvas.drawArc(c.x - r, c.y - r, c.x + r, c.y + r, -90f, 360f * f.coerceAtMost(1f), false, holdRing)
     }
 
     private fun upgradeTo5Ghz(ap: Node) {
@@ -978,5 +1029,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         const val DOUBLE_TAP_SLOP_DP = 40f
         /** Holding a tap on an access point this long switches it to 5 GHz. */
         const val LONG_PRESS_MS = 500L
+        /** The hold ring appears only after this, so a quick tap does not flash it. */
+        private const val HOLD_RING_DELAY_MS = 120f
+        private const val HOLD_RING_DP = 40f
+        private const val HOLD_RING_COLOR = 0xFF4F6BD8.toInt()
     }
 }

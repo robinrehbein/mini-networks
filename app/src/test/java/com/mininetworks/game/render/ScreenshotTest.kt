@@ -221,7 +221,7 @@ class ScreenshotTest {
             Triple(Device.LAPTOP, 2, 5), Triple(Device.TABLET, 2, 7), Triple(Device.SMARTPHONE, 4, 7), Triple(Device.TV, 4, 5),
             Triple(Device.PC, 6, 5), Triple(Device.TABLET, 6, 7), Triple(Device.LAPTOP, 10, 7), Triple(Device.SMARTPHONE, 9, 5),
             Triple(Device.TV, 7, 9), Triple(Device.SMARTPHONE, 14, 7), Triple(Device.WATCH, 12, 8), Triple(Device.TABLET, 13, 4),
-            Triple(Device.PC, 11, 5),
+            Triple(Device.PC, 13, 6),
         )) w.addClient(device, x, y)
         repeat(60 * 6) { w.update(1f / 60f) }
         check(w.interferers(ap1) == listOf(ap2)) { "channel 1 overlap" }
@@ -241,6 +241,14 @@ class ScreenshotTest {
         val bmp = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)
         view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 1.3f, style = "Iso")
         save(bmp, File(shots, "wireless-hud.png"))
+
+        // Holding the channel-6 access point: the ring fills up until it switches to 5 GHz.
+        val ap = world.nodes.first { it.kind == NodeKind.ACCESS_POINT && it.channel == 6 }
+        val p = view.activeRenderer.toScreen(ap.center)
+        view.injectTouch(MotionEvent.ACTION_DOWN, p.x, p.y)
+        view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 1.3f + 0.35f)
+        save(bmp, File(shots, "wireless-hold.png"))
+        view.injectTouch(MotionEvent.ACTION_CANCEL, p.x, p.y)
     }
 
     /**

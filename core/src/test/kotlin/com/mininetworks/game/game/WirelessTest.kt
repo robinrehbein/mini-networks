@@ -148,6 +148,34 @@ class WirelessTest {
     }
 
     @Test
+    fun cabledDeviceCannotRideOnAPhoneIntoTheCellTower() {
+        val w = world()
+        val pc = w.addClient(Device.PC, 1, 1)
+        val phone = w.addClient(Device.SMARTPHONE, 2, 1)
+        val tower = w.addRadio(RadioType.CELL, 4, 1)
+        val server = w.addServer(Service.CALL, 7, 1)
+        assertTrue(w.connect(tower, server, CableType.DSL))
+        assertTrue(w.connect(pc, phone, CableType.DSL))
+        assertEquals(setOf(phone), linked(w, tower))
+        assertEquals(listOf(phone, tower, server), w.routeFor(phone, Service.CALL)!!.nodes)
+        assertNull("towers only serve mobile devices", w.bestRoute(pc, Service.CALL))
+    }
+
+    @Test
+    fun cabledDeviceCannotRideOnAWlanClient() {
+        val w = world()
+        val pc = w.addClient(Device.PC, 1, 1)
+        val laptop = w.addClient(Device.LAPTOP, 2, 1)
+        val ap = w.addRadio(RadioType.WLAN, 3, 1)
+        val server = w.addServer(Service.CALL, 6, 1)
+        assertTrue(w.connect(ap, server, CableType.DSL))
+        assertTrue(w.connect(pc, laptop, CableType.DSL))
+        assertEquals(setOf(laptop), linked(w, ap))
+        assertNotNull(w.routeFor(laptop, Service.CALL))
+        assertNull("the AP's device limit counts only devices on the air", w.bestRoute(pc, Service.CALL))
+    }
+
+    @Test
     fun requestAndResponseTravelOverTheAir() {
         val w = world()
         val phone = w.addClient(Device.SMARTPHONE, 1, 1)

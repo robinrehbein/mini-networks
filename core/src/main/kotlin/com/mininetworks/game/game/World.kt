@@ -473,8 +473,9 @@ class World(
             val hopCost = if (cur === client) 0f else Tuning.ROUTER_MS
             for (c in links) {
                 if (!c.connects(cur) || c.capacity < service.bandwidth) continue
-                // A radio link only carries a client's own traffic: a radio reaches the network through its cables.
-                if (c is RadioLink && cur === c.radio) continue
+                // A radio link only carries its device's own traffic, as the first hop: a radio reaches the network
+                // through its cables, and cabled devices cannot ride on a wireless client.
+                if (c is RadioLink && !(cur === client && c.device === client)) continue
                 val nb = c.other(cur)
                 val d = dist.getValue(cur) + hopCost + c.latencyMs
                 if (d < (dist[nb] ?: Float.MAX_VALUE)) {

@@ -7,6 +7,7 @@ import com.mininetworks.game.game.Cell
 import com.mininetworks.game.game.DebugApi
 import com.mininetworks.game.game.Device
 import com.mininetworks.game.game.NodeKind
+import com.mininetworks.game.game.RadioType
 import com.mininetworks.game.game.Wifi
 import com.mininetworks.game.game.Service
 import com.mininetworks.game.game.World
@@ -124,5 +125,34 @@ class GameViewGestureTest {
         assertTrue("holding switches to 5 GHz", ap.fiveGhz)
         assertEquals(Wifi.CHANNELS_5_GHZ.first(), ap.channel)
         assertEquals(budget - Wifi.UPGRADE_5_GHZ_COST, world.budget)
+    }
+
+    @Test
+    fun holdingAnAccessPointSwitchesTo5GhzWhileTheFingerIsStillDown() {
+        world.jumpToWeek(6)
+        val ap = world.addRadio(RadioType.WLAN, world.unlocked.left + 4, world.unlocked.top + 4)
+        val p = view.activeRenderer.toScreen(ap.center)
+        val pulses = view.hapticPulses
+        view.injectTouch(MotionEvent.ACTION_DOWN, p.x, p.y, time = 0L)
+        repeat(20) { view.advance(1f / 60f) }
+        assertFalse(ap.fiveGhz)
+        repeat(12) { view.advance(1f / 60f) }
+        assertTrue("fires after half a second without lifting the finger", ap.fiveGhz)
+        assertTrue("with a haptic pulse", view.hapticPulses > pulses)
+        view.injectTouch(MotionEvent.ACTION_UP, p.x, p.y, time = 600L)
+        assertEquals("lifting afterwards does not also switch the channel", Wifi.CHANNELS_5_GHZ.first(), ap.channel)
+    }
+
+    @Test
+    fun movingOffTheAccessPointCancelsTheHold() {
+        world.jumpToWeek(6)
+        val ap = world.addRadio(RadioType.WLAN, world.unlocked.left + 4, world.unlocked.top + 4)
+        val p = view.activeRenderer.toScreen(ap.center)
+        view.injectTouch(MotionEvent.ACTION_DOWN, p.x, p.y, time = 0L)
+        view.injectTouch(MotionEvent.ACTION_MOVE, p.x + 200f, p.y, time = 100L)
+        repeat(60) { view.advance(1f / 60f) }
+        assertFalse(ap.fiveGhz)
+        view.injectTouch(MotionEvent.ACTION_UP, p.x + 200f, p.y, time = 1100L)
+        assertFalse(ap.fiveGhz)
     }
 }
