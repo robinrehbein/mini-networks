@@ -55,6 +55,8 @@ class IncidentsTest {
         assertEquals("never fewer in a later week", counts.sorted(), counts)
         assertTrue(Incidents.countIn(12) > Incidents.countIn(3))
         assertEquals(Incidents.MAX_PER_WEEK, Incidents.countIn(100))
+        assertEquals("rare: one a week for the first weeks", 1, Incidents.countIn(Incidents.FIRST_WEEK + Incidents.WEEKS_PER_STEP - 1))
+        assertTrue("rare: never more than two a week", Incidents.MAX_PER_WEEK <= 2)
         for (seed in 1L..20L) {
             assertTrue(Incidents.plan(seed, 1).isEmpty())
             assertTrue(Incidents.plan(seed, 2).isEmpty())
@@ -201,6 +203,38 @@ class IncidentsTest {
         runUntil(w) { w.incidents.isNotEmpty() }
         w.removeCable(cable)
         assertTrue(w.incidents.isEmpty())
+    }
+
+    @Test
+    fun dodgingTheExcavatorByRelayingTheCableCostsBudget() {
+        val (w, _, cable) = cabledPair(seedFor(IncidentKind.EXCAVATOR))
+        assertEquals(cable.cost, w.refundOf(cable))
+        runUntil(w) { w.incidents.isNotEmpty() }
+        assertFalse(w.incidents.single().struck)
+        assertEquals(0, w.refundOf(cable))
+        val before = w.budget
+        w.removeCable(cable)
+        assertEquals("no refund under an announced excavator", before, w.budget)
+        assertTrue(w.connect(cable.a, cable.b, cable.type))
+        assertEquals(before - cable.cost, w.budget)
+        assertTrue(cable.cost > 0)
+    }
+
+    @Test
+    fun removingACutCableRefundsNothing() {
+        val (w, _, cable) = cabledPair(seedFor(IncidentKind.EXCAVATOR))
+        runUntil(w) { w.incidents.any { it.struck } }
+        val before = w.budget
+        w.removeCable(cable)
+        assertEquals(before, w.budget)
+    }
+
+    @Test
+    fun removingAnUntouchedCableRefundsItsCost() {
+        val (w, _, cable) = cabledPair(seedFor(IncidentKind.EXCAVATOR))
+        val before = w.budget
+        w.removeCable(cable)
+        assertEquals(before + cable.cost, w.budget)
     }
 
     @Test

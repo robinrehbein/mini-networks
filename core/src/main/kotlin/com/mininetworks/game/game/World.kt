@@ -285,10 +285,17 @@ class World(
         return true
     }
 
-    /** Removes [c] and refunds its cost; an excavator waiting at it or a cut on it goes with it. */
+    /**
+     * Budget [removeCable] gives back for [c]: its cost, or nothing while an excavator is announced at it or has cut it,
+     * so calling the excavator off by removing and re-laying the cable is never free.
+     */
+    fun refundOf(c: Cable) = if (incidentList.any { it.cable === c }) 0 else c.cost
+
+    /** Removes [c] and refunds [refundOf]; an excavator waiting at it or a cut on it goes with it. */
     fun removeCable(c: Cable) {
+        val refund = refundOf(c)
         if (!cables.remove(c)) return
-        budget += c.cost
+        budget += refund
         incidentList.removeAll { it.cable === c }
         networkChanged()
     }

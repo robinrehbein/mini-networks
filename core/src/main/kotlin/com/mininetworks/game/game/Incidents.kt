@@ -65,9 +65,9 @@ data class PlannedIncident(
  */
 object Incidents {
     const val FIRST_WEEK = 3
-    const val MAX_PER_WEEK = 4
+    const val MAX_PER_WEEK = 2
     /** One more incident per week every this many weeks. */
-    const val WEEKS_PER_STEP = 3
+    const val WEEKS_PER_STEP = 6
     const val WARNING_SECONDS = 5f
     /** A cut cable repairs itself after this long. */
     const val CUT_SECONDS = 20f
