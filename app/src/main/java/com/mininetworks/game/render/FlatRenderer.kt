@@ -2,7 +2,6 @@ package com.mininetworks.game.render
 
 import android.graphics.Canvas
 import android.graphics.CornerPathEffect
-import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
@@ -11,6 +10,7 @@ import com.mininetworks.game.game.CellRect
 import com.mininetworks.game.game.Incident
 import com.mininetworks.game.game.IncidentKind
 import com.mininetworks.game.game.Incidents
+import com.mininetworks.game.game.Node
 import com.mininetworks.game.game.NodeKind
 import com.mininetworks.game.game.Terrain
 import com.mininetworks.game.game.Vec2
@@ -47,6 +47,17 @@ class FlatRenderer : Renderer {
     private val airP = stroke(0)
     private val cutP = stroke(IncidentStyles.CUT)
     private val clip = Path()
+    private val cutDash = DashCache()
+    private val airDash = DashCache()
+    private val pos = FloatArray(2)
+    private val gridRect = RectF()
+    private val openRect = RectF()
+    private val radioScratch = ArrayList<Node>()
+
+    /** Cell centers of the single river of the map with water signature [riverMap], top to bottom; empty if none. */
+    private var riverMap = 0L
+    private var riverReady = false
+    private val river = ArrayList<Vec2>()
 
     /** Flat map space is world space: one map unit per cell. */
     override fun toMap(p: Vec2) = p
@@ -62,7 +73,7 @@ class FlatRenderer : Renderer {
             cableP.pathEffect = CornerPathEffect(cornerRadius)
         }
         canvas.drawColor(backdrop)
-        val grid = screenRect(world.bounds)
+        val grid = screenRect(world.bounds, gridRect)
         fillP.color = land; canvas.drawRect(grid, fillP)
         strokeP.color = edge; strokeP.strokeWidth = cell * 0.03f; canvas.drawRect(grid, strokeP)
         canvas.save()
@@ -82,8 +93,7 @@ class FlatRenderer : Renderer {
                 cableP.color = alarm and 0x80FFFFFF.toInt(); cableP.strokeWidth = cell * 0.05f; canvas.drawPath(path, cableP)
             }
             if (world.isCut(c)) {
-                val dash = cell * 0.12f
-                cutP.pathEffect = DashPathEffect(floatArrayOf(dash, dash * 0.7f), 0f)
+                cutP.pathEffect = cutDash.get(cell * 0.12f, 0.7f, 0f)
                 cutP.strokeWidth = cell * st.width * 0.6f
                 canvas.drawPath(path, cutP)
             }
@@ -107,19 +117,22 @@ class FlatRenderer : Renderer {
             }
         }
 
-        for (p in world.packets) {
-            val s = toScreen(packetPosition(world, p))
+        val packets = world.packets
+        for (k in packets.indices) {
+            val p = packets[k]
+            world.packetPosition(p, pos)
+            val sx = camera.toScreenX(pos[0]); val sy = camera.toScreenY(pos[1])
             val r = cell * (0.09f + 0.03f * p.size)
             if (p.isResponse) {
                 // Responses: smaller and outlined in the service color.
-                fillP.color = land; Shapes.draw(canvas, p.service.shape, s.x, s.y, r * 0.8f, fillP)
+                fillP.color = land; Shapes.draw(canvas, p.service.shape, sx, sy, r * 0.8f, fillP)
                 strokeP.color = ServiceColors.of(p.service); strokeP.strokeWidth = cell * 0.045f
-                Shapes.draw(canvas, p.service.shape, s.x, s.y, r * 0.8f, strokeP)
+                Shapes.draw(canvas, p.service.shape, sx, sy, r * 0.8f, strokeP)
             } else {
                 fillP.color = ServiceColors.of(p.service)
-                Shapes.draw(canvas, p.service.shape, s.x, s.y, r, fillP)
+                Shapes.draw(canvas, p.service.shape, sx, sy, r, fillP)
                 strokeP.color = land; strokeP.strokeWidth = cell * 0.035f
-                Shapes.draw(canvas, p.service.shape, s.x, s.y, r, strokeP)
+                Shapes.draw(canvas, p.service.shape, sx, sy, r, strokeP)
             }
         }
 
@@ -131,35 +144,38 @@ class FlatRenderer : Renderer {
         }
 
         for (n in world.nodes) {
-            val s = toScreen(n.center)
+            val nx = camera.toScreenX(n.center.x); val ny = camera.toScreenY(n.center.y)
             val dark = world.isDark(n)
             val warning = world.incidents.any { it.node === n && !it.struck }
             when (n.kind) {
-                NodeKind.ROUTER -> icons.router(canvas, s.x, s.y, cell * 0.3f, time, warning, dark)
+                NodeKind.ROUTER -> icons.router(canvas, nx, ny, cell * 0.3f, time, warning, dark)
                 NodeKind.ACCESS_POINT -> if (dark) {
-                    icons.accessPoint(canvas, s.x, s.y, cell * 0.28f, RadioStyles.color(n), time, dark = true)
+                    icons.accessPoint(canvas, nx, ny, cell * 0.28f, RadioStyles.color(n), time, dark = true)
                 } else {
-                    icons.accessPoint(canvas, s.x, s.y, cell * 0.28f, RadioStyles.color(n), time)
+                    icons.accessPoint(canvas, nx, ny, cell * 0.28f, RadioStyles.color(n), time)
                     val interfering = world.interferers(n).isNotEmpty()
-                    val bx = s.x + cell * 0.36f; val by = s.y - cell * 0.3f; val r = cell * 0.15f
+                    val bx = nx + cell * 0.36f; val by = ny - cell * 0.3f; val r = cell * 0.15f
                     fillP.color = land; canvas.drawCircle(bx, by, r, fillP)
                     strokeP.color = if (interfering) alarm else RadioStyles.color(n); strokeP.strokeWidth = cell * 0.035f
                     canvas.drawCircle(bx, by, r, strokeP)
                     labelP.color = RadioStyles.color(n); labelP.textSize = r * (if (n.channel >= 10) 1.0f else 1.2f)
                     canvas.drawText(n.channel.toString(), bx, by + labelP.textSize * 0.36f, labelP)
                 }
-                NodeKind.CELL_TOWER -> icons.cellTower(canvas, s.x, s.y, cell * 0.34f, time)
+                NodeKind.CELL_TOWER -> icons.cellTower(canvas, nx, ny, cell * 0.34f, time)
                 NodeKind.SERVER -> if (n.isDataCenter) {
-                    val c = toScreen(n.footprintCenter)
-                    icons.dataCenter(canvas, n.service!!, world.serverBusy(n), c.x, c.y, cell * 0.85f, time)
+                    icons.dataCenter(
+                        canvas, n.service!!, world.serverBusy(n), camera.toScreenX(n.footprintCenter.x),
+                        camera.toScreenY(n.footprintCenter.y), cell * 0.85f, time,
+                    )
                 } else {
-                    icons.server(canvas, n.service!!, n.level, world.serverBusy(n), s.x, s.y, cell * 0.34f, time)
+                    icons.server(canvas, n.service!!, n.level, world.serverBusy(n), nx, ny, cell * 0.34f, time)
                 }
                 NodeKind.CLIENT -> {
-                    icons.device(canvas, n.device!!, s.x, s.y, cell * 0.3f)
-                    n.pending.take(8).forEachIndexed { i, svc ->
-                        val px = s.x + cell * (0.52f + (i % 4) * 0.22f)
-                        val py = s.y - cell * 0.12f + (i / 4) * cell * 0.24f
+                    icons.device(canvas, n.device!!, nx, ny, cell * 0.3f)
+                    for (i in 0 until minOf(n.pending.size, 8)) {
+                        val svc = n.pending[i]
+                        val px = nx + cell * (0.52f + (i % 4) * 0.22f)
+                        val py = ny - cell * 0.12f + (i / 4) * cell * 0.24f
                         fillP.color = ServiceColors.of(svc)
                         Shapes.draw(canvas, svc.shape, px, py, cell * 0.08f, fillP)
                         if (world.routeFor(n, svc) == null && world.bestRoute(n, svc) != null) {
@@ -169,7 +185,7 @@ class FlatRenderer : Renderer {
                         }
                     }
                     if (n.overload > 0f) {
-                        arcRect.set(s.x - cell * 0.48f, s.y - cell * 0.48f, s.x + cell * 0.48f, s.y + cell * 0.48f)
+                        arcRect.set(nx - cell * 0.48f, ny - cell * 0.48f, nx + cell * 0.48f, ny + cell * 0.48f)
                         strokeP.color = alarm; strokeP.strokeWidth = cell * 0.07f
                         canvas.drawArc(arcRect, -90f, 360f * n.overload, false, strokeP)
                     }
@@ -180,8 +196,8 @@ class FlatRenderer : Renderer {
         for (n in world.nodes) {
             val dark = world.isDark(n)
             if (!dark && world.incidents.none { it.node === n }) continue
-            val s = toScreen(n.center)
-            val bx = s.x - cell * 0.34f; val by = s.y - cell * 0.36f; val r = cell * 0.14f
+            val nx = camera.toScreenX(n.center.x); val ny = camera.toScreenY(n.center.y)
+            val bx = nx - cell * 0.34f; val by = ny - cell * 0.36f; val r = cell * 0.14f
             fillP.color = if (dark) IncidentStyles.EXCAVATOR_DARK else IncidentStyles.WARNING
             canvas.drawCircle(bx, by, r, fillP)
             fillP.color = if (dark) IncidentStyles.WARNING else 0xFFFFFFFF.toInt()
@@ -197,7 +213,9 @@ class FlatRenderer : Renderer {
 
     /** Radio circles in the channel color, red where same-channel access points overlap, dashed lines for radio links. */
     private fun drawRadioCoverage(canvas: Canvas, world: World, time: Float) {
-        val radios = world.nodes.filter { it.radius > 0f && !world.isDark(it) }
+        val radios = radioScratch
+        radios.clear()
+        for (n in world.nodes) if (n.radius > 0f && !world.isDark(n)) radios += n
         if (radios.isEmpty()) return
         for (n in radios) {
             val c = toScreen(n.center); val col = RadioStyles.color(n)
@@ -219,7 +237,7 @@ class FlatRenderer : Renderer {
             strokeP.color = alarm; strokeP.strokeWidth = cell * 0.03f; canvas.drawCircle(c.x, c.y, n.radius * cell, strokeP)
         }
         val dash = cell * 0.1f
-        airP.pathEffect = DashPathEffect(floatArrayOf(dash, dash * 0.8f), -time * dash * 4f)
+        airP.pathEffect = airDash.get(dash, 0.8f, -time * dash * 4f)
         airP.strokeWidth = cell * 0.035f
         for (l in world.radioLinks) {
             airP.color = RadioStyles.color(l.radio)
@@ -252,18 +270,50 @@ class FlatRenderer : Renderer {
 
     /** One smooth band for a single top-to-bottom river (as in the river town), otherwise rounded water cells. */
     private fun drawWater(canvas: Canvas, world: World) {
-        val singleRiver = (0 until world.rows).all { y -> (0 until world.cols).count { world.water[y][it] } <= 1 }
-        if (singleRiver) {
-            drawRiver(canvas, world)
+        if (singleRiver(world)) {
+            drawRiver(canvas)
             return
         }
         fillP.color = waterColor
         val r = cell * 0.3f
         for (y in 0 until world.rows) for (x in 0 until world.cols) {
             if (!world.water[y][x]) continue
-            val a = toScreen(Vec2(x - 0.04f, y - 0.04f)); val b = toScreen(Vec2(x + 1.04f, y + 1.04f))
-            canvas.drawRoundRect(a.x, a.y, b.x, b.y, r, r, fillP)
+            canvas.drawRoundRect(
+                camera.toScreenX(x - 0.04f), camera.toScreenY(y - 0.04f), camera.toScreenX(x + 1.04f), camera.toScreenY(y + 1.04f),
+                r, r, fillP,
+            )
         }
+    }
+
+    /**
+     * True if no row holds more than one water cell; then [river] holds the river's cell centers. Worked out again
+     * only when the water changes (checked with a cheap signature every frame).
+     */
+    private fun singleRiver(world: World): Boolean {
+        var h = System.identityHashCode(world).toLong()
+        var single = true
+        for (y in 0 until world.rows) {
+            var count = 0
+            for (x in 0 until world.cols) if (world.water[y][x]) {
+                count++
+                h = (h xor (y * 4096L + x)) * 0x100000001B3L
+            }
+            if (count > 1) single = false
+        }
+        if (!single) return false
+        if (riverReady && h == riverMap) return true
+        riverReady = true
+        riverMap = h
+        river.clear()
+        for (y in 0 until world.rows) {
+            val x = (0 until world.cols).firstOrNull { world.water[y][it] } ?: continue
+            river += Vec2(x + 0.5f, y + 0.5f)
+        }
+        if (river.isNotEmpty()) {
+            river.add(0, Vec2(river.first().x, -0.6f))
+            river += Vec2(river.last().x, world.rows + 0.6f)
+        }
+        return true
     }
 
     /** Mountains as two-tone peaks, downtown towers as grey blocks, flat like the rest of the overview. */
@@ -271,36 +321,37 @@ class FlatRenderer : Renderer {
         for (y in 0 until world.rows) for (x in 0 until world.cols) {
             when (world.terrainAt(x, y)) {
                 Terrain.MOUNTAIN -> {
-                    val l = toScreen(Vec2(x + 0.08f, y + 0.9f)); val t = toScreen(Vec2(x + 0.5f, y + 0.12f)); val rr = toScreen(Vec2(x + 0.92f, y + 0.9f))
-                    path.reset(); path.moveTo(l.x, l.y); path.lineTo(t.x, t.y); path.lineTo(rr.x, rr.y); path.close()
+                    val lx = camera.toScreenX(x + 0.08f); val ly = camera.toScreenY(y + 0.9f)
+                    val tx = camera.toScreenX(x + 0.5f); val ty = camera.toScreenY(y + 0.12f)
+                    val rx = camera.toScreenX(x + 0.92f); val ry = camera.toScreenY(y + 0.9f)
+                    path.reset(); path.moveTo(lx, ly); path.lineTo(tx, ty); path.lineTo(rx, ry); path.close()
                     fillP.color = MOUNTAIN; canvas.drawPath(path, fillP)
-                    path.reset(); path.moveTo(t.x, t.y); path.lineTo(rr.x, rr.y); path.lineTo(t.x, rr.y); path.close()
+                    path.reset(); path.moveTo(tx, ty); path.lineTo(rx, ry); path.lineTo(tx, ry); path.close()
                     fillP.color = MOUNTAIN_SHADE; canvas.drawPath(path, fillP)
                 }
                 Terrain.HIGH_RISE -> {
-                    val a = toScreen(Vec2(x + 0.16f, y + 0.16f)); val b = toScreen(Vec2(x + 0.84f, y + 0.84f))
-                    fillP.color = TOWER; canvas.drawRoundRect(a.x, a.y, b.x, b.y, cell * 0.08f, cell * 0.08f, fillP)
+                    fillP.color = TOWER
+                    canvas.drawRoundRect(
+                        camera.toScreenX(x + 0.16f), camera.toScreenY(y + 0.16f), camera.toScreenX(x + 0.84f), camera.toScreenY(y + 0.84f),
+                        cell * 0.08f, cell * 0.08f, fillP,
+                    )
                 }
                 else -> Unit
             }
         }
     }
 
-    private fun drawRiver(canvas: Canvas, world: World) {
-        val centers = (0 until world.rows).mapNotNull { y ->
-            (0 until world.cols).firstOrNull { world.water[y][it] }?.let { Vec2(it + 0.5f, y + 0.5f) }
-        }
-        if (centers.isEmpty()) return
-        val pts = listOf(Vec2(centers.first().x, -0.6f)) + centers + Vec2(centers.last().x, world.rows + 0.6f)
+    /** The [river] as one smooth band. */
+    private fun drawRiver(canvas: Canvas) {
+        val pts = river
+        if (pts.isEmpty()) return
         path.reset()
-        val first = toScreen(pts[0])
-        path.moveTo(first.x, first.y)
+        path.moveTo(camera.toScreenX(pts[0].x), camera.toScreenY(pts[0].y))
         for (i in 1 until pts.size - 1) {
-            val c = toScreen(pts[i])
-            val m = toScreen(Vec2((pts[i].x + pts[i + 1].x) / 2, (pts[i].y + pts[i + 1].y) / 2))
-            path.quadTo(c.x, c.y, m.x, m.y)
+            val mx = (pts[i].x + pts[i + 1].x) / 2; val my = (pts[i].y + pts[i + 1].y) / 2
+            path.quadTo(camera.toScreenX(pts[i].x), camera.toScreenY(pts[i].y), camera.toScreenX(mx), camera.toScreenY(my))
         }
-        val last = toScreen(pts.last()); path.lineTo(last.x, last.y)
+        path.lineTo(camera.toScreenX(pts.last().x), camera.toScreenY(pts.last().y))
         strokeP.color = waterColor; strokeP.strokeWidth = cell * 1.0f
         canvas.drawPath(path, strokeP)
     }
@@ -308,7 +359,7 @@ class FlatRenderer : Renderer {
     /** Veils everything outside the unlocked block and outlines the block. */
     private fun drawLockedArea(canvas: Canvas, world: World, grid: RectF) {
         if (world.unlocked == world.bounds) return
-        val open = screenRect(world.unlocked)
+        val open = screenRect(world.unlocked, openRect)
         fillP.color = lockedVeil
         canvas.drawRect(grid.left, grid.top, grid.right, open.top, fillP)
         canvas.drawRect(grid.left, open.bottom, grid.right, grid.bottom, fillP)
@@ -318,15 +369,21 @@ class FlatRenderer : Renderer {
         canvas.drawRect(open, strokeP)
     }
 
-    private fun screenRect(r: CellRect): RectF {
-        val a = toScreen(Vec2(r.left.toFloat(), r.top.toFloat()))
-        val b = toScreen(Vec2(r.right.toFloat(), r.bottom.toFloat()))
-        return RectF(a.x, a.y, b.x, b.y)
+    /** [r] on screen, into [out]. */
+    private fun screenRect(r: CellRect, out: RectF): RectF {
+        out.set(
+            camera.toScreenX(r.left.toFloat()), camera.toScreenY(r.top.toFloat()),
+            camera.toScreenX(r.right.toFloat()), camera.toScreenY(r.bottom.toFloat()),
+        )
+        return out
     }
 
     private fun polyline(pts: List<Vec2>) {
         path.reset()
-        pts.forEachIndexed { i, p -> val s = toScreen(p); if (i == 0) path.moveTo(s.x, s.y) else path.lineTo(s.x, s.y) }
+        for (i in pts.indices) {
+            val x = camera.toScreenX(pts[i].x); val y = camera.toScreenY(pts[i].y)
+            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+        }
     }
 
     private companion object {

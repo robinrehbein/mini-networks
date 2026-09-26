@@ -2,7 +2,6 @@ package com.mininetworks.game.render
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
@@ -16,6 +15,7 @@ import com.mininetworks.game.game.IncidentKind
 import com.mininetworks.game.game.Incidents
 import com.mininetworks.game.game.Node
 import com.mininetworks.game.game.NodeKind
+import com.mininetworks.game.game.Packet
 import com.mininetworks.game.game.Service
 import com.mininetworks.game.game.Terrain
 import com.mininetworks.game.game.Vec2
@@ -64,11 +64,46 @@ class IsoRenderer : Renderer {
     private var groundBitmap: Bitmap? = null
     private var groundCanvas: Canvas? = null
     private var groundMap = 0L
-    private var groundView: ViewKey? = null
+    private val groundView = ViewKey()
     /** Camera of the previous frame: the cache is only rebuilt once the view holds still. */
-    private var lastView: ViewKey? = null
+    private val lastView = ViewKey()
 
-    private data class ViewKey(val scale: Float, val focusX: Float, val focusY: Float, val width: Int, val height: Int)
+    /** Camera and canvas size a ground image was drawn for; mutable so comparing it every frame allocates nothing. */
+    private class ViewKey {
+        var scale = Float.NaN
+        var focusX = 0f
+        var focusY = 0f
+        var width = 0
+        var height = 0
+
+        fun matches(c: Camera, w: Int, h: Int) = scale == c.scale && focusX == c.focusX && focusY == c.focusY && width == w && height == h
+
+        fun set(c: Camera, w: Int, h: Int) {
+            scale = c.scale; focusX = c.focusX; focusY = c.focusY; width = w; height = h
+        }
+    }
+
+    /** Layout of the ground for the map signature [planMap]: relief and decorations back to front, grass cells. */
+    private var planMap = 0L
+    private var planReady = false
+    private val plan = DepthQueue()
+    private val grassCells = ArrayList<Cell>()
+    /** Mountain and tower cells in row order, the order their shadows are drawn in. */
+    private val reliefCells = ArrayList<Cell>()
+
+    /** Where the excavators of [standFor] stand ([excavatorStand]), for the network with signature [standMap]. */
+    private var standMap = 0L
+    private val standFor = ArrayList<Incident>()
+    private val standAt = ArrayList<Vec2>()
+    private val standDir = ArrayList<Vec2>()
+    private val standCells = ArrayList<Cell>()
+
+    /** Painter's order of everything with height, rebuilt every frame without allocating. */
+    private val depth = DepthQueue(256)
+    private val radioScratch = ArrayList<Node>()
+    private val pos = FloatArray(2)
+    private val cutDash = DashCache()
+    private val airDash = DashCache()
 
     /** Isometric map space: one unit per tile width; a tile is half as high as it is wide. */
     override fun toMap(p: Vec2) = Vec2((p.x - p.y) / 2f, (p.x + p.y) / 4f)
@@ -102,8 +137,7 @@ class IsoRenderer : Renderer {
             strokeP.color = st.color; strokeP.strokeWidth = tw * st.width * 0.75f; canvas.drawPath(path, strokeP)
             st.core?.let { strokeP.color = it; strokeP.strokeWidth = tw * st.coreWidth * 0.75f; canvas.drawPath(path, strokeP) }
             if (world.isCut(c)) {
-                val dash = tw * 0.16f
-                cutP.pathEffect = DashPathEffect(floatArrayOf(dash, dash * 0.8f), 0f)
+                cutP.pathEffect = cutDash.get(tw * 0.16f, 0.8f, 0f)
                 cutP.strokeWidth = tw * st.width * 0.6f
                 canvas.drawPath(path, cutP)
             }
@@ -128,40 +162,29 @@ class IsoRenderer : Renderer {
         world.failedNode?.let { drawFailedPulse(canvas, it, time) }
 
         // Painter's algorithm: everything with height is drawn back-to-front by x + y.
-        val items = ArrayList<Pair<Float, () -> Unit>>()
-        for (n in world.nodes) {
-            val c = n.footprintCenter
-            items += (c.x + c.y) to { drawNode(canvas, world, n, time) }
+        depth.clear()
+        val nodes = world.nodes
+        for (k in nodes.indices) {
+            val c = nodes[k].footprintCenter
+            depth.add(c.x + c.y, NODE, nodes[k])
         }
-        for (i in world.incidents) if (i.kind == IncidentKind.EXCAVATOR) {
-            val stand = excavatorStand(world, i)
-            items += (stand.first.x + stand.first.y) to { drawExcavator(canvas, i, stand.first, stand.second, time) }
+        for (k in standFor.indices) depth.add(standAt[k].x + standAt[k].y, EXCAVATOR, k)
+        val packets = world.packets
+        for (k in packets.indices) {
+            world.packetPosition(packets[k], pos)
+            depth.add(pos[0] + pos[1] + 0.01f, PACKET, packets[k], pos[0], pos[1])
         }
-        for (p in world.packets) {
-            val pos = packetPosition(world, p)
-            items += (pos.x + pos.y + 0.01f) to {
-                oval.set(sx(pos.x, pos.y) - tw * 0.07f, sy(pos.x, pos.y) - th * 0.07f, sx(pos.x, pos.y) + tw * 0.07f, sy(pos.x, pos.y) + th * 0.07f)
-                fillP.color = 0x2E000000; canvas.drawOval(oval, fillP)
-                val r = tw * (0.05f + 0.02f * p.size)
-                val px = sx(pos.x, pos.y); val py = sy(pos.x, pos.y, 0.35f)
-                if (p.isResponse) {
-                    // Responses: smaller, white with an outline in the service color.
-                    fillP.color = 0xFFFFFFFF.toInt(); Shapes.draw(canvas, p.service.shape, px, py, r * 0.8f, fillP)
-                    strokeP.color = ServiceColors.of(p.service); strokeP.strokeWidth = tw * 0.025f
-                    Shapes.draw(canvas, p.service.shape, px, py, r * 0.8f, strokeP)
-                } else {
-                    // Requests: filled, with a light rim so they stay visible on dark cables.
-                    fillP.color = ServiceColors.of(p.service)
-                    Shapes.draw(canvas, p.service.shape, px, py, r, fillP)
-                    strokeP.color = landA; strokeP.strokeWidth = tw * 0.02f
-                    Shapes.draw(canvas, p.service.shape, px, py, r, strokeP)
-                }
+        depth.sort()
+        for (k in 0 until depth.size) {
+            when (depth.kind(k)) {
+                NODE -> drawNode(canvas, world, depth.ref(k) as Node, time)
+                EXCAVATOR -> (depth.ref(k) as Int).let { drawExcavator(canvas, standFor[it], standAt[it], standDir[it], time) }
+                else -> drawPacket(canvas, depth.ref(k) as Packet, depth.x(k), depth.y(k))
             }
         }
-        items.sortBy { it.first }
-        items.forEach { it.second() }
+        depth.clear()
 
-        for (n in world.nodes) {
+        for (n in nodes) {
             if (n.kind != NodeKind.CLIENT || n.overload <= 0f) continue
             val cx = sx(n.center.x, n.center.y); val cy = sy(n.center.x, n.center.y)
             oval.set(cx - tw * 0.55f, cy - th * 0.55f, cx + tw * 0.55f, cy + th * 0.55f)
@@ -169,6 +192,27 @@ class IsoRenderer : Renderer {
             canvas.drawArc(oval, -90f, 360f * n.overload, false, strokeP)
         }
         drawDeliveryPops(canvas, world)
+    }
+
+    /** A packet floating over its link at world point ([x], [y]), with a shadow on the ground. */
+    private fun drawPacket(canvas: Canvas, p: Packet, x: Float, y: Float) {
+        val gx = sx(x, y); val gy = sy(x, y)
+        oval.set(gx - tw * 0.07f, gy - th * 0.07f, gx + tw * 0.07f, gy + th * 0.07f)
+        fillP.color = 0x2E000000; canvas.drawOval(oval, fillP)
+        val r = tw * (0.05f + 0.02f * p.size)
+        val py = sy(x, y, 0.35f)
+        if (p.isResponse) {
+            // Responses: smaller, white with an outline in the service color.
+            fillP.color = 0xFFFFFFFF.toInt(); Shapes.draw(canvas, p.service.shape, gx, py, r * 0.8f, fillP)
+            strokeP.color = ServiceColors.of(p.service); strokeP.strokeWidth = tw * 0.025f
+            Shapes.draw(canvas, p.service.shape, gx, py, r * 0.8f, strokeP)
+        } else {
+            // Requests: filled, with a light rim so they stay visible on dark cables.
+            fillP.color = ServiceColors.of(p.service)
+            Shapes.draw(canvas, p.service.shape, gx, py, r, fillP)
+            strokeP.color = landA; strokeP.strokeWidth = tw * 0.02f
+            Shapes.draw(canvas, p.service.shape, gx, py, r, strokeP)
+        }
     }
 
     // ---------------------------------------------------------------- ground layer
@@ -179,17 +223,16 @@ class IsoRenderer : Renderer {
      * cached again, so a pan or pinch never pays for rebuilding and uploading a bitmap every frame.
      */
     private fun drawGroundLayer(canvas: Canvas, world: World) {
-        val view = ViewKey(camera.scale, camera.focusX, camera.focusY, canvas.width, canvas.height)
         val map = mapSignature(world)
-        val still = view == lastView
-        lastView = view
+        val still = lastView.matches(camera, canvas.width, canvas.height)
+        lastView.set(camera, canvas.width, canvas.height)
         val cached = groundBitmap
-        if (cached != null && view == groundView && map == groundMap) {
+        if (cached != null && groundView.matches(camera, canvas.width, canvas.height) && map == groundMap) {
             canvas.drawBitmap(cached, 0f, 0f, null)
             return
         }
         if (!still || canvas.width <= 0 || canvas.height <= 0) {
-            drawGround(canvas, world)
+            drawGround(canvas, world, map)
             return
         }
         val bmp = cached?.takeIf { it.width == canvas.width && it.height == canvas.height }
@@ -198,42 +241,74 @@ class IsoRenderer : Renderer {
                 groundBitmap = it
                 groundCanvas = Canvas(it)
             }
-        drawGround(groundCanvas!!, world)
-        groundView = view
+        drawGround(groundCanvas!!, world, map)
+        groundView.set(camera, canvas.width, canvas.height)
         groundMap = map
         canvas.drawBitmap(bmp, 0f, 0f, null)
     }
 
     /** True if the next frame of [world] with the current camera would come from the ground cache; for tests. */
     internal fun groundCached(world: World, width: Int, height: Int) =
-        groundBitmap != null && groundView == ViewKey(camera.scale, camera.focusX, camera.focusY, width, height) &&
-            groundMap == mapSignature(world)
+        groundBitmap != null && groundView.matches(camera, width, height) && groundMap == mapSignature(world)
 
     /**
      * Changes whenever anything drawn into the ground layer may change: water, unlocked area, nodes, cables and the
-     * cells excavators stand on.
+     * cells excavators stand on. Runs every frame, so it only mixes numbers and allocates nothing.
      */
     private fun mapSignature(world: World): Long {
-        var h = System.identityHashCode(world).toLong()
-        fun mix(v: Int) { h = (h xor v.toLong()) * 0x100000001B3L }
+        var h = networkSignature(world)
         val u = world.unlocked
-        mix(u.left); mix(u.top); mix(u.right); mix(u.bottom)
+        h = mix(mix(mix(mix(h, u.left), u.top), u.right), u.bottom)
         for (y in 0 until world.rows) for (x in 0 until world.cols) {
             val t = world.terrainAt(x, y)
-            if (t != Terrain.LAND) mix((y * 4096 + x) * 4 + t.ordinal)
+            if (t != Terrain.LAND) h = mix(h, (y * 4096 + x) * 4 + t.ordinal)
         }
-        mix(world.nodes.size)
-        for (n in world.nodes) { mix(n.id); mix(n.kind.ordinal); mix(n.cellX); mix(n.cellY); mix(n.level) }
-        mix(world.cables.size)
-        for (c in world.cables) {
-            mix(c.a.id); mix(c.b.id)
-            for (p in c.layout.waypoints) { mix(p.x.toRawBits()); mix(p.y.toRawBits()) }
-        }
-        for (cell in excavatorCells(world)) { mix(cell.x); mix(cell.y) }
+        updateStands(world, networkSignature(world))
+        for (k in standCells.indices) h = mix(mix(h, standCells[k].x), standCells[k].y)
         return h
     }
 
-    private fun drawGround(c: Canvas, world: World) {
+    /** Changes whenever a node or cable appears, moves, grows or goes away. */
+    private fun networkSignature(world: World): Long {
+        var h = System.identityHashCode(world).toLong()
+        val nodes = world.nodes
+        h = mix(h, nodes.size)
+        for (k in nodes.indices) {
+            val n = nodes[k]
+            h = mix(mix(mix(mix(mix(h, n.id), n.kind.ordinal), n.cellX), n.cellY), n.level)
+        }
+        val cables = world.cables
+        h = mix(h, cables.size)
+        for (k in cables.indices) {
+            val c = cables[k]
+            h = mix(mix(h, c.a.id), c.b.id)
+            val pts = c.layout.waypoints
+            for (i in pts.indices) h = mix(mix(h, pts[i].x.toRawBits()), pts[i].y.toRawBits())
+        }
+        return h
+    }
+
+    /**
+     * Brings the excavator stands up to date: they only change when an excavator comes or goes or the network with
+     * signature [network] changes, so they are worked out once instead of every frame.
+     */
+    private fun updateStands(world: World, network: Long) {
+        var same = network == standMap
+        var count = 0
+        for (i in world.incidents) if (i.kind == IncidentKind.EXCAVATOR) {
+            if (count >= standFor.size || standFor[count] !== i) same = false
+            count++
+        }
+        if (same && count == standFor.size) return
+        standMap = network
+        standFor.clear(); standAt.clear(); standDir.clear(); standCells.clear()
+        for (i in world.incidents) if (i.kind == IncidentKind.EXCAVATOR) {
+            val (at, d) = excavatorStand(world, i)
+            standFor += i; standAt += at; standDir += d; standCells += standCell(i.spot, d)
+        }
+    }
+
+    private fun drawGround(c: Canvas, world: World, map: Long) {
         c.drawColor(BACKGROUND)
         val open = world.unlocked
         val seed = world.seed
@@ -258,30 +333,56 @@ class IsoRenderer : Renderer {
             quad(open.left.toFloat(), open.top.toFloat(), open.width.toFloat(), open.height.toFloat(), 0f)
             strokeP.color = edge; strokeP.strokeWidth = tw * 0.03f; c.drawPath(path, strokeP)
         }
-        val taken = Scenery.occupied(world, excavatorCells(world))
-        for (y in 0 until world.rows) for (x in 0 until world.cols) {
-            if (world.terrainAt(x, y) != Terrain.LAND || Cell(x, y) in taken || Scenery.planned(seed, x, y) != null) continue
-            drawGrass(c, seed, x, y, open.contains(x, y))
-        }
+        updatePlan(world, map)
+        for (cell in grassCells) drawGrass(c, seed, cell.x, cell.y, open.contains(cell.x, cell.y))
         for (n in world.nodes) drawShadow(c, n)
-        val relief = ArrayList<Pair<Cell, Terrain>>()
-        for (y in 0 until world.rows) for (x in 0 until world.cols) {
-            val t = world.terrainAt(x, y)
-            if (t == Terrain.MOUNTAIN || t == Terrain.HIGH_RISE) relief += Cell(x, y) to t
-        }
-        for ((cell, t) in relief) {
-            if (t == Terrain.MOUNTAIN) groundShadow(c, cell.x + 0.5f, cell.y + 0.5f, 0.86f, mountainHeight(seed, cell) * 0.7f)
-            else groundShadow(c, cell.x + 0.5f, cell.y + 0.5f, TOWER_SIZE, towerHeight(seed, cell))
+        for (cell in reliefCells) {
+            if (world.terrainAt(cell.x, cell.y) == Terrain.MOUNTAIN) {
+                groundShadow(c, cell.x + 0.5f, cell.y + 0.5f, 0.86f, mountainHeight(seed, cell) * 0.7f)
+            } else {
+                groundShadow(c, cell.x + 0.5f, cell.y + 0.5f, TOWER_SIZE, towerHeight(seed, cell))
+            }
         }
         // Mountains, towers and decorations back to front, so nearer ones overlap farther ones.
-        val items = ArrayList<Pair<Int, () -> Unit>>()
-        for ((cell, t) in relief) items += (cell.x + cell.y) to {
+        for (k in 0 until plan.size) {
+            val cell = plan.ref(k) as Cell
             val lit = open.contains(cell.x, cell.y)
-            if (t == Terrain.MOUNTAIN) drawMountain(c, seed, cell, lit) else drawTower(c, seed, cell, lit)
+            when (val kind = plan.kind(k)) {
+                MOUNTAIN -> drawMountain(c, seed, cell, lit)
+                TOWER -> drawTower(c, seed, cell, lit)
+                else -> drawDecor(c, seed, cell, Decor.entries[kind - DECOR], lit)
+            }
         }
-        for ((cell, d) in Scenery.decorations(world, taken)) items += (cell.x + cell.y) to { drawDecor(c, seed, cell, d, open.contains(cell.x, cell.y)) }
-        items.sortBy { it.first }
-        items.forEach { it.second() }
+    }
+
+    /**
+     * Works out, once per map signature, which cells get grass and which relief and decorations stand where, in draw
+     * order; while the camera moves the ground is drawn every frame and only replays this plan.
+     */
+    private fun updatePlan(world: World, map: Long) {
+        if (planReady && map == planMap) return
+        planReady = true
+        planMap = map
+        plan.clear()
+        grassCells.clear()
+        reliefCells.clear()
+        val seed = world.seed
+        val taken = Scenery.occupied(world, standCells)
+        for (y in 0 until world.rows) for (x in 0 until world.cols) {
+            if (world.terrainAt(x, y) != Terrain.LAND || Cell(x, y) in taken || Scenery.planned(seed, x, y) != null) continue
+            grassCells += Cell(x, y)
+        }
+        // Relief first, then decorations; equal depths keep that order, as before.
+        for (y in 0 until world.rows) for (x in 0 until world.cols) {
+            when (world.terrainAt(x, y)) {
+                Terrain.MOUNTAIN -> plan.add((x + y).toFloat(), MOUNTAIN, Cell(x, y))
+                Terrain.HIGH_RISE -> plan.add((x + y).toFloat(), TOWER, Cell(x, y))
+                else -> continue
+            }
+            reliefCells += Cell(x, y)
+        }
+        for ((cell, d) in Scenery.decorations(world, taken)) plan.add((cell.x + cell.y).toFloat(), DECOR + d.ordinal, cell)
+        plan.sort()
     }
 
     private fun mountainHeight(seed: Long, cell: Cell) = 0.5f + 0.45f * Scenery.unit(seed, cell.x, cell.y, 30)
@@ -589,7 +690,9 @@ class IsoRenderer : Renderer {
      * where two access points on the same channel overlap, and dashed, drifting lines for the links it carries.
      */
     private fun drawRadioCoverage(canvas: Canvas, world: World, time: Float) {
-        val radios = world.nodes.filter { it.radius > 0f && !world.isDark(it) }
+        val radios = radioScratch
+        radios.clear()
+        for (n in world.nodes) if (n.radius > 0f && !world.isDark(n)) radios += n
         if (radios.isEmpty()) return
         for (n in radios) {
             val col = RadioStyles.color(n)
@@ -612,7 +715,7 @@ class IsoRenderer : Renderer {
             strokeP.color = RadioStyles.INTERFERENCE; strokeP.strokeWidth = tw * 0.022f; canvas.drawOval(oval, strokeP)
         }
         val dash = tw * 0.07f
-        airP.pathEffect = DashPathEffect(floatArrayOf(dash, dash * 0.8f), -time * dash * 4f)
+        airP.pathEffect = airDash.get(dash, 0.8f, -time * dash * 4f)
         airP.strokeWidth = tw * 0.025f
         for (l in world.radioLinks) {
             airP.color = RadioStyles.color(l.radio)
@@ -658,7 +761,8 @@ class IsoRenderer : Renderer {
                 val d = n.device!!
                 box(canvas, x, y, 0.5f, 0.2f, 0xFFFAFAF7.toInt(), 0xFFE3E6E1.toInt())
                 icons.device(canvas, d, sx(x, y), sy(x, y, 0.2f) - tw * 0.2f, tw * 0.2f)
-                n.pending.take(8).forEachIndexed { i, svc ->
+                for (i in 0 until minOf(n.pending.size, 8)) {
+                    val svc = n.pending[i]
                     fillP.color = ServiceColors.of(svc)
                     Shapes.draw(canvas, svc.shape, sx(x, y) + tw * (0.35f + (i % 4) * 0.13f), sy(x, y, 1.1f) + (i / 4) * th * 0.3f, tw * 0.05f, fillP)
                 }
@@ -734,8 +838,10 @@ class IsoRenderer : Renderer {
     private fun standCell(spot: Vec2, d: Vec2) = Cell(floor(spot.x - d.x).toInt(), floor(spot.y - d.y).toInt())
 
     /** Cells that excavators currently stand on; the ground layer leaves their decorations out. */
-    internal fun excavatorCells(world: World): List<Cell> =
-        world.incidents.filter { it.kind == IncidentKind.EXCAVATOR }.map { standCell(it.spot, excavatorStand(world, it).second) }
+    internal fun excavatorCells(world: World): List<Cell> {
+        updateStands(world, networkSignature(world))
+        return standCells.toList()
+    }
 
     /**
      * A small excavator drawn with paths: tracks along the cable, a yellow cab with a window towards it, and a boom
@@ -815,23 +921,26 @@ class IsoRenderer : Renderer {
         val base = 0.08f
         val height = 2.1f
         val half = 0.2f
-        fun leg(dx: Float, dy: Float, z: Float) = (1f - (z - base) / height * 0.8f).let { k -> Vec2(x + dx * half * k, y + dy * half * k) }
-        val corners = listOf(-1f to -1f, 1f to -1f, 1f to 1f, -1f to 1f)
+        /** Inward pull of the legs at height z: they meet towards the top. */
+        fun k(z: Float) = 1f - (z - base) / height * 0.8f
+        fun legX(corner: Int, z: Float) = x + TOWER_CORNERS[2 * corner] * half * k(z)
+        fun legY(corner: Int, z: Float) = y + TOWER_CORNERS[2 * corner + 1] * half * k(z)
         strokeP.color = 0xFF5B6674.toInt(); strokeP.strokeWidth = tw * 0.02f
         val top = base + height
-        for ((dx, dy) in corners) {
-            val a = leg(dx, dy, base); val b = leg(dx, dy, top)
-            canvas.drawLine(sx(a.x, a.y), sy(a.x, a.y, base), sx(b.x, b.y), sy(b.x, b.y, top), strokeP)
+        for (i in 0 until 4) {
+            val ax = legX(i, base); val ay = legY(i, base); val bx = legX(i, top); val by = legY(i, top)
+            canvas.drawLine(sx(ax, ay), sy(ax, ay, base), sx(bx, by), sy(bx, by, top), strokeP)
         }
         strokeP.strokeWidth = tw * 0.012f
         for (level in 1..4) {
             val z = base + height * level / 5f
             val zPrev = base + height * (level - 1) / 5f
-            for (i in corners.indices) {
-                val (dx0, dy0) = corners[i]; val (dx1, dy1) = corners[(i + 1) % corners.size]
-                val a = leg(dx0, dy0, z); val b = leg(dx1, dy1, z); val c = leg(dx0, dy0, zPrev)
-                canvas.drawLine(sx(a.x, a.y), sy(a.x, a.y, z), sx(b.x, b.y), sy(b.x, b.y, z), strokeP)
-                canvas.drawLine(sx(c.x, c.y), sy(c.x, c.y, zPrev), sx(b.x, b.y), sy(b.x, b.y, z), strokeP)
+            for (i in 0 until 4) {
+                val j = (i + 1) % 4
+                val ax = legX(i, z); val ay = legY(i, z); val bx = legX(j, z); val by = legY(j, z)
+                val cx = legX(i, zPrev); val cy = legY(i, zPrev)
+                canvas.drawLine(sx(ax, ay), sy(ax, ay, z), sx(bx, by), sy(bx, by, z), strokeP)
+                canvas.drawLine(sx(cx, cy), sy(cx, cy, zPrev), sx(bx, by), sy(bx, by, z), strokeP)
             }
         }
         val panelZ = top - 0.55f
@@ -921,6 +1030,20 @@ class IsoRenderer : Renderer {
     }
 
     private companion object {
+        /** Kinds of [depth] and [plan] items; decorations are [DECOR] plus their [Decor.ordinal]. */
+        const val NODE = 0
+        const val EXCAVATOR = 1
+        const val PACKET = 2
+        const val MOUNTAIN = 3
+        const val TOWER = 4
+        const val DECOR = 5
+
+        /** The four legs of a cell tower as x, y pairs, clockwise from the back corner. */
+        val TOWER_CORNERS = floatArrayOf(-1f, -1f, 1f, -1f, 1f, 1f, -1f, 1f)
+
+        /** FNV-style step of the map signatures. */
+        fun mix(h: Long, v: Int) = (h xor v.toLong()) * 0x100000001B3L
+
         /** Half of √2: a ground circle of radius r spans r·√2/2 tile widths to each side in iso. */
         const val HALF_SQRT2 = 0.70710677f
         /** Router and access point bases without power. */

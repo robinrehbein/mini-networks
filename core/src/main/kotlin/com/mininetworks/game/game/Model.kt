@@ -149,10 +149,14 @@ class Node(
      * 2×2 block; the first entry is then the block's top-left cell.
      */
     var footprint: List<Cell> = listOf(cell)
-        internal set
+        internal set(value) {
+            field = value
+            footprintCenter = Vec2(value.map { it.x }.average().toFloat() + 0.5f, value.map { it.y }.average().toFloat() + 0.5f)
+        }
 
     /** Visual center of the [footprint]; equals [center] for one-cell nodes. */
-    val footprintCenter get() = Vec2(footprint.map { it.x }.average().toFloat() + 0.5f, footprint.map { it.y }.average().toFloat() + 0.5f)
+    var footprintCenter = center
+        private set
 
     /** True for a server at tier [World.Tuning.DATA_CENTER_LEVEL]. */
     val isDataCenter get() = kind == NodeKind.SERVER && level >= World.Tuning.DATA_CENTER_LEVEL
@@ -188,6 +192,12 @@ class Node(
     internal var requestTimer = 0f
     internal var dispatchCooldown = 0f
 
+    /** Position in [World.nodes]. */
+    internal var index = -1
+
+    /** Cables first, then radio links touching this node; the [World] keeps it in step with its network. */
+    internal val links = ArrayList<Link>(4)
+
     override fun toString() = "$kind#$id(${device ?: service ?: ""})@$cellX,$cellY"
 }
 
@@ -211,7 +221,10 @@ sealed interface Link {
     fun connects(n: Node) = n === a || n === b
 
     /** Point at fraction [f] of the way when travelling from [from] to the other end. */
-    fun pointFrom(from: Node, f: Float): Vec2
+    fun pointFrom(from: Node, f: Float): Vec2 = FloatArray(2).also { pointFrom(from, f, it) }.let { Vec2(it[0], it[1]) }
+
+    /** Like [pointFrom], but writes x and y into [out] instead of allocating, for per-frame drawing. */
+    fun pointFrom(from: Node, f: Float, out: FloatArray)
 }
 
 /** A laid cable. [layout] runs from [a] to [b]; [waterCells] of it are sea cable. */
@@ -238,7 +251,7 @@ class Cable(
     var builtAt = Float.NEGATIVE_INFINITY
         internal set
 
-    override fun pointFrom(from: Node, f: Float): Vec2 = layout.pointAt(if (from === a) f else 1f - f)
+    override fun pointFrom(from: Node, f: Float, out: FloatArray) = layout.pointAt(if (from === a) f else 1f - f, out)
 }
 
 /** A path from a client to a server. [pingMs] is the round trip: request there plus response back the same way. */
@@ -281,18 +294,24 @@ object Geometry {
         return l
     }
 
-    fun pointAlong(pts: List<Vec2>, f: Float): Vec2 {
+    fun pointAlong(pts: List<Vec2>, f: Float): Vec2 = FloatArray(2).also { pointAlong(pts, f, it) }.let { Vec2(it[0], it[1]) }
+
+    /** Like [pointAlong], but writes x and y into [out] instead of allocating. */
+    fun pointAlong(pts: List<Vec2>, f: Float, out: FloatArray) {
         val total = polylineLength(pts)
         var d = f.coerceIn(0f, 1f) * total
         for (i in 0 until pts.size - 1) {
             val seg = hypot(pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y)
             if (d <= seg || i == pts.size - 2) {
                 val u = if (seg > 0f) min(1f, d / seg) else 0f
-                return Vec2(pts[i].x + (pts[i + 1].x - pts[i].x) * u, pts[i].y + (pts[i + 1].y - pts[i].y) * u)
+                out[0] = pts[i].x + (pts[i + 1].x - pts[i].x) * u
+                out[1] = pts[i].y + (pts[i + 1].y - pts[i].y) * u
+                return
             }
             d -= seg
         }
-        return pts.last()
+        out[0] = pts.last().x
+        out[1] = pts.last().y
     }
 
     fun distToSegment(p: Vec2, a: Vec2, b: Vec2): Float {

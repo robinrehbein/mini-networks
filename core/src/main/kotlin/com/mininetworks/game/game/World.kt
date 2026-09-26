@@ -113,8 +113,12 @@ class World(
     /** The playable block: nodes spawn and routers are placed only here; the rest of the grid is drawn dimmed. */
     var unlocked = unlockedArea(scenario.startWeek); private set
 
-    val nodes = mutableListOf<Node>()
-    val cables = mutableListOf<Cable>()
+    private val nodeList = ArrayList<Node>()
+    private val cableList = ArrayList<Cable>()
+
+    /** Every node, in the order it appeared; nodes are never removed. */
+    val nodes: List<Node> get() = nodeList
+    val cables: List<Cable> get() = cableList
     val packets = mutableListOf<Packet>()
 
     private val arrivalList = ArrayList<Arrival>()
@@ -193,7 +197,9 @@ class World(
     val weeksPlayed get() = week - scenario.startWeek + 1
     val unlockedCables get() = CableType.entries.filter { it.unlockWeek <= week }
     private val unlockedDevices get() = Device.entries.filter { it.unlockWeek <= week }
-    val availableServices get() = nodes.filter { it.kind == NodeKind.SERVER }.mapNotNull { it.service }.toSet()
+
+    /** Services that have a server on the map; servers never go away, so this only grows. */
+    var availableServices: Set<Service> = emptySet(); private set
 
     /**
      * The [unlocked] block in [week]: the scenario's start block plus one ring per [Tuning.GROWTH_WEEKS] weeks played,
@@ -204,7 +210,27 @@ class World(
             .expand(((week - scenario.startWeek) / Tuning.GROWTH_WEEKS).coerceAtLeast(0), bounds)
 
     private var clientSpawnTimer = Tuning.FIRST_SPAWN_SECONDS
-    private val routeCache = HashMap<Pair<Int, Service>, Route?>()
+
+    /** Best routes per client, indexed by [Service.ordinal]; [NO_ROUTE] marks a computed "none". Cleared on changes. */
+    private val routeCache = HashMap<Node, Array<Route?>>()
+
+    /** Scratch tables of [computeRoute]. */
+    private var routeDist = FloatArray(0)
+    private var routePrev = IntArray(0)
+    private var routeDone = BooleanArray(0)
+    private val routeOpen = ArrayList<Node>()
+
+    /** Same-channel neighbours of every access point, derived with the [radioLinks]. */
+    private val interference = HashMap<Node, List<Node>>()
+
+    /** Bandwidth on and waiting for every medium, see [LoadTally]. */
+    private val tallies = HashMap<Any, LoadTally>()
+
+    /** Scratch lists of [movePackets] and [admitWaiting], reused every step. */
+    private val arrivedScratch = ArrayList<Packet>()
+    private val responseScratch = ArrayList<Packet>()
+    private val waitingScratch = ArrayList<Packet>()
+    private val removeScratch = HashSet<Packet>()
 
     init {
         Scenarios.carve(scenario, this, rng)
@@ -258,14 +284,16 @@ class World(
     }
 
     /** The node whose footprint covers [cell], if any. */
-    fun nodeAt(cell: Cell): Node? = nodes.firstOrNull { cell in it.footprint }
+    fun nodeAt(cell: Cell): Node? = nodeList.firstOrNull { cell in it.footprint }
 
     private fun addNode(kind: NodeKind, device: Device?, service: Service?, cx: Int, cy: Int): Node {
         val n = Node(nextId++, kind, device, service, cx, cy)
         n.requestTimer = 2f + rng.nextFloat() * 3f
         if (kind == NodeKind.SERVER && ScenarioRule.ORBITAL_SERVERS in scenario.rules) n.level = 2
         if (kind == NodeKind.ACCESS_POINT) n.channel = Wifi.CHANNELS_2_4_GHZ.first()
-        nodes += n
+        n.index = nodeList.size
+        nodeList += n
+        if (service != null && service !in availableServices) availableServices = availableServices + service
         networkChanged()
         return n
     }
@@ -311,9 +339,21 @@ class World(
 
     // ---------------------------------------------------------------- player actions
 
-    fun cableBetween(a: Node, b: Node) = cables.firstOrNull { (it.a === a && it.b === b) || (it.a === b && it.b === a) }
+    /** The cable between [a] and [b], if any; looks only at the few links of [a]. */
+    fun cableBetween(a: Node, b: Node): Cable? {
+        val links = a.links
+        for (i in links.indices) {
+            val l = links[i]
+            if (l is Cable && l.other(a) === b) return l
+        }
+        return null
+    }
 
-    fun ports(n: Node) = cables.count { it.connects(n) }
+    fun ports(n: Node): Int {
+        var count = 0
+        for (i in n.links.indices) if (n.links[i] is Cable) count++
+        return count
+    }
 
     /**
      * The layout a new cable from [a] to [b] gets: an L along the grid with the given [bend], or, without one,
@@ -355,7 +395,7 @@ class World(
         if (gameOver || connectError(a, b, type, bend) != null) return false
         val layout = planLayout(a, b, bend)
         val cost = cableCost(layout, type)
-        cables += Cable(a, b, type, cost, layout, waterCellsOn(layout)).also { it.builtAt = time }
+        cableList += Cable(a, b, type, cost, layout, waterCellsOn(layout)).also { it.builtAt = time }
         budget -= cost
         networkChanged()
         return true
@@ -391,7 +431,7 @@ class World(
     /** Removes [c] and refunds [refundOf]; an excavator waiting at it or a cut on it goes with it. */
     fun removeCable(c: Cable) {
         val refund = refundOf(c)
-        if (!cables.remove(c)) return
+        if (!cableList.remove(c)) return
         budget += refund
         incidentList.removeAll { it.cable === c }
         networkChanged()
@@ -414,22 +454,40 @@ class World(
     }
 
     /**
-     * Rebuilds the [radioLinks] and forgets cached routes. Requests and responses on or heading into a link that no
-     * longer exists or is down ([isUp]) go back into their client's queue.
+     * Rebuilds the [radioLinks] and the link index, forgets cached routes and recounts the loads. Requests and responses
+     * on or heading into a link that no longer exists or is down ([isUp]) go back into their client's queue.
      */
     private fun networkChanged() {
         rebuildRadioLinks()
         routeCache.clear()
         val lost = packets.filter { p -> p.inTransit && usableLink(p.from, p.to) == null }
-        if (lost.isEmpty()) return
-        lost.forEach { it.origin.pending.addFirst(it.service) }
-        packets.removeAll(lost.toSet())
+        if (lost.isNotEmpty()) {
+            lost.forEach { it.origin.pending.addFirst(it.service) }
+            packets.removeAll(lost.toSet())
+        }
+        tallies.clear()
+        recountLoads()
     }
 
-    /** Radios without power ([isDark]) link nobody; mountains and towers in the way ([inRadioSight]) block a link. */
+    /** Puts every cable into the link lists of its two ends ([Node.links]), which [linkBetween] searches. */
+    private fun indexCables() {
+        for (n in nodeList) n.links.clear()
+        for (c in cableList) {
+            c.a.links += c
+            c.b.links += c
+        }
+    }
+
+    /**
+     * Radios without power ([isDark]) link nobody; mountains and towers in the way ([inRadioSight]) block a link.
+     * Also re-indexes all links (cables before radio links) and the interference between access points.
+     */
     private fun rebuildRadioLinks() {
+        indexCables()
         radioLinkList.clear()
-        for (r in nodes) {
+        interference.clear()
+        for (n in nodeList) if (n.kind == NodeKind.ACCESS_POINT) findInterferers(n).takeIf { it.isNotEmpty() }?.let { interference[n] = it }
+        for (r in nodeList) {
             val type = r.radio ?: continue
             if (isDark(r)) continue
             val capacity = radioCapacity(r)
@@ -441,6 +499,10 @@ class World(
                 .sortedWith(compareBy({ it.second }, { it.first.id }))
                 .take(slots)
                 .forEach { (client, _) -> radioLinkList += RadioLink(r, client, capacity) }
+        }
+        for (l in radioLinkList) {
+            l.radio.links += l
+            l.device.links += l
         }
     }
 
@@ -583,10 +645,13 @@ class World(
     /**
      * Access points that disturb [n]: other access points on the same channel whose radio circles overlap its own.
      * Empty for every other node. An access point without power ([isDark]) neither sends nor disturbs.
+     * Derived with the [radioLinks], so reading it (every frame) costs nothing.
      */
-    fun interferers(n: Node): List<Node> {
+    fun interferers(n: Node): List<Node> = interference[n] ?: emptyList()
+
+    private fun findInterferers(n: Node): List<Node> {
         if (n.kind != NodeKind.ACCESS_POINT || isDark(n)) return emptyList()
-        return nodes.filter {
+        return nodeList.filter {
             it !== n && it.kind == NodeKind.ACCESS_POINT && it.channel == n.channel && !isDark(it) &&
                 Wifi.overlaps(n.center, n.radius, it.center, it.radius)
         }
@@ -639,9 +704,12 @@ class World(
 
     // ---------------------------------------------------------------- routing
 
-    /** The cable or radio link between [a] and [b], if any. */
-    fun linkBetween(a: Node, b: Node): Link? =
-        cableBetween(a, b) ?: radioLinkList.firstOrNull { (it.radio === a && it.device === b) || (it.radio === b && it.device === a) }
+    /** The cable or radio link between [a] and [b], if any (a cable first); looks only at the few links of [a]. */
+    fun linkBetween(a: Node, b: Node): Link? {
+        val links = a.links
+        for (i in links.indices) if (links[i].other(a) === b) return links[i]
+        return null
+    }
 
     /** The link between [a] and [b] if packets can use it right now. */
     private fun usableLink(a: Node, b: Node): Link? = linkBetween(a, b)?.takeIf(::isUp)
@@ -667,38 +735,62 @@ class World(
     }
 
     /** Best route ignoring the ping limit, so the UI can explain "Ping zu hoch". */
-    fun bestRoute(client: Node, service: Service): Route? =
-        routeCache.getOrPut(client.id to service) { computeRoute(client, service) }
+    fun bestRoute(client: Node, service: Service): Route? {
+        val row = routeCache.getOrPut(client) { arrayOfNulls(Service.entries.size) }
+        val cached = row[service.ordinal]
+        if (cached != null) return cached.takeIf { it !== NO_ROUTE }
+        val route = computeRoute(client, service)
+        row[service.ordinal] = route ?: NO_ROUTE
+        return route
+    }
 
+    /**
+     * Dijkstra over the node links, with its tables in arrays indexed by [Node.index] that are reused between calls.
+     * The open list may hold a node twice; the first entry with the lowest distance is taken next.
+     */
     private fun computeRoute(client: Node, service: Service): Route? {
-        val links = cables + radioLinkList
-        val dist = HashMap<Node, Float>().apply { put(client, 0f) }
-        val prev = HashMap<Node, Node>()
-        val open = mutableListOf(client)
-        val done = HashSet<Node>()
+        val count = nodeList.size
+        if (routeDist.size < count) {
+            routeDist = FloatArray(count * 2)
+            routePrev = IntArray(count * 2)
+            routeDone = BooleanArray(count * 2)
+        }
+        val dist = routeDist
+        val prev = routePrev
+        val done = routeDone
+        dist.fill(Float.MAX_VALUE, 0, count)
+        prev.fill(-1, 0, count)
+        done.fill(false, 0, count)
+        val open = routeOpen
+        open.clear()
+        dist[client.index] = 0f
+        open += client
         while (open.isNotEmpty()) {
-            val cur = open.minBy { dist.getValue(it) }
-            open.remove(cur)
-            if (!done.add(cur)) continue
+            var best = 0
+            for (i in 1 until open.size) if (dist[open[i].index] < dist[open[best].index]) best = i
+            val cur = open.removeAt(best)
+            if (done[cur.index]) continue
+            done[cur.index] = true
             if (cur.kind == NodeKind.SERVER && cur.service == service) {
                 val path = ArrayList<Node>()
-                var n: Node? = cur
-                while (n != null) { path.add(0, n); n = prev[n] }
-                return Route(path, 2f * dist.getValue(cur))
+                var n = cur.index
+                while (n >= 0) { path.add(0, nodeList[n]); n = prev[n] }
+                open.clear()
+                return Route(path, 2f * dist[cur.index])
             }
             // Only the origin and routers, radios or other clients forward traffic; foreign servers are dead ends.
             if (cur !== client && cur.kind == NodeKind.SERVER) continue
             val hopCost = if (cur === client) 0f else Tuning.ROUTER_MS
-            for (c in links) {
-                if (!c.connects(cur) || c.capacity < service.bandwidth || !isUp(c)) continue
+            for (c in cur.links) {
+                if (c.capacity < service.bandwidth || !isUp(c)) continue
                 // A radio link only carries its device's own traffic, as the first hop: a radio reaches the network
                 // through its cables, and cabled devices cannot ride on a wireless client.
                 if (c is RadioLink && !(cur === client && c.device === client)) continue
                 val nb = c.other(cur)
-                val d = dist.getValue(cur) + hopCost + c.latencyMs
-                if (d < (dist[nb] ?: Float.MAX_VALUE)) {
-                    dist[nb] = d
-                    prev[nb] = cur
+                val d = dist[cur.index] + hopCost + c.latencyMs
+                if (d < dist[nb.index]) {
+                    dist[nb.index] = d
+                    prev[nb.index] = cur.index
                     open += nb
                 }
             }
@@ -713,11 +805,54 @@ class World(
         return link.pointFrom(p.from, p.progress)
     }
 
+    /** Like [packetPosition], but writes x and y into [out] instead of allocating, for drawing every frame. */
+    fun packetPosition(p: Packet, out: FloatArray) {
+        val link = if (p.inTransit && p.progress >= 0f) linkBetween(p.from, p.to) else null
+        if (link != null) return link.pointFrom(p.from, p.progress, out)
+        val at = if (p.inTransit) p.from.center else p.route.last().center
+        out[0] = at.x
+        out[1] = at.y
+    }
+
     /** Bandwidth units currently travelling on [c]. */
     fun cableLoad(c: Cable) = linkLoad(c)
 
-    /** Bandwidth units currently travelling on the medium of [l]: the cable, or every link of the radio. */
-    fun linkLoad(l: Link) = packets.sumOf { if (it.inTransit && it.progress >= 0f && linkBetween(it.from, it.to)?.medium === l.medium) it.size else 0 }
+    /**
+     * Bandwidth units currently travelling on the medium of [l]: the cable, or every link of the radio. Read from the
+     * load counters, so it is exact after every [update] and every change of the network.
+     */
+    fun linkLoad(l: Link) = tallies[l.medium]?.moving ?: 0
+
+    /** Bandwidth units waiting at either end of a link on the medium of [l] to enter it. */
+    internal fun linkWaiting(l: Link) = tallies[l.medium]?.waiting ?: 0
+
+    /**
+     * Load counters of one medium: bandwidth units travelling on it ([moving]), waiting at one of its ends to enter it
+     * ([waiting]), and the room waiting responses claim while [admitWaiting] runs ([blocked]).
+     */
+    private class LoadTally {
+        var moving = 0
+        var waiting = 0
+        var blocked = 0
+    }
+
+    private fun tally(medium: Any) = tallies.getOrPut(medium) { LoadTally() }
+
+    /**
+     * Counts every packet in transit onto its medium, in one pass. Runs after network changes and once per step, so
+     * packets added or removed from outside (tests, restore) are counted too; within a step the counters follow every
+     * packet incrementally.
+     */
+    private fun recountLoads() {
+        for (t in tallies.values) { t.moving = 0; t.waiting = 0 }
+        for (i in packets.indices) {
+            val p = packets[i]
+            if (!p.inTransit) continue
+            val link = linkBetween(p.from, p.to) ?: continue
+            val t = tally(link.medium)
+            if (p.progress >= 0f) t.moving += p.size else t.waiting += p.size
+        }
+    }
 
     // ---------------------------------------------------------------- simulation
 
@@ -770,7 +905,7 @@ class World(
         val prevWeek = week
         val prevTime = time
         time += dt
-        arrivalList.removeAll { time - it.time > Tuning.ARRIVAL_SECONDS }
+        while (arrivalList.isNotEmpty() && time - arrivalList[0].time > Tuning.ARRIVAL_SECONDS) arrivalList.removeAt(0)
         if (backupRuns(prevTime, time)) queueBackups()
         if (!guided) week = 1 + (time / Tuning.WEEK_SECONDS).toInt()
         if (week != prevWeek) {
@@ -787,8 +922,10 @@ class World(
                 rng.nextFloat() * Tuning.SPAWN_JITTER
         }
 
+        recountLoads()
         val served = availableServices
-        for (n in nodes) {
+        for (i in nodeList.indices) {
+            val n = nodeList[i]
             if (n.kind != NodeKind.CLIENT) continue
             n.requestTimer -= dt
             if (n.requestTimer <= 0f) request(n, served)
@@ -798,7 +935,8 @@ class World(
 
         movePackets(dt)
 
-        for (n in nodes) {
+        for (i in nodeList.indices) {
+            val n = nodeList[i]
             if (n.kind != NodeKind.CLIENT) continue
             n.overload = if (n.pending.size >= Tuning.MAX_PENDING) n.overload + dt / Tuning.OVERLOAD_SECONDS
             else max(0f, n.overload - dt / Tuning.RECOVER_SECONDS)
@@ -856,20 +994,20 @@ class World(
      * to enter that link's medium at either end (answers on their way back, traffic passing through) keep their claim on it.
      */
     private fun dispatch(client: Node) {
-        for (service in client.pending) {
+        val pending = client.pending
+        for (i in pending.indices) {
+            val service = pending[i]
             val route = routeFor(client, service) ?: continue
             val first = linkBetween(route.nodes[0], route.nodes[1]) ?: continue
-            if (linkLoad(first) + waitingFor(first) + service.bandwidth > first.capacity) continue
+            val load = tally(first.medium)
+            if (load.moving + load.waiting + service.bandwidth > first.capacity) continue
             packets += Packet(service, client, route.nodes).apply { progress = 0f }
-            client.pending.remove(service)
+            load.moving += service.bandwidth
+            pending.removeAt(i)
             client.dispatchCooldown = Tuning.DISPATCH_COOLDOWN
             return
         }
     }
-
-    /** Bandwidth units waiting at either end of a link on the medium of [l] to enter it. */
-    private fun waitingFor(l: Link) =
-        packets.sumOf { if (it.inTransit && it.progress < 0f && linkBetween(it.from, it.to)?.medium === l.medium) it.size else 0 }
 
     /**
      * Moves requests and responses along their routes. A request that reaches its server takes one throughput token
@@ -880,13 +1018,23 @@ class World(
      * [dispatch] leaves room for waiting packets too, so a client with a backlog cannot refill such a slot either.
      */
     private fun movePackets(dt: Float) {
-        for (n in nodes) if (n.kind == NodeKind.SERVER) n.tokens = minOf(serverRate(n), n.tokens + serverRate(n) * dt)
-        val arrived = ArrayList<Packet>()
-        val responses = ArrayList<Packet>()
-        for (p in packets) {
+        for (i in nodeList.indices) {
+            val n = nodeList[i]
+            if (n.kind == NodeKind.SERVER) n.tokens = minOf(serverRate(n), n.tokens + serverRate(n) * dt)
+        }
+        val arrived = arrivedScratch
+        val responses = responseScratch
+        for (i in packets.indices) {
+            val p = packets[i]
             if (p.progress < 0f) continue
-            val link = usableLink(p.from, p.to)
-            if (link == null) { arrived += p; p.origin.pending.addFirst(p.service); continue }
+            val on = linkBetween(p.from, p.to)
+            val link = on?.takeIf(::isUp)
+            if (link == null) {
+                arrived += p
+                p.origin.pending.addFirst(p.service)
+                if (on != null) tally(on.medium).moving -= p.size
+                continue
+            }
             p.progress += link.speed * dt / maxOf(link.length, MIN_LINK_LENGTH)
             if (p.progress < 1f) continue
             val last = p.hop + 1 >= p.route.size - 1
@@ -895,9 +1043,13 @@ class World(
                 p.progress = 0.999f
                 continue
             }
+            tally(link.medium).moving -= p.size
             p.hop++
             when {
-                !last -> p.progress = -1f
+                !last -> {
+                    p.progress = -1f
+                    linkBetween(p.from, p.to)?.let { tally(it.medium).waiting += p.size }
+                }
                 p.isResponse -> {
                     arrived += p
                     delivered++
@@ -907,13 +1059,25 @@ class World(
                     p.route.last().tokens -= 1f
                     arrivalList += Arrival(p.route.last(), p.service, isResponse = false, time)
                     arrived += p
-                    responses += Packet(p.service, p.origin, p.route.asReversed(), isResponse = true)
+                    val response = Packet(p.service, p.origin, p.route.asReversed(), isResponse = true)
+                    responses += response
+                    tally(link.medium).waiting += response.size
                 }
             }
         }
-        if (arrived.isNotEmpty()) packets.removeAll(arrived.toSet())
+        removePackets(arrived)
         packets += responses
+        responses.clear()
         admitWaiting()
+    }
+
+    /** Removes [gone] from [packets] in one pass and empties it. */
+    private fun removePackets(gone: MutableList<Packet>) {
+        if (gone.isEmpty()) return
+        removeScratch.addAll(gone)
+        packets.removeAll(removeScratch)
+        removeScratch.clear()
+        gone.clear()
     }
 
     /**
@@ -921,27 +1085,37 @@ class World(
      * is gone or down goes back into its client's queue, like one on a removed cable.
      */
     private fun admitWaiting() {
-        val waiting = packets.filter { it.inTransit && it.progress < 0f }
-        if (waiting.isEmpty()) return
-        val stranded = waiting.filter { usableLink(it.from, it.to) == null }
-        if (stranded.isNotEmpty()) {
-            stranded.forEach { it.origin.pending.addFirst(it.service) }
-            packets.removeAll(stranded.toSet())
+        val waiting = waitingScratch
+        for (i in packets.indices) {
+            val p = packets[i]
+            if (p.inTransit && p.progress < 0f) waiting += p
         }
-        val load = HashMap<Any, Int>()
-        val blocked = HashMap<Any, Int>()
-        for (p in waiting.sortedBy { !it.isResponse }) {
+        if (waiting.isEmpty()) return
+        val stranded = arrivedScratch
+        for (i in waiting.indices) {
+            val p = waiting[i]
+            if (usableLink(p.from, p.to) != null) continue
+            stranded += p
+            p.origin.pending.addFirst(p.service)
+            linkBetween(p.from, p.to)?.let { tally(it.medium).waiting -= p.size }
+        }
+        removePackets(stranded)
+        for (t in tallies.values) t.blocked = 0
+        for (responsesFirst in RESPONSES_FIRST) for (i in waiting.indices) {
+            val p = waiting[i]
+            if (p.isResponse != responsesFirst) continue
             val link = usableLink(p.from, p.to) ?: continue
-            val medium = link.medium
-            val used = load.getOrPut(medium) { linkLoad(link) }
-            val reserved = if (p.isResponse) 0 else blocked[medium] ?: 0
-            if (used + reserved + p.size <= link.capacity) {
+            val t = tally(link.medium)
+            val reserved = if (p.isResponse) 0 else t.blocked
+            if (t.moving + reserved + p.size <= link.capacity) {
                 p.progress = 0f
-                load[medium] = used + p.size
+                t.moving += p.size
+                t.waiting -= p.size
             } else if (p.isResponse) {
-                blocked[medium] = (blocked[medium] ?: 0) + p.size
+                t.blocked += p.size
             }
         }
+        waiting.clear()
     }
 
     // ---------------------------------------------------------------- incidents
@@ -1113,6 +1287,10 @@ class World(
         private const val MIN_LINK_LENGTH = 0.5f
         /** Sampling step along a radio's line of sight, in cells. */
         private const val SIGHT_STEP = 0.1f
+        /** Order of the two admission passes of [admitWaiting]. */
+        private val RESPONSES_FIRST = booleanArrayOf(true, false)
+        /** Cache marker of [bestRoute] for "no route". */
+        private val NO_ROUTE = Route(emptyList(), Float.MAX_VALUE)
 
         /** Clock hour at game time [t], see [hourOfDay]. */
         fun hourAt(t: Float) = (Tuning.DAWN_HOUR + 24f * (t % Tuning.DAY_SECONDS) / Tuning.DAY_SECONDS) % 24f
@@ -1165,12 +1343,15 @@ class World(
                     fiveGhz = n.fiveGhz
                 }
                 require(byId.put(n.id, node) == null) { "duplicate node id ${n.id}" }
-                w.nodes += node
+                node.index = w.nodeList.size
+                w.nodeList += node
+                node.service?.let { if (it !in w.availableServices) w.availableServices = w.availableServices + it }
             }
             fun node(id: Int) = requireNotNull(byId[id]) { "unknown node $id" }
             for (c in s.cables) {
-                w.cables += Cable(node(c.a), node(c.b), c.type, c.cost, CableLayout(c.waypoints.map { it.center }), c.waterCells)
+                w.cableList += Cable(node(c.a), node(c.b), c.type, c.cost, CableLayout(c.waypoints.map { it.center }), c.waterCells)
             }
+            w.indexCables()
             w.incidentsEnabled = s.incidentsEnabled
             for (i in s.incidents) {
                 val cable = if (i.cableA != null && i.cableB != null) {
@@ -1186,6 +1367,7 @@ class World(
                     progress = p.progress
                 }
             }
+            w.recountLoads()
             w.failedNode = s.failedNodeId?.let(::node)
             return w
         }

@@ -1,6 +1,7 @@
 package com.mininetworks.game.render
 
 import android.graphics.Canvas
+import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
@@ -256,11 +257,39 @@ object ServiceColors {
 object CableStyles {
     class Style(val color: Int, val width: Float, val core: Int?, val coreWidth: Float)
 
+    private val ISDN = Style(0xFF9AA3AD.toInt(), 0.08f, null, 0f)
+    private val DSL = Style(0xFF39424E.toInt(), 0.13f, null, 0f)
+    private val COAX = Style(0xFF2F2A26.toInt(), 0.17f, 0xFF9C8B7A.toInt(), 0.045f)
+    private val FIBER = Style(0xFFF28C28.toInt(), 0.18f, 0xFFFFE2B8.toInt(), 0.05f)
+
     fun of(t: CableType) = when (t) {
-        CableType.ISDN -> Style(0xFF9AA3AD.toInt(), 0.08f, null, 0f)
-        CableType.DSL -> Style(0xFF39424E.toInt(), 0.13f, null, 0f)
-        CableType.COAX -> Style(0xFF2F2A26.toInt(), 0.17f, 0xFF9C8B7A.toInt(), 0.045f)
-        CableType.FIBER -> Style(0xFFF28C28.toInt(), 0.18f, 0xFFFFE2B8.toInt(), 0.05f)
+        CableType.ISDN -> ISDN
+        CableType.DSL -> DSL
+        CableType.COAX -> COAX
+        CableType.FIBER -> FIBER
+    }
+}
+
+/**
+ * Dash effects reused across frames. [get] builds a new effect only when the dash length changes (zoom) or the phase
+ * reaches a new one of [steps] positions per dash period, so an animated dash costs no allocation per frame.
+ */
+class DashCache(private val steps: Int = 24) {
+    private var dash = Float.NaN
+    private var gapRatio = Float.NaN
+    private val effects = arrayOfNulls<DashPathEffect>(steps)
+
+    /** Dashes [dash] long with gaps of [gapRatio] × [dash], shifted by [phase] pixels (rounded to a step). */
+    fun get(dash: Float, gapRatio: Float, phase: Float): DashPathEffect {
+        if (dash != this.dash || gapRatio != this.gapRatio) {
+            effects.fill(null)
+            this.dash = dash
+            this.gapRatio = gapRatio
+        }
+        val period = dash * (1f + gapRatio)
+        val p = ((phase % period) + period) % period
+        val step = (p / period * steps).toInt().coerceIn(0, steps - 1)
+        return effects[step] ?: DashPathEffect(floatArrayOf(dash, dash * gapRatio), step * period / steps).also { effects[step] = it }
     }
 }
 

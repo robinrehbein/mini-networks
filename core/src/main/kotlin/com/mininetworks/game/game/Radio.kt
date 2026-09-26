@@ -63,8 +63,9 @@ class RadioLink(val radio: Node, val device: Node, override val capacity: Int) :
     override val speed get() = type.speed
     override val medium get() = radio
 
-    override fun pointFrom(from: Node, f: Float): Vec2 {
+    override fun pointFrom(from: Node, f: Float, out: FloatArray) {
         val t = (if (from === radio) f else 1f - f).coerceIn(0f, 1f)
-        return Vec2(radio.center.x + (device.center.x - radio.center.x) * t, radio.center.y + (device.center.y - radio.center.y) * t)
+        out[0] = radio.center.x + (device.center.x - radio.center.x) * t
+        out[1] = radio.center.y + (device.center.y - radio.center.y) * t
     }
 }

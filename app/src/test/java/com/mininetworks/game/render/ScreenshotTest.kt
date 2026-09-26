@@ -17,6 +17,7 @@ import com.mininetworks.game.game.Scenario
 import com.mininetworks.game.game.Scenarios
 import com.mininetworks.game.game.RewardOffer
 import com.mininetworks.game.game.Service
+import com.mininetworks.game.game.StressWorld
 import com.mininetworks.game.game.Tutorial
 import com.mininetworks.game.game.World
 import com.mininetworks.game.monetization.Entitlements
@@ -34,6 +35,7 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.io.File
+import java.util.Locale
 import kotlin.math.abs
 
 /**
@@ -104,6 +106,34 @@ class ScreenshotTest {
             r.layout(bmp.width, bmp.height, world)
             r.draw(Canvas(bmp), world, drag = null, time = 1.3f)
             save(bmp, File(out, "prototype-${r.name.lowercase()}.png"))
+        }
+    }
+
+    /**
+     * The performance scene (docs/PLAN.md P4.2): the [StressWorld] after 5 s, 78 nodes and 250+ packets, in both styles.
+     * Also prints how long a frame takes to draw here (software canvas, not the phone's GPU; for comparison only) and
+     * how much it allocates on the heap, which on a phone turns into garbage-collection pauses.
+     */
+    @Test
+    fun renderStressWorld() {
+        val w = StressWorld.build()
+        repeat(60 * 5) { w.update(1f / 60f) }
+        check(w.nodes.size >= 60 && w.packets.size >= 200) { "stress scene: ${w.nodes.size} nodes, ${w.packets.size} packets" }
+        for (r in listOf(FlatRenderer(), IsoRenderer())) {
+            val bmp = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bmp)
+            r.layout(bmp.width, bmp.height, w)
+            repeat(FRAMES) { r.draw(canvas, w, drag = null, time = 1.3f) }
+            val bytes = allocatedBytes()
+            val start = System.nanoTime()
+            repeat(FRAMES) { r.draw(canvas, w, drag = null, time = 1.3f) }
+            val ms = (System.nanoTime() - start) / 1e6 / FRAMES
+            val kb = (allocatedBytes() - bytes) / 1024.0 / FRAMES
+            println(
+                "ScreenshotTest: ${r.name} frame of the stress world (${w.packets.size} packets): " +
+                    "%.1f ms, %.1f KiB allocated on the JVM heap".format(Locale.ROOT, ms, kb),
+            )
+            save(bmp, File(shots, "stress-${r.name.lowercase()}.png"))
         }
     }
 
@@ -643,6 +673,17 @@ class ScreenshotTest {
         } finally {
             ServiceColors.colorblind = false
         }
+    }
+
+    private companion object {
+        /** Frames drawn to warm up and then to time in [renderStressWorld]. */
+        const val FRAMES = 20
+    }
+
+    /** Bytes this thread allocated so far (HotSpot's thread bean, by reflection: android.jar has no java.lang.management). */
+    private fun allocatedBytes(): Long {
+        val bean = Class.forName("java.lang.management.ManagementFactory").getMethod("getThreadMXBean").invoke(null)
+        return Class.forName("com.sun.management.ThreadMXBean").getMethod("getCurrentThreadAllocatedBytes").invoke(bean) as Long
     }
 
     private fun save(bmp: Bitmap, file: File) = file.outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
