@@ -10,13 +10,13 @@ enum class Shape { CIRCLE, SQUARE, TRIANGLE, DIAMOND }
 
 /**
  * What a device wants from the network. Each service has a bandwidth need (packet size in capacity units)
- * and optionally a ping limit: real-time services fail on slow routes even when bandwidth is free.
+ * and optionally a round-trip ping limit: real-time services fail on slow routes even when bandwidth is free.
  * The shape is the primary signal (colorblind-safe), color only supports it.
  */
 enum class Service(val label: String, val shape: Shape, val bandwidth: Int, val maxPingMs: Int?) {
     MAIL("Mail", Shape.SQUARE, 1, null),
-    CALL("Telefonie", Shape.DIAMOND, 1, 150),
-    GAMING("Gaming", Shape.TRIANGLE, 1, 60),
+    CALL("Telefonie", Shape.DIAMOND, 1, 300),
+    GAMING("Gaming", Shape.TRIANGLE, 1, 110),
     STREAMING("Streaming", Shape.CIRCLE, 3, null),
 }
 
@@ -50,11 +50,15 @@ enum class CableType(
     FIBER("Glasfaser", 12, 2.5f, 3.6f, 3, 5),
 }
 
+/** Node roles. [maxPorts] is the default port count; a data center server has more (see [Node.maxPorts]). */
 enum class NodeKind(val maxPorts: Int) {
     CLIENT(2),
     SERVER(4),
     ROUTER(6),
 }
+
+/** Why a server cannot be upgraded right now. The UI maps these to texts. */
+enum class ServerUpgradeError { NOT_A_SERVER, MAX_LEVEL, NO_BUDGET, NO_SPACE }
 
 class Node(
     val id: Int,
@@ -67,7 +71,24 @@ class Node(
     val cellY: Int,
 ) {
     val cell = Cell(cellX, cellY)
+
+    /** Where cables attach: the center of the node's own cell. */
     val center = cell.center
+
+    /**
+     * Cells the node occupies, [cell] included. One cell, except for a data center (server tier 4), which covers a
+     * 2×2 block; the first entry is then the block's top-left cell.
+     */
+    var footprint: List<Cell> = listOf(cell)
+        internal set
+
+    /** Visual center of the [footprint]; equals [center] for one-cell nodes. */
+    val footprintCenter get() = Vec2(footprint.map { it.x }.average().toFloat() + 0.5f, footprint.map { it.y }.average().toFloat() + 0.5f)
+
+    /** True for a server at tier [World.Tuning.DATA_CENTER_LEVEL]. */
+    val isDataCenter get() = kind == NodeKind.SERVER && level >= World.Tuning.DATA_CENTER_LEVEL
+
+    val maxPorts get() = if (isDataCenter) World.Tuning.DATA_CENTER_PORTS else kind.maxPorts
 
     /** Requests waiting to be sent (clients only), oldest first. */
     val pending = ArrayDeque<Service>()
@@ -75,7 +96,7 @@ class Node(
     /** 0..1, game over when a client reaches 1. */
     var overload = 0f
 
-    /** Server hardware tier 1..MAX_SERVER_LEVEL: more throughput, drawn as a taller stack. */
+    /** Server hardware tier 1..MAX_SERVER_LEVEL: more throughput, drawn as a taller stack; the top tier is a data center. */
     var level = 1
 
     /** Token bucket for server throughput: one token per delivered packet. */
@@ -105,10 +126,17 @@ class Cable(val a: Node, val b: Node, var type: CableType, var cost: Int, val la
     fun pointFrom(from: Node, f: Float): Vec2 = layout.pointAt(if (from === a) f else 1f - f)
 }
 
-class Route(val nodes: List<Node>, val pingMs: Float)
+/** A path from a client to a server. [pingMs] is the round trip: request there plus response back the same way. */
+class Route(val nodes: List<Node>, val pingMs: Float) {
+    val oneWayMs get() = pingMs / 2f
+}
 
-/** A request travelling from a client to a matching server. */
-class Packet(val service: Service, val origin: Node, val route: List<Node>) {
+/**
+ * A packet on its way. A request travels [route] from its [origin] client to a server; there it turns into a response
+ * ([isResponse]) that travels the same route back and counts as delivered when it reaches [origin].
+ * Both directions share cable capacity.
+ */
+class Packet(val service: Service, val origin: Node, val route: List<Node>, val isResponse: Boolean = false) {
     val size get() = service.bandwidth
 
     /** Index of the node the packet last left (or waits at). */
@@ -117,7 +145,7 @@ class Packet(val service: Service, val origin: Node, val route: List<Node>) {
     /** Progress 0..1 along the cable between route[hop] and route[hop + 1]; -1 while waiting at route[hop]. */
     var progress = -1f
 
-    /** False once the packet reached its server (it is removed at the end of the frame). */
+    /** False once the packet reached the end of its route (it is removed at the end of the frame). */
     val inTransit get() = hop < route.size - 1
 
     val from get() = route[hop]

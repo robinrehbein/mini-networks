@@ -17,6 +17,7 @@ import com.mininetworks.game.game.Cell
 import com.mininetworks.game.game.FixedStep
 import com.mininetworks.game.game.Node
 import com.mininetworks.game.game.NodeKind
+import com.mininetworks.game.game.ServerUpgradeError
 import com.mininetworks.game.game.Vec2
 import com.mininetworks.game.game.World
 import com.mininetworks.game.render.CableStyles
@@ -42,7 +43,7 @@ import kotlin.math.hypot
  * Controls:
  *  - drag from a node to another node: lay a cable along the grid (L-shaped; the drag path picks which way it bends)
  *  - pick a cable technology in the bottom-left bar (ISDN, DSL, Kabel, Glasfaser)
- *  - tap a server: upgrade its hardware (more throughput, taller stack)
+ *  - tap a server: upgrade its hardware (more throughput, taller stack; tier 4 is a data center on 2×2 cells)
  *  - tap a cable: upgrade it to the picked technology, or remove it if it already is that type
  *  - "Router" button, then tap an empty cell: place a router
  *  - "Stil" button: switch between flat and isometric rendering
@@ -80,6 +81,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private var routerMode = false
     private var cableType = CableType.ISDN
     private var animTime = 0f
+
+    /** Short feedback above the bottom bar, e.g. why a server tap did not upgrade; shown until [hintUntil]. */
+    private var hint: String? = null
+    private var hintUntil = 0f
 
     private var dragFrom: Node? = null
     private var dragEnd: Vec2? = null
@@ -338,7 +343,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             buttons += Button("cable:${t.name}", r)
             cx += w + gap
         }
-        if (routerMode) canvas.drawText(context.getString(R.string.hint_place_router), pad, y - 10 * density, hudSub)
+        if (routerMode) {
+            canvas.drawText(context.getString(R.string.hint_place_router), pad, y - 10 * density, hudSub)
+        } else if (animTime < hintUntil) {
+            hint?.let { canvas.drawText(it, pad, y - 10 * density, hudSub) }
+        }
     }
 
     private fun drawGameOver(canvas: Canvas) {
@@ -394,7 +403,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 val p = renderer.toWorld(e.x, e.y)
                 val isTap = hypot(e.x - downX, e.y - downY) < 12 * density
                 if (from != null && isTap && from.kind == NodeKind.SERVER) {
-                    world.upgradeServer(from)
+                    upgradeServer(from)
                 } else if (from != null && !isTap) {
                     trackDrag(p)
                     world.nodeNear(p)?.let { if (it !== from) world.connect(from, it, cableType, dragBend(from.cell, it.cell)) }
@@ -428,6 +437,22 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         }
     }
 
+    private fun upgradeServer(server: Node) {
+        val error = world.serverUpgradeError(server)
+        if (error == null) {
+            world.upgradeServer(server)
+            return
+        }
+        hint = when (error) {
+            ServerUpgradeError.NOT_A_SERVER -> return
+            ServerUpgradeError.MAX_LEVEL -> context.getString(R.string.server_error_max_level)
+            ServerUpgradeError.NO_SPACE -> context.getString(R.string.server_error_no_space)
+            ServerUpgradeError.NO_BUDGET ->
+                context.getString(R.string.server_error_no_budget, World.Tuning.SERVER_UPGRADE_COST[server.level - 1])
+        }
+        hintUntil = animTime + HINT_SECONDS
+    }
+
     private fun onButton(id: String) {
         when (id) {
             "pause" -> paused = !paused
@@ -457,5 +482,6 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         /** Minimum distance between two drag trail samples, in cells. */
         const val TRAIL_SPACING = 0.2f
         const val MAX_TRAIL = 256
+        const val HINT_SECONDS = 2.5f
     }
 }

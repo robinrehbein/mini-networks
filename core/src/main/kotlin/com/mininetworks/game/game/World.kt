@@ -29,11 +29,14 @@ class World(
         const val START_BUDGET = 24
         const val START_ROUTERS = 2
         const val WATER_EXTRA_PER_CELL = 2
-        const val MAX_SERVER_LEVEL = 3
-        /** Packets per second a server can take at level 1, 2, 3. */
-        val SERVER_RATE = floatArrayOf(1.5f, 3f, 5f)
-        /** Budget to reach level 2, 3. */
-        val SERVER_UPGRADE_COST = intArrayOf(8, 16)
+        const val MAX_SERVER_LEVEL = 4
+        /** Tier 4 "Rechenzentrum": covers a 2×2 block of cells and has [DATA_CENTER_PORTS] ports. */
+        const val DATA_CENTER_LEVEL = 4
+        const val DATA_CENTER_PORTS = 8
+        /** Requests per second a server can take at level 1, 2, 3, 4. */
+        val SERVER_RATE = floatArrayOf(1.5f, 3f, 5f, 8f)
+        /** Budget to reach level 2, 3, 4. */
+        val SERVER_UPGRADE_COST = intArrayOf(8, 16, 28)
     }
 
     private val rng = Random(seed)
@@ -94,8 +97,10 @@ class World(
     fun isWater(cx: Int, cy: Int) = cy in 0 until rows && cx in 0 until cols && water[cy][cx]
 
     fun isFree(cx: Int, cy: Int): Boolean =
-        cx in 0 until cols && cy in 0 until rows && !water[cy][cx] &&
-            nodes.none { it.cellX == cx && it.cellY == cy }
+        cx in 0 until cols && cy in 0 until rows && !water[cy][cx] && nodeAt(Cell(cx, cy)) == null
+
+    /** The node whose footprint covers [cell], if any. */
+    fun nodeAt(cell: Cell): Node? = nodes.firstOrNull { cell in it.footprint }
 
     private fun addNode(kind: NodeKind, device: Device?, service: Service?, cx: Int, cy: Int): Node {
         val n = Node(nextId++, kind, device, service, cx, cy)
@@ -113,7 +118,7 @@ class World(
         repeat(300) {
             val cx = 1 + rng.nextInt(cols - 2)
             val cy = 1 + rng.nextInt(rows - 2)
-            if (isFree(cx, cy) && nodes.all { max(abs(it.cellX - cx), abs(it.cellY - cy)) >= minSpacing }) return cx to cy
+            if (isFree(cx, cy) && nodes.all { n -> n.footprint.all { max(abs(it.x - cx), abs(it.y - cy)) >= minSpacing } }) return cx to cy
         }
         return null
     }
@@ -171,8 +176,8 @@ class World(
         a === b || a.cell == b.cell -> "Gleicher Knoten"
         cableBetween(a, b) != null -> "Schon verbunden"
         type.unlockWeek > week -> "${type.label} noch nicht erfunden"
-        ports(a) >= a.kind.maxPorts -> "${a.label}: alle Ports belegt"
-        ports(b) >= b.kind.maxPorts -> "${b.label}: alle Ports belegt"
+        ports(a) >= a.maxPorts -> "${a.label}: alle Ports belegt"
+        ports(b) >= b.maxPorts -> "${b.label}: alle Ports belegt"
         cableCost(a, b, type, bend) > budget -> "Budget reicht nicht"
         else -> null
     }
@@ -212,7 +217,7 @@ class World(
     fun removeCable(c: Cable) {
         if (!cables.remove(c)) return
         budget += c.cost
-        // Packets on or heading into this cable go back into their client's queue.
+        // Requests and responses on or heading into this cable go back into their client's queue.
         val lost = packets.filter { p -> cableBetween(p.from, p.to) == null }
         lost.forEach { it.origin.pending.addFirst(it.service) }
         packets.removeAll(lost.toSet())
@@ -221,25 +226,48 @@ class World(
 
     fun serverRate(n: Node) = Tuning.SERVER_RATE[n.level - 1]
 
-    /** Null when the server can be upgraded, otherwise a short German reason for the UI. */
-    fun serverUpgradeError(n: Node): String? = when {
-        n.kind != NodeKind.SERVER -> "Kein Server"
-        n.level >= Tuning.MAX_SERVER_LEVEL -> "Maximale Stufe"
-        serverVouchers == 0 && Tuning.SERVER_UPGRADE_COST[n.level - 1] > budget -> "Budget reicht nicht"
+    /**
+     * The 2×2 block a data center on [n] would cover, or null if none fits. Candidates are the four blocks that contain
+     * the server's cell, tried in the order: server top-left, top-right, bottom-left, bottom-right; the other three cells
+     * must be dry, on the map and not covered by another node. Cables may run through them, as through any node cell.
+     */
+    fun dataCenterFootprint(n: Node): List<Cell>? {
+        for ((dx, dy) in DATA_CENTER_ORIGINS) {
+            val x0 = n.cellX + dx
+            val y0 = n.cellY + dy
+            val block = listOf(Cell(x0, y0), Cell(x0 + 1, y0), Cell(x0, y0 + 1), Cell(x0 + 1, y0 + 1))
+            if (block.all { it == n.cell || isFree(it.x, it.y) }) return block
+        }
+        return null
+    }
+
+    /** Null when the server can be upgraded, otherwise the reason. */
+    fun serverUpgradeError(n: Node): ServerUpgradeError? = when {
+        n.kind != NodeKind.SERVER -> ServerUpgradeError.NOT_A_SERVER
+        n.level >= Tuning.MAX_SERVER_LEVEL -> ServerUpgradeError.MAX_LEVEL
+        n.level + 1 == Tuning.DATA_CENTER_LEVEL && dataCenterFootprint(n) == null -> ServerUpgradeError.NO_SPACE
+        serverVouchers == 0 && Tuning.SERVER_UPGRADE_COST[n.level - 1] > budget -> ServerUpgradeError.NO_BUDGET
         else -> null
     }
 
-    /** Raises a server one hardware tier, paid with a voucher if the player has one, otherwise with budget. */
+    /**
+     * Raises a server one hardware tier, paid with a voucher if the player has one, otherwise with budget.
+     * Reaching [Tuning.DATA_CENTER_LEVEL] claims the [dataCenterFootprint].
+     */
     fun upgradeServer(n: Node): Boolean {
         if (gameOver || serverUpgradeError(n) != null) return false
         if (serverVouchers > 0) serverVouchers-- else budget -= Tuning.SERVER_UPGRADE_COST[n.level - 1]
+        if (n.level + 1 == Tuning.DATA_CENTER_LEVEL) n.footprint = dataCenterFootprint(n)!!
         n.level++
         return true
     }
 
+    /** True if [n] is a server whose next tier is reachable at all (ignoring budget). */
+    private fun canGrow(n: Node) = serverUpgradeError(n).let { it == null || it == ServerUpgradeError.NO_BUDGET }
+
     /** Rewards that would have an effect right now; a server voucher only while some server can still grow. */
     fun eligibleRewards(): List<Reward> = Reward.entries.filter {
-        it != Reward.SERVER_VOUCHER || nodes.any { n -> n.kind == NodeKind.SERVER && n.level < Tuning.MAX_SERVER_LEVEL }
+        it != Reward.SERVER_VOUCHER || nodes.any(::canGrow)
     }
 
     /** Takes choice [index] of the open [rewardOffer] and resumes the simulation. False if nothing is open. */
@@ -263,15 +291,18 @@ class World(
         return addRouter(cx, cy)
     }
 
+    /** The node closest to [p] within [radius], measured to the nearest cell of each node's footprint. */
     fun nodeNear(p: Vec2, radius: Float = 0.7f): Node? =
-        nodes.minByOrNull { hypot(it.center.x - p.x, it.center.y - p.y) }
-            ?.takeIf { hypot(it.center.x - p.x, it.center.y - p.y) <= radius }
+        nodes.minByOrNull { distance(it, p) }?.takeIf { distance(it, p) <= radius }
+
+    private fun distance(n: Node, p: Vec2) = n.footprint.minOf { hypot(it.center.x - p.x, it.center.y - p.y) }
 
     // ---------------------------------------------------------------- routing
 
     /**
      * Lowest-ping route from [client] to any server of [service], using only cables wide enough for the
-     * service. Null if none exists or if the best route breaks the service's ping limit.
+     * service. Null if none exists or if the best route breaks the service's ping limit. The ping counts both ways,
+     * since the response travels the same route back.
      */
     fun routeFor(client: Node, service: Service): Route? {
         val r = bestRoute(client, service) ?: return null
@@ -296,7 +327,7 @@ class World(
                 val path = ArrayList<Node>()
                 var n: Node? = cur
                 while (n != null) { path.add(0, n); n = prev[n] }
-                return Route(path, dist.getValue(cur))
+                return Route(path, 2f * dist.getValue(cur))
             }
             // Only the origin and routers/other clients forward traffic; foreign servers are dead ends.
             if (cur !== client && cur.kind == NodeKind.SERVER) continue
@@ -408,10 +439,17 @@ class World(
         }
     }
 
+    /**
+     * Moves requests and responses along their routes. A request that reaches its server takes one throughput token
+     * and turns into a response waiting at the server; a response that reaches its client counts as delivered.
+     * Responses are handled first, so when capacity frees up on a cable they get it before waiting requests;
+     * otherwise requests queued for a busy server could keep the answers from ever leaving.
+     */
     private fun movePackets(dt: Float) {
         for (n in nodes) if (n.kind == NodeKind.SERVER) n.tokens = minOf(serverRate(n), n.tokens + serverRate(n) * dt)
         val arrived = ArrayList<Packet>()
-        for (p in packets) {
+        val responses = ArrayList<Packet>()
+        for (p in packets.sortedBy { !it.isResponse }) {
             val cable = cableBetween(p.from, p.to)
             if (cable == null) { arrived += p; p.origin.pending.addFirst(p.service); continue }
             if (p.progress < 0f) {
@@ -420,16 +458,25 @@ class World(
             p.progress += cable.type.speed * dt / cable.length
             if (p.progress >= 1f) {
                 val last = p.hop + 1 >= p.route.size - 1
-                if (last && p.to.tokens < 1f) {
-                    // Server is saturated: the packet waits at the end of the cable and keeps blocking it.
+                if (last && !p.isResponse && p.to.tokens < 1f) {
+                    // Server is saturated: the request waits at the end of the cable and keeps blocking it.
                     p.progress = 0.999f
                     continue
                 }
                 p.hop++
-                if (last) { p.route.last().tokens -= 1f; arrived += p; delivered++ } else p.progress = -1f
+                when {
+                    !last -> p.progress = -1f
+                    p.isResponse -> { arrived += p; delivered++ }
+                    else -> {
+                        p.route.last().tokens -= 1f
+                        arrived += p
+                        responses += Packet(p.service, p.origin, p.route.asReversed(), isResponse = true)
+                    }
+                }
             }
         }
         if (arrived.isNotEmpty()) packets.removeAll(arrived.toSet())
+        packets += responses
     }
 
     private fun onNewWeek() {
@@ -447,6 +494,9 @@ class World(
         if (news.isNotEmpty()) event("$year · Neu: ${news.joinToString(", ")}")
     }
 }
+
+/** Block origins relative to the server cell for [World.dataCenterFootprint], in order of preference. */
+private val DATA_CENTER_ORIGINS = listOf(0 to 0, -1 to 0, 0 to -1, -1 to -1)
 
 val Node.label get() = device?.label ?: when (kind) {
     NodeKind.SERVER -> "Server"

@@ -74,17 +74,30 @@ class FlatRenderer : Renderer {
 
         for (p in world.packets) {
             val s = toScreen(packetPosition(world, p))
-            fillP.color = ServiceColors.of(p.service)
-            Shapes.draw(canvas, p.service.shape, s.x, s.y, cell * (0.09f + 0.03f * p.size), fillP)
-            strokeP.color = land; strokeP.strokeWidth = cell * 0.035f
-            Shapes.draw(canvas, p.service.shape, s.x, s.y, cell * (0.09f + 0.03f * p.size), strokeP)
+            val r = cell * (0.09f + 0.03f * p.size)
+            if (p.isResponse) {
+                // Responses: smaller and outlined in the service color.
+                fillP.color = land; Shapes.draw(canvas, p.service.shape, s.x, s.y, r * 0.8f, fillP)
+                strokeP.color = ServiceColors.of(p.service); strokeP.strokeWidth = cell * 0.045f
+                Shapes.draw(canvas, p.service.shape, s.x, s.y, r * 0.8f, strokeP)
+            } else {
+                fillP.color = ServiceColors.of(p.service)
+                Shapes.draw(canvas, p.service.shape, s.x, s.y, r, fillP)
+                strokeP.color = land; strokeP.strokeWidth = cell * 0.035f
+                Shapes.draw(canvas, p.service.shape, s.x, s.y, r, strokeP)
+            }
         }
 
         for (n in world.nodes) {
             val s = toScreen(n.center)
             when (n.kind) {
                 NodeKind.ROUTER -> icons.router(canvas, s.x, s.y, cell * 0.3f, time)
-                NodeKind.SERVER -> icons.server(canvas, n.service!!, n.level, world.serverBusy(n), s.x, s.y, cell * 0.34f, time)
+                NodeKind.SERVER -> if (n.isDataCenter) {
+                    val c = toScreen(n.footprintCenter)
+                    icons.dataCenter(canvas, n.service!!, world.serverBusy(n), c.x, c.y, cell * 0.85f, time)
+                } else {
+                    icons.server(canvas, n.service!!, n.level, world.serverBusy(n), s.x, s.y, cell * 0.34f, time)
+                }
                 NodeKind.CLIENT -> {
                     icons.device(canvas, n.device!!, s.x, s.y, cell * 0.3f)
                     n.pending.take(8).forEachIndexed { i, svc ->

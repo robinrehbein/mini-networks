@@ -84,14 +84,26 @@ class IsoRenderer : Renderer {
 
         // Painter's algorithm: everything with height is drawn back-to-front by x + y.
         val items = ArrayList<Pair<Float, () -> Unit>>()
-        for (n in world.nodes) items += (n.center.x + n.center.y) to { drawNode(canvas, n, time, world.serverBusy(n)) }
+        for (n in world.nodes) {
+            val c = n.footprintCenter
+            items += (c.x + c.y) to { drawNode(canvas, n, time, world.serverBusy(n)) }
+        }
         for (p in world.packets) {
             val pos = packetPosition(world, p)
             items += (pos.x + pos.y + 0.01f) to {
                 oval.set(sx(pos.x, pos.y) - tw * 0.07f, sy(pos.x, pos.y) - th * 0.07f, sx(pos.x, pos.y) + tw * 0.07f, sy(pos.x, pos.y) + th * 0.07f)
                 fillP.color = 0x2E000000; canvas.drawOval(oval, fillP)
-                fillP.color = ServiceColors.of(p.service)
-                Shapes.draw(canvas, p.service.shape, sx(pos.x, pos.y), sy(pos.x, pos.y, 0.35f), tw * (0.05f + 0.02f * p.size), fillP)
+                val r = tw * (0.05f + 0.02f * p.size)
+                val px = sx(pos.x, pos.y); val py = sy(pos.x, pos.y, 0.35f)
+                if (p.isResponse) {
+                    // Responses: smaller, white with an outline in the service color.
+                    fillP.color = 0xFFFFFFFF.toInt(); Shapes.draw(canvas, p.service.shape, px, py, r * 0.8f, fillP)
+                    strokeP.color = ServiceColors.of(p.service); strokeP.strokeWidth = tw * 0.025f
+                    Shapes.draw(canvas, p.service.shape, px, py, r * 0.8f, strokeP)
+                } else {
+                    fillP.color = ServiceColors.of(p.service)
+                    Shapes.draw(canvas, p.service.shape, px, py, r, fillP)
+                }
             }
         }
         items.sortBy { it.first }
@@ -109,7 +121,7 @@ class IsoRenderer : Renderer {
     private fun drawNode(canvas: Canvas, n: Node, time: Float, busy: Boolean) {
         val x = n.center.x; val y = n.center.y
         when (n.kind) {
-            NodeKind.SERVER -> {
+            NodeKind.SERVER -> if (n.isDataCenter) drawDataCenter(canvas, n, time, busy) else {
                 // One stacked hardware unit per server level: bigger servers literally tower over the town.
                 val service = n.service!!
                 val col = ServiceColors.of(service)
@@ -145,6 +157,53 @@ class IsoRenderer : Renderer {
                 icons.router(canvas, sx(x, y), sy(x, y, 0.15f) - tw * 0.08f, tw * 0.17f, time)
             }
         }
+    }
+
+    /** Tier 4: a wide, low hall over the 2×2 footprint with rack LEDs on both visible walls and cooling on the roof. */
+    private fun drawDataCenter(canvas: Canvas, n: Node, time: Float, busy: Boolean) {
+        val service = n.service!!
+        val col = ServiceColors.of(service)
+        val c = n.footprintCenter
+        val base = 0.12f
+        box(canvas, c.x, c.y, 1.86f, base, 0xFFCBD2D9.toInt(), 0xFFCBD2D9.toInt())
+        val s = 1.62f
+        val h = 1.05f
+        box(canvas, c.x, c.y, s, h, col.shade(0.15f), 0xFFE9ECEF.toInt(), z0 = base)
+        val front = c.y + s / 2; val right = c.x + s / 2
+        val first = -s / 2 + 0.16f
+        for (i in 0 until 5) for (row in 0 until 3) {
+            val u = first + i * 0.29f
+            val z = base + 0.22f + row * 0.26f
+            fillP.color = when {
+                busy -> alarm
+                sin(time * 3f + i * 1.3f + row * 2.1f + n.id) > 0f -> col
+                else -> 0xFF9AA3AD.toInt()
+            }
+            faceY(front, c.x + u, c.x + u + 0.17f, z, z + 0.1f); canvas.drawPath(path, fillP)
+            faceX(right, c.y + u, c.y + u + 0.17f, z, z + 0.1f); canvas.drawPath(path, fillP)
+        }
+        val roof = base + h
+        box(canvas, c.x - 0.38f, c.y - 0.38f, 0.42f, 0.16f, 0xFF5B6674.toInt(), 0xFFB9C2CC.toInt(), z0 = roof)
+        box(canvas, c.x + 0.12f, c.y - 0.38f, 0.42f, 0.16f, 0xFF5B6674.toInt(), 0xFFB9C2CC.toInt(), z0 = roof)
+        val bx = sx(c.x + 0.2f, c.y + 0.25f); val by = sy(c.x + 0.2f, c.y + 0.25f, roof)
+        oval.set(bx - tw * 0.2f, by - th * 0.2f, bx + tw * 0.2f, by + th * 0.2f)
+        fillP.color = 0xFFFFFFFF.toInt(); canvas.drawOval(oval, fillP)
+        fillP.color = col
+        Shapes.draw(canvas, service.shape, bx, by - th * 0.04f, tw * 0.08f, fillP)
+    }
+
+    /** Wall patch on the plane y = [y], from x [xa] to [xb] and height [za] to [zb]. */
+    private fun faceY(y: Float, xa: Float, xb: Float, za: Float, zb: Float) {
+        path.reset()
+        path.moveTo(sx(xa, y), sy(xa, y, za)); path.lineTo(sx(xb, y), sy(xb, y, za))
+        path.lineTo(sx(xb, y), sy(xb, y, zb)); path.lineTo(sx(xa, y), sy(xa, y, zb)); path.close()
+    }
+
+    /** Wall patch on the plane x = [x], from y [ya] to [yb] and height [za] to [zb]. */
+    private fun faceX(x: Float, ya: Float, yb: Float, za: Float, zb: Float) {
+        path.reset()
+        path.moveTo(sx(x, ya), sy(x, ya, za)); path.lineTo(sx(x, yb), sy(x, yb, za))
+        path.lineTo(sx(x, yb), sy(x, yb, zb)); path.lineTo(sx(x, ya), sy(x, ya, zb)); path.close()
     }
 
     private fun box(canvas: Canvas, cx: Float, cy: Float, s: Float, h: Float, top: Int, side: Int, z0: Float = 0f) {

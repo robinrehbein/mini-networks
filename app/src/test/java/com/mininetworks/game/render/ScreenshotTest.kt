@@ -66,6 +66,7 @@ class ScreenshotTest {
         w.upgradeServer(game)
         w.upgradeServer(cdn)
         w.upgradeServer(cdn)
+        repeat(3) { check(w.upgradeServer(mail)) { "mail server becomes a data center" } }
         repeat(60 * 25) { w.update(1f / 60f) }
         return w
     }
@@ -79,6 +80,36 @@ class ScreenshotTest {
             r.layout(bmp.width, bmp.height, world)
             r.draw(Canvas(bmp), world, drag = null, time = 1.3f)
             save(bmp, File(out, "prototype-${r.name.lowercase()}.png"))
+        }
+    }
+
+    /**
+     * Close-up of the round trip and the data center: requests (filled) and responses (smaller, outlined) share
+     * the cables; the tier-4 server covers 2×2 cells.
+     */
+    @Test
+    fun renderRoundTripAndDataCenter() {
+        val out = File(System.getProperty("screenshots.dir") ?: "build/screenshots").apply { mkdirs() }
+        val w = World(cols = 8, rows = 5, seed = 3L, spawnInitialNodes = false)
+        for (row in w.water) row.fill(false)
+        w.jumpToWeek(5)
+        w.grant(200)
+        val dc = w.addServer(Service.MAIL, 5, 1)
+        val router = w.addRouter(3, 3)
+        w.connect(router, dc, CableType.FIBER)
+        for ((x, y) in listOf(1 to 1, 1 to 4, 6 to 4)) {
+            val pc = w.addClient(Device.PC, x, y)
+            w.connect(pc, router, CableType.DSL)
+            repeat(4) { pc.pending.addLast(Service.MAIL) }
+        }
+        repeat(3) { check(w.upgradeServer(dc)) }
+        repeat(60 * 4) { w.update(1f / 60f) }
+        check(w.packets.any { it.isResponse } && w.packets.any { !it.isResponse }) { "scene should show both directions" }
+        for (r in listOf(FlatRenderer(), IsoRenderer())) {
+            val bmp = Bitmap.createBitmap(1200, 800, Bitmap.Config.ARGB_8888)
+            r.layout(bmp.width, bmp.height, w)
+            r.draw(Canvas(bmp), w, drag = null, time = 1.3f)
+            save(bmp, File(out, "round-trip-${r.name.lowercase()}.png"))
         }
     }
 

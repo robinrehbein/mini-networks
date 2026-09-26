@@ -25,21 +25,22 @@ Ziel ist, so viele Pakete wie möglich zuzustellen.
 | Game-Loop | Fester Simulationsschritt 1/60 s mit Akkumulator (`FixedStep`, max. 5 Schritte pro Frame); Touch-Eingaben landen in einer Queue, die der Game-Thread zu Beginn jedes Durchlaufs abarbeitet; Pause bei `onPause`, weiter bei `onResume` |
 | Spiellogik | Gradle-Modul `:core` (Kotlin/JVM, keine Android-Abhängigkeit), per JUnit getestet; Test-/Debug-Hooks (`grant`, `jumpToWeek`, `advanceToNextWeek`) sind öffentlich, aber per Opt-in `@DebugApi` markiert |
 | Geräte | 8 Gerätetypen mit eigenen Icons und eigenem Dienste-Mix, Freischaltung nach Woche |
-| Dienste | Mail, Telefonie, Gaming, Streaming mit Bandbreite (Paketgröße) und Ping-Limit |
+| Dienste | Mail, Telefonie, Gaming, Streaming mit Bandbreite (Paketgröße) und Ping-Limit für Hin- und Rückweg (Telefonie 300 ms, Gaming 110 ms: Gaming über Distanz braucht Glasfaser) |
 | Kabel | ISDN, DSL, Kabel, Glasfaser mit Kapazität, Latenz pro Feld, Tempo und Preis pro Feld |
 | Kabel-Layout | Jedes Kabel speichert sein `CableLayout` im Modell: L-förmiger Weg über Feldmitten wie eine Straße, keine Diagonalen. Die Zieh-Spur des Spielers wählt, ob erst waagerecht oder erst senkrecht; ohne klare Spur gewinnt die Variante mit weniger Wasserfeldern. Länge, Latenz, Kosten (gelaufene Felder × Preis + Wasserzuschlag), Wassererkennung und Paketbewegung kommen aus dem Layout |
-| Routing | Dijkstra nach Ping; nur Kabel mit genug Kapazität zählen; fremde Server leiten nicht weiter |
-| Ports | Gerät 2, Server 4, Router 6: Router werden als Verteiler gebraucht |
+| Routing | Dijkstra nach Ping; nur Kabel mit genug Kapazität zählen; fremde Server leiten nicht weiter. `Route.pingMs` ist der Ping hin und zurück (2 × einfacher Weg), `Route.oneWayMs` der einfache Weg |
+| Hin- und Rückweg | Eine Anfrage läuft zum Server, verbraucht dort eine Durchsatz-Marke und wird zur Antwort (`Packet.isResponse`), die dieselbe Route zurückläuft. Erst wenn die Antwort beim Gerät ankommt, zählt das Paket als zugestellt. Antworten belegen Kabelkapazität wie Anfragen; wird Kapazität frei, kommen wartende Antworten vor wartenden Anfragen dran (sonst könnten Anfragen vor einem ausgelasteten Server die Antworten aussperren). Wird ein Kabel entfernt, geht auch eine unterwegs verlorene Antwort als Anfrage zurück in die Warteschlange. Antworten sind kleiner und nur umrandet gezeichnet |
+| Ports | Gerät 2, Server 4, Rechenzentrum 8, Router 6: Router werden als Verteiler gebraucht (`Node.maxPorts`) |
 | Wasser | Fluss auf der Karte; Kabel darüber kosten 2 Budget extra pro Wasserfeld (gezählt auf den Feldern des gespeicherten Layouts) |
 | Wochen | Alle 45 s: neue Technik, neue Geräte, neue Server; die Freischalt-Meldung bleibt sichtbar |
 | Wochen-Belohnungen | Beim Wochenwechsel pausiert die Simulation (`World.rewardOffer`), bis der Spieler eine von **2** Belohnungen wählt: +16 Budget, +2 Router oder Server-Gutschein (nächste Server-Stufe gratis; nur im Angebot, solange ein Server noch wachsen kann). Das Angebot ist deterministisch aus Seed und Woche (`Rewards.offer`), unabhängig vom Spielverlauf. Keine automatische Wochen-Gutschrift mehr. UI: `RewardDialog`, zwei große Karten mit isometrischem Mini-Diorama auf dem Canvas, Wahl per Tippen (Finger runter und hoch auf derselben Karte). WLAN-AP und Cache-Knoten fehlen im Pool, bis es diese Items gibt (P2.1 bzw. später) |
 | Stau | Kabel tragen begrenzte Bandbreite gleichzeitig; Pakete warten an Knoten |
-| Server-Stufen | Tipp auf Server = Aufrüsten (zuerst mit Server-Gutschein, sonst mit Budget), höhere Türme, begrenzter Durchsatz; offene Gutscheine stehen im HUD |
+| Server-Stufen | Tipp auf Server = Aufrüsten (zuerst mit Server-Gutschein, sonst mit Budget), höhere Türme, begrenzter Durchsatz; offene Gutscheine stehen im HUD. Stufe 4 **Rechenzentrum** (siehe 5.3): belegt 2×2 Felder, 8 Ports, 8 Anfragen/s, breites isometrisches Gebäude. Geht das Aufrüsten nicht, liefert `World.serverUpgradeError` einen Grund (`ServerUpgradeError`), den das HUD kurz als Text aus `strings.xml` anzeigt |
 | Game Over | ≥ 6 wartende Anfragen → roter Ring füllt sich in 18 s → „Netz überlastet“ |
 | Grafik | Zwei Stile umschaltbar: **Flat** (Mini-Metro-Look, Übersichtsmodus) und **Isometrisch** (2,5D-Kacheln); beide zeichnen Kabel und Pakete aus demselben Layout, Flat rundet die Ecken nur optisch ab. Die Zieh-Vorschau zeigt genau das Layout und den Preis, die beim Loslassen gebaut werden |
 | Texte | HUD-Texte in `strings.xml` (Deutsch); Ereignistexte der Logik (`lastEvent`) noch fest im Code |
 | Steuerung | Ziehen = Kabel legen (die Zieh-Spur bestimmt den Knick) · Tippen auf Kabel = Upgrade auf gewählte Technik bzw. entfernen · Router-Knopf + Feld tippen |
-| Tests | `:core`: `WorldTest` (Regeln), `RewardsTest` (Angebot deterministisch und eindeutig, Pause, Wirkung jeder Belohnung, Gutschein-Regeln, Freischalt-Meldung), `CableLayoutTest` (Layout-Form, Kosten = Layout, Wassererkennung, Knick-Wahl, Paketbewegung und Laufzeit), `FixedStepTest` (Zeitschritt, Determinismus); `:app`: `RendererLayoutTest` (beide Stile liefern identische Kabelwege und Paketpositionen), `ScreenshotTest` (Robolectric rendert beide Stile, die Zieh-Vorschau und ein komplettes Spielbild mit HUD, die Wochen-Belohnung über der Iso-Karte und alle Belohnungskarten inkl. gedrückter Karte nach `docs/screenshots/`) |
+| Tests | `:core`: `WorldTest` (Regeln), `RoundTripTest` (Anfrage wird Antwort, Zustellung erst bei Rückkehr, gleiche Laufzeit zurück, Antworten teilen Kabelkapazität, Ping = beide Wege, Gaming über Distanz nur mit Glasfaser), `DataCenterTest` (2×2-Belegung, Ausweich-Block, Fehler ohne Platz bzw. bei Wasser, Gutschein-Eignung, belegte Felder, 8 Ports, Durchsatz 5/s gegen 8/s), `RewardsTest` (Angebot deterministisch und eindeutig, Pause, Wirkung jeder Belohnung, Gutschein-Regeln, Freischalt-Meldung), `CableLayoutTest` (Layout-Form, Kosten = Layout, Wassererkennung, Knick-Wahl, Paketbewegung und Laufzeit), `FixedStepTest` (Zeitschritt, Determinismus); `:app`: `RendererLayoutTest` (beide Stile liefern identische Kabelwege und Paketpositionen), `ScreenshotTest` (Robolectric rendert beide Stile, die Zieh-Vorschau und ein komplettes Spielbild mit HUD, die Wochen-Belohnung über der Iso-Karte, alle Belohnungskarten inkl. gedrückter Karte sowie Hin-/Rückweg mit Rechenzentrum in beiden Stilen (`round-trip-*.png`) nach `docs/screenshots/`) |
 
 Die Stilstudie mit vier Looks (Flat, Iso, Pixel, Platine) liegt in `docs/style-explorations.html`.
 
@@ -47,7 +48,7 @@ Die Stilstudie mit vier Looks (Flat, Iso, Pixel, Platine) liegt in `docs/style-e
 
 ```
 core/src/main/kotlin/com/mininetworks/game/game/   (Gradle-Modul :core, reines Kotlin/JVM)
-  Model.kt                  Service, Device, CableType, Node, Cable, Packet, Route, Geometry
+  Model.kt                  Service, Device, CableType, Node (inkl. Footprint), ServerUpgradeError, Cable, Packet (Anfrage/Antwort), Route, Geometry
   CableLayout.kt            Cell, Bend, CableLayout (Kabelgeometrie auf dem Raster, Knick-Vorschlag aus der Zieh-Spur)
   World.kt                  Spielzustand, Regeln, Simulation, Routing
   Rewards.kt                Reward, RewardOffer, deterministische Auswahl der Wochen-Belohnungen
@@ -55,6 +56,8 @@ core/src/main/kotlin/com/mininetworks/game/game/   (Gradle-Modul :core, reines K
   DebugApi.kt               Opt-in-Markierung für Test-/Debug-Hooks
 core/src/test/kotlin/com/mininetworks/game/game/
   WorldTest.kt              Regeltests
+  RoundTripTest.kt          Hin- und Rückweg, Ping beider Wege
+  DataCenterTest.kt         Server-Stufe 4 „Rechenzentrum“
   CableLayoutTest.kt        Kabel-Layout: Kosten, Wasser, Knick, Paketbewegung
   FixedStepTest.kt          Zeitschritt und Determinismus
   RewardsTest.kt            Wochen-Belohnungen
@@ -141,8 +144,8 @@ Umgesetzt in P1.1 mit 2 von 3 (+Budget, +2 Router, Server-Gutschein als „Reche
 
 ### 3.5 Weitere Mechaniken (priorisiert)
 
-1. **Server-Durchsatz:** umgesetzt (siehe 5.3); fehlt noch: Rechenzentrum als Stufe 4.
-2. **Antworten:** Pakete laufen hin **und zurück**; der Ping zählt beide Wege.
+1. **Server-Durchsatz:** umgesetzt inkl. Rechenzentrum als Stufe 4 (siehe 5.3).
+2. **Antworten:** umgesetzt in P1.2: Pakete laufen hin **und zurück**; der Ping zählt beide Wege.
 3. **Kamera/Zoom:** Die Karte wächst mit der Zeit (wie Mini Motorways); Pinch-Zoom und Pan.
 4. **Störungen:** Ein Bagger kappt ein Kabel, ein Stromausfall legt einen Router für 10 s lahm. Selten, angekündigt.
 5. **Cache/CDN-Knoten:** Liefert Streaming aus der Nähe und entlastet das Backbone.
@@ -176,7 +179,6 @@ Kein Multiplayer, keine Online-Pflicht, kein Shop, keine Werbung im MVP. iOS ers
 
 - Ereignistexte aus der Logik (`World.lastEvent`) sind fest auf Deutsch im Code; die HUD-Texte liegen in `strings.xml`.
 - Keine Kamera; die Karte passt immer komplett auf den Bildschirm.
-- Pakete laufen nur zum Server, nicht zurück.
 - Kein Speichern, keine Einstellungen, kein Menü.
 
 ## 5. Entscheidungen
@@ -210,9 +212,14 @@ Kein Multiplayer, keine Online-Pflicht, kein Shop, keine Werbung im MVP. iOS ers
 
 ### 5.3 Server-Stufen (umgesetzt im Prototyp)
 
-Server haben Hardware-Stufen 1–3 mit 1,5 / 3 / 5 Paketen pro Sekunde. Ein Tipp auf den Server rüstet für 8 bzw. 16 Budget auf.
-Jede Stufe ist eine zusätzliche gestapelte Rack-Einheit: große Server sind sichtbar höhere Türme. Ist ein Server ausgelastet,
-stauen sich Pakete am Kabelende und die LEDs leuchten rot. Später: Stufe 4 „Rechenzentrum“ (belegt 2×2 Felder).
+Server haben Hardware-Stufen 1–4 mit 1,5 / 3 / 5 / 8 Anfragen pro Sekunde. Ein Tipp auf den Server rüstet für 8, 16 bzw. 28 Budget auf
+(oder mit einem Server-Gutschein). Stufen 1–3 sind gestapelte Rack-Einheiten: große Server sind sichtbar höhere Türme.
+Stufe 4 „Rechenzentrum“ belegt 2×2 Felder: einer der vier 2×2-Blöcke, die das Server-Feld enthalten (Reihenfolge: Server oben links,
+oben rechts, unten links, unten rechts), dessen drei übrige Felder trocken, auf der Karte und frei von anderen Knoten sind.
+Passt keiner, ist das Aufrüsten gesperrt (`ServerUpgradeError.NO_SPACE`; ein Gutschein wird dann auch nicht mehr angeboten).
+Kabel docken weiter am ursprünglichen Server-Feld an und dürfen, wie bei allen Knoten, durch die belegten Felder laufen.
+Das Rechenzentrum hat 8 Ports und wird als breite, flache Halle mit Rack-LEDs an beiden Wänden und Kühlung auf dem Dach gezeichnet.
+Ist ein Server ausgelastet, stauen sich Anfragen am Kabelende und die LEDs leuchten rot.
 
 ## 6. Arbeitspakete für den Ultracode-Workflow
 
@@ -245,8 +252,10 @@ Regeln für alle Pakete:
 - Stand: Pool aus +Budget (16), +2 Router, Server-Gutschein. WLAN-AP (P2.1) und Cache-Knoten sind nicht im Pool, weil es die Items noch nicht gibt;
   P2.1 ergänzt `Reward` und `World.chooseReward`. Die feste Wochen-Gutschrift (+12 Budget, +1 Router) entfällt dafür (Balancing in Welle 4).
 
-**P1.2 Hin- und Rückweg, Rechenzentrum-Stufe** · Dateien: `core/.../World.kt` (Abschnitt Simulation), `core/.../Packet*`
+**P1.2 Hin- und Rückweg, Rechenzentrum-Stufe** · Dateien: `core/.../World.kt` (Abschnitt Simulation), `core/.../Model.kt` (`Packet`) · umgesetzt
 - Antwortpakete, Ping zählt beide Wege; Server-Stufe 4 „Rechenzentrum“ (2×2 Felder).
+- Stand: Ping-Limits auf Hin- und Rückweg umgestellt (Telefonie 150 → 300 ms, Gaming 60 → 110 ms, also etwas strenger als vorher);
+  Antworten haben Vorrang beim Einfädeln. Balancing der Stufe-4-Kosten (28) in Welle 4.
 
 **P1.3 Kamera: Zoom und Pan, wachsende Karte** · Dateien: `app/.../ui/Camera.kt`, `Renderer`-Projektion
 - Pinch-Zoom, Zwei-Finger-Pan, Karte wächst alle 2 Wochen um einen Ring. Touch-Ziele bleiben ≥ 48 dp.

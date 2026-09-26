@@ -132,7 +132,8 @@ class CableLayoutTest {
                 val pos = w.packetPosition(p)
                 assertTrue("off grid: $pos", isOnGrid(pos))
                 assertTrue(Geometry.distToPolyline(pos, cable.layout.waypoints) < 1e-4f)
-                assertEquals(cable.layout.pointAt(1f - p.progress), pos)
+                // Requests run from the phone (layout end) to the server, responses the other way.
+                assertEquals(cable.layout.pointAt(if (p.isResponse) p.progress else 1f - p.progress), pos)
                 if (pos.x > 4f && pos.y < 2f) sawCorner = true
                 checked++
             }

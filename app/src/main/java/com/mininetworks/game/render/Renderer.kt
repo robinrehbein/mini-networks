@@ -236,6 +236,31 @@ class DeviceIcons {
         Shapes.draw(canvas, service.shape, x + s * 0.8f, top + if (service.shape == Shape.TRIANGLE) s * 0.04f else 0f, s * 0.22f, body)
     }
 
+    /** Data center (server tier 4) spanning 2×2 cells around ([x], [y]): rows of racks with LEDs and a service badge. */
+    fun dataCenter(c: Canvas, service: Service, busy: Boolean, x: Float, y: Float, s: Float, time: Float) {
+        canvas = c
+        val col = ServiceColors.of(service)
+        box(x - s, y - s * 0.8f, x + s, y + s * 0.85f, s * 0.12f, col, s * 0.35f)
+        for (row in 0 until 4) {
+            val ry = y - s * 0.55f + row * s * 0.36f
+            rect.set(x - s * 0.8f, ry - s * 0.1f, x + s * 0.55f, ry + s * 0.1f)
+            body.color = col.shade(-0.3f); canvas.drawRect(rect, body)
+            for (i in 0 until 4) {
+                body.color = when {
+                    busy -> 0xFFFF5A5A.toInt()
+                    sin(time * 4f + i * 1.7f + row * 2.3f) > 0f -> 0xFF7CF29A.toInt()
+                    else -> col.shade(-0.45f)
+                }
+                canvas.drawCircle(x - s * 0.62f + i * s * 0.3f, ry, s * 0.045f, body)
+            }
+        }
+        body.color = 0xFFFFFFFF.toInt()
+        canvas.drawCircle(x + s * 0.85f, y - s * 0.8f, s * 0.26f, body)
+        line.strokeWidth = s * 0.05f; canvas.drawCircle(x + s * 0.85f, y - s * 0.8f, s * 0.26f, line)
+        body.color = col
+        Shapes.draw(canvas, service.shape, x + s * 0.85f, y - s * 0.8f + if (service.shape == Shape.TRIANGLE) s * 0.02f else 0f, s * 0.13f, body)
+    }
+
     fun router(c: Canvas, x: Float, y: Float, s: Float, time: Float) {
         canvas = c
         line.strokeWidth = s * 0.14f
