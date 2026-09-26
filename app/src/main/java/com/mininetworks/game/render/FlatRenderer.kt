@@ -7,17 +7,15 @@ import android.graphics.RectF
 import android.graphics.Typeface
 import com.mininetworks.game.game.Geometry
 import com.mininetworks.game.game.NodeKind
-import com.mininetworks.game.game.Shape
 import com.mininetworks.game.game.Vec2
 import com.mininetworks.game.game.World
 
-/** Style A from design/style-explorations.html: Mini-Metro-like, flat vector, 45° cables. */
+/** Style A from docs/style-explorations.html: Mini-Metro-like, flat vector, 45° cables. */
 class FlatRenderer : Renderer {
     override val name = "Flat"
 
     private val land = 0xFFF3F1EC.toInt()
     private val waterColor = 0xFFC3DCE8.toInt()
-    private val cableColor = 0xFF39424E.toInt()
     private val ink = 0xFF262B33.toInt()
     private val alarm = 0xFFD7263D.toInt()
 
@@ -29,6 +27,7 @@ class FlatRenderer : Renderer {
     private val fillP = fill(0)
     private val strokeP = stroke(0)
     private val path = Path()
+    private val icons = DeviceIcons()
     private val arcRect = RectF()
     private val labelP = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = Typeface.DEFAULT_BOLD; textAlign = Paint.Align.CENTER }
 
@@ -47,54 +46,56 @@ class FlatRenderer : Renderer {
 
         for (c in world.cables) {
             polyline(cablePath(c.a, c.b))
-            strokeP.color = land; strokeP.strokeWidth = cell * 0.3f; canvas.drawPath(path, strokeP)
-            val load = world.cableLoad(c)
-            strokeP.color = if (load >= c.capacity) cableColor.shade(0.25f) else cableColor
-            strokeP.strokeWidth = cell * 0.15f
-            canvas.drawPath(path, strokeP)
+            val st = CableStyles.of(c.type)
+            strokeP.color = land; strokeP.strokeWidth = cell * (st.width + 0.12f); canvas.drawPath(path, strokeP)
+            strokeP.color = st.color; strokeP.strokeWidth = cell * st.width; canvas.drawPath(path, strokeP)
+            st.core?.let { strokeP.color = it; strokeP.strokeWidth = cell * st.coreWidth; canvas.drawPath(path, strokeP) }
+            if (world.cableLoad(c) >= c.capacity) {
+                strokeP.color = alarm and 0x80FFFFFF.toInt(); strokeP.strokeWidth = cell * 0.05f; canvas.drawPath(path, strokeP)
+            }
         }
 
         drag?.let { d ->
             val end = d.target?.center ?: d.end
             polyline(Geometry.octo(d.from.center, end))
-            strokeP.color = if (d.error == null) cableColor.shade(0.35f) else alarm
-            strokeP.strokeWidth = cell * 0.15f
+            val st = CableStyles.of(d.type)
+            strokeP.color = if (d.error == null) st.color and 0x99FFFFFF.toInt() else alarm
+            strokeP.strokeWidth = cell * maxOf(st.width, 0.12f)
             canvas.drawPath(path, strokeP)
             val s = toScreen(end)
             labelP.textSize = cell * 0.36f
-            labelP.color = strokeP.color
-            canvas.drawText(d.error ?: "${d.cost} Kabel", s.x, s.y - cell * 0.6f, labelP)
+            labelP.color = if (d.error == null) ink else alarm
+            canvas.drawText(d.error ?: "${d.type.label} · ${d.cost}", s.x, s.y - cell * 0.7f, labelP)
         }
 
         for (p in world.packets) {
             val s = toScreen(packetPosition(p))
-            fillP.color = TypeColors.flat(p.type)
-            Shapes.draw(canvas, p.type.shape, s.x, s.y, cell * 0.13f, fillP)
+            fillP.color = ServiceColors.of(p.service)
+            Shapes.draw(canvas, p.service.shape, s.x, s.y, cell * (0.09f + 0.03f * p.size), fillP)
+            strokeP.color = land; strokeP.strokeWidth = cell * 0.035f
+            Shapes.draw(canvas, p.service.shape, s.x, s.y, cell * (0.09f + 0.03f * p.size), strokeP)
         }
 
         for (n in world.nodes) {
             val s = toScreen(n.center)
             when (n.kind) {
-                NodeKind.ROUTER -> {
-                    fillP.color = 0xFFFFFFFF.toInt(); canvas.drawCircle(s.x, s.y, cell * 0.22f, fillP)
-                    strokeP.color = ink; strokeP.strokeWidth = cell * 0.08f; canvas.drawCircle(s.x, s.y, cell * 0.22f, strokeP)
-                }
-                NodeKind.SERVER -> {
-                    val t = n.type!!
-                    fillP.color = TypeColors.flat(t); Shapes.draw(canvas, t.shape, s.x, s.y, cell * 0.42f, fillP)
-                    fillP.color = 0xFFFFFFFF.toInt()
-                    Shapes.draw(canvas, t.shape, s.x, s.y + if (t.shape == Shape.TRIANGLE) cell * 0.05f else 0f, cell * 0.16f, fillP)
-                }
+                NodeKind.ROUTER -> icons.router(canvas, s.x, s.y, cell * 0.3f, time)
+                NodeKind.SERVER -> icons.server(canvas, n.service!!, s.x, s.y, cell * 0.34f, time)
                 NodeKind.CLIENT -> {
-                    val t = n.type!!
-                    fillP.color = 0xFFFFFFFF.toInt(); Shapes.draw(canvas, t.shape, s.x, s.y, cell * 0.26f, fillP)
-                    strokeP.color = ink; strokeP.strokeWidth = cell * 0.08f; Shapes.draw(canvas, t.shape, s.x, s.y, cell * 0.26f, strokeP)
-                    fillP.color = TypeColors.flat(t)
-                    for (i in 0 until minOf(n.pending, 8)) {
-                        Shapes.draw(canvas, t.shape, s.x + cell * (0.5f + (i % 4) * 0.22f), s.y - cell * 0.12f + (i / 4) * cell * 0.24f, cell * 0.08f, fillP)
+                    icons.device(canvas, n.device!!, s.x, s.y, cell * 0.3f)
+                    n.pending.take(8).forEachIndexed { i, svc ->
+                        val px = s.x + cell * (0.52f + (i % 4) * 0.22f)
+                        val py = s.y - cell * 0.12f + (i / 4) * cell * 0.24f
+                        fillP.color = ServiceColors.of(svc)
+                        Shapes.draw(canvas, svc.shape, px, py, cell * 0.08f, fillP)
+                        if (world.routeFor(n, svc) == null && world.bestRoute(n, svc) != null) {
+                            // Reachable, but the ping is too high for this real-time service.
+                            strokeP.color = alarm; strokeP.strokeWidth = cell * 0.03f
+                            Shapes.draw(canvas, svc.shape, px, py, cell * 0.11f, strokeP)
+                        }
                     }
                     if (n.overload > 0f) {
-                        arcRect.set(s.x - cell * 0.46f, s.y - cell * 0.46f, s.x + cell * 0.46f, s.y + cell * 0.46f)
+                        arcRect.set(s.x - cell * 0.48f, s.y - cell * 0.48f, s.x + cell * 0.48f, s.y + cell * 0.48f)
                         strokeP.color = alarm; strokeP.strokeWidth = cell * 0.07f
                         canvas.drawArc(arcRect, -90f, 360f * n.overload, false, strokeP)
                     }

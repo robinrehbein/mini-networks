@@ -9,14 +9,49 @@ import kotlin.math.sign
 /** Point in world space. One unit = one grid cell. */
 data class Vec2(val x: Float, val y: Float)
 
-/** What kind of traffic a client asks for and a server delivers. Shape carries meaning, color only supports it. */
-enum class DataType(val shape: Shape) {
-    VIDEO(Shape.CIRCLE),
-    MAIL(Shape.SQUARE),
-    GAME(Shape.TRIANGLE),
+enum class Shape { CIRCLE, SQUARE, TRIANGLE, DIAMOND }
+
+/**
+ * What a device wants from the network. Each service has a bandwidth need (packet size in capacity units)
+ * and optionally a ping limit: real-time services fail on slow routes even when bandwidth is free.
+ * The shape is the primary signal (colorblind-safe), color only supports it.
+ */
+enum class Service(val label: String, val shape: Shape, val bandwidth: Int, val maxPingMs: Int?) {
+    MAIL("Mail", Shape.SQUARE, 1, null),
+    CALL("Telefonie", Shape.DIAMOND, 1, 150),
+    GAMING("Gaming", Shape.TRIANGLE, 1, 60),
+    STREAMING("Streaming", Shape.CIRCLE, 3, null),
 }
 
-enum class Shape { CIRCLE, SQUARE, TRIANGLE }
+/** Client devices. They appear over the eras and each asks for a mix of services. */
+enum class Device(val label: String, val services: List<Service>, val unlockWeek: Int) {
+    PC("PC", listOf(Service.MAIL, Service.GAMING), 1),
+    PHONE("Telefon", listOf(Service.CALL), 1),
+    LAPTOP("Laptop", listOf(Service.MAIL, Service.STREAMING, Service.CALL), 2),
+    CONSOLE("Konsole", listOf(Service.GAMING), 3),
+    SMARTPHONE("Smartphone", listOf(Service.CALL, Service.STREAMING, Service.MAIL), 4),
+    TV("Smart-TV", listOf(Service.STREAMING), 4),
+    TABLET("Tablet", listOf(Service.STREAMING, Service.MAIL), 5),
+    WATCH("Smartwatch", listOf(Service.CALL), 6),
+}
+
+/**
+ * Cable technologies, unlocked era by era.
+ * capacity: bandwidth units in flight at once. msPerCell: latency per grid cell. speed: visual packet speed.
+ */
+enum class CableType(
+    val label: String,
+    val capacity: Int,
+    val msPerCell: Float,
+    val speed: Float,
+    val costPerCell: Int,
+    val unlockWeek: Int,
+) {
+    ISDN("ISDN", 2, 22f, 1.4f, 1, 1),
+    DSL("DSL", 4, 11f, 2.0f, 1, 2),
+    COAX("Kabel", 6, 8f, 2.4f, 2, 3),
+    FIBER("Glasfaser", 12, 2.5f, 3.6f, 3, 5),
+}
 
 enum class NodeKind(val maxPorts: Int) {
     CLIENT(2),
@@ -27,14 +62,17 @@ enum class NodeKind(val maxPorts: Int) {
 class Node(
     val id: Int,
     val kind: NodeKind,
-    val type: DataType?,
+    /** Set for clients. */
+    val device: Device?,
+    /** Set for servers: the one service this server delivers. */
+    val service: Service?,
     val cellX: Int,
     val cellY: Int,
 ) {
     val center = Vec2(cellX + 0.5f, cellY + 0.5f)
 
-    /** Requests waiting to be sent (clients only). */
-    var pending = 0
+    /** Requests waiting to be sent (clients only), oldest first. */
+    val pending = ArrayDeque<Service>()
 
     /** 0..1, game over when a client reaches 1. */
     var overload = 0f
@@ -42,24 +80,32 @@ class Node(
     internal var requestTimer = 0f
     internal var dispatchCooldown = 0f
 
-    override fun toString() = "$kind#$id${type?.let { "($it)" } ?: ""}@$cellX,$cellY"
+    override fun toString() = "$kind#$id(${device ?: service ?: ""})@$cellX,$cellY"
 }
 
-class Cable(val a: Node, val b: Node, val cost: Int, val crossesWater: Boolean) {
-    val capacity = 3
+class Cable(val a: Node, val b: Node, var type: CableType, var cost: Int, val crossesWater: Boolean) {
+    val capacity get() = type.capacity
     val length: Float = Geometry.polylineLength(Geometry.octo(a.center, b.center))
+    val latencyMs get() = length * type.msPerCell
 
     fun other(n: Node) = if (n === a) b else a
     fun connects(n: Node) = n === a || n === b
 }
 
+class Route(val nodes: List<Node>, val pingMs: Float)
+
 /** A request travelling from a client to a matching server. */
-class Packet(val type: DataType, val origin: Node, val route: List<Node>) {
+class Packet(val service: Service, val origin: Node, val route: List<Node>) {
+    val size get() = service.bandwidth
+
     /** Index of the node the packet last left (or waits at). */
     var hop = 0
 
     /** Progress 0..1 along the cable between route[hop] and route[hop + 1]; -1 while waiting at route[hop]. */
     var progress = -1f
+
+    /** False once the packet reached its server (it is removed at the end of the frame). */
+    val inTransit get() = hop < route.size - 1
 
     val from get() = route[hop]
     val to get() = route[hop + 1]

@@ -9,9 +9,11 @@ import android.graphics.Typeface
 import android.view.Choreographer
 import android.view.MotionEvent
 import android.view.View
+import com.mininetworks.game.game.CableType
 import com.mininetworks.game.game.Node
 import com.mininetworks.game.game.Vec2
 import com.mininetworks.game.game.World
+import com.mininetworks.game.render.CableStyles
 import com.mininetworks.game.render.DragPreview
 import com.mininetworks.game.render.FlatRenderer
 import com.mininetworks.game.render.IsoRenderer
@@ -25,7 +27,8 @@ import kotlin.math.hypot
  *
  * Controls:
  *  - drag from a node to another node: lay a cable
- *  - tap a cable: remove it (refunds its cost)
+ *  - pick a cable technology in the bottom-left bar (ISDN, DSL, Kabel, Glasfaser)
+ *  - tap a cable: upgrade it to the picked technology, or remove it if it already is that type
  *  - "Router" button, then tap an empty cell: place a router
  *  - "Stil" button: switch between flat and isometric rendering
  */
@@ -38,6 +41,7 @@ class GameView(context: Context) : View(context), Choreographer.FrameCallback {
 
     private var paused = false
     private var routerMode = false
+    private var cableType = CableType.ISDN
     private var lastFrameNanos = 0L
     private var animTime = 0f
 
@@ -53,6 +57,7 @@ class GameView(context: Context) : View(context), Choreographer.FrameCallback {
     private val btnActive = fill(0xFF262B33.toInt())
     private val btnText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; textSize = 14 * density }
     private val barBg = fill(0x33262B33)
+    private val swatch = fill(0)
     private val barFg = fill(0xFF262B33.toInt())
     private val overlay = fill(0xCCF3F1EC.toInt())
     private val bigText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; color = 0xFF262B33.toInt() }
@@ -100,8 +105,9 @@ class GameView(context: Context) : View(context), Choreographer.FrameCallback {
             from = from,
             end = end,
             target = target,
-            error = target?.let { world.connectError(from, it) },
-            cost = target?.let { world.cableCost(from, it) },
+            type = cableType,
+            error = target?.let { world.connectError(from, it, cableType) },
+            cost = target?.let { world.cableCost(from, it, cableType) },
         )
     }
 
@@ -109,7 +115,7 @@ class GameView(context: Context) : View(context), Choreographer.FrameCallback {
 
     private fun drawHud(canvas: Canvas) {
         val pad = 16 * density
-        canvas.drawText("Woche ${world.week}", pad, pad + hudText.textSize, hudText)
+        canvas.drawText("${world.year} · Woche ${world.week}", pad, pad + hudText.textSize, hudText)
         val barY = pad + hudText.textSize + 8 * density
         val barW = 110 * density
         canvas.drawRoundRect(pad, barY, pad + barW, barY + 4 * density, 2 * density, 2 * density, barBg)
@@ -120,7 +126,7 @@ class GameView(context: Context) : View(context), Choreographer.FrameCallback {
         canvas.drawText("${world.delivered} Pakete", right, pad + hudText.textSize, hudText)
         hudText.textAlign = Paint.Align.LEFT
         hudSub.textAlign = Paint.Align.RIGHT
-        canvas.drawText("Kabel ${world.cableBudget}  ·  Router ${world.routersAvailable}", right, pad + hudText.textSize + 20 * density, hudSub)
+        canvas.drawText("Budget ${world.budget}  ·  Router ${world.routersAvailable}", right, pad + hudText.textSize + 20 * density, hudSub)
         hudSub.textAlign = Paint.Align.LEFT
 
         world.lastEvent?.let {
@@ -149,7 +155,23 @@ class GameView(context: Context) : View(context), Choreographer.FrameCallback {
             buttons += Button(id, r)
             x -= w + gap
         }
-        if (routerMode) canvas.drawText("Tippe auf ein freies Feld", pad, height - pad - bh / 2 + hudSub.textSize * 0.35f, hudSub)
+        // Cable technology picker, bottom left. Only invented technologies are shown.
+        var cx = pad
+        for (t in world.unlockedCables) {
+            val label = "${t.label} · ${t.costPerCell}"
+            val w = btnText.measureText(label) + 28 * density
+            val r = RectF(cx, y, cx + w, y + bh)
+            val active = t == cableType
+            canvas.drawRoundRect(r, bh / 2, bh / 2, if (active) btnActive else btnFill)
+            val st = CableStyles.of(t)
+            swatch.color = st.color
+            canvas.drawCircle(r.left + 14 * density, r.centerY(), 5 * density, swatch)
+            btnText.color = if (active) 0xFFFFFFFF.toInt() else 0xFF262B33.toInt()
+            canvas.drawText(label, r.centerX() + 6 * density, r.centerY() + btnText.textSize * 0.35f, btnText)
+            buttons += Button("cable:${t.name}", r)
+            cx += w + gap
+        }
+        if (routerMode) canvas.drawText("Tippe auf ein freies Feld", pad, y - 10 * density, hudSub)
     }
 
     private fun drawGameOver(canvas: Canvas) {
@@ -187,9 +209,9 @@ class GameView(context: Context) : View(context), Choreographer.FrameCallback {
                 val p = renderer.toWorld(e.x, e.y)
                 val isTap = hypot(e.x - downX, e.y - downY) < 12 * density
                 if (from != null && !isTap) {
-                    world.nodeNear(p)?.let { if (it !== from) world.connect(from, it) }
+                    world.nodeNear(p)?.let { if (it !== from) world.connect(from, it, cableType) }
                 } else if (isTap && from == null) {
-                    renderer.cableNear(world, p)?.let { world.removeCable(it) }
+                    renderer.cableNear(world, p)?.let { if (it.type == cableType) world.removeCable(it) else world.upgrade(it, cableType) }
                 }
                 dragFrom = null; dragEnd = null
             }
@@ -206,6 +228,7 @@ class GameView(context: Context) : View(context), Choreographer.FrameCallback {
                 renderer.layout(width, height, world)
             }
             "router" -> routerMode = !routerMode && world.routersAvailable > 0
+            else -> if (id.startsWith("cable:")) cableType = CableType.valueOf(id.removePrefix("cable:"))
         }
     }
 
@@ -214,5 +237,6 @@ class GameView(context: Context) : View(context), Choreographer.FrameCallback {
         renderers.forEach { it.layout(width, height, world) }
         paused = false
         routerMode = false
+        cableType = CableType.ISDN
     }
 }

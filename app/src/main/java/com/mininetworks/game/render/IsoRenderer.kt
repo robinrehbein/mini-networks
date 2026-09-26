@@ -12,7 +12,7 @@ import com.mininetworks.game.game.Vec2
 import com.mininetworks.game.game.World
 import kotlin.math.sin
 
-/** Style B from design/style-explorations.html: isometric tiles, extruded buildings, grid-aligned cables. */
+/** Style B from docs/style-explorations.html: isometric tiles, extruded buildings, grid-aligned cables. */
 class IsoRenderer : Renderer {
     override val name = "Iso"
 
@@ -20,7 +20,6 @@ class IsoRenderer : Renderer {
     private val landB = 0xFFD5E3CD.toInt()
     private val waterA = 0xFF8FC3DA.toInt()
     private val waterB = 0xFFA4D0E3.toInt()
-    private val road = 0xFF5B6570.toInt()
     private val alarm = 0xFFD7263D.toInt()
 
     private var tw = 1f
@@ -32,6 +31,7 @@ class IsoRenderer : Renderer {
     private val fillP = fill(0)
     private val strokeP = stroke(0)
     private val path = Path()
+    private val icons = DeviceIcons()
     private val oval = RectF()
     private val labelP = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = Typeface.DEFAULT_BOLD; textAlign = Paint.Align.CENTER }
 
@@ -70,17 +70,19 @@ class IsoRenderer : Renderer {
 
         for (c in world.cables) {
             polyline(cablePath(c.a, c.b))
-            strokeP.color = 0xB3FFFFFF.toInt(); strokeP.strokeWidth = tw * 0.2f; canvas.drawPath(path, strokeP)
-            strokeP.color = if (world.cableLoad(c) >= c.capacity) road.shade(0.3f) else road
-            strokeP.strokeWidth = tw * 0.11f; canvas.drawPath(path, strokeP)
+            val st = CableStyles.of(c.type)
+            strokeP.color = 0xB3FFFFFF.toInt(); strokeP.strokeWidth = tw * (st.width * 0.75f + 0.08f); canvas.drawPath(path, strokeP)
+            strokeP.color = st.color; strokeP.strokeWidth = tw * st.width * 0.75f; canvas.drawPath(path, strokeP)
+            st.core?.let { strokeP.color = it; strokeP.strokeWidth = tw * st.coreWidth * 0.75f; canvas.drawPath(path, strokeP) }
         }
         drag?.let { d ->
             val end = d.target?.center ?: d.end
             polyline(Geometry.lPath(d.from.center, end))
-            strokeP.color = if (d.error == null) road.shade(0.4f) else alarm
-            strokeP.strokeWidth = tw * 0.11f; canvas.drawPath(path, strokeP)
-            labelP.textSize = tw * 0.28f; labelP.color = strokeP.color
-            canvas.drawText(d.error ?: "${d.cost} Kabel", sx(end.x, end.y), sy(end.x, end.y) - th * 1.4f, labelP)
+            val st = CableStyles.of(d.type)
+            strokeP.color = if (d.error == null) st.color and 0x99FFFFFF.toInt() else alarm
+            strokeP.strokeWidth = tw * maxOf(st.width, 0.12f) * 0.75f; canvas.drawPath(path, strokeP)
+            labelP.textSize = tw * 0.28f; labelP.color = if (d.error == null) 0xFF2F3A34.toInt() else alarm
+            canvas.drawText(d.error ?: "${d.type.label} · ${d.cost}", sx(end.x, end.y), sy(end.x, end.y) - th * 1.6f, labelP)
         }
 
         // Painter's algorithm: everything with height is drawn back-to-front by x + y.
@@ -91,8 +93,8 @@ class IsoRenderer : Renderer {
             items += (pos.x + pos.y + 0.01f) to {
                 oval.set(sx(pos.x, pos.y) - tw * 0.07f, sy(pos.x, pos.y) - th * 0.07f, sx(pos.x, pos.y) + tw * 0.07f, sy(pos.x, pos.y) + th * 0.07f)
                 fillP.color = 0x2E000000; canvas.drawOval(oval, fillP)
-                fillP.color = TypeColors.iso(p.type)
-                Shapes.draw(canvas, p.type.shape, sx(pos.x, pos.y), sy(pos.x, pos.y, 0.35f), tw * 0.075f, fillP)
+                fillP.color = ServiceColors.of(p.service)
+                Shapes.draw(canvas, p.service.shape, sx(pos.x, pos.y), sy(pos.x, pos.y, 0.35f), tw * (0.05f + 0.02f * p.size), fillP)
             }
         }
         items.sortBy { it.first }
@@ -111,7 +113,7 @@ class IsoRenderer : Renderer {
         val x = n.center.x; val y = n.center.y
         when (n.kind) {
             NodeKind.SERVER -> {
-                val col = TypeColors.iso(n.type!!)
+                val col = ServiceColors.of(n.service!!)
                 box(canvas, x, y, 0.78f, 2.0f, col.shade(0.15f), 0xFFE9ECEF.toInt())
                 for (i in 0 until 4) {
                     val on = sin(time * 3f + i * 1.7f + x) > 0f
@@ -119,23 +121,22 @@ class IsoRenderer : Renderer {
                     val lx = sx(x + 0.39f, y - 0.25f); val ly = sy(x + 0.39f, y - 0.25f, 0.45f + i * 0.38f)
                     canvas.drawRect(lx - tw * 0.04f, ly - th * 0.08f, lx + tw * 0.06f, ly + th * 0.04f, fillP)
                 }
+                val bx = sx(x, y); val by = sy(x, y, 2.0f)
+                fillP.color = 0xFFFFFFFF.toInt()
+                Shapes.draw(canvas, n.service.shape, bx, by, tw * 0.1f, fillP)
             }
             NodeKind.CLIENT -> {
-                val t = n.type!!
-                box(canvas, x, y, 0.56f, 0.55f, TypeColors.iso(t), 0xFFFAFAF7.toInt())
-                fillP.color = 0xFFFFFFFF.toInt()
-                Shapes.draw(canvas, t.shape, sx(x, y), sy(x, y, 0.55f), tw * 0.07f, fillP)
-                fillP.color = TypeColors.iso(t)
-                for (i in 0 until minOf(n.pending, 8)) {
-                    Shapes.draw(canvas, t.shape, sx(x, y) + tw * (0.35f + (i % 4) * 0.13f), sy(x, y, 1.1f) + (i / 4) * th * 0.3f, tw * 0.05f, fillP)
+                val d = n.device!!
+                box(canvas, x, y, 0.5f, 0.2f, 0xFFFAFAF7.toInt(), 0xFFE3E6E1.toInt())
+                icons.device(canvas, d, sx(x, y), sy(x, y, 0.2f) - tw * 0.2f, tw * 0.2f)
+                n.pending.take(8).forEachIndexed { i, svc ->
+                    fillP.color = ServiceColors.of(svc)
+                    Shapes.draw(canvas, svc.shape, sx(x, y) + tw * (0.35f + (i % 4) * 0.13f), sy(x, y, 1.1f) + (i / 4) * th * 0.3f, tw * 0.05f, fillP)
                 }
             }
             NodeKind.ROUTER -> {
-                box(canvas, x, y, 0.32f, 0.35f, 0xFFF5F7F9.toInt(), 0xFFD9DEE3.toInt())
-                strokeP.color = 0xFF6B7580.toInt(); strokeP.strokeWidth = tw * 0.025f
-                canvas.drawLine(sx(x, y), sy(x, y, 0.35f), sx(x, y), sy(x, y, 1.0f), strokeP)
-                fillP.color = if (sin(time * 5f) > 0f) 0xFF43D17A.toInt() else 0xFF2E6B45.toInt()
-                canvas.drawCircle(sx(x, y), sy(x, y, 1.0f), tw * 0.04f, fillP)
+                box(canvas, x, y, 0.4f, 0.15f, 0xFFF5F7F9.toInt(), 0xFFD9DEE3.toInt())
+                icons.router(canvas, sx(x, y), sy(x, y, 0.15f) - tw * 0.08f, tw * 0.17f, time)
             }
         }
     }

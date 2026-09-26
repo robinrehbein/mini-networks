@@ -18,16 +18,18 @@ class World(
     private val spawnInitialNodes: Boolean = true,
 ) {
     object Tuning {
-        const val WEEK_SECONDS = 40f
-        const val PACKET_SPEED = 2.2f // cells per second
+        const val WEEK_SECONDS = 45f
+        const val FIRST_YEAR = 1995
+        const val YEARS_PER_WEEK = 3
+        const val ROUTER_MS = 4f
         const val MAX_PENDING = 6
         const val OVERLOAD_SECONDS = 18f
         const val RECOVER_SECONDS = 30f
         const val DISPATCH_COOLDOWN = 0.45f
-        const val START_CABLE_BUDGET = 22
+        const val START_BUDGET = 24
         const val START_ROUTERS = 2
-        const val WEEKLY_CABLE_BONUS = 10
-        const val WATER_COST_FACTOR = 3
+        const val WEEKLY_BUDGET_BONUS = 12
+        const val WATER_EXTRA_PER_CELL = 2
     }
 
     private val rng = Random(seed)
@@ -41,25 +43,29 @@ class World(
     var time = 0f; private set
     var week = 1; private set
     var delivered = 0; private set
-    var cableBudget = Tuning.START_CABLE_BUDGET; private set
+    var budget = Tuning.START_BUDGET; private set
     var routersAvailable = Tuning.START_ROUTERS; private set
     var gameOver = false; private set
     var failedNode: Node? = null; private set
 
-    /** Set by the UI for one frame to show a toast-like hint, e.g. "Neuer Server: Games". */
-    var lastEvent: String? = null
+    /** Short German message for the HUD, e.g. "Neu: Glasfaser". */
+    var lastEvent: String? = null; private set
     var lastEventTime = 0f; private set
 
     val weekProgress get() = (time % Tuning.WEEK_SECONDS) / Tuning.WEEK_SECONDS
+    val year get() = Tuning.FIRST_YEAR + (week - 1) * Tuning.YEARS_PER_WEEK
+    val unlockedCables get() = CableType.entries.filter { it.unlockWeek <= week }
+    private val unlockedDevices get() = Device.entries.filter { it.unlockWeek <= week }
+    val availableServices get() = nodes.filter { it.kind == NodeKind.SERVER }.mapNotNull { it.service }.toSet()
 
     private var clientSpawnTimer = 6f
-    private val routeCache = HashMap<Int, List<Node>?>()
+    private val routeCache = HashMap<Pair<Int, Service>, Route?>()
 
     init {
         carveRiver()
         if (spawnInitialNodes) {
-            addNodeAt(NodeKind.SERVER, DataType.VIDEO, 2, 2)
-            addNodeAt(NodeKind.SERVER, DataType.MAIL, cols - 3, rows - 3)
+            addServer(Service.MAIL, 2, 2)
+            addServer(Service.CALL, cols - 3, rows - 3)
             repeat(3) { spawnClient() }
         }
     }
@@ -81,13 +87,17 @@ class World(
         cx in 0 until cols && cy in 0 until rows && !water[cy][cx] &&
             nodes.none { it.cellX == cx && it.cellY == cy }
 
-    fun addNodeAt(kind: NodeKind, type: DataType?, cx: Int, cy: Int): Node {
-        val n = Node(nextId++, kind, type, cx, cy)
+    private fun addNode(kind: NodeKind, device: Device?, service: Service?, cx: Int, cy: Int): Node {
+        val n = Node(nextId++, kind, device, service, cx, cy)
         n.requestTimer = 2f + rng.nextFloat() * 3f
         nodes += n
         routeCache.clear()
         return n
     }
+
+    fun addClient(device: Device, cx: Int, cy: Int) = addNode(NodeKind.CLIENT, device, null, cx, cy)
+    fun addServer(service: Service, cx: Int, cy: Int) = addNode(NodeKind.SERVER, null, service, cx, cy)
+    fun addRouter(cx: Int, cy: Int) = addNode(NodeKind.ROUTER, null, null, cx, cy)
 
     private fun randomFreeCell(minSpacing: Int = 2): Pair<Int, Int>? {
         repeat(300) {
@@ -99,16 +109,19 @@ class World(
     }
 
     private fun spawnClient() {
-        val types = nodes.filter { it.kind == NodeKind.SERVER }.mapNotNull { it.type }.distinct()
-        if (types.isEmpty()) return
+        val served = availableServices
+        val candidates = unlockedDevices.filter { d -> d.services.any { it in served } }
+        if (candidates.isEmpty()) return
+        // Newer devices show up more often once unlocked.
+        val weighted = candidates.flatMap { d -> List(1 + d.unlockWeek) { d } }
         val (cx, cy) = randomFreeCell() ?: return
-        addNodeAt(NodeKind.CLIENT, types[rng.nextInt(types.size)], cx, cy)
+        addClient(weighted[rng.nextInt(weighted.size)], cx, cy)
     }
 
-    private fun spawnServer(type: DataType) {
-        val (cx, cy) = randomFreeCell(3) ?: randomFreeCell() ?: return
-        addNodeAt(NodeKind.SERVER, type, cx, cy)
-        event("Neuer Server: ${type.label}")
+    private fun spawnServer(service: Service): Boolean {
+        val (cx, cy) = randomFreeCell(3) ?: randomFreeCell() ?: return false
+        addServer(service, cx, cy)
+        return true
     }
 
     private fun event(msg: String) {
@@ -122,8 +135,9 @@ class World(
 
     fun ports(n: Node) = cables.count { it.connects(n) }
 
-    /** Cable cost in budget units: grid length, water cells cost extra. */
-    fun cableCost(a: Node, b: Node): Int = Geometry.chebyshev(a, b) + waterCellsOn(a, b) * (Tuning.WATER_COST_FACTOR - 1)
+    /** Cable cost in budget units: grid length times type price, water cells cost extra (sea cable). */
+    fun cableCost(a: Node, b: Node, type: CableType): Int =
+        Geometry.chebyshev(a, b) * type.costPerCell + waterCellsOn(a, b) * Tuning.WATER_EXTRA_PER_CELL
 
     fun waterCellsOn(a: Node, b: Node): Int {
         val pts = Geometry.octo(a.center, b.center)
@@ -140,30 +154,52 @@ class World(
     }
 
     /** Null when the cable is allowed, otherwise a short German reason for the UI. */
-    fun connectError(a: Node, b: Node): String? = when {
+    fun connectError(a: Node, b: Node, type: CableType): String? = when {
         a === b -> "Gleicher Knoten"
         cableBetween(a, b) != null -> "Schon verbunden"
-        ports(a) >= a.kind.maxPorts -> "${a.kind.label}: alle Ports belegt"
-        ports(b) >= b.kind.maxPorts -> "${b.kind.label}: alle Ports belegt"
-        cableCost(a, b) > cableBudget -> "Zu wenig Kabel"
+        type.unlockWeek > week -> "${type.label} noch nicht erfunden"
+        ports(a) >= a.kind.maxPorts -> "${a.label}: alle Ports belegt"
+        ports(b) >= b.kind.maxPorts -> "${b.label}: alle Ports belegt"
+        cableCost(a, b, type) > budget -> "Budget reicht nicht"
         else -> null
     }
 
-    fun connect(a: Node, b: Node): Boolean {
-        if (gameOver || connectError(a, b) != null) return false
-        val cost = cableCost(a, b)
-        cables += Cable(a, b, cost, waterCellsOn(a, b) > 0)
-        cableBudget -= cost
+    fun connect(a: Node, b: Node, type: CableType): Boolean {
+        if (gameOver || connectError(a, b, type) != null) return false
+        val cost = cableCost(a, b, type)
+        cables += Cable(a, b, type, cost, waterCellsOn(a, b) > 0)
+        budget -= cost
+        routeCache.clear()
+        return true
+    }
+
+    /** Swap an existing cable to a better technology, paying only the difference. */
+    fun upgradeError(c: Cable, type: CableType): String? {
+        val diff = cableCost(c.a, c.b, type) - c.cost
+        return when {
+            type.ordinal <= c.type.ordinal -> "Kein Upgrade"
+            type.unlockWeek > week -> "${type.label} noch nicht erfunden"
+            diff > budget -> "Budget reicht nicht"
+            else -> null
+        }
+    }
+
+    fun upgrade(c: Cable, type: CableType): Boolean {
+        if (gameOver || upgradeError(c, type) != null) return false
+        val newCost = cableCost(c.a, c.b, type)
+        budget -= newCost - c.cost
+        c.cost = newCost
+        c.type = type
         routeCache.clear()
         return true
     }
 
     fun removeCable(c: Cable) {
         if (!cables.remove(c)) return
-        cableBudget += c.cost
-        // Packets on or heading into this cable are bounced back to their client.
-        val lost = packets.filter { p -> p.hop < p.route.size - 1 && cableBetween(p.from, p.to) == null }
-        lost.forEach { it.origin.pending++ }
+        budget += c.cost
+        // Packets on or heading into this cable go back into their client's queue.
+        val lost = packets.filter { p -> cableBetween(p.from, p.to) == null }
+        lost.forEach { it.origin.pending.addFirst(it.service) }
         packets.removeAll(lost.toSet())
         routeCache.clear()
     }
@@ -171,7 +207,7 @@ class World(
     fun placeRouter(cx: Int, cy: Int): Node? {
         if (gameOver || routersAvailable <= 0 || !isFree(cx, cy)) return null
         routersAvailable--
-        return addNodeAt(NodeKind.ROUTER, null, cx, cy)
+        return addRouter(cx, cy)
     }
 
     fun nodeNear(p: Vec2, radius: Float = 0.7f): Node? =
@@ -180,11 +216,21 @@ class World(
 
     // ---------------------------------------------------------------- routing
 
-    /** Shortest path (by cable length) from a client to any server of its type, or null. */
-    fun routeFor(client: Node): List<Node>? = routeCache.getOrPut(client.id) { computeRoute(client) }
+    /**
+     * Lowest-ping route from [client] to any server of [service], using only cables wide enough for the
+     * service. Null if none exists or if the best route breaks the service's ping limit.
+     */
+    fun routeFor(client: Node, service: Service): Route? {
+        val r = bestRoute(client, service) ?: return null
+        val limit = service.maxPingMs ?: return r
+        return r.takeIf { it.pingMs <= limit }
+    }
 
-    private fun computeRoute(client: Node): List<Node>? {
-        val want = client.type ?: return null
+    /** Best route ignoring the ping limit, so the UI can explain "Ping zu hoch". */
+    fun bestRoute(client: Node, service: Service): Route? =
+        routeCache.getOrPut(client.id to service) { computeRoute(client, service) }
+
+    private fun computeRoute(client: Node, service: Service): Route? {
         val dist = HashMap<Node, Float>().apply { put(client, 0f) }
         val prev = HashMap<Node, Node>()
         val open = mutableListOf(client)
@@ -193,18 +239,19 @@ class World(
             val cur = open.minBy { dist.getValue(it) }
             open.remove(cur)
             if (!done.add(cur)) continue
-            if (cur.kind == NodeKind.SERVER && cur.type == want) {
+            if (cur.kind == NodeKind.SERVER && cur.service == service) {
                 val path = ArrayList<Node>()
                 var n: Node? = cur
                 while (n != null) { path.add(0, n); n = prev[n] }
-                return path
+                return Route(path, dist.getValue(cur))
             }
-            // Servers of another type do not forward traffic.
+            // Only the origin and routers/other clients forward traffic; foreign servers are dead ends.
             if (cur !== client && cur.kind == NodeKind.SERVER) continue
+            val hopCost = if (cur === client) 0f else Tuning.ROUTER_MS
             for (c in cables) {
-                if (!c.connects(cur)) continue
+                if (!c.connects(cur) || c.capacity < service.bandwidth) continue
                 val nb = c.other(cur)
-                val d = dist.getValue(cur) + c.length
+                val d = dist.getValue(cur) + hopCost + c.latencyMs
                 if (d < (dist[nb] ?: Float.MAX_VALUE)) {
                     dist[nb] = d
                     prev[nb] = cur
@@ -215,9 +262,22 @@ class World(
         return null
     }
 
-    fun cableLoad(c: Cable) = packets.count { it.progress >= 0f && cableBetween(it.from, it.to) === c }
+    /** Bandwidth units currently travelling on [c]. */
+    fun cableLoad(c: Cable) = packets.sumOf { if (it.inTransit && it.progress >= 0f && cableBetween(it.from, it.to) === c) it.size else 0 }
 
     // ---------------------------------------------------------------- simulation
+
+    /** Adds budget and routers, for tests and a future debug menu. */
+    internal fun grant(extraBudget: Int, extraRouters: Int = 0) {
+        budget += extraBudget
+        routersAvailable += extraRouters
+    }
+
+    /** Jumps the calendar without simulating, for tests and a future debug menu. */
+    internal fun jumpToWeek(target: Int) {
+        time = (target - 1) * Tuning.WEEK_SECONDS
+        week = target
+    }
 
     fun update(dt: Float) {
         if (gameOver) return
@@ -232,22 +292,24 @@ class World(
             clientSpawnTimer = max(4f, 11f - week * 1.2f) + rng.nextFloat() * 2f
         }
 
+        val served = availableServices
         for (n in nodes) {
             if (n.kind != NodeKind.CLIENT) continue
             n.requestTimer -= dt
             if (n.requestTimer <= 0f) {
-                n.pending++
+                val wants = n.device!!.services.filter { it in served }
+                if (wants.isNotEmpty()) n.pending.addLast(wants[rng.nextInt(wants.size)])
                 n.requestTimer = max(1.6f, 5.5f - week * 0.35f) + rng.nextFloat() * 2f
             }
             n.dispatchCooldown -= dt
-            if (n.pending > 0 && n.dispatchCooldown <= 0f) dispatch(n)
+            if (n.pending.isNotEmpty() && n.dispatchCooldown <= 0f) dispatch(n)
         }
 
         movePackets(dt)
 
         for (n in nodes) {
             if (n.kind != NodeKind.CLIENT) continue
-            n.overload = if (n.pending >= Tuning.MAX_PENDING) n.overload + dt / Tuning.OVERLOAD_SECONDS
+            n.overload = if (n.pending.size >= Tuning.MAX_PENDING) n.overload + dt / Tuning.OVERLOAD_SECONDS
             else max(0f, n.overload - dt / Tuning.RECOVER_SECONDS)
             if (n.overload >= 1f) {
                 n.overload = 1f
@@ -258,24 +320,28 @@ class World(
         }
     }
 
+    /** Sends the oldest request that currently has a valid route and room on its first cable. */
     private fun dispatch(client: Node) {
-        val route = routeFor(client) ?: return
-        val first = cableBetween(route[0], route[1]) ?: return
-        if (cableLoad(first) >= first.capacity) return
-        packets += Packet(client.type!!, client, route).apply { progress = 0f }
-        client.pending--
-        client.dispatchCooldown = Tuning.DISPATCH_COOLDOWN
+        for (service in client.pending) {
+            val route = routeFor(client, service) ?: continue
+            val first = cableBetween(route.nodes[0], route.nodes[1]) ?: continue
+            if (cableLoad(first) + service.bandwidth > first.capacity) continue
+            packets += Packet(service, client, route.nodes).apply { progress = 0f }
+            client.pending.remove(service)
+            client.dispatchCooldown = Tuning.DISPATCH_COOLDOWN
+            return
+        }
     }
 
     private fun movePackets(dt: Float) {
         val arrived = ArrayList<Packet>()
         for (p in packets) {
             val cable = cableBetween(p.from, p.to)
-            if (cable == null) { arrived += p; p.origin.pending++; continue }
+            if (cable == null) { arrived += p; p.origin.pending.addFirst(p.service); continue }
             if (p.progress < 0f) {
-                if (cableLoad(cable) < cable.capacity) p.progress = 0f else continue
+                if (cableLoad(cable) + p.size <= cable.capacity) p.progress = 0f else continue
             }
-            p.progress += Tuning.PACKET_SPEED * dt / cable.length
+            p.progress += cable.type.speed * dt / cable.length
             if (p.progress >= 1f) {
                 p.hop++
                 if (p.hop >= p.route.size - 1) { arrived += p; delivered++ } else p.progress = -1f
@@ -285,24 +351,24 @@ class World(
     }
 
     private fun onNewWeek() {
-        cableBudget += Tuning.WEEKLY_CABLE_BONUS
+        budget += Tuning.WEEKLY_BUDGET_BONUS
         routersAvailable++
-        when {
-            week == 3 -> spawnServer(DataType.GAME)
-            week >= 5 && week % 2 == 1 -> spawnServer(DataType.entries[rng.nextInt(DataType.entries.size)])
-            else -> event("Woche $week: +${Tuning.WEEKLY_CABLE_BONUS} Kabel, +1 Router")
+        val news = ArrayList<String>()
+        CableType.entries.filter { it.unlockWeek == week }.forEach { news += it.label }
+        Device.entries.filter { it.unlockWeek == week }.forEach { news += it.label }
+        val server = when {
+            week == 3 -> Service.GAMING
+            week == 4 -> Service.STREAMING
+            week >= 6 && week % 2 == 0 -> Service.entries[rng.nextInt(Service.entries.size)]
+            else -> null
         }
+        if (server != null && spawnServer(server)) news += "${server.label}-Server"
+        event(if (news.isEmpty()) "$year · +${Tuning.WEEKLY_BUDGET_BONUS} Budget, +1 Router" else "$year · Neu: ${news.joinToString(", ")}")
     }
 }
 
-val DataType.label get() = when (this) {
-    DataType.VIDEO -> "Video"
-    DataType.MAIL -> "Mail"
-    DataType.GAME -> "Games"
-}
-
-val NodeKind.label get() = when (this) {
-    NodeKind.CLIENT -> "Kunde"
+val Node.label get() = device?.label ?: when (kind) {
     NodeKind.SERVER -> "Server"
     NodeKind.ROUTER -> "Router"
+    NodeKind.CLIENT -> "Kunde"
 }
