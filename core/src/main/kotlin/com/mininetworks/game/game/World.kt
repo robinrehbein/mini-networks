@@ -449,42 +449,60 @@ class World(
     /**
      * Moves requests and responses along their routes. A request that reaches its server takes one throughput token
      * and turns into a response waiting at the server; a response that reaches its client counts as delivered.
-     * Responses are handled first, so when capacity frees up on a cable they get it before waiting requests;
-     * otherwise requests queued for a busy server could keep the answers from ever leaving. [dispatch] leaves room
-     * for waiting packets too, so a client with a backlog cannot refill the slot an answer is waiting for.
+     * Packets first travel and arrive, then waiting packets enter their next cable: responses before requests, and a
+     * request only takes room that no waiting response on that cable needs. Otherwise requests queued behind a busy
+     * cable (at a client or at a router) could grab every freed slot and keep the answers from ever leaving.
+     * [dispatch] leaves room for waiting packets too, so a client with a backlog cannot refill such a slot either.
      */
     private fun movePackets(dt: Float) {
         for (n in nodes) if (n.kind == NodeKind.SERVER) n.tokens = minOf(serverRate(n), n.tokens + serverRate(n) * dt)
         val arrived = ArrayList<Packet>()
         val responses = ArrayList<Packet>()
-        for (p in packets.sortedBy { !it.isResponse }) {
+        for (p in packets) {
+            if (p.progress < 0f) continue
             val cable = cableBetween(p.from, p.to)
             if (cable == null) { arrived += p; p.origin.pending.addFirst(p.service); continue }
-            if (p.progress < 0f) {
-                if (cableLoad(cable) + p.size <= cable.capacity) p.progress = 0f else continue
-            }
             p.progress += cable.type.speed * dt / cable.length
-            if (p.progress >= 1f) {
-                val last = p.hop + 1 >= p.route.size - 1
-                if (last && !p.isResponse && p.to.tokens < 1f) {
-                    // Server is saturated: the request waits at the end of the cable and keeps blocking it.
-                    p.progress = 0.999f
-                    continue
-                }
-                p.hop++
-                when {
-                    !last -> p.progress = -1f
-                    p.isResponse -> { arrived += p; delivered++ }
-                    else -> {
-                        p.route.last().tokens -= 1f
-                        arrived += p
-                        responses += Packet(p.service, p.origin, p.route.asReversed(), isResponse = true)
-                    }
+            if (p.progress < 1f) continue
+            val last = p.hop + 1 >= p.route.size - 1
+            if (last && !p.isResponse && p.to.tokens < 1f) {
+                // Server is saturated: the request waits at the end of the cable and keeps blocking it.
+                p.progress = 0.999f
+                continue
+            }
+            p.hop++
+            when {
+                !last -> p.progress = -1f
+                p.isResponse -> { arrived += p; delivered++ }
+                else -> {
+                    p.route.last().tokens -= 1f
+                    arrived += p
+                    responses += Packet(p.service, p.origin, p.route.asReversed(), isResponse = true)
                 }
             }
         }
         if (arrived.isNotEmpty()) packets.removeAll(arrived.toSet())
         packets += responses
+        admitWaiting()
+    }
+
+    /** Lets waiting packets enter their next cable where it has room, responses first. */
+    private fun admitWaiting() {
+        val waiting = packets.filter { it.inTransit && it.progress < 0f }
+        if (waiting.isEmpty()) return
+        val load = HashMap<Cable, Int>()
+        val blocked = HashMap<Cable, Int>()
+        for (p in waiting.sortedBy { !it.isResponse }) {
+            val cable = cableBetween(p.from, p.to) ?: continue
+            val used = load.getOrPut(cable) { cableLoad(cable) }
+            val reserved = if (p.isResponse) 0 else blocked[cable] ?: 0
+            if (used + reserved + p.size <= cable.capacity) {
+                p.progress = 0f
+                load[cable] = used + p.size
+            } else if (p.isResponse) {
+                blocked[cable] = (blocked[cable] ?: 0) + p.size
+            }
+        }
     }
 
     private fun onNewWeek() {
