@@ -137,8 +137,10 @@ keytool -printcert -jarfile app/build/outputs/bundle/release/app-release.aab   #
    Website als Entwickler-Website im Play Store eintragen.
 5. Eigene Testgeräte in AdMob registrieren (Einstellungen → Testgeräte), damit echte Anzeigen im internen Test nicht
    angeklickt werden (Kontosperre wegen ungültiger Klicks).
-6. Die App sagt nichts zur Zielgruppe (kein `tagForChildDirectedTreatment`); das passt nur, solange die Zielgruppe
-   ab 13 Jahren ist (Abschnitt 8).
+6. Die neutrale Geburtsdatumsabfrage läuft vor UMP, Billing, Play Games und Mobile Ads. Für 13- bis 17-Jährige setzt
+   die App Child- und Under-Age-of-Consent-Kennzeichnung sowie die Anzeigen-Einstufung G vor der Initialisierung
+   des Werbe-SDKs. Die UMP-Anfrage ist ebenfalls als minderjährig gekennzeichnet. Google Play Games startet nur für
+   Erwachsene.
 
 ## 7. Inhaltseinstufung (IARC-Fragebogen)
 
@@ -159,10 +161,10 @@ Erwartetes Ergebnis: USK 0 / PEGI 3 / ESRB Everyone (mit Hinweisen „In-Game Pu
 
 ## 8. Zielgruppe
 
-Empfehlung: **13–15, 16–17 und 18+** ankreuzen, **nicht** unter 13, und „App ist nicht speziell auf Kinder
-ausgerichtet“. Grund: Mit Kindern als Zielgruppe gilt die Familienrichtlinie (nur „Families“-zertifizierte
-Werbenetzwerke, Kennzeichnung kindgerechter Anfragen, keine personalisierte Werbung) – das ist im Code nicht umgesetzt.
-Das Spiel darf in Grafik und Store-Texten nicht gezielt Kinder ansprechen (tut es nicht).
+In der Play Console sind **13–15, 16–17 und 18+** gewählt, nicht unter 13. Je nach Land zählen Jugendliche in
+diesen Gruppen als Kinder. Die App fragt das Geburtsdatum neutral ab, startet vor der Antwort keine Werbe- oder
+Spiele-SDKs, sperrt den Zugang unter 13 und behandelt 13- bis 17-Jährige bei AdMob konservativ als Kinder.
+Vor einer Änderung der Zielgruppe oder der Werbe-SDKs die Familienrichtlinie erneut prüfen.
 
 ## 9. Datensicherheit (Data safety)
 

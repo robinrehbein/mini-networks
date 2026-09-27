@@ -464,4 +464,11 @@
         <item quantity="one">%d Paket zugestellt</item>
         <item quantity="other">%d Pakete zugestellt</item>
     </plurals>
+
+    <string name="age_gate_title">Geburtsdatum</string>
+    <string name="age_gate_message">Bitte gib dein Geburtsdatum ein. Es bleibt auf diesem Gerät und bestimmt, welche Anzeigen angezeigt werden dürfen.</string>
+    <string name="age_gate_date_hint">JJJJ-MM-TT</string>
+    <string name="age_gate_exit">Beenden</string>
+    <string name="age_gate_invalid">Bitte gib ein gültiges Datum als JJJJ-MM-TT ein.</string>
+    <string name="age_gate_minimum">Mini Networks ist für Spieler ab 13 Jahren.</string>
 </resources>

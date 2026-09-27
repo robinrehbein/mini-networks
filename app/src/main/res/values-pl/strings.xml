@@ -259,10 +259,10 @@
     </plurals>
     <string name="daily_no_streak">Jeszcze bez serii · zagraj dziś pierwszą rundę</string>
     <plurals name="daily_footer">
-        <item quantity="one">Takie samo dla wszystkich · nowe wyzwanie za %1$d godzinę</item>
-        <item quantity="few">Takie samo dla wszystkich · nowe wyzwanie za %1$d godziny</item>
-        <item quantity="many">Takie samo dla wszystkich · nowe wyzwanie za %1$d godzin</item>
-        <item quantity="other">Takie samo dla wszystkich · nowe wyzwanie za %1$d godziny</item>
+        <item quantity="one">Wspólne wyzwanie · nowe za %1$d godzinę</item>
+        <item quantity="few">Wspólne wyzwanie · nowe za %1$d godziny</item>
+        <item quantity="many">Wspólne wyzwanie · nowe za %1$d godzin</item>
+        <item quantity="other">Wspólne wyzwanie · nowe za %1$d godziny</item>
     </plurals>
     <string name="daily_start">Zaczynamy</string>
     <string name="a11y_cable_free">Kabel: %1$s, za darmo</string>
@@ -529,4 +529,11 @@
         <item quantity="many">%d pakietów dostarczonych</item>
         <item quantity="other">%d pakietu dostarczonego</item>
     </plurals>
+
+    <string name="age_gate_title">Data urodzenia</string>
+    <string name="age_gate_message">Podaj datę urodzenia. Pozostaje ona na tym urządzeniu i określa, jakie reklamy mogą być wyświetlane.</string>
+    <string name="age_gate_date_hint">RRRR-MM-DD</string>
+    <string name="age_gate_exit">Zamknij</string>
+    <string name="age_gate_invalid">Podaj poprawną datę w formacie RRRR-MM-DD.</string>
+    <string name="age_gate_minimum">Mini Networks jest przeznaczone dla graczy od 13 lat.</string>
 </resources>

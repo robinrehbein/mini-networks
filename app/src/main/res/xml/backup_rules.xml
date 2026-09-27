@@ -2,4 +2,5 @@
 <!-- Android 11 and older (fullBackupContent): same rule as data_extraction_rules.xml. -->
 <full-backup-content>
     <exclude domain="sharedpref" path="monetization.xml" />
+    <exclude domain="sharedpref" path="age_gate.xml" />
 </full-backup-content>

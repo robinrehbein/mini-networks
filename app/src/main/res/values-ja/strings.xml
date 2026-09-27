@@ -424,4 +424,11 @@
     <plurals name="cloud_save_description">
         <item quantity="other">%dパケット配達</item>
     </plurals>
+
+    <string name="age_gate_title">生年月日</string>
+    <string name="age_gate_message">生年月日を入力してください。この情報は端末内にのみ保存され、表示できる広告の判定に使用されます。</string>
+    <string name="age_gate_date_hint">YYYY-MM-DD</string>
+    <string name="age_gate_exit">終了</string>
+    <string name="age_gate_invalid">YYYY-MM-DD形式で有効な日付を入力してください。</string>
+    <string name="age_gate_minimum">Mini Networksは13歳以上の方を対象としています。</string>
 </resources>

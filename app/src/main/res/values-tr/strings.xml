@@ -459,4 +459,11 @@
         <item quantity="one">%d paket teslim edildi</item>
         <item quantity="other">%d paket teslim edildi</item>
     </plurals>
+
+    <string name="age_gate_title">Doğum tarihi</string>
+    <string name="age_gate_message">Doğum tarihinizi girin. Bu bilgi yalnızca bu cihazda saklanır ve gösterilebilecek reklamları belirler.</string>
+    <string name="age_gate_date_hint">YYYY-AA-GG</string>
+    <string name="age_gate_exit">Çıkış</string>
+    <string name="age_gate_invalid">YYYY-AA-GG biçiminde geçerli bir tarih girin.</string>
+    <string name="age_gate_minimum">Mini Networks, 13 yaş ve üzerindeki oyuncular içindir.</string>
 </resources>

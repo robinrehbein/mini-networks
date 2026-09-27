@@ -8,6 +8,7 @@ import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.FullScreenContentCallback
 import com.google.android.gms.ads.LoadAdError
 import com.google.android.gms.ads.MobileAds
+import com.google.android.gms.ads.RequestConfiguration
 import com.google.android.gms.ads.interstitial.InterstitialAd
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
 import com.google.android.gms.ads.rewarded.RewardedAd
@@ -35,7 +36,7 @@ import kotlin.concurrent.thread
  * Play refunds them after three days. Ad unit ids come from [BuildConfig] (Google's test ids unless real ones are
  * configured, see app/build.gradle.kts).
  */
-class PlayMonetization(private val activity: Activity) : Monetization {
+class PlayMonetization(private val activity: Activity, private val ageBand: AgeGate.Band) : Monetization {
     private val main = Handler(Looper.getMainLooper())
     private val reviewerPrefs by lazy { activity.getSharedPreferences("reviewer_access", Activity.MODE_PRIVATE) }
     @Volatile private var reviewerAccess = reviewerPrefs.getBoolean("unlocked", false)
@@ -82,6 +83,17 @@ class PlayMonetization(private val activity: Activity) : Monetization {
      * start. The consent step waits for the stored products so a player who removed ads never has the ads SDK started.
      */
     fun start() {
+        // Configure age protection before UMP or the Mobile Ads SDK can issue a request. We conservatively treat
+        // everyone under 18 as a child because 13–17-year-olds count as children in some Play markets.
+        val configuration = MobileAds.getRequestConfiguration().toBuilder()
+        if (ageBand == AgeGate.Band.TEEN) {
+            @Suppress("DEPRECATION")
+            configuration.setTagForChildDirectedTreatment(RequestConfiguration.TAG_FOR_CHILD_DIRECTED_TREATMENT_TRUE)
+            @Suppress("DEPRECATION")
+            configuration.setTagForUnderAgeOfConsent(RequestConfiguration.TAG_FOR_UNDER_AGE_OF_CONSENT_TRUE)
+            configuration.setMaxAdContentRating(RequestConfiguration.MAX_AD_CONTENT_RATING_G)
+        }
+        MobileAds.setRequestConfiguration(configuration.build())
         GameIo.execute {
             if (!closed) {
                 val p = Purchases(PlayBillingGateway(activity), store)
@@ -112,7 +124,9 @@ class PlayMonetization(private val activity: Activity) : Monetization {
     // ---------------------------------------------------------------- consent and ads
 
     private fun gatherConsent() {
-        val params = ConsentRequestParameters.Builder().build()
+        val params = ConsentRequestParameters.Builder()
+            .setTagForUnderAgeOfConsent(ageBand == AgeGate.Band.TEEN)
+            .build()
         consent.requestConsentInfoUpdate(
             activity, params,
             {
