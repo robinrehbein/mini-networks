@@ -259,10 +259,10 @@
     </plurals>
     <string name="daily_no_streak">Jeszcze bez serii · zagraj dziś pierwszą rundę</string>
     <plurals name="daily_footer">
-        <item quantity="one">Takie samo dla wszystkich · nowe wyzwanie za %1$d godzinę</item>
-        <item quantity="few">Takie samo dla wszystkich · nowe wyzwanie za %1$d godziny</item>
-        <item quantity="many">Takie samo dla wszystkich · nowe wyzwanie za %1$d godzin</item>
-        <item quantity="other">Takie samo dla wszystkich · nowe wyzwanie za %1$d godziny</item>
+        <item quantity="one">Wspólne wyzwanie · nowe za %1$d godzinę</item>
+        <item quantity="few">Wspólne wyzwanie · nowe za %1$d godziny</item>
+        <item quantity="many">Wspólne wyzwanie · nowe za %1$d godzin</item>
+        <item quantity="other">Wspólne wyzwanie · nowe za %1$d godziny</item>
     </plurals>
     <string name="daily_start">Zaczynamy</string>
     <string name="a11y_cable_free">Kabel: %1$s, za darmo</string>
