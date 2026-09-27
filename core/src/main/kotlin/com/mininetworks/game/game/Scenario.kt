@@ -106,8 +106,8 @@ object Scenarios {
      * Delivered packets in [RIVER_TOWN] that unlock [METROPOLIS], and in [METROPOLIS] that unlock [ISLAND]: about
      * 1.2–1.5 times what the balancing bot delivers there in a median game (docs/BALANCING.md), so a good run gets there.
      */
-    const val METROPOLIS_TARGET = 900
-    const val ISLAND_TARGET = 650
+    const val METROPOLIS_TARGET = 1600
+    const val ISLAND_TARGET = 1100
 
     /** "Kleinstadt am Fluss": the tutorial map with one river, as in the prototype. */
     val RIVER_TOWN = Scenario(
@@ -170,8 +170,8 @@ object Scenarios {
             TerrainFeature.Mountains(cx = 0.1f, cy = 0.62f, rx = 0.1f, ry = 0.3f, density = 0.9f),
         ),
         unlock = Unlock.Purchase,
-        startBudget = 54,
-        startRouters = 2,
+        startBudget = 60,
+        startRouters = 1,
     )
 
     /** "Zukunft 2030": everything is invented, cell towers speak 6G to every device and servers start faster. */

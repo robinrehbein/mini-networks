@@ -49,7 +49,7 @@ class World(
         const val START_BUDGET = 50
         const val START_ROUTERS = 3
         /** Budget credited at every week change, on top of the reward the player picks. */
-        const val WEEK_BUDGET = 60
+        const val WEEK_BUDGET = 80
         /** Seconds until the first client appears on its own. */
         const val FIRST_SPAWN_SECONDS = 6f
         /**
@@ -57,7 +57,7 @@ class World(
          * [MIN_SPAWN_SECONDS], plus up to [SPAWN_JITTER] at random.
          */
         const val SPAWN_SECONDS = 13f
-        const val SPAWN_SPEEDUP = 0.7f
+        const val SPAWN_SPEEDUP = 0.5f
         const val MIN_SPAWN_SECONDS = 4f
         const val SPAWN_JITTER = 2f
         /**
@@ -65,7 +65,7 @@ class World(
          * per week played, at least [MIN_REQUEST_SECONDS], plus up to [REQUEST_JITTER] at random.
          */
         const val REQUEST_SECONDS = 7f
-        const val REQUEST_SPEEDUP = 0.2f
+        const val REQUEST_SPEEDUP = 0.15f
         const val MIN_REQUEST_SECONDS = 1.6f
         const val REQUEST_JITTER = 2f
         const val WATER_EXTRA_PER_CELL = 2
@@ -90,7 +90,7 @@ class World(
          * one-cell margin), so every device can reach them within the ping limits of their era.
          */
         const val SERVER_AREA = 0.3f
-        /** From this week on, every second week brings a server of a random service (earlier ones follow [Service.serverWeek]). */
+        /** From this week on, every second week brings a server of a random service (earlier ones follow [Service.serverWeek]; see [WeekSchedule]). */
         const val RANDOM_SERVERS_FROM = 10
         /**
          * A new client picks a device weighted by 1 + its unlock week, so newer devices show up more often; weeks past
@@ -1512,12 +1512,12 @@ class World(
             rewardOffer = RewardOffer(week, Rewards.offer(seed, week, eligibleRewards()))
         }
         // Only what was not there before is news: creative mode (and a fiber day, for cables) invents it all at the start.
-        val newCables = if (unlimited || rule == DailyRule.FIBER_DAY) emptyList() else CableType.entries.filter { it.unlockWeek == week }
-        val newDevices = if (unlimited) emptyList() else Device.entries.filter { it.unlockWeek == week }
-        val server = Service.entries.firstOrNull { it.serverWeek == week }
-            ?: if (week >= Tuning.RANDOM_SERVERS_FROM && week % 2 == 0) Service.entries[rng.nextInt(Service.entries.size)] else null
+        val newCables = if (unlimited || rule == DailyRule.FIBER_DAY) emptyList() else WeekSchedule.cables(week)
+        val newDevices = if (unlimited) emptyList() else WeekSchedule.devices(week)
+        val server = WeekSchedule.firstServer(week)
+            ?: if (WeekSchedule.randomServer(week)) Service.entries[rng.nextInt(Service.entries.size)] else null
         val newServers = if (server != null && spawnServer(server)) listOf(server) else emptyList()
-        val newRadios = if (unlimited) emptyList() else RadioType.entries.filter { it.unlockWeek == week }
+        val newRadios = if (unlimited) emptyList() else WeekSchedule.radios(week)
         if (newCables.isNotEmpty() || newDevices.isNotEmpty() || newServers.isNotEmpty() || newRadios.isNotEmpty()) {
             lastNews = WeekNews(year, newCables, newDevices, newServers, newRadios)
             lastNewsTime = time
