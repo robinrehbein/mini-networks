@@ -195,16 +195,22 @@ class IsoRenderer : Renderer {
             val end = d.layout.end
             polyline(d.layout.waypoints)
             val st = CableStyles.of(d.type)
-            strokeP.color = if (d.blocked) alarm else st.color and 0x99FFFFFF.toInt()
-            strokeP.strokeWidth = tw * maxOf(st.width, 0.12f) * 0.75f; canvas.drawPath(path, strokeP)
+            val col = if (d.blocked) alarm else st.color
+            val width = tw * maxOf(st.width, 0.12f) * 0.75f
+            DragJuice.glow(canvas, path, col, width)
+            strokeP.color = 0xCCFFFFFF.toInt(); strokeP.strokeWidth = width + tw * 0.06f; canvas.drawPath(path, strokeP)
+            strokeP.color = col; strokeP.strokeWidth = width; canvas.drawPath(path, strokeP)
+            if (!d.blocked) st.core?.let { strokeP.color = it; strokeP.strokeWidth = tw * st.coreWidth * 0.75f; canvas.drawPath(path, strokeP) }
+            val xs = FloatArray(d.trail.size + 1); val ys = FloatArray(d.trail.size + 1)
+            d.trail.forEachIndexed { i, p -> xs[i] = sx(p.x, p.y); ys[i] = sy(p.x, p.y) }
+            xs[d.trail.size] = sx(d.end.x, d.end.y); ys[d.trail.size] = sy(d.end.x, d.end.y)
+            DragJuice.trail(canvas, xs, ys, col, density)
             d.label?.let {
-                labelP.textSize = maxOf(tw * 0.28f, LABEL_MIN_DP * density); labelP.color = if (d.blocked) alarm else 0xFF2F3A34.toInt()
-                val ly = sy(end.x, end.y) - th * 1.6f - if (d.detail != null) labelP.textSize * 1.15f else 0f
-                canvas.drawText(it, sx(end.x, end.y), ly, labelP)
-                d.detail?.let { detail ->
-                    labelP.color = if (d.detailWarning) alarm else 0xFF2F3A34.toInt()
-                    canvas.drawText(detail, sx(end.x, end.y), ly + labelP.textSize * 1.15f, labelP)
-                }
+                val size = maxOf(tw * 0.3f, LABEL_MIN_DP * 1.2f * density)
+                DragJuice.bubble(
+                    canvas, it, d.detail, sx(end.x, end.y), sy(end.x, end.y), maxOf(th * 2.2f, 40f * density), size, density,
+                    if (d.blocked) alarm else 0xFF2F3A34.toInt(), if (d.detailWarning) alarm else 0xFF5B6674.toInt(), col,
+                )
             }
         }
 
@@ -248,20 +254,21 @@ class IsoRenderer : Renderer {
     /** A packet floating over its link at world point ([x], [y]), with a shadow on the ground. */
     private fun drawPacket(canvas: Canvas, p: Packet, x: Float, y: Float) {
         val gx = sx(x, y); val gy = sy(x, y)
-        oval.set(gx - tw * 0.07f, gy - th * 0.07f, gx + tw * 0.07f, gy + th * 0.07f)
+        // Packets are the game's pulse: drawn large enough to read on a phone at the default zoom.
+        val r = maxOf(tw * (0.068f + 0.027f * p.size), (2.6f + 0.8f * p.size) * density)
+        oval.set(gx - r * 1.3f, gy - r * 0.65f, gx + r * 1.3f, gy + r * 0.65f)
         fillP.color = 0x2E000000; canvas.drawOval(oval, fillP)
-        val r = tw * (0.05f + 0.02f * p.size)
         val py = sy(x, y, 0.35f)
         if (p.isResponse) {
             // Responses: smaller, white with an outline in the service color.
             fillP.color = 0xFFFFFFFF.toInt(); Shapes.draw(canvas, p.service.shape, gx, py, r * 0.8f, fillP)
-            strokeP.color = ServiceColors.of(p.service); strokeP.strokeWidth = tw * 0.025f
+            strokeP.color = ServiceColors.of(p.service); strokeP.strokeWidth = r * 0.34f
             Shapes.draw(canvas, p.service.shape, gx, py, r * 0.8f, strokeP)
         } else {
             // Requests: filled, with a light rim so they stay visible on dark cables.
             fillP.color = ServiceColors.of(p.service)
             Shapes.draw(canvas, p.service.shape, gx, py, r, fillP)
-            strokeP.color = landA; strokeP.strokeWidth = tw * 0.02f
+            strokeP.color = 0xFFFFFFFF.toInt(); strokeP.strokeWidth = r * 0.28f
             Shapes.draw(canvas, p.service.shape, gx, py, r, strokeP)
         }
     }
@@ -936,12 +943,22 @@ class IsoRenderer : Renderer {
                 box(canvas, x, y, 0.5f, 0.2f, 0xFFFAFAF7.toInt(), 0xFFE3E6E1.toInt())
                 val icon = maxOf(tw * 0.2f, ICON_MIN_DP * density)
                 icons.device(canvas, d, sx(x, y), sy(x, y, 0.2f) - icon, icon)
-                // Waiting requests in a queue beside the device; a red outline marks one that is stuck (ping, bandwidth).
-                val r = maxOf(tw * 0.065f, REQUEST_MIN_DP * density)
-                val qx = sx(x, y) + maxOf(tw * 0.35f, icon * 1.5f)
+                // Waiting requests in a queue beside the device, on a white plate so they read as "this device wants
+                // service" and not as ground clutter; a red outline marks one that is stuck (ping, bandwidth).
+                val r = maxOf(tw * 0.08f, REQUEST_MIN_DP * 1.3f * density)
+                val qx = sx(x, y) + maxOf(tw * 0.38f, icon * 1.6f)
                 val qy = sy(x, y, 0.2f) - icon * 2.2f
+                val count = minOf(n.pending.size, 8)
+                if (count > 0) {
+                    val cols = minOf(count, 4); val rows = (count + 3) / 4
+                    val pad = r * 0.95f
+                    oval.set(qx - r - pad, qy - r - pad, qx + (cols - 1) * r * 2.6f + r + pad, qy + (rows - 1) * r * 2.6f + r + pad)
+                    val corner = r + pad
+                    oval.offset(0f, r * 0.3f); fillP.color = 0x33000000; canvas.drawRoundRect(oval, corner, corner, fillP)
+                    oval.offset(0f, -r * 0.3f); fillP.color = 0xF2FFFFFF.toInt(); canvas.drawRoundRect(oval, corner, corner, fillP)
+                }
                 var badge: RouteProblem? = null
-                for (i in 0 until minOf(n.pending.size, 8)) {
+                for (i in 0 until count) {
                     val svc = n.pending[i]
                     val px = qx + (i % 4) * r * 2.6f
                     val py = qy + (i / 4) * r * 2.6f
@@ -949,12 +966,12 @@ class IsoRenderer : Renderer {
                     Shapes.draw(canvas, svc.shape, px, py, r, fillP)
                     val problem = world.routeProblem(n, svc)
                     if (ProblemBadges.shows(problem)) {
-                        strokeP.color = alarm; strokeP.strokeWidth = r * 0.35f
-                        Shapes.draw(canvas, svc.shape, px, py, r * 1.45f, strokeP)
+                        strokeP.color = alarm; strokeP.strokeWidth = r * 0.3f
+                        Shapes.draw(canvas, svc.shape, px, py, r * 1.4f, strokeP)
                         if (badge == null) badge = problem
                     }
                 }
-                badge?.let { ProblemBadges.draw(canvas, it, sx(x, y) - icon * 1.3f, qy, r * 1.9f) }
+                badge?.let { ProblemBadges.draw(canvas, it, sx(x, y) - icon * 1.4f, qy, r * 2.1f) }
             }
             NodeKind.ROUTER -> {
                 val dark = world.isDark(n)

@@ -1,14 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Themed-icon layer (Android 13+): tower and packet as one silhouette. -->
+<!-- Themed-icon layer (Android 13+): tower, packet, cables and their devices as one silhouette. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path
-        android:fillColor="#FF000000"
-        android:pathData="M54,36 L66,42 L66,72 L54,78 L42,72 L42,42 Z" />
-    <path
-        android:fillColor="#FF000000"
-        android:pathData="M49.8,22.8 L58.2,22.8 L58.2,31.2 L49.8,31.2 Z" />
+    <group android:pivotX="54" android:pivotY="62" android:scaleX="0.72" android:scaleY="0.72" android:translateY="-2">
+        <path
+            android:fillColor="#FF000000"
+            android:pathData="M54,36 L66,42 L66,72 L54,78 L42,72 L42,42 Z" />
+    </group>
+    <path android:fillColor="#FF000000" android:pathData="M49,28 L59,28 L59,38 L49,38 Z" />
+    <path android:strokeColor="#FF000000" android:strokeWidth="2.4" android:strokeLineCap="round" android:pathData="M62.5,68.5 L74,74.25" />
+    <path android:strokeColor="#FF000000" android:strokeWidth="2.4" android:strokeLineCap="round" android:pathData="M45.5,68.5 L34,74.25" />
+    <path android:fillColor="#FF000000" android:pathData="M74,74.25 m-4.2,0 a4.2,4.2 0 1,0 8.4,0 a4.2,4.2 0 1,0 -8.4,0 Z" />
+    <path android:fillColor="#FF000000" android:pathData="M34,74.25 m-4.2,0 a4.2,4.2 0 1,0 8.4,0 a4.2,4.2 0 1,0 -8.4,0 Z" />
 </vector>

@@ -56,6 +56,10 @@
     <string name="cable_dsl">DSL</string>
     <string name="cable_coax">同軸</string>
     <string name="cable_fiber">光ファイバー</string>
+    <string name="cable_short_isdn">ISDN</string>
+    <string name="cable_short_dsl">DSL</string>
+    <string name="cable_short_coax">同軸</string>
+    <string name="cable_short_fiber">光</string>
     <string name="node_router">ルーター</string>
     <string name="node_access_point">Wi-Fiアクセスポイント</string>
     <string name="node_cell_tower">携帯基地局</string>
@@ -108,9 +112,6 @@
 
     <!-- Game over -->
     <string name="game_over_title">ネットワーク過負荷</string>
-    <plurals name="game_over_stats">
-        <item quantity="other">%1$dパケット配達 · 第%2$d週</item>
-    </plurals>
     <string name="game_over_best">ベスト：%1$d</string>
     <string name="game_over_new_best">新記録！</string>
     <string name="game_over_again">もう一度</string>

@@ -39,11 +39,11 @@ data class SceneryCard(
 /**
  * The scenery select screen, drawn on the game canvas in the look of the menu cards: a title with a back pill and one
  * card per scenery with an isometric preview of its start map, its era and what makes it special. Locked cards are
- * greyed out with a padlock and show how to unlock them. While the store sells the pack, a pill at the top right buys
+ * shown in colour with a small lock badge and say how to unlock them. While the store sells the pack, a pill at the top right buys
  * it. [hit] maps a tap to a scenery id, [BACK] or [PACK]; it is valid for the last drawn frame.
  */
 class SceneryPicker(context: Context) {
-    private val scale = TextScale(context.resources.displayMetrics)
+    private val scale = TextScale.of(context)
     private val density = scale.density
     private val ink = 0xFF262B33.toInt()
     private val muted = 0xFF5B6674.toInt()
@@ -53,8 +53,8 @@ class SceneryPicker(context: Context) {
     private val lineP = stroke(0)
     private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ink }
     private val greyed = Paint(Paint.FILTER_BITMAP_FLAG).apply {
-        colorFilter = ColorMatrixColorFilter(ColorMatrix().apply { setSaturation(0.1f) })
-        alpha = 150
+        // Locked sceneries stay in colour (they are what the player plays towards), only a touch softer.
+        colorFilter = ColorMatrixColorFilter(ColorMatrix().apply { setSaturation(0.85f) })
     }
     private val bitmapP = Paint(Paint.FILTER_BITMAP_FLAG)
     private val clip = Path()
@@ -271,10 +271,10 @@ class SceneryPicker(context: Context) {
         val radius = 16f * u
         fillP.color = 0x26000000
         canvas.drawRoundRect(r.left + 4f * u, r.top + 12f * u, r.right + 4f * u, r.bottom + 12f * u, radius, radius, fillP)
-        fillP.color = if (card.unlocked) 0xFFD5DAD2.toInt().shade(-0.1f) else 0xFFD9DBD8.toInt()
+        fillP.color = 0xFFD5DAD2.toInt().shade(-0.1f)
         canvas.drawRoundRect(r.left, r.top + SLAB_DP * u, r.right, r.bottom + SLAB_DP * u, radius, radius, fillP)
         r.offset(0f, sink)
-        fillP.color = if (card.unlocked) 0xFFFAFAF7.toInt() else 0xFFF1F2EE.toInt()
+        fillP.color = 0xFFFAFAF7.toInt()
         canvas.drawRoundRect(r, radius, radius, fillP)
 
         val pad = 8f * u
@@ -287,20 +287,24 @@ class SceneryPicker(context: Context) {
         canvas.clipPath(clip)
         canvas.drawBitmap(bmp, null, preview, if (card.unlocked) bitmapP else greyed)
         canvas.restore()
-        if (!card.unlocked) padlock(canvas, preview.centerX(), preview.centerY(), preview.height() * 0.22f)
+        // A small lock badge in the corner instead of a big padlock over the picture.
+        if (!card.unlocked) {
+            val size = maxOf(preview.height() * 0.1f, 7f * u)
+            padlock(canvas, preview.right - size * 1.35f - 5f * u, preview.top + size * 1.35f + 5f * u, size)
+        }
 
         val cx = r.centerX()
         var y = preview.bottom + pad
         text.textAlign = Paint.Align.CENTER
         text.typeface = Typeface.DEFAULT_BOLD
-        text.color = if (card.unlocked) ink else muted
+        text.color = ink
         text.textSize = m.name * s
         text.textSize = maxOf(MIN_NAME_SP * u, minOf(m.name * s, m.name * s * inner / text.measureText(card.name)))
         y += m.name * s
         canvas.drawText(fit(card.name, inner), cx, y, text)
         y += m.name * s * 0.3f
         text.textSize = m.era * s
-        text.color = if (card.unlocked) accent.shade(-0.2f) else muted
+        text.color = accent.shade(-0.2f)
         y += m.era * s * 1.1f
         canvas.drawText(fit(card.era, inner), cx, y, text)
         y += m.era * s * 0.25f
@@ -334,7 +338,9 @@ class SceneryPicker(context: Context) {
 
     /** A white padlock on a dark disc. */
     private fun padlock(canvas: Canvas, cx: Float, cy: Float, size: Float) {
-        fillP.color = 0xCC262B33.toInt()
+        fillP.color = 0xFFFFFFFF.toInt()
+        canvas.drawCircle(cx, cy, size * 1.55f, fillP)
+        fillP.color = 0xF2262B33.toInt()
         canvas.drawCircle(cx, cy, size * 1.35f, fillP)
         fillP.color = 0xFFFFFFFF.toInt()
         val w = size * 0.95f

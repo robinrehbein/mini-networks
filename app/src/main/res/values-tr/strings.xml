@@ -59,6 +59,10 @@
     <string name="cable_dsl">DSL</string>
     <string name="cable_coax">Koaksiyel</string>
     <string name="cable_fiber">Fiber</string>
+    <string name="cable_short_isdn">ISDN</string>
+    <string name="cable_short_dsl">DSL</string>
+    <string name="cable_short_coax">Koaks</string>
+    <string name="cable_short_fiber">Fiber</string>
     <string name="node_router">Router</string>
     <string name="node_access_point">Wi-Fi erişim noktası</string>
     <string name="node_cell_tower">Baz istasyonu</string>
@@ -111,10 +115,6 @@
 
     <!-- Game over -->
     <string name="game_over_title">Ağ aşırı yüklendi</string>
-    <plurals name="game_over_stats">
-        <item quantity="one">%1$d paket teslim edildi · %2$d. hafta</item>
-        <item quantity="other">%1$d paket teslim edildi · %2$d. hafta</item>
-    </plurals>
     <string name="game_over_best">En iyi: %1$d</string>
     <string name="game_over_new_best">Yeni rekor!</string>
     <string name="game_over_again">Tekrar oyna</string>

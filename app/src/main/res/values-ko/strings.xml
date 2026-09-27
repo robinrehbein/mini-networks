@@ -56,6 +56,10 @@
     <string name="cable_dsl">DSL</string>
     <string name="cable_coax">동축</string>
     <string name="cable_fiber">광섬유</string>
+    <string name="cable_short_isdn">ISDN</string>
+    <string name="cable_short_dsl">DSL</string>
+    <string name="cable_short_coax">동축</string>
+    <string name="cable_short_fiber">광</string>
     <string name="node_router">라우터</string>
     <string name="node_access_point">Wi-Fi 액세스 포인트</string>
     <string name="node_cell_tower">이동통신 기지국</string>
@@ -108,9 +112,6 @@
 
     <!-- Game over -->
     <string name="game_over_title">네트워크 과부하</string>
-    <plurals name="game_over_stats">
-        <item quantity="other">패킷 %1$d개 배달 · %2$d주차</item>
-    </plurals>
     <string name="game_over_best">최고 기록: %1$d</string>
     <string name="game_over_new_best">신기록!</string>
     <string name="game_over_again">다시 하기</string>

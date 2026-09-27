@@ -485,7 +485,8 @@ class ScreenshotTest {
             r.layout(bmp.width, bmp.height, world)
             r.draw(Canvas(bmp), world, drag = null, time = 1.3f)
             save(bmp, File(out, "map-grown-${r.name.lowercase()}.png"))
-            r.camera.zoomBy(0.01f, bmp.width / 2f, bmp.height / 2f)
+            // The overview: the whole grid fitted to the view, the locked rings dimmed.
+            r.camera.fit(r.mapBounds(world.bounds), animate = false)
             bmp.eraseColor(0)
             r.draw(Canvas(bmp), world, drag = null, time = 1.3f)
             save(bmp, File(out, "map-overview-${r.name.lowercase()}.png"))
@@ -797,7 +798,7 @@ class ScreenshotTest {
             val bmp = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)
             val flat = FlatRenderer()
             flat.layout(bmp.width, bmp.height, world)
-            flat.camera.zoomBy(0.1f, bmp.width / 2f, bmp.height / 2f)
+            flat.camera.fit(flat.mapBounds(world.bounds), animate = false)
             flat.draw(Canvas(bmp), world, drag = null, time = 1.3f)
             save(bmp, File(shots, "scenery-${s.id}-flat.png"))
         }

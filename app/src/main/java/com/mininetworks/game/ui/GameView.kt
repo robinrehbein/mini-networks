@@ -84,6 +84,7 @@ import com.mininetworks.game.render.fill
 import com.mininetworks.game.render.shade
 import com.mininetworks.game.ui.menu.AchievementTile
 import com.mininetworks.game.ui.menu.AchievementsPanel
+import com.mininetworks.game.ui.menu.DailyPreview
 import com.mininetworks.game.ui.menu.DemoCity
 import com.mininetworks.game.ui.menu.MenuAction
 import com.mininetworks.game.ui.menu.MenuItem
@@ -389,6 +390,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     /** [animTime] when the game-over card appeared; the time-lapse runs from there. */
     private var gameOverAt = 0f
     private val confetti by lazy { Confetti(density) }
+    private val dailyPreview by lazy { DailyPreview(density) }
     /** [animTime] when the last week change was celebrated with confetti, and that week; null for none. */
     private var celebrateAt: Float? = null
     private var celebratedWeek = -1
@@ -412,19 +414,21 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private var framedCables = -1
     private var growthHintPending = false
 
-    private val density = resources.displayMetrics.density
-    /** Text sizes that follow the system font size (docs/TOP100.md A7). */
-    private val textScale = TextScale(resources.displayMetrics)
+    /** Text sizes that follow the system font size (docs/TOP100.md A7) and grow on tablets. */
+    private val textScale = TextScale.of(context)
+    /** Pixels per UI dp, larger on tablets ([TextScale.uiScale]). */
+    private val density = textScale.density
     /** Unlock toasts of achievements and the daily streak (docs/TOP100.md C1, C2). */
     private val toast = AchievementToast(textScale)
     private val hudText = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF262B33.toInt(); typeface = Typeface.DEFAULT_BOLD; textSize = textScale.px(16f) }
-    private val hudSub = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF5B6674.toInt(); textSize = textScale.px(13f) }
+    private val hudSub = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF3A4350.toInt(); textSize = textScale.px(13f) }
+    private val hudPlate = fill(0xB8FFFFFF.toInt())
     private val btnFill = fill(0xE6FFFFFF.toInt())
     private val btnActive = fill(0xFF262B33.toInt())
     private val holdRing = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND }
     private val btnText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; textSize = textScale.px(14f) }
     private val barBg = fill(0x33262B33)
-    private val swatch = fill(0)
+    private val glyphPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND }
     private val barFg = fill(0xFF262B33.toInt())
     private val bigText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; color = 0xFF262B33.toInt(); textSize = textScale.px(15f) }
     private val incidentText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; textSize = textScale.px(14f) }
@@ -909,7 +913,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             drawIncidentPins(canvas)
             drawHoldProgress(canvas)
         }
-        if (hudVisible) drawHud(canvas) else hudNodes.clear()
+        if (hudVisible && !hudHidden) drawHud(canvas) else hudNodes.clear()
         if (playing) tutorial?.let {
             tutorialOverlay.place(safeInsets.left + 16 * density, tutorialTop(), tutorialBottom())
             tutorialOverlay.draw(canvas, it, tutorialFocus(it), renderer, world, ::hudTarget, surfaceWidth, animTime, tutorialPressed)
@@ -947,6 +951,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         btnText.color = if (active) 0xFFFFFFFF.toInt() else 0xFF262B33.toInt()
         canvas.drawText(label, r.centerX(), r.centerY() + btnText.textSize * 0.35f, btnText)
     }
+
+    /**
+     * Hides the HUD and frees its rows for the map: for clean captures such as the store's marketing pictures, never
+     * set by the game itself. Set it before the first frame at a size, so the map is framed without the HUD rows.
+     */
+    internal var hudHidden = false
 
     /** The HUD shows under the in-game menus, not under the main menu. */
     private val hudVisible
@@ -1108,7 +1118,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         }
         return DragPreview(
             from = from, end = end, target = target, type = cableType, layout = layout, blocked = error != null, label = label,
-            detail = detail, detailWarning = check?.problem != null,
+            detail = detail, detailWarning = check?.problem != null, trail = dragTrail.toList(),
         )
     }
 
@@ -1268,6 +1278,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         }
         val compass = compassShown
         val m = HudTop(right - left, compass)
+        // Soft plates under the date and the counters keep them readable over a busy map at phone size.
+        val plateX = 10 * density
+        val plateY = 7 * density
+        canvas.drawRoundRect(left - plateX, top - plateY, left + m.leftW + plateX, top + m.leftBottom + plateY, 14 * density, 14 * density, hudPlate)
+        canvas.drawRoundRect(
+            right - m.rightW - plateX - coinGap(), top + m.rightTop - plateY, right + plateX, top + m.countersBottom + plateY,
+            14 * density, 14 * density, hudPlate,
+        )
         canvas.drawText(m.date, left, top + m.dateBaseline, hudText)
         val barY = top + m.barY
         canvas.drawRoundRect(left, barY, left + m.barW, barY + 4 * density, 2 * density, 2 * density, barBg)
@@ -1282,6 +1300,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         hudText.textAlign = Paint.Align.LEFT
         hudSub.textAlign = Paint.Align.RIGHT
         canvas.drawText(m.stock, right, top + m.stockBaseline, hudSub)
+        if (!world.unlimited) {
+            // A coin in front of the budget line, as on the cable chips' prices.
+            val r = hudSub.textSize * 0.42f
+            canvas.drawCircle(right - hudSub.measureText(m.stock) - 5 * density - r, top + m.stockBaseline - hudSub.textSize * 0.34f, r, coinFill)
+        }
         m.vouchers?.let { canvas.drawText(it, right, top + m.voucherBaseline, hudSub) }
         hudSub.textAlign = Paint.Align.LEFT
         // When both blocks do not fit side by side (a narrow window with large text), the counters sit below the date.
@@ -1349,48 +1372,57 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         val routerA11y = if (world.unlimited) "$routerLabel, ${context.getString(R.string.a11y_unlimited)}" else context.getString(R.string.a11y_router, world.routersAvailable)
         hudNodes += UiNode("hud:router", RectF(routerRect), routerA11y, UiNode.Kind.BUTTON, selected = placing == NodeKind.ROUTER)
         val rightEdge = routerRect.left
-        // Cable technology picker, bottom left: invented technologies, each with its price per cell on a coin. In a
-        // narrow (portrait) window it moves to its own row above; without room for every name even there, only the
-        // selected technology keeps its name (the colour dots alone are hard to tell apart), and without room for
-        // that either, none does.
+        // Cable technology picker, bottom left: invented technologies, each with a short piece of its cable (color,
+        // thickness and core tell them apart) and its price per cell on a coin. In a narrow (portrait) window or with
+        // large text it moves to its own row above, and names shorten ("TV" for "TV-Kabel") before they disappear:
+        // colour alone is not enough to tell the technologies apart (docs/TOP100.md A7).
         // Creative mode (docs/TOP100.md C4): nothing costs anything, so no price coins.
         val priced = !world.unlimited
+        var showPrice = priced
         val coinR = maxOf(9 * density, coinText.textSize * 0.8f)
         val cables = world.unlockedCables
-        fun widthOf(t: CableType, named: Boolean) =
-            24 * density + (if (named) btnText.measureText(texts.cable(t)) + 8 * density else 0f) + (if (priced) 2 * coinR + 10 * density else 4 * density)
-        fun rowWidth(named: (CableType) -> Boolean) =
-            cables.sumOf { widthOf(it, named(it)).toDouble() }.toFloat() + gap * (cables.size - 1)
-        val all = { _: CableType -> true }
-        val selectedOnly = { t: CableType -> t == cableType }
+        fun widthOf(t: CableType, label: String?) =
+            26 * density + (if (label != null) btnText.measureText(label) + 8 * density else 0f) + (if (showPrice) 2 * coinR + 10 * density else 4 * density)
+        fun rowWidth(label: (CableType) -> String?) =
+            cables.sumOf { widthOf(it, label(it)).toDouble() }.toFloat() + gap * (cables.size - 1)
+        val full = { t: CableType -> texts.cable(t) }
+        val short = { t: CableType -> texts.cableShort(t) }
+        val selectedShort = { t: CableType -> if (t == cableType) texts.cableShort(t) else null }
         // An extra row only where there is height to spare (not on a landscape phone with large text).
         val tall = bottom - top - m.bottom >= 6 * bh
-        val fitsBeside = { named: (CableType) -> Boolean -> left + rowWidth(named) <= rightEdge - gap }
-        val none = { _: CableType -> false }
+        val fitsBeside = { label: (CableType) -> String? -> left + rowWidth(label) <= rightEdge - gap }
+        val none = { _: CableType -> null as String? }
         val (ownRow, named) = when {
-            fitsBeside(all) -> false to all
-            tall && left + rowWidth(all) <= right -> true to all
-            fitsBeside(selectedOnly) -> false to selectedOnly
-            tall && left + rowWidth(selectedOnly) <= right -> true to selectedOnly
+            fitsBeside(full) -> false to full
+            tall && left + rowWidth(full) <= right -> true to full
+            fitsBeside(short) -> false to short
+            tall && left + rowWidth(short) <= right -> true to short
+            // Still too narrow: the names matter more than the prices, which the drag bubble shows anyway.
+            priced && tall && left + rowWidth(short) - cables.size * (2 * coinR + 6 * density) <= right -> {
+                showPrice = false
+                true to short
+            }
+            fitsBeside(selectedShort) -> false to selectedShort
+            tall && left + rowWidth(selectedShort) <= right -> true to selectedShort
             fitsBeside(none) -> false to none
             else -> true to none
         }
         val cableY = if (ownRow) y - bh - gap else y
         var cx = left
         for (t in cables) {
-            val w = widthOf(t, named(t))
+            val label = named(t)
+            val w = widthOf(t, label)
             val r = RectF(cx, cableY, cx + w, cableY + bh)
             val active = t == cableType
             canvas.drawRoundRect(r, bh / 2, bh / 2, if (active) btnActive else btnFill)
-            swatch.color = CableStyles.of(t).color
-            canvas.drawCircle(r.left + 14 * density, r.centerY(), 5 * density, swatch)
-            if (named(t)) {
+            drawCableGlyph(canvas, t, r.left + 12 * density, r.left + 20 * density, r.centerY())
+            if (label != null) {
                 btnText.color = if (active) 0xFFFFFFFF.toInt() else 0xFF262B33.toInt()
                 btnText.textAlign = Paint.Align.LEFT
-                canvas.drawText(texts.cable(t), r.left + 24 * density, r.centerY() + btnText.textSize * 0.35f, btnText)
+                canvas.drawText(label, r.left + 27 * density, r.centerY() + btnText.textSize * 0.35f, btnText)
                 btnText.textAlign = Paint.Align.CENTER
             }
-            if (priced) {
+            if (showPrice) {
                 val coinX = r.right - 10 * density - coinR
                 canvas.drawCircle(coinX, r.centerY(), coinR, coinFill)
                 canvas.drawText(t.costPerCell.toString(), coinX, r.centerY() + coinText.textSize * 0.36f, coinText)
@@ -1452,6 +1484,23 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             hudNodes += UiNode("hud:hint", RectF(left, hintY - (lines.size - 1) * lineH - hudSub.textSize, left + w, hintY + hudSub.descent()), it, UiNode.Kind.TEXT)
         }
         banner?.let { drawPausedBanner(canvas, it) }
+    }
+
+    /** Room left of the counters for the coin in front of the budget line. */
+    private fun coinGap() = if (world.unlimited) 0f else hudSub.textSize * 0.84f + 5 * density
+
+    /**
+     * A short piece of cable [t] from [x0] to [x1] at [y], as on the map: its colour, its thickness (which grows with
+     * the capacity) and its core line, on a white casing so it stays visible on the dark selected chip.
+     */
+    private fun drawCableGlyph(canvas: Canvas, t: CableType, x0: Float, x1: Float, y: Float) {
+        val st = CableStyles.of(t)
+        val w = (2.5f + st.width * 26f) * density
+        glyphPaint.color = 0xFFFFFFFF.toInt(); glyphPaint.strokeWidth = w + 2.5f * density
+        canvas.drawLine(x0, y, x1, y, glyphPaint)
+        glyphPaint.color = st.color; glyphPaint.strokeWidth = w
+        canvas.drawLine(x0, y, x1, y, glyphPaint)
+        st.core?.let { glyphPaint.color = it; glyphPaint.strokeWidth = maxOf(1.2f * density, st.coreWidth * 26f * density); canvas.drawLine(x0, y, x1, y, glyphPaint) }
     }
 
     /** [s], shortened with an ellipsis if it is wider than [maxWidth] in [paint]. */
@@ -2189,7 +2238,6 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             highlight = if (newBest) context.getString(R.string.game_over_new_best) else null,
             lines = listOfNotNull(
                 world.failure?.let { problemText(it.node, it.service, it.problem, it.pingMs) },
-                resources.getQuantityString(R.plurals.game_over_stats, world.delivered, world.delivered, world.week),
                 when {
                     newBest -> null
                     world.daily != null -> context.getString(R.string.game_over_daily_best, progressStore.dailyBest(world.daily!!.day))
@@ -2197,6 +2245,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 },
             ),
             picture = recapPicture(),
+            // The packets delivered are the score: a hero number under the title, like on the share card.
+            score = resources.getQuantityString(R.plurals.hud_delivered, world.delivered, world.delivered),
             items = listOfNotNull(
                 MenuItem.Button(MenuAction.PLAY_AGAIN, context.getString(R.string.game_over_again), primary = true),
                 secondChanceLabel()?.let { MenuItem.Button(MenuAction.SECOND_CHANCE, it) },
@@ -2238,6 +2288,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 if (s.counted(c.day)) context.getString(R.string.daily_done, progressStore.dailyBest(c.day))
                 else resources.getQuantityString(R.plurals.daily_goal, DailyChallenge.STREAK_PACKETS, DailyChallenge.STREAK_PACKETS),
             ),
+            // Today's map with the streak flame: the card shows what the player will play.
+            picture = MenuPicture(context.getString(R.string.daily_scenery, date, texts.scenario(c.scenario)), dailyPreview.aspect) { cv, r ->
+                dailyPreview.draw(cv, r, c, current)
+            },
             items = listOf(
                 MenuItem.Button(MenuAction.DAILY_START, context.getString(R.string.daily_start), primary = true),
                 MenuItem.Button(MenuAction.BACK, context.getString(R.string.menu_back)),
@@ -2884,6 +2938,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         } else if (tutorial != null) {
             tutorialOverlay.place(safeInsets.left + 16 * density, tutorialTop(), tutorialBottom())
             ViewInsets(tutorialOverlay.reservedRight(surfaceWidth) - safeInsets.left + 8 * density, hudTopReserve, 8 * density, hudBottomReserve)
+        } else if (hudHidden) {
+            ViewInsets(8 * density, 8 * density, 8 * density, 8 * density)
         } else {
             ViewInsets(8 * density, hudTopReserve, 8 * density, hudBottomReserve)
         }

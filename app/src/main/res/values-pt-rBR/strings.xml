@@ -62,6 +62,10 @@
     <string name="cable_dsl">DSL</string>
     <string name="cable_coax">Coaxial</string>
     <string name="cable_fiber">Fibra</string>
+    <string name="cable_short_isdn">ISDN</string>
+    <string name="cable_short_dsl">DSL</string>
+    <string name="cable_short_coax">Coax</string>
+    <string name="cable_short_fiber">Fibra</string>
     <string name="node_router">Roteador</string>
     <string name="node_access_point">Ponto de acesso Wi-Fi</string>
     <string name="node_cell_tower">Torre de celular</string>
@@ -114,11 +118,6 @@
 
     <!-- Game over -->
     <string name="game_over_title">Rede sobrecarregada</string>
-    <plurals name="game_over_stats">
-        <item quantity="one">%1$d pacote entregue · semana %2$d</item>
-        <item quantity="many">%1$d pacotes entregues · semana %2$d</item>
-        <item quantity="other">%1$d pacotes entregues · semana %2$d</item>
-    </plurals>
     <string name="game_over_best">Recorde: %1$d</string>
     <string name="game_over_new_best">Novo recorde!</string>
     <string name="game_over_again">Jogar de novo</string>

@@ -62,6 +62,10 @@
     <string name="cable_dsl">DSL</string>
     <string name="cable_coax">TV-Kabel</string>
     <string name="cable_fiber">Glasfaser</string>
+    <string name="cable_short_isdn">ISDN</string>
+    <string name="cable_short_dsl">DSL</string>
+    <string name="cable_short_coax">TV</string>
+    <string name="cable_short_fiber">Glas</string>
     <string name="node_router">Router</string>
     <string name="node_access_point">WLAN-Access-Point</string>
     <string name="node_cell_tower">Mobilfunkmast</string>
@@ -114,10 +118,6 @@
 
     <!-- Game over -->
     <string name="game_over_title">Netz überlastet</string>
-    <plurals name="game_over_stats">
-        <item quantity="one">%1$d Paket zugestellt · Woche %2$d</item>
-        <item quantity="other">%1$d Pakete zugestellt · Woche %2$d</item>
-    </plurals>
     <string name="game_over_best">Bestwert: %1$d</string>
     <string name="game_over_new_best">Neuer Bestwert!</string>
     <string name="game_over_again">Nochmal</string>

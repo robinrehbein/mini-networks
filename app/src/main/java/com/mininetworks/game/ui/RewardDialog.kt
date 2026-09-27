@@ -22,7 +22,7 @@ import kotlin.math.sin
  * for the optional extra-router pill below the cards ([World.claimBonusRouter]).
  */
 class RewardDialog(private val context: Context) {
-    private val scale = TextScale(context.resources.displayMetrics)
+    private val scale = TextScale.of(context)
     private val density = scale.density
     private val drawnNodes = ArrayList<UiNode>()
     /** Text size factor of the current frame: the card-relative sizes times the system font size. */
@@ -85,7 +85,7 @@ class RewardDialog(private val context: Context) {
         val promptLines = TextWrap.wrap(prompt, width - 2 * side, maxLines = 2) { text.measureText(it) }
         val bonusH = bonusHeight()
         // With the bonus pill the cards move up, so prompt and pill fit below them.
-        val below = promptSize * (1.0f + 1.3f * promptLines.size) + (if (bonus != null) bonusH + 16f * density else 0f)
+        val below = promptSize * (1.0f + 1.3f * promptLines.size) + (if (bonus != null) bonusH + 16f * density else 0f) + cardW * 0.1f
         val cardH = minOf(cardW * 1.08f, height * 0.62f, height - headH - below - 24f * density)
         val gap = cardW * 0.14f
         val depth = cardW * 0.05f
@@ -105,7 +105,8 @@ class RewardDialog(private val context: Context) {
         drawnNodes += UiNode("reward:title", RectF(left, dateBaseline - dateSize, width - left, newsBaseline + newsSize * 0.3f), listOfNotNull(date, news).joinToString(". "), UiNode.Kind.HEADING)
         text.color = 0xFF5B6674.toInt()
         text.textSize = promptSize
-        val promptTop = top + cardH + depth + promptSize * 0.5f
+        // Below the cards' slabs and their soft shadow, so the line never touches them.
+        val promptTop = top + cardH + depth * 3f + promptSize * 0.6f
         var promptY = promptTop
         for (line in promptLines) {
             promptY += promptSize * 1.3f
@@ -182,13 +183,28 @@ class RewardDialog(private val context: Context) {
         text.color = ink
     }
 
+    private val shadowP = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = 0x2E000000 }
+    private var blurRadius = 0f
+    private var blur: android.graphics.BlurMaskFilter? = null
+
+    /** A blur of [radius] px, rebuilt only when the size changes. */
+    private fun blurFor(radius: Float): android.graphics.BlurMaskFilter {
+        val r = radius.coerceAtLeast(1f)
+        if (blur == null || r != blurRadius) {
+            blurRadius = r
+            blur = android.graphics.BlurMaskFilter(r, android.graphics.BlurMaskFilter.Blur.NORMAL)
+        }
+        return blur!!
+    }
+
     /** Card [slot] on its slab of thickness [depth]; a pressed card's face sinks by [sink] onto the slab. */
     private fun drawCard(canvas: Canvas, slot: RectF, depth: Float, sink: Float, reward: Reward, time: Float) {
         val r = drawn.apply { set(slot); offset(0f, sink) }
         val accent = accentOf(reward)
         val radius = r.width() * 0.07f
-        fillP.color = 0x33000000
-        canvas.drawRoundRect(slot.left + depth, slot.top + depth * 2.2f, slot.right + depth, slot.bottom + depth * 2.2f, radius, radius, fillP)
+        // One soft drop shadow straight below the card (a hard offset copy read as a misprinted second card).
+        shadowP.maskFilter = blurFor(depth * 1.6f)
+        canvas.drawRoundRect(slot.left + depth * 0.4f, slot.top + depth * 2f, slot.right - depth * 0.4f, slot.bottom + depth * 2f, radius, radius, shadowP)
         fillP.color = 0xFFE3E6E1.toInt().shade(-0.2f)
         canvas.drawRoundRect(slot.left, slot.top + depth, slot.right, slot.bottom + depth, radius, radius, fillP)
         fillP.color = 0xFFFAFAF7.toInt()

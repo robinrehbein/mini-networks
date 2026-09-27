@@ -102,7 +102,8 @@ class FlatRenderer : Renderer {
         turnCanvas(canvas)
         val grid = screenRect(world.bounds, gridRect)
         fillP.color = land; canvas.drawRect(grid, fillP)
-        strokeP.color = edge; strokeP.strokeWidth = cell * 0.03f; canvas.drawRect(grid, strokeP)
+        // One frame only: around the unlocked block while the map still grows (drawLockedArea), else around the grid.
+        if (world.unlocked == world.bounds) { strokeP.color = edge; strokeP.strokeWidth = cell * 0.03f; canvas.drawRect(grid, strokeP) }
         canvas.save()
         canvas.clipRect(grid)
         drawWater(canvas, world)
@@ -137,24 +138,28 @@ class FlatRenderer : Renderer {
         drag?.let { d ->
             polyline(d.layout.waypoints)
             val st = CableStyles.of(d.type)
-            cableP.color = if (d.blocked) alarm else st.color and 0x99FFFFFF.toInt()
-            cableP.strokeWidth = cell * maxOf(st.width, 0.12f)
+            val col = if (d.blocked) alarm else st.color
+            val width = cell * maxOf(st.width, 0.12f)
+            DragJuice.glow(canvas, path, col, width)
+            cableP.color = land; cableP.strokeWidth = width + cell * 0.1f; canvas.drawPath(path, cableP)
+            cableP.color = col; cableP.strokeWidth = width
             canvas.drawPath(path, cableP)
         }
         canvas.restore()
 
         drag?.let { d ->
             val end = d.layout.end
+            val col = if (d.blocked) alarm else CableStyles.of(d.type).color
+            val xs = FloatArray(d.trail.size + 1); val ys = FloatArray(d.trail.size + 1)
+            d.trail.forEachIndexed { k, p -> val q = toScreen(p); xs[k] = q.x; ys[k] = q.y }
+            toScreen(d.end).let { xs[d.trail.size] = it.x; ys[d.trail.size] = it.y }
+            DragJuice.trail(canvas, xs, ys, col, density)
             d.label?.let {
                 val s = toScreen(end)
-                labelP.textSize = maxOf(cell * 0.36f, LABEL_MIN_DP * density)
-                labelP.color = if (d.blocked) alarm else ink
-                val ly = s.y - cell * 0.7f - if (d.detail != null) labelP.textSize * 1.15f else 0f
-                canvas.drawText(it, s.x, ly, labelP)
-                d.detail?.let { detail ->
-                    labelP.color = if (d.detailWarning) alarm else ink
-                    canvas.drawText(detail, s.x, ly + labelP.textSize * 1.15f, labelP)
-                }
+                DragJuice.bubble(
+                    canvas, it, d.detail, s.x, s.y, maxOf(cell * 0.9f, 40f * density), maxOf(cell * 0.38f, LABEL_MIN_DP * 1.2f * density), density,
+                    if (d.blocked) alarm else ink, if (d.detailWarning) alarm else ink, col,
+                )
             }
         }
 
@@ -163,7 +168,7 @@ class FlatRenderer : Renderer {
             val p = packets[k]
             world.packetPosition(p, pos)
             val sx = screenX(pos[0], pos[1]); val sy = screenY(pos[0], pos[1])
-            val r = cell * (0.09f + 0.03f * p.size)
+            val r = maxOf(cell * (0.11f + 0.035f * p.size), (2.6f + 0.8f * p.size) * density)
             if (p.isResponse) {
                 // Responses: smaller and outlined in the service color.
                 fillP.color = land; Shapes.draw(canvas, p.service.shape, sx, sy, r * 0.8f, fillP)

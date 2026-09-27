@@ -1,85 +1,97 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Launcher foreground: a small isometric server tower (mail blue, like in the game) with a glowing packet above it.
-     108 x 108 dp adaptive-icon canvas; everything stays inside the central 66 dp safe zone. -->
+<!-- Launcher foreground: a small isometric server tower (mail blue, like in the game) on its plot, two glowing cables
+     (fiber orange, call green) running out to devices, and a bright packet above the tower.
+     108 x 108 dp adaptive-icon canvas; everything stays inside the central 66 dp safe zone (radius 33 around 54,54),
+     so circular and small masks keep the base and both cable ends. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path
-        android:fillColor="#FF9DB78F"
-        android:pathData="M26,72 L54,86 L54,90 L26,76 Z" />
-    <path
-        android:fillColor="#FF86A479"
-        android:pathData="M54,86 L82,72 L82,76 L54,90 Z" />
-    <path
-        android:fillColor="#FFCFE0C6"
-        android:pathData="M54,58 L82,72 L54,86 L26,72 Z" />
-    <path
-        android:fillColor="#33384A30"
-        android:pathData="M66,72 L75,73.5 L63,79.5 L54,78 Z" />
-    <path
-        android:fillColor="#FFF5F7F9"
-        android:pathData="M42,42 L54,48 L54,78 L42,72 Z" />
-    <path
-        android:fillColor="#FFCBD2D9"
-        android:pathData="M54,48 L66,42 L66,72 L54,78 Z" />
-    <path
-        android:fillColor="#FF2E86AB"
-        android:pathData="M54,36 L66,42 L54,48 L42,42 Z" />
-    <path
-        android:strokeColor="#FF2E86AB"
-        android:strokeWidth="1.3"
-        android:pathData="M42,52 L54,58" />
-    <path
-        android:strokeColor="#FF2E86AB"
-        android:strokeWidth="1.3"
-        android:pathData="M42,62 L54,68" />
-    <path
-        android:strokeColor="#FF256D8C"
-        android:strokeWidth="1.3"
-        android:pathData="M54,58 L66,52" />
-    <path
-        android:strokeColor="#FF256D8C"
-        android:strokeWidth="1.3"
-        android:pathData="M54,68 L66,62" />
-    <path
-        android:fillColor="#FF2E86AB"
-        android:pathData="M56.5,50.65 L59.5,49.15 L59.5,51.35 L56.5,52.85 Z" />
-    <path
-        android:fillColor="#FF2E86AB"
-        android:pathData="M61,48.4 L64,46.9 L64,49.1 L61,50.6 Z" />
-    <path
-        android:fillColor="#FF2E86AB"
-        android:pathData="M56.5,60.65 L59.5,59.15 L59.5,61.35 L56.5,62.85 Z" />
-    <path
-        android:fillColor="#FF2E86AB"
-        android:pathData="M61,58.4 L64,56.9 L64,59.1 L61,60.6 Z" />
-    <path
-        android:fillColor="#FF2E86AB"
-        android:pathData="M56.5,70.65 L59.5,69.15 L59.5,71.35 L56.5,72.85 Z" />
-    <path
-        android:fillColor="#FF2E86AB"
-        android:pathData="M61,68.4 L64,66.9 L64,69.1 L61,70.6 Z" />
-    <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M54,39.9 L58.2,42 L54,44.1 L49.8,42 Z" />
-    <path android:pathData="M41,27 a13,13 0 1,0 26,0 a13,13 0 1,0 -26,0 Z">
+    <group android:pivotX="54" android:pivotY="62" android:scaleX="0.72" android:scaleY="0.72" android:translateY="-2">
+        <path
+            android:fillColor="#FF9DB78F"
+            android:pathData="M26,72 L54,86 L54,90 L26,76 Z" />
+        <path
+            android:fillColor="#FF86A479"
+            android:pathData="M54,86 L82,72 L82,76 L54,90 Z" />
+        <path
+            android:fillColor="#FFCFE0C6"
+            android:pathData="M54,58 L82,72 L54,86 L26,72 Z" />
+        <path
+            android:fillColor="#33384A30"
+            android:pathData="M66,72 L75,73.5 L63,79.5 L54,78 Z" />
+        <path
+            android:fillColor="#FFF5F7F9"
+            android:pathData="M42,42 L54,48 L54,78 L42,72 Z" />
+        <path
+            android:fillColor="#FFCBD2D9"
+            android:pathData="M54,48 L66,42 L66,72 L54,78 Z" />
+        <path
+            android:fillColor="#FF2E86AB"
+            android:pathData="M54,36 L66,42 L54,48 L42,42 Z" />
+        <path
+            android:strokeColor="#FF2E86AB"
+            android:strokeWidth="1.3"
+            android:pathData="M42,52 L54,58" />
+        <path
+            android:strokeColor="#FF2E86AB"
+            android:strokeWidth="1.3"
+            android:pathData="M42,62 L54,68" />
+        <path
+            android:strokeColor="#FF256D8C"
+            android:strokeWidth="1.3"
+            android:pathData="M54,58 L66,52" />
+        <path
+            android:strokeColor="#FF256D8C"
+            android:strokeWidth="1.3"
+            android:pathData="M54,68 L66,62" />
+        <path
+            android:fillColor="#FF2E86AB"
+            android:pathData="M56.5,50.65 L59.5,49.15 L59.5,51.35 L56.5,52.85 Z" />
+        <path
+            android:fillColor="#FF2E86AB"
+            android:pathData="M61,48.4 L64,46.9 L64,49.1 L61,50.6 Z" />
+        <path
+            android:fillColor="#FF2E86AB"
+            android:pathData="M56.5,60.65 L59.5,59.15 L59.5,61.35 L56.5,62.85 Z" />
+        <path
+            android:fillColor="#FF2E86AB"
+            android:pathData="M61,58.4 L64,56.9 L64,59.1 L61,60.6 Z" />
+        <path
+            android:fillColor="#FF2E86AB"
+            android:pathData="M56.5,70.65 L59.5,69.15 L59.5,71.35 L56.5,72.85 Z" />
+        <path
+            android:fillColor="#FF2E86AB"
+            android:pathData="M61,68.4 L64,66.9 L64,69.1 L61,70.6 Z" />
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M54,39.9 L58.2,42 L54,44.1 L49.8,42 Z" />
+    </group>
+    <!-- Cables: a soft glow under a solid line, a packet riding on each, a device at each end. -->
+    <path android:strokeColor="#66F28C28" android:strokeWidth="5" android:strokeLineCap="round" android:pathData="M62.5,68.5 L74,74.25" />
+    <path android:strokeColor="#FFF28C28" android:strokeWidth="2.2" android:strokeLineCap="round" android:pathData="M62.5,68.5 L74,74.25" />
+    <path android:strokeColor="#663BA55C" android:strokeWidth="5" android:strokeLineCap="round" android:pathData="M45.5,68.5 L34,74.25" />
+    <path android:strokeColor="#FF3BA55C" android:strokeWidth="2.2" android:strokeLineCap="round" android:pathData="M45.5,68.5 L34,74.25" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M68.25,71.4 m-1.8,0 a1.8,1.8 0 1,0 3.6,0 a1.8,1.8 0 1,0 -3.6,0 Z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M39.75,71.4 m-1.8,0 a1.8,1.8 0 1,0 3.6,0 a1.8,1.8 0 1,0 -3.6,0 Z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M74,74.25 m-4.2,0 a4.2,4.2 0 1,0 8.4,0 a4.2,4.2 0 1,0 -8.4,0 Z" />
+    <path android:fillColor="#FFF28C28" android:pathData="M74,74.25 m-2.6,0 a2.6,2.6 0 1,0 5.2,0 a2.6,2.6 0 1,0 -5.2,0 Z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M34,74.25 m-4.2,0 a4.2,4.2 0 1,0 8.4,0 a4.2,4.2 0 1,0 -8.4,0 Z" />
+    <path android:fillColor="#FF3BA55C" android:pathData="M34,74.25 m-2.6,0 a2.6,2.6 0 1,0 5.2,0 a2.6,2.6 0 1,0 -5.2,0 Z" />
+    <!-- The packet above the tower: a strong glow and a bright core, so it survives at 48 dp. -->
+    <path android:pathData="M40,33 a14,14 0 1,0 28,0 a14,14 0 1,0 -28,0 Z">
         <aapt:attr name="android:fillColor">
             <gradient
                 android:type="radial"
                 android:centerX="54"
-                android:centerY="27"
-                android:gradientRadius="13"
-                android:startColor="#CC9BE8FF"
+                android:centerY="33"
+                android:gradientRadius="14"
+                android:startColor="#FFBDF1FF"
                 android:endColor="#009BE8FF" />
         </aapt:attr>
     </path>
-    <path
-        android:fillColor="#FF3FB6E0"
-        android:pathData="M49.8,22.8 L58.2,22.8 L58.2,31.2 L49.8,31.2 Z" />
-    <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M51.6,24.6 L56.4,24.6 L56.4,29.4 L51.6,29.4 Z" />
+    <path android:fillColor="#FF1FA6DA" android:pathData="M49,28 L59,28 L59,38 L49,38 Z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M51.2,30.2 L56.8,30.2 L56.8,35.8 L51.2,35.8 Z" />
 </vector>

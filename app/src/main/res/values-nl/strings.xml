@@ -59,6 +59,10 @@
     <string name="cable_dsl">DSL</string>
     <string name="cable_coax">Coax</string>
     <string name="cable_fiber">Glasvezel</string>
+    <string name="cable_short_isdn">ISDN</string>
+    <string name="cable_short_dsl">DSL</string>
+    <string name="cable_short_coax">Coax</string>
+    <string name="cable_short_fiber">Glas</string>
     <string name="node_router">Router</string>
     <string name="node_access_point">Wifi-accesspoint</string>
     <string name="node_cell_tower">Zendmast</string>
@@ -111,10 +115,6 @@
 
     <!-- Game over -->
     <string name="game_over_title">Netwerk overbelast</string>
-    <plurals name="game_over_stats">
-        <item quantity="one">%1$d pakket bezorgd · week %2$d</item>
-        <item quantity="other">%1$d pakketten bezorgd · week %2$d</item>
-    </plurals>
     <string name="game_over_best">Record: %1$d</string>
     <string name="game_over_new_best">Nieuw record!</string>
     <string name="game_over_again">Nog een keer</string>

@@ -28,7 +28,7 @@ import kotlin.math.sin
  * [hit] maps a tap in the bubble to [SKIP], [PLAY], [MENU] or [BUBBLE]; it is valid for the last drawn frame.
  */
 class TutorialOverlay(private val context: Context) {
-    private val scale = TextScale(context.resources.displayMetrics)
+    private val scale = TextScale.of(context)
     private val density = scale.density
     private val ink = 0xFF262B33.toInt()
     private val muted = 0xFF5B6674.toInt()

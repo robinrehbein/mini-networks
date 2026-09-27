@@ -130,6 +130,16 @@ class ServiceColorsTest {
         }
     }
 
+    /** The default skin keeps the four technologies far apart in hue and lightness (judge feedback: greys blurred). */
+    @Test
+    fun classicCablesHaveStronglyDistinctColors() {
+        val labs = CableType.entries.map { lab(simulate(CableStyles.of(CableSkin.CLASSIC, it).color, IDENTITY)) }
+        for (i in labs.indices) for (j in i + 1 until labs.size) {
+            val e = distance(labs[i], labs[j])
+            assertTrue("${CableType.entries[i]} vs ${CableType.entries[j]}: ΔE $e", e >= MIN_CLASSIC_CABLE_DELTA_E)
+        }
+    }
+
     @Test
     fun theActiveSkinPicksTheColors() {
         Cosmetic.skin = CableSkin.NEON
@@ -174,6 +184,8 @@ class ServiceColorsTest {
         const val MIN_DARK_DELTA_E = 30.0
         /** The four cable technologies of one skin; the width tells them apart as well. */
         const val MIN_CABLE_DELTA_E = 15.0
+        /** The default skin: no two technologies may look like shades of the same grey. */
+        const val MIN_CLASSIC_CABLE_DELTA_E = 40.0
         const val INK = 0xFF262B33.toInt()
         const val MUTED = 0xFF5B6674.toInt()
         /** The off switch track in the settings (MenuPanel). */

@@ -36,7 +36,7 @@ data class AchievementTile(
  * it does not fit. Only the back pill is tappable; [hit] is valid for the last drawn frame.
  */
 class AchievementsPanel(context: Context) {
-    private val scale = TextScale(context.resources.displayMetrics)
+    private val scale = TextScale.of(context)
     private val density = scale.density
     private val ink = 0xFF262B33.toInt()
     private val muted = 0xFF5B6674.toInt()

@@ -75,6 +75,16 @@ class Texts(private val context: Context) {
         },
     )
 
+    /** A short name for a chip without room for [cable] (at most about five letters). */
+    fun cableShort(t: CableType) = context.getString(
+        when (t) {
+            CableType.ISDN -> R.string.cable_short_isdn
+            CableType.DSL -> R.string.cable_short_dsl
+            CableType.COAX -> R.string.cable_short_coax
+            CableType.FIBER -> R.string.cable_short_fiber
+        },
+    )
+
     fun cable(t: CableType) = context.getString(
         when (t) {
             CableType.ISDN -> R.string.cable_isdn

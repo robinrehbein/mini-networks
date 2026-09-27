@@ -67,8 +67,10 @@ data class MenuPage(
     val highlight: String? = null,
     val footer: String? = null,
     val hero: Boolean = false,
-    /** Drawn between the text lines and the entries. */
+    /** Drawn between the text lines and the entries; on a wide screen it takes the left half of the card instead. */
     val picture: MenuPicture? = null,
+    /** The page's most important number (the packets delivered on the game-over card), drawn large under the title. */
+    val score: String? = null,
 )
 
 /**
@@ -80,19 +82,20 @@ data class MenuPage(
  * [hit] maps a tap to an action; it is valid for the last drawn frame, like [nodes].
  */
 class MenuPanel(context: Context) {
-    private val scale = TextScale(context.resources.displayMetrics)
+    private val scale = TextScale.of(context)
     private val density = scale.density
     private val ink = 0xFF262B33.toInt()
     private val muted = 0xFF5B6674.toInt()
     private val accent = 0xFF3BA55C.toInt()
     private val dimCenter = fill(0xB3F3F1EC.toInt())
-    private val dimHero = fill(0x40F3F1EC.toInt())
+    private val dimHero = fill(0x14F3F1EC)
     private val fillP = fill(0)
     private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ink }
     private val card = RectF()
     private val r = RectF()
     private val targets = ArrayList<Pair<RectF, MenuAction>>()
     private val drawnNodes = ArrayList<UiNode>()
+    private val logo = LogoMark(context)
 
     /** The enabled item under ([x], [y]), or null. */
     fun hit(x: Float, y: Float): MenuAction? = targets.firstOrNull { it.first.contains(x, y) }?.second
@@ -114,6 +117,8 @@ class MenuPanel(context: Context) {
         val highlightSize = scale.px(17f) * s
         val lineSize = scale.px(15f) * s
         val labelSize = scale.px(17f) * s
+        /** The main menu's logo mark above the title. */
+        val logoSize = LOGO_DP * u
         val footerSize = scale.px(13f) * s
         val itemH = maxOf(TOUCH_DP * density, labelSize + 24f * u)
         val gap = GAP_DP * u
@@ -124,7 +129,9 @@ class MenuPanel(context: Context) {
             wrap(line, inner, MAX_LINE_ROWS)
         }
         val rows = (page.items.size + cols - 1) / cols
-        val titleH = titleSize * 1.25f
+        val titleH = titleSize * 1.25f + (if (page.hero) logoSize + 8f * u else 0f)
+        val scoreSize = scale.px(44f) * s
+        val scoreH = if (page.score != null) scoreSize * 1.3f else 0f
         val highlightH = if (page.highlight != null) highlightSize * 1.55f else 0f
         val lineH = lineSize * 1.6f
         val linesH = lines.size * lineH + if (lines.isNotEmpty() || page.highlight != null) 8f * u else 0f
@@ -133,7 +140,7 @@ class MenuPanel(context: Context) {
         val pictureW = page.picture?.let { minOf(inner, PICTURE_MAX_H_DP * u * it.aspect) } ?: 0f
         val pictureH = page.picture?.let { pictureW / it.aspect } ?: 0f
         val pictureBlock = if (page.picture != null) pictureH + 12f * u else 0f
-        val height = 2 * pad + titleH + 10f * u + highlightH + linesH + pictureBlock + itemsH + footerH
+        val height = 2 * pad + titleH + 10f * u + scoreH + highlightH + linesH + pictureBlock + itemsH + footerH
     }
 
     fun draw(canvas: Canvas, page: MenuPage, width: Int, height: Int, pressed: MenuAction? = null, safe: ViewInsets = ViewInsets.NONE) {
@@ -142,6 +149,11 @@ class MenuPanel(context: Context) {
         drawnNodes.clear()
         val areaW = width - safe.left - safe.right
         val areaH = height - safe.top - safe.bottom
+        val pic = page.picture
+        if (pic != null && areaW >= areaH * SPLIT_ASPECT) {
+            drawSplit(canvas, page, pic, areaW, areaH, pressed, safe)
+            return
+        }
         val l = arrange(page, areaW, areaH)
         val u = l.u
 
@@ -151,19 +163,72 @@ class MenuPanel(context: Context) {
         val top = safe.top + (areaH - ch) / 2f - SLAB_DP * u / 2f
         card.set(left, top, left + cw, top + ch)
         slab(canvas, card, 18f * u, SLAB_DP * u, 0xFFFAFAF7.toInt(), 0xFFE3E6E1.toInt().shade(-0.2f), shadow = true)
+        drawContent(canvas, l, card.left, card.top, pressed)
+    }
 
-        val cx = card.centerX()
+    /**
+     * A card with a picture on a wide screen: the picture fills the left half (large and in colour, the hero of e.g.
+     * the game-over card), the title, score, texts and entries the right half, so the entries keep their full size.
+     */
+    private fun drawSplit(canvas: Canvas, page: MenuPage, pic: MenuPicture, areaW: Float, areaH: Float, pressed: MenuAction?, safe: ViewInsets) {
+        val cw = minOf(areaW * 0.9f, SPLIT_W_DP * density)
+        val paneW = cw * 0.5f
+        val rest = page.copy(picture = null)
+        val maxH = areaH * 0.92f
+        var s = 1f
+        var l = Layout(rest, s, 1, paneW)
+        while (l.height > maxH && s > MIN_SCALE) { s -= 0.02f; l = Layout(rest, s, 1, paneW) }
+        val u = l.u
+        val ch = minOf(maxH, maxOf(l.height, (paneW - 2 * l.pad) / pic.aspect + 2 * l.pad))
+        val left = safe.left + (areaW - cw) / 2f
+        val top = safe.top + (areaH - ch) / 2f - SLAB_DP * u / 2f
+        card.set(left, top, left + cw, top + ch)
+        slab(canvas, card, 18f * u, SLAB_DP * u, 0xFFFAFAF7.toInt(), 0xFFE3E6E1.toInt().shade(-0.2f), shadow = true)
+        // The picture, as large as the left half allows at its aspect ratio, on a rounded plate.
+        val boxW = paneW - 1.5f * l.pad
+        val boxH = ch - 2 * l.pad
+        val pw = minOf(boxW, boxH * pic.aspect)
+        val ph = pw / pic.aspect
+        val pcx = card.left + l.pad + boxW / 2f
+        val pr = RectF(pcx - pw / 2f, card.centerY() - ph / 2f, pcx + pw / 2f, card.centerY() + ph / 2f)
+        fillP.color = 0xFFEFF2EC.toInt()
+        canvas.drawRoundRect(pr.left - 6f * u, pr.top - 6f * u, pr.right + 6f * u, pr.bottom + 6f * u, 14f * u, 14f * u, fillP)
+        canvas.save()
+        canvas.clipRect(pr)
+        pic.draw(canvas, pr)
+        canvas.restore()
+        drawnNodes += UiNode("menu:picture", RectF(pr), pic.description, UiNode.Kind.TEXT)
+        drawContent(canvas, l, card.right - paneW, card.top + (ch - l.height) / 2f, pressed)
+    }
+
+    /** Title, score, texts, picture (single-column card), entries and footer of [l], in a pane from [paneLeft], [paneTop]. */
+    private fun drawContent(canvas: Canvas, l: Layout, paneLeft: Float, paneTop: Float, pressed: MenuAction?) {
+        val page = l.page
+        val u = l.u
+        val cx = paneLeft + l.width / 2f
         val inner = l.inner
-        var y = card.top + l.pad
+        var y = paneTop + l.pad
+        if (page.hero) {
+            logo.draw(canvas, cx, y + l.logoSize / 2f, l.logoSize)
+            y += l.logoSize + 8f * u
+        }
         text.textAlign = Paint.Align.CENTER
         text.typeface = Typeface.DEFAULT_BOLD
-        text.color = ink
+        text.color = if (page.hero) BRAND else ink
         text.textSize = l.titleSize
         // A title shrinks further than other texts before it is cut: the game's name on a narrow portrait window.
         val title = fitShrinking(page.title, inner, l.titleSize, l.titleSize * 0.5f)
         canvas.drawText(title, cx, y + l.titleSize, text)
-        drawnNodes += UiNode("menu:title", textBounds(cx, y, inner, l.titleH), page.title, UiNode.Kind.HEADING, shortened = title != page.title)
-        y += l.titleH + 10f * u
+        drawnNodes += UiNode("menu:title", textBounds(cx, y, inner, l.titleSize * 1.25f), page.title, UiNode.Kind.HEADING, shortened = title != page.title)
+        y += l.titleSize * 1.25f + 10f * u
+        page.score?.let {
+            text.color = BRAND
+            text.typeface = Typeface.DEFAULT_BOLD
+            fitShrinking(it, inner, l.scoreSize, l.scoreSize * 0.6f)
+            canvas.drawText(fit(it, inner), cx, y + l.scoreSize * 1.0f, text)
+            drawnNodes += UiNode("menu:score", textBounds(cx, y, inner, l.scoreH), it, UiNode.Kind.TEXT)
+            y += l.scoreH
+        }
         page.highlight?.let {
             text.color = accent.shade(-0.2f)
             text.textSize = l.highlightSize
@@ -195,7 +260,7 @@ class MenuPanel(context: Context) {
         for ((i, item) in page.items.withIndex()) {
             val col = i % l.cols
             val row = i / l.cols
-            val x = card.left + l.pad + col * (colW + l.gap)
+            val x = paneLeft + l.pad + col * (colW + l.gap)
             val itemTop = y + row * (l.itemH + l.gap)
             r.set(x, itemTop, x + colW, itemTop + l.itemH)
             val down = item.action == pressed
@@ -361,5 +426,11 @@ class MenuPanel(context: Context) {
         /** The main menu card leaves the rest of the screen to the demo town. */
         const val HERO_MAX_WIDTH = 0.55f
         const val ELLIPSIS = "…"
+        /** A card with a picture splits into picture and text halves from this width-to-height ratio of the screen. */
+        const val SPLIT_ASPECT = 1.25f
+        const val SPLIT_W_DP = 760f
+        const val LOGO_DP = 64f
+        /** The brand's dusk blue (launcher icon) for the game's name and the hero numbers. */
+        const val BRAND = 0xFF1B4A5E.toInt()
     }
 }

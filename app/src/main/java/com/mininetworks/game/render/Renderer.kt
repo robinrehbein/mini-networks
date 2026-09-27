@@ -41,6 +41,8 @@ class DragPreview(
     val detail: String? = null,
     /** True if [detail] is a warning (too narrow, ping too high); drawn in the alarm color. */
     val detailWarning: Boolean = false,
+    /** The finger's path in world space, oldest first, drawn as a fading touch trail behind the pointer. */
+    val trail: List<Vec2> = emptyList(),
 )
 
 /**
@@ -232,6 +234,7 @@ object ProblemBadges {
     private val bodyP = fill(ALARM)
     private val inkP = stroke(0xFFFFFFFF.toInt())
     private val inkFill = fill(0xFFFFFFFF.toInt())
+    private val shadowP = fill(0x40000000)
     private val path = Path()
 
     /** True for the problems that get a badge. */
@@ -245,6 +248,9 @@ object ProblemBadges {
 
     /** A badge of radius [r] pixels around ([x], [y]). */
     fun draw(canvas: Canvas, problem: RouteProblem, x: Float, y: Float, r: Float) {
+        // A white plate and a soft shadow lift the badge off the busy map, so it reads at phone size.
+        canvas.drawCircle(x, y + r * 0.18f, r * 1.28f, shadowP)
+        canvas.drawCircle(x, y, r * 1.28f, inkFill)
         canvas.drawCircle(x, y, r, bodyP)
         inkP.strokeWidth = r * 0.16f
         canvas.drawCircle(x, y, r, inkP)
@@ -473,7 +479,11 @@ object CableStyles {
         Style(fiber, W_FIBER, fiberCore, CORE_FIBER),
     )
 
-    private val CLASSIC = skin(0xFF9AA3AD.toInt(), 0xFF39424E.toInt(), null, 0xFF2F2A26.toInt(), 0xFF9C8B7A.toInt(), 0xFFF28C28.toInt(), 0xFFFFE2B8.toInt())
+    /**
+     * The default skin gives every technology its own hue, not just another grey (light grey ISDN, dark teal DSL,
+     * wine-red coax, orange fiber), so the HUD chips and the map read apart at a glance.
+     */
+    private val CLASSIC = skin(0xFFB4BCC6.toInt(), 0xFF134E48.toInt(), null, 0xFF6A1F3F.toInt(), 0xFFE3A9BC.toInt(), 0xFFF28C28.toInt(), 0xFFFFE2B8.toInt())
     private val COPPER = skin(0xFFC4A07E.toInt(), 0xFF5E3620.toInt(), null, 0xFF3A2519.toInt(), 0xFFD08A52.toInt(), 0xFFD9A441.toInt(), 0xFFFFF0C2.toInt())
     private val NEON = skin(0xFF7ED3E6.toInt(), 0xFF262A50.toInt(), 0xFF8F6BFF.toInt(), 0xFF16181F.toInt(), 0xFFFF4FA3.toInt(), 0xFF3EE68A.toInt(), 0xFFE8FFF1.toInt())
     private val PASTEL = skin(0xFFB9C3D3.toInt(), 0xFF4A4C48.toInt(), 0xFFC9B8E8.toInt(), 0xFF1C191E.toInt(), 0xFFE9C6D6.toInt(), 0xFFF3A6B8.toInt(), 0xFFFFE6EE.toInt())
@@ -826,5 +836,92 @@ class DeviceIcons {
         path.lineTo(bx + s * 0.1f, by + s * 0.2f); path.lineTo(bx - s * 0.25f, by + s * 0.12f); path.close()
         body.color = IncidentStyles.EXCAVATOR_DARK
         canvas.drawPath(path, body)
+    }
+}
+
+/**
+ * How a cable being dragged looks in every style: a soft glow in the cable's color under the preview line, a fading
+ * touch trail along the finger's path with a contact ring at the pointer, and the price (or the reason it cannot be
+ * built) in a speech bubble held well above the finger, so it never sits on a building's roof or under the thumb.
+ */
+object DragJuice {
+    private val glowP = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
+    private val dotP = fill(0)
+    private val ringP = stroke(0)
+    private val bubbleP = fill(0xF7FFFFFF.toInt())
+    private val shadowP = fill(0x2E000000)
+    private val textP = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = android.graphics.Typeface.DEFAULT_BOLD; textAlign = Paint.Align.CENTER }
+    private val tail = Path()
+    private val rect = RectF()
+
+    /** The glow under a preview line [path] of stroke width [width] pixels in [color]. */
+    fun glow(canvas: Canvas, path: Path, color: Int, width: Float) {
+        glowP.color = color and 0xFFFFFF or 0x38000000
+        glowP.strokeWidth = width * 3.2f
+        canvas.drawPath(path, glowP)
+        glowP.color = color and 0xFFFFFF or 0x5C000000
+        glowP.strokeWidth = width * 1.9f
+        canvas.drawPath(path, glowP)
+    }
+
+    /** The finger's trail through the screen points [xs]/[ys] (oldest first) and the contact ring at the last one. */
+    fun trail(canvas: Canvas, xs: FloatArray, ys: FloatArray, color: Int, density: Float) {
+        val n = xs.size
+        if (n == 0) return
+        for (i in 0 until n) {
+            val t = (i + 1f) / n
+            dotP.color = 0xFFFFFF or ((t * t * 150f).toInt() shl 24)
+            canvas.drawCircle(xs[i], ys[i], (2.5f + 5.5f * t) * density, dotP)
+        }
+        val x = xs[n - 1]; val y = ys[n - 1]
+        dotP.color = 0x8CFFFFFF.toInt()
+        canvas.drawCircle(x, y, 17f * density, dotP)
+        ringP.color = color; ringP.strokeWidth = 3f * density
+        canvas.drawCircle(x, y, 17f * density, ringP)
+        ringP.color = color and 0xFFFFFF or 0x55000000; ringP.strokeWidth = 2f * density
+        canvas.drawCircle(x, y, 26f * density, ringP)
+    }
+
+    /**
+     * The bubble with [label] (and a smaller [detail] line) whose tail points at ([x], [y]), its bottom [lift] pixels
+     * above that point; [size] is the label's text size.
+     */
+    fun bubble(
+        canvas: Canvas, label: String, detail: String?, x: Float, y: Float, lift: Float, size: Float, density: Float,
+        labelColor: Int, detailColor: Int, accent: Int,
+    ) {
+        textP.textSize = size
+        val w1 = textP.measureText(label)
+        val detailSize = size * 0.78f
+        textP.textSize = detailSize
+        val w2 = detail?.let { textP.measureText(it) } ?: 0f
+        val padX = size * 0.75f
+        val padY = size * 0.5f
+        val w = maxOf(w1, w2) + 2 * padX
+        val h = size * 1.15f + (if (detail != null) detailSize * 1.25f else 0f) + 2 * padY
+        val bottom = y - lift
+        val cx = x.coerceIn(w / 2f + 8 * density, canvas.width - w / 2f - 8 * density)
+        rect.set(cx - w / 2f, bottom - h, cx + w / 2f, bottom)
+        val r = minOf(h / 2f, size * 0.9f)
+        rect.offset(0f, 3f * density)
+        canvas.drawRoundRect(rect, r, r, shadowP)
+        rect.offset(0f, -3f * density)
+        tail.reset()
+        val tx = x.coerceIn(rect.left + r, rect.right - r)
+        tail.moveTo(tx - size * 0.45f, bottom - 1f)
+        tail.lineTo(tx, bottom + size * 0.5f)
+        tail.lineTo(tx + size * 0.45f, bottom - 1f)
+        tail.close()
+        canvas.drawPath(tail, bubbleP)
+        canvas.drawRoundRect(rect, r, r, bubbleP)
+        ringP.color = accent; ringP.strokeWidth = 2.5f * density
+        canvas.drawRoundRect(rect, r, r, ringP)
+        textP.textSize = size; textP.color = labelColor
+        val base = rect.top + padY + size * 0.9f
+        canvas.drawText(label, cx, base, textP)
+        detail?.let {
+            textP.textSize = detailSize; textP.color = detailColor
+            canvas.drawText(it, cx, base + detailSize * 1.25f, textP)
+        }
     }
 }
