@@ -77,6 +77,29 @@ class EdgeToEdgeTest {
         assertTrue(view.hudTarget("menu")!!.right <= bmp.width - 140f)
     }
 
+    /** Menu cards, the scenery picker and the tutorial panel keep clear of a cutout too (docs/TOP100.md A6). */
+    @Test
+    fun menusAndPickerStayClearOfACutout() {
+        val view = GameView(app)
+        view.drawSnapshot(Canvas(bmp), view.currentWorld, bmp.width, bmp.height, time = 0f, screen = null)
+        view.dispatchApplyWindowInsets(cutout(left = 300))
+        view.advance(0f)
+        view.drawCurrent(Canvas(bmp))
+        assertTrue("main menu card right of the cutout", view.menuTarget(MenuAction.PLAY)!!.left >= 300f)
+        view.drawSnapshot(Canvas(bmp), view.currentWorld, bmp.width, bmp.height, time = 0f, screen = Screen.SETTINGS)
+        assertTrue("settings card right of the cutout", view.menuTarget(MenuAction.BACK)!!.left >= 300f)
+        view.drawSnapshot(Canvas(bmp), view.currentWorld, bmp.width, bmp.height, time = 0f, screen = Screen.SCENERIES)
+        assertTrue("picker's back pill right of the cutout", view.sceneryTarget(com.mininetworks.game.ui.menu.SceneryPicker.BACK)!!.left >= 300f)
+
+        SettingsStore(app).tutorialSeen = false
+        val tutorial = GameView(app)
+        tutorial.dispatchApplyWindowInsets(cutout(left = 300))
+        tutorial.drawSnapshot(Canvas(bmp), tutorial.currentTutorial!!.world, bmp.width, bmp.height, time = 0f, screen = null)
+        tutorial.advance(0f)
+        tutorial.drawCurrent(Canvas(bmp))
+        assertTrue("tutorial panel right of the cutout", tutorial.tutorialTarget(TutorialOverlay.SKIP)!!.left >= 300f)
+    }
+
     @Test
     fun backIsHandledEverywhereButTheMainMenu() {
         val view = GameView(app)

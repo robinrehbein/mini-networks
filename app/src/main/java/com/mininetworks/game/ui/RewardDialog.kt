@@ -22,7 +22,12 @@ import kotlin.math.sin
  * for the optional extra-router pill below the cards ([World.claimBonusRouter]).
  */
 class RewardDialog(private val context: Context) {
-    private val density = context.resources.displayMetrics.density
+    private val scale = TextScale(context.resources.displayMetrics)
+    private val density = scale.density
+    private val drawnNodes = ArrayList<UiNode>()
+    /** Text size factor of the current frame: the card-relative sizes times the system font size. */
+    private var textK = 1f
+    private var baseW = 1f
     private val cards = listOf(RectF(), RectF())
     private val bonus = RectF()
     private var bonusShown = false
@@ -50,54 +55,102 @@ class RewardDialog(private val context: Context) {
     /** Where the bonus pill was drawn in the last frame, or null. */
     fun bonusTarget(): RectF? = if (bonusShown) RectF(bonus) else null
 
+    /** Heading, cards, prompt and bonus pill of the last drawn frame, for accessibility services and tests. */
+    val nodes: List<UiNode> get() = drawnNodes
+
     /**
      * Draws the choice. [bonus] labels the extra-router pill below the cards, null hides it; [video] adds a play sign
-     * because the extra costs a rewarded video.
+     * because the extra costs a rewarded video. Text follows the system font size: the cards get wider and their
+     * dioramas smaller to make room. [side] is kept free at the left and right bottom corners (the menu button).
      */
     fun draw(
         canvas: Canvas, world: World, offer: RewardOffer, width: Int, height: Int, time: Float, pressed: Int? = null,
-        bonus: String? = null, video: Boolean = false,
+        bonus: String? = null, video: Boolean = false, side: Float = 0f,
     ) {
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), dim)
-        val cardW = minOf(width * 0.3f, height * 0.5f, 320 * density)
-        val cardH = minOf(cardW * 1.08f, height * 0.56f)
+        drawnNodes.clear()
+        textK = scale.factor(14f)
+        baseW = minOf(width * 0.3f, height * 0.5f, 320 * density)
+        // Two cards and their gap (0.14 of a card) stay clear of the menu button's column at both sides.
+        val cardW = minOf(baseW * textK, (width - 2 * side) / 2.14f, 320 * density * textK)
+        val dateSize = baseW * 0.1f * scale.factor(20f)
+        val newsSize = baseW * 0.065f * textK
+        val news = world.lastNews?.takeIf { world.lastNewsTime == world.time }?.let { texts.news(it, withYear = false) }
+        val headH = dateSize * 1.25f + (if (news != null) newsSize * 1.5f else 0f) + 8f * density
+        val promptSize = newsSize
+        text.typeface = Typeface.DEFAULT
+        text.textSize = promptSize
+        val prompt = context.getString(R.string.reward_prompt, World.Tuning.WEEK_BUDGET)
+        // At most two lines; whatever does not fit ends the second one with an ellipsis.
+        val promptLines = wrap(prompt, width - 2 * side).let { if (it.size <= 2) it else listOf(it[0], it.drop(1).joinToString(" ")) }
+        val bonusH = bonusHeight()
+        // With the bonus pill the cards move up, so prompt and pill fit below them.
+        val below = promptSize * (1.0f + 1.3f * promptLines.size) + (if (bonus != null) bonusH + 16f * density else 0f)
+        val cardH = minOf(cardW * 1.08f, height * 0.62f, height - headH - below - 24f * density)
         val gap = cardW * 0.14f
         val depth = cardW * 0.05f
-        // With the bonus pill the cards move up, so prompt and pill fit below them.
-        val below = if (bonus != null) cardW * 0.27f + bonusHeight(cardW) + 12f * density else 0f
-        val top = minOf(height * 0.28f, height - cardH - below).coerceAtLeast(cardW * 0.34f)
+        val top = minOf(height * 0.28f, height - cardH - below - 8f * density).coerceAtLeast(headH + 8f * density)
         val left = (width - 2 * cardW - gap) / 2f
 
         text.typeface = Typeface.DEFAULT_BOLD
-        text.textSize = cardW * 0.1f
-        canvas.drawText(context.getString(R.string.hud_date, world.year, offer.week), width / 2f, top - cardW * 0.22f, text)
+        text.textSize = dateSize
+        val date = context.getString(R.string.hud_date, world.year, offer.week)
+        val newsBaseline = top - maxOf(10f * density, newsSize * 0.4f)
+        val dateBaseline = if (news != null) newsBaseline - newsSize * 1.5f else newsBaseline
+        canvas.drawText(date, width / 2f, dateBaseline, text)
         text.typeface = Typeface.DEFAULT
-        text.textSize = cardW * 0.065f
+        text.textSize = newsSize
         // This week's unlock message, without the year the heading already shows.
-        world.lastNews?.takeIf { world.lastNewsTime == world.time }?.let {
-            canvas.drawText(texts.news(it, withYear = false), width / 2f, top - cardW * 0.1f, text)
-        }
+        news?.let { canvas.drawText(fit(it, width - 2 * side), width / 2f, newsBaseline, text) }
+        drawnNodes += UiNode("reward:title", RectF(left, dateBaseline - dateSize, width - left, newsBaseline + newsSize * 0.3f), listOfNotNull(date, news).joinToString(". "), UiNode.Kind.HEADING)
         text.color = 0xFF5B6674.toInt()
-        val promptY = top + cardH + cardW * 0.2f
-        canvas.drawText(context.getString(R.string.reward_prompt, World.Tuning.WEEK_BUDGET), width / 2f, promptY, text)
+        text.textSize = promptSize
+        val promptTop = top + cardH + depth + promptSize * 0.5f
+        var promptY = promptTop
+        for (line in promptLines) {
+            promptY += promptSize * 1.3f
+            canvas.drawText(fit(line, width - 2 * side), width / 2f, promptY - promptSize * 0.3f, text)
+        }
+        drawnNodes += UiNode("reward:prompt", RectF(side, promptTop, width - side, promptY), prompt, UiNode.Kind.TEXT)
         text.color = ink
         bonusShown = bonus != null
-        if (bonus != null) drawBonus(canvas, bonus, video, width, height, promptY + cardW * 0.07f, cardW, pressed == BONUS)
+        if (bonus != null) {
+            drawBonus(canvas, bonus, video, width, height, promptY + promptSize * 0.4f, pressed == BONUS)
+            drawnNodes += UiNode("reward:bonus", RectF(this.bonus), bonus, UiNode.Kind.BUTTON)
+        }
 
+        // Both cards leave the same room for their texts, so their dioramas match.
+        blockH = offer.choices.maxOf { blockHeight(it, cardW) }
         offer.choices.forEachIndexed { i, reward ->
             val r = cards[i]
             r.set(left + i * (cardW + gap), top, left + i * (cardW + gap) + cardW, top + cardH)
             drawCard(canvas, r, depth, sink = if (pressed == i) depth * 0.8f else 0f, reward, time + i * 0.7f)
+            val said = listOf(amountOf(reward), context.getString(titleOf(reward)), context.getString(descOf(reward))).joinToString(", ")
+            drawnNodes += UiNode("reward:$i", RectF(r), said, UiNode.Kind.BUTTON)
         }
     }
 
-    private fun bonusHeight(cardW: Float) = minOf(44f * density, cardW * 0.16f)
+    /** Room the texts of the cards need, the most of both; see [blockHeight]. */
+    private var blockH = 0f
+
+    private fun amountSize() = baseW * 0.13f * scale.factor(24f)
+
+    /** Height of the amount, title and wrapped description of [reward] on a card [cardW] wide. */
+    private fun blockHeight(reward: Reward, cardW: Float): Float {
+        val descSize = baseW * 0.058f * textK
+        text.typeface = Typeface.DEFAULT
+        text.textSize = descSize
+        val lines = wrap(context.getString(descOf(reward)), cardW * 0.84f).size
+        return amountSize() * 0.85f + baseW * 0.085f * textK * 1.3f + lines * descSize * 1.3f + cardW * 0.05f
+    }
+
+    private fun bonusHeight() = maxOf(TOUCH_DP * density, scale.px(16f) * 2.4f)
 
     /** The extra-router pill: centered under the prompt at [top], kept on screen, pressed when [down]. */
-    private fun drawBonus(canvas: Canvas, label: String, video: Boolean, width: Int, height: Int, top: Float, cardW: Float, down: Boolean) {
-        val h = bonusHeight(cardW)
+    private fun drawBonus(canvas: Canvas, label: String, video: Boolean, width: Int, height: Int, top: Float, down: Boolean) {
+        val h = bonusHeight()
         text.typeface = Typeface.DEFAULT_BOLD
-        text.textSize = h * 0.38f
+        text.textSize = scale.px(16f)
         val icon = if (video) h * 0.5f else 0f
         val w = text.measureText(label) + icon + h * 1.1f
         val y = top.coerceAtMost(height - h - 12f * density)
@@ -141,40 +194,63 @@ class RewardDialog(private val context: Context) {
         fillP.color = 0xFFFAFAF7.toInt()
         canvas.drawRoundRect(r, radius, radius, fillP)
 
-        // Diorama: one grass tile with the reward standing on it.
-        ox = r.centerX()
-        oy = r.top + r.height() * 0.33f
-        u = r.width() * 0.2f
-        fillP.color = accent.shade(0.8f)
-        canvas.drawRoundRect(r.left + depth, r.top + depth, r.right - depth, r.top + r.height() * 0.55f, radius * 0.7f, radius * 0.7f, fillP)
-        tile(canvas, 0xFFDDE9D6.toInt(), 0xFFB9C9AF.toInt())
-        val bob = 0.06f * sin(time * 2.2f)
-        when (reward) {
-            Reward.BUDGET -> coins(canvas, bob)
-            Reward.ROUTERS -> routers(canvas, bob, time)
-            Reward.SERVER_VOUCHER -> server(canvas, accent, bob)
-            Reward.ACCESS_POINT -> accessPoint(canvas, accent, bob, time)
-            Reward.CELL_TOWER -> cellTower(canvas, time)
+        // Text from the bottom up: amount, title and description; larger text pushes it up and shrinks the diorama.
+        val w = r.width()
+        val amountSize = amountSize()
+        val titleSize = baseW * 0.085f * textK
+        val descSize = baseW * 0.058f * textK
+        text.typeface = Typeface.DEFAULT
+        text.textSize = descSize
+        val desc = wrap(context.getString(descOf(reward)), w * 0.84f)
+        val textTop = minOf(r.top + r.height() * 0.7f - amountSize * 0.85f, r.bottom - blockH)
+        val f = ((textTop - r.top - r.height() * 0.04f) / (r.height() * 0.56f)).coerceAtMost(1f)
+
+        // Diorama: one grass tile with the reward standing on it; left out when large text needs the whole card.
+        if (f >= MIN_DIORAMA) {
+            ox = r.centerX()
+            oy = r.top + r.height() * 0.33f * f
+            u = w * 0.2f * f
+            fillP.color = accent.shade(0.8f)
+            canvas.drawRoundRect(r.left + depth, r.top + depth, r.right - depth, r.top + r.height() * 0.55f * f, radius * 0.7f, radius * 0.7f, fillP)
+            tile(canvas, 0xFFDDE9D6.toInt(), 0xFFB9C9AF.toInt())
+            val bob = 0.06f * sin(time * 2.2f)
+            when (reward) {
+                Reward.BUDGET -> coins(canvas, bob)
+                Reward.ROUTERS -> routers(canvas, bob, time)
+                Reward.SERVER_VOUCHER -> server(canvas, accent, bob)
+                Reward.ACCESS_POINT -> accessPoint(canvas, accent, bob, time)
+                Reward.CELL_TOWER -> cellTower(canvas, time)
+            }
         }
 
         val cx = r.centerX()
-        var y = r.top + r.height() * 0.7f
+        var y = textTop + amountSize * 0.85f
         text.typeface = Typeface.DEFAULT_BOLD
         text.color = accent.shade(-0.25f)
-        text.textSize = r.width() * 0.13f
+        text.textSize = amountSize
         canvas.drawText(amountOf(reward), cx, y, text)
         text.color = ink
-        text.textSize = r.width() * 0.085f
-        y += r.width() * 0.11f
-        canvas.drawText(context.getString(titleOf(reward)), cx, y, text)
+        text.textSize = titleSize
+        val title = context.getString(titleOf(reward))
+        if (text.measureText(title) > w * 0.9f) text.textSize = maxOf(titleSize * w * 0.9f / text.measureText(title), titleSize * 0.7f)
+        y += titleSize * 1.3f
+        canvas.drawText(fit(title, w * 0.9f), cx, y, text)
         text.typeface = Typeface.DEFAULT
-        text.textSize = r.width() * 0.058f
+        text.textSize = descSize
         text.color = 0xFF5B6674.toInt()
-        for (line in wrap(context.getString(descOf(reward)), r.width() * 0.84f)) {
-            y += text.textSize * 1.3f
+        for (line in desc) {
+            y += descSize * 1.3f
             canvas.drawText(line, cx, y, text)
         }
         text.color = ink
+    }
+
+    /** [s], shortened with an ellipsis if it is wider than [maxWidth] in the current text paint. */
+    private fun fit(s: String, maxWidth: Float): String {
+        if (text.measureText(s) <= maxWidth) return s
+        var end = s.length
+        while (end > 1 && text.measureText(s, 0, end) + text.measureText("…") > maxWidth) end--
+        return s.substring(0, end).trimEnd() + "…"
     }
 
     private fun accentOf(reward: Reward) = when (reward) {
@@ -310,5 +386,9 @@ class RewardDialog(private val context: Context) {
     companion object {
         /** [hit] result for the extra-router pill. */
         const val BONUS = -1
+        /** Android's minimum touch target. */
+        private const val TOUCH_DP = 48f
+        /** Smallest diorama (share of its size at the default text size) worth drawing. */
+        private const val MIN_DIORAMA = 0.4f
     }
 }

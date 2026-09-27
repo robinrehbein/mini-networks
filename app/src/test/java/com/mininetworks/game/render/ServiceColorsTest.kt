@@ -42,6 +42,50 @@ class ServiceColorsTest {
         }
     }
 
+    /**
+     * Blue-yellow blindness (tritanopia, docs/TOP100.md A7) is rarer; the colorblind palette still keeps every pair of
+     * services apart by [MIN_TRITAN_DELTA_E], and the shapes tell them apart as well.
+     */
+    @Test
+    fun colorblindPaletteStaysDistinctForTritanopia() {
+        val d = minDistance(ServiceColors::colorblindOf, TRITAN)
+        assertTrue("tritanopia: closest pair ΔE $d", d >= MIN_TRITAN_DELTA_E)
+    }
+
+    /** Every service has its own packet shape, so no information rests on color alone. */
+    @Test
+    fun everyServiceHasItsOwnShape() {
+        val shapes = Service.entries.map { it.shape }
+        assertEquals(shapes.size, shapes.toSet().size)
+    }
+
+    /** Menu and HUD text colors reach WCAG AA contrast (4.5:1) on the card and button faces, switches 3:1. */
+    @Test
+    fun uiTextHasEnoughContrast() {
+        val faces = listOf(0xFFFAFAF7.toInt(), 0xFFFFFFFF.toInt(), 0xFFF1F3EE.toInt())
+        for (face in faces) {
+            for ((name, ink) in listOf("ink" to INK, "muted" to MUTED)) {
+                val c = contrast(ink, face)
+                assertTrue("$name on ${Integer.toHexString(face)}: $c", c >= 4.5)
+            }
+        }
+        assertTrue("white on the dark active button", contrast(0xFFFFFFFF.toInt(), INK) >= 4.5)
+        assertTrue("switch track (off) against the row", contrast(SWITCH_OFF, 0xFFF1F3EE.toInt()) >= 3.0)
+    }
+
+    private fun luminance(color: Int): Double {
+        val r = toLinear((color shr 16) and 0xFF)
+        val g = toLinear((color shr 8) and 0xFF)
+        val b = toLinear(color and 0xFF)
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b
+    }
+
+    private fun contrast(a: Int, b: Int): Double {
+        val la = luminance(a)
+        val lb = luminance(b)
+        return (maxOf(la, lb) + 0.05) / (minOf(la, lb) + 0.05)
+    }
+
     @Test
     fun defaultPaletteBlursForRedGreenBlindness() {
         assertTrue(minDistance(ServiceColors::defaultOf, PROTAN) < MIN_DELTA_E)
@@ -94,11 +138,21 @@ class ServiceColorsTest {
         /** Packets travel over DSL and coax cables and sit next to ink-drawn icons. */
         const val MIN_DARK_DELTA_E = 30.0
         const val INK = 0xFF262B33.toInt()
+        const val MUTED = 0xFF5B6674.toInt()
+        /** The off switch track in the settings (MenuPanel). */
+        const val SWITCH_OFF = 0xFF7F887F.toInt()
+        /** Tritanopes see fewer hue differences (closest pair today ΔE 20.1); the shapes carry the rest. */
+        const val MIN_TRITAN_DELTA_E = 20.0
         val IDENTITY = arrayOf(doubleArrayOf(1.0, 0.0, 0.0), doubleArrayOf(0.0, 1.0, 0.0), doubleArrayOf(0.0, 0.0, 1.0))
         val PROTAN = arrayOf(
             doubleArrayOf(0.152286, 1.052583, -0.204868),
             doubleArrayOf(0.114503, 0.786281, 0.099216),
             doubleArrayOf(-0.003882, -0.048116, 1.051998),
+        )
+        val TRITAN = arrayOf(
+            doubleArrayOf(1.255528, -0.076749, -0.178779),
+            doubleArrayOf(-0.078411, 0.930809, 0.147602),
+            doubleArrayOf(0.004733, 0.691367, 0.303900),
         )
         val DEUTAN = arrayOf(
             doubleArrayOf(0.367322, 0.860646, -0.227968),

@@ -27,7 +27,8 @@ import kotlin.math.sin
  * [hit] maps a tap in the bubble to [SKIP], [PLAY], [MENU] or [BUBBLE]; it is valid for the last drawn frame.
  */
 class TutorialOverlay(private val context: Context) {
-    private val density = context.resources.displayMetrics.density
+    private val scale = TextScale(context.resources.displayMetrics)
+    private val density = scale.density
     private val ink = 0xFF262B33.toInt()
     private val muted = 0xFF5B6674.toInt()
     private val accent = 0xFF3BA55C.toInt()
@@ -38,12 +39,34 @@ class TutorialOverlay(private val context: Context) {
     private val bubble = RectF()
     private val r = RectF()
     private val targets = ArrayList<Pair<RectF, String>>()
+    private val drawnNodes = ArrayList<UiNode>()
 
-    /** Width of the panel on a screen [width] px wide. */
-    private fun panelWidth(width: Int) = (width * 0.36f).coerceIn(MIN_WIDTH_DP * density, MAX_WIDTH_DP * density)
+    /** Where the panel starts: below the HUD's top rows ([place]); its left edge follows the display cutout. */
+    private var panelTop = TOP_DP * scale.density
+    private var panelLeft = LEFT_DP * scale.density
+    private var panelBottom = Float.MAX_VALUE
+
+    /**
+     * Keeps the panel below [top], right of [left] and above [bottom] (px): below the date, clear of a display cutout
+     * and above the cable buttons. Text that would not fit shrinks, but never below its default size.
+     */
+    fun place(left: Float, top: Float, bottom: Float = Float.MAX_VALUE) {
+        panelLeft = left
+        panelTop = top
+        panelBottom = bottom
+    }
+
+    /** Text and buttons of the bubble in the last drawn frame, for accessibility services and tests. */
+    val nodes: List<UiNode> get() = drawnNodes
+
+    /** Width of the panel on a screen [width] px wide; larger text makes it wider, up to half the screen. */
+    private fun panelWidth(width: Int): Float {
+        val grow = scale.factor(BODY_SP)
+        return (width * 0.36f * grow).coerceIn(MIN_WIDTH_DP * density, maxOf(MIN_WIDTH_DP * density, minOf(MAX_WIDTH_DP * density * grow, width * 0.5f)))
+    }
 
     /** Right edge of the panel on a screen [width] px wide, so the map can be framed beside it. */
-    fun reservedRight(width: Int): Float = LEFT_DP * density + panelWidth(width)
+    fun reservedRight(width: Int): Float = panelLeft + panelWidth(width)
 
     /** The bubble entry under ([x], [y]): a button id, [BUBBLE] elsewhere on the bubble, or null off it. */
     fun hit(x: Float, y: Float): String? {
@@ -131,20 +154,40 @@ class TutorialOverlay(private val context: Context) {
 
     private fun drawBubble(canvas: Canvas, t: Tutorial, focus: TutorialFocus, width: Int, pressed: String?) {
         targets.clear()
+        drawnNodes.clear()
         val pad = 14 * density
-        val left = LEFT_DP * density
-        val top = TOP_DP * density
+        val left = panelLeft
+        val top = panelTop
         bubble.set(left, top, left + panelWidth(width), top)
         val inner = bubble.width() - 2 * pad
         val done = t.finished
-        text.typeface = Typeface.DEFAULT
-        text.textSize = BODY_SP * density
-        val lines = wrap(body(t, focus), inner)
-        val lineH = BODY_SP * 1.32f * density
-        val kickerH = 16 * density
-        val titleH = 26 * density
-        val footerH = if (done) 40 * density else 32 * density
-        bubble.bottom = top + pad + kickerH + titleH + lines.size * lineH + 12 * density + footerH + pad
+        val body = body(t, focus)
+        // Large text first; if the panel would run into the buttons below, all its text shrinks step by step.
+        var q = 1f
+        var bodySize = 0f
+        var lines: List<String> = emptyList()
+        var lineH = 0f
+        var kickerSize = 0f
+        var titleSize = 0f
+        var kickerH = 0f
+        var titleH = 0f
+        var footerH = 0f
+        val floor = BODY_SP * density * 0.95f
+        while (true) {
+            bodySize = scale.px(BODY_SP) * q
+            text.typeface = Typeface.DEFAULT
+            text.textSize = bodySize
+            lines = wrap(body, inner)
+            lineH = bodySize * 1.32f
+            kickerSize = scale.px(12f) * q
+            titleSize = scale.px(18f) * q
+            kickerH = kickerSize * 1.35f
+            titleH = titleSize * 1.45f
+            footerH = maxOf(TOUCH_DP * density, scale.px(15f) * q + 20 * density)
+            bubble.bottom = top + pad + kickerH + titleH + lines.size * lineH + 12 * density + footerH + pad
+            if (bubble.bottom <= panelBottom || bodySize * 0.95f < floor) break
+            q *= 0.95f
+        }
 
         // A card on a slab, like the menu cards.
         val depth = 5 * density
@@ -159,61 +202,70 @@ class TutorialOverlay(private val context: Context) {
         var y = top + pad
         text.textAlign = Paint.Align.LEFT
         text.typeface = Typeface.DEFAULT_BOLD
-        text.textSize = 12 * density
+        text.textSize = kickerSize
         text.color = HIGHLIGHT
-        canvas.drawText(context.getString(R.string.tutorial_kicker, t.number, Tutorial.STEPS), bubble.left + pad, y + kickerH * 0.75f, text)
+        val kicker = context.getString(R.string.tutorial_kicker, t.number, Tutorial.STEPS)
+        canvas.drawText(kicker, bubble.left + pad, y + kickerH * 0.75f, text)
         // Progress: one dot per step, right of the kicker.
         for (i in 0 until Tutorial.STEPS) {
             fillP.color = if (i < t.number || done) HIGHLIGHT else 0xFFD5DAD2.toInt()
             canvas.drawCircle(bubble.right - pad - 3 * density - (Tutorial.STEPS - 1 - i) * 11 * density, y + kickerH * 0.5f, 3 * density, fillP)
         }
         y += kickerH
-        text.textSize = 18 * density
+        text.textSize = titleSize
         text.color = ink
-        canvas.drawText(fit(if (done) context.getString(R.string.tutorial_done_title) else title(t.step), inner), bubble.left + pad, y + titleH * 0.72f, text)
+        val title = if (done) context.getString(R.string.tutorial_done_title) else title(t.step)
+        canvas.drawText(fit(title, inner), bubble.left + pad, y + titleH * 0.72f, text)
+        drawnNodes += UiNode("tutorial:title", RectF(bubble.left, top, bubble.right, y + titleH), "$kicker. $title", UiNode.Kind.HEADING)
         y += titleH
         text.typeface = Typeface.DEFAULT
-        text.textSize = BODY_SP * density
+        text.textSize = bodySize
         text.color = muted
+        val bodyTop = y
         for (line in lines) {
             y += lineH
             canvas.drawText(line, bubble.left + pad, y - lineH * 0.28f, text)
         }
+        drawnNodes += UiNode("tutorial:text", RectF(bubble.left, bodyTop, bubble.right, y), body, UiNode.Kind.TEXT)
         y += 12 * density
         if (done) {
             val gap = 10 * density
             val w = (inner - gap) / 2f
-            button(canvas, RectF(bubble.left + pad, y, bubble.left + pad + w, y + footerH), context.getString(R.string.tutorial_play), PLAY, primary = true, pressed)
-            button(canvas, RectF(bubble.right - pad - w, y, bubble.right - pad, y + footerH), context.getString(R.string.menu_main), MENU, primary = false, pressed)
+            button(canvas, RectF(bubble.left + pad, y, bubble.left + pad + w, y + footerH), context.getString(R.string.tutorial_play), PLAY, primary = true, pressed, q)
+            button(canvas, RectF(bubble.right - pad - w, y, bubble.right - pad, y + footerH), context.getString(R.string.menu_main), MENU, primary = false, pressed, q)
         } else {
             text.typeface = Typeface.DEFAULT_BOLD
-            text.textSize = 13 * density
+            text.textSize = scale.px(13f) * q
             val label = context.getString(R.string.tutorial_skip)
-            val w = text.measureText(label) + 28 * density
+            val w = minOf(maxOf(TOUCH_DP * density, text.measureText(label) + 28 * density), inner)
             r.set(bubble.right - pad - w, y, bubble.right - pad, y + footerH)
             fillP.color = if (pressed == SKIP) 0xFFE6EAE3.toInt() else 0xFFF1F3EE.toInt()
             canvas.drawRoundRect(r, r.height() / 2, r.height() / 2, fillP)
             text.color = muted
             text.textAlign = Paint.Align.CENTER
-            canvas.drawText(label, r.centerX(), r.centerY() + text.textSize * 0.35f, text)
+            canvas.drawText(fit(label, w - 8 * density), r.centerX(), r.centerY() + text.textSize * 0.35f, text)
             text.textAlign = Paint.Align.LEFT
             targets += RectF(r) to SKIP
+            drawnNodes += UiNode("tutorial:$SKIP", RectF(r), label, UiNode.Kind.BUTTON)
         }
     }
 
-    private fun button(canvas: Canvas, rect: RectF, label: String, id: String, primary: Boolean, pressed: String?) {
+    private fun button(canvas: Canvas, rect: RectF, label: String, id: String, primary: Boolean, pressed: String?, q: Float = 1f) {
         val sink = if (pressed == id) 3 * density else 0f
         fillP.color = if (primary) accent.shade(-0.3f) else 0xFFD5DAD2.toInt()
         canvas.drawRoundRect(rect.left, rect.top + 4 * density, rect.right, rect.bottom + 4 * density, rect.height() / 2, rect.height() / 2, fillP)
         fillP.color = if (primary) accent else 0xFFFFFFFF.toInt()
         canvas.drawRoundRect(rect.left, rect.top + sink, rect.right, rect.bottom + sink, rect.height() / 2, rect.height() / 2, fillP)
         text.typeface = Typeface.DEFAULT_BOLD
-        text.textSize = 15 * density
+        text.textSize = scale.px(15f) * q
+        val room = rect.width() - 16 * density
+        if (text.measureText(label) > room) text.textSize = maxOf(text.textSize * room / text.measureText(label), text.textSize * 0.7f)
         text.textAlign = Paint.Align.CENTER
         text.color = if (primary) 0xFFFFFFFF.toInt() else ink
-        canvas.drawText(fit(label, rect.width() - 16 * density), rect.centerX(), rect.centerY() + sink + text.textSize * 0.35f, text)
+        canvas.drawText(fit(label, room), rect.centerX(), rect.centerY() + sink + text.textSize * 0.35f, text)
         text.textAlign = Paint.Align.LEFT
         targets += RectF(rect) to id
+        drawnNodes += UiNode("tutorial:$id", RectF(rect), label, UiNode.Kind.BUTTON)
     }
 
     private fun title(step: TutorialStep): String = context.getString(
@@ -287,6 +339,8 @@ class TutorialOverlay(private val context: Context) {
         private const val MIN_WIDTH_DP = 240f
         private const val MAX_WIDTH_DP = 320f
         private const val BODY_SP = 13.5f
+        /** Android's minimum touch target. */
+        private const val TOUCH_DP = 48f
         private const val ELLIPSIS = "…"
     }
 }

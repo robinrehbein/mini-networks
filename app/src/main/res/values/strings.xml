@@ -216,4 +216,13 @@
     <string name="incident_countdown" translatable="false">%1$d s</string>
     <string name="hint_two_parts" translatable="false">%1$s · %2$s</string>
     <string name="incident_more">%1$s (+%2$d)</string>
+    <!-- Accessibility (TalkBack) descriptions of the canvas-drawn HUD, docs/TOP100.md A7 -->
+    <string name="a11y_menu">Menü</string>
+    <string name="a11y_pause">Uhr anhalten</string>
+    <string name="a11y_router">Router setzen (vorrätig: %1$d)</string>
+    <string name="a11y_access_point">WLAN-Zugangspunkt setzen (vorrätig: %1$d)</string>
+    <string name="a11y_cell_tower">Funkmast setzen (vorrätig: %1$d)</string>
+    <string name="a11y_cable">Kabel %1$s, Preis pro Feld: %2$d</string>
+    <string name="a11y_locked">gesperrt</string>
+    <string name="a11y_map">Karte · Knoten: %1$d · Kabel: %2$d. Kabel legst du, indem du von Knoten zu Knoten ziehst.</string>
 </resources>

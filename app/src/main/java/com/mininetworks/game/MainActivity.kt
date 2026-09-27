@@ -1,6 +1,7 @@
 package com.mininetworks.game
 
 import android.app.Activity
+import android.content.res.Configuration
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
@@ -25,6 +26,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         if (BuildConfig.DEBUG) DebugChecks.install()
         super.onCreate(savedInstanceState)
+        applyOrientation(resources.configuration)
         goEdgeToEdge()
         gameView = GameView(this)
         gameView.onExit = ::finish
@@ -115,6 +117,18 @@ class MainActivity : Activity() {
                 View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
                 View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
         }
+    }
+
+    /** Landscape on phones, free rotation on large screens ([OrientationPolicy]). */
+    private fun applyOrientation(config: Configuration) {
+        val wanted = OrientationPolicy.forSmallestWidth(config.smallestScreenWidthDp)
+        if (requestedOrientation != wanted) requestedOrientation = wanted
+    }
+
+    /** Folding, unfolding or resizing the window: the activity stays (manifest configChanges), the orientation adapts. */
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        applyOrientation(newConfig)
     }
 
     override fun onResume() {

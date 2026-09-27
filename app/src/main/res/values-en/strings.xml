@@ -211,4 +211,13 @@
     <string name="drag_too_narrow">%1$s needs bandwidth %2$d</string>
     <string name="drag_ping">%1$s: ping %2$d/%3$d ms</string>
     <string name="incident_more">%1$s (+%2$d)</string>
+    <!-- Accessibility (TalkBack) descriptions of the canvas-drawn HUD, docs/TOP100.md A7 -->
+    <string name="a11y_menu">Menu</string>
+    <string name="a11y_pause">Pause the clock</string>
+    <string name="a11y_router">Place router (in stock: %1$d)</string>
+    <string name="a11y_access_point">Place Wi-Fi access point (in stock: %1$d)</string>
+    <string name="a11y_cell_tower">Place cell tower (in stock: %1$d)</string>
+    <string name="a11y_cable">%1$s cable, price per cell: %2$d</string>
+    <string name="a11y_locked">locked</string>
+    <string name="a11y_map">Map · nodes: %1$d · cables: %2$d. Lay cables by dragging from node to node.</string>
 </resources>

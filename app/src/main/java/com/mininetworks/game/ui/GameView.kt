@@ -150,6 +150,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         data class Restore(val inGame: Boolean, val inTutorial: Boolean) : Input
         /** New safe-area insets from the window, see [onApplyWindowInsets]. */
         data class Safe(val insets: ViewInsets) : Input
+        /** An accessibility service activated the element [key] (a double tap in TalkBack), see [CanvasAccessibility]. */
+        data class Activate(val key: String) : Input
+        /** An accessibility service moved its focus onto the element [key]; a scrolled-away scenery card scrolls in. */
+        data class Reveal(val key: String) : Input
     }
 
     // ---------------------------------------------------------------- shared between UI and game thread
@@ -221,6 +225,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private var pressedScenery: String? = null
     /** Why the last tapped scenery is locked, shown under the cards. */
     private var sceneryHint: String? = null
+    /** Sideways drag on a scrolling row of scenery cards. */
+    private var sceneryDownX = 0f
+    private var sceneryLastX = 0f
+    private var sceneryScrolling = false
 
     private var world = DemoCity.build()
     /** The running tutorial; its world is [world]. Null in a normal game and in the menus. */
@@ -305,31 +313,100 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private var growthHintPending = false
 
     private val density = resources.displayMetrics.density
-    private val hudText = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF262B33.toInt(); typeface = Typeface.DEFAULT_BOLD; textSize = 16 * density }
-    private val hudSub = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF5B6674.toInt(); textSize = 13 * density }
+    /** Text sizes that follow the system font size (docs/TOP100.md A7). */
+    private val textScale = TextScale(resources.displayMetrics)
+    private val hudText = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF262B33.toInt(); typeface = Typeface.DEFAULT_BOLD; textSize = textScale.px(16f) }
+    private val hudSub = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF5B6674.toInt(); textSize = textScale.px(13f) }
     private val btnFill = fill(0xE6FFFFFF.toInt())
     private val btnActive = fill(0xFF262B33.toInt())
     private val holdRing = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND }
-    private val btnText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; textSize = 14 * density }
+    private val btnText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; textSize = textScale.px(14f) }
     private val barBg = fill(0x33262B33)
     private val swatch = fill(0)
     private val barFg = fill(0xFF262B33.toInt())
-    private val bigText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; color = 0xFF262B33.toInt() }
-    private val incidentText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; textSize = 14 * density }
+    private val bigText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; color = 0xFF262B33.toInt(); textSize = textScale.px(15f) }
+    private val incidentText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; textSize = textScale.px(14f) }
     private val iconInk = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeCap = Paint.Cap.ROUND; strokeWidth = 3 * density }
     private val coinFill = fill(COIN_COLOR)
-    private val coinText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; textSize = 11 * density; color = 0xFF5A4300.toInt() }
+    private val coinText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; textSize = textScale.px(11f); color = 0xFF5A4300.toInt() }
     private val pinFill = fill(0)
-    private val pinText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; textSize = 12 * density; color = 0xFFFFFFFF.toInt() }
+    private val pinText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; textSize = textScale.px(12f); color = 0xFFFFFFFF.toInt() }
     private val selectionPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
     private val selectionPath = android.graphics.Path()
 
     private data class Button(val id: String, val rect: RectF)
     private val buttons = mutableListOf<Button>()
+    /** The HUD's texts and buttons as accessibility elements, collected while drawing it. */
+    private val hudNodes = ArrayList<UiNode>()
+    private val accessibility = CanvasAccessibility(this, activate = { inputs.add(Input.Activate(it)) }, onFocus = { inputs.add(Input.Reveal(it)) })
 
     init {
         holder.addCallback(this)
         renderers.forEach { it.density = density }
+        importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_YES
+    }
+
+    override fun getAccessibilityNodeProvider(): android.view.accessibility.AccessibilityNodeProvider = accessibility
+
+    override fun dispatchHoverEvent(event: MotionEvent): Boolean = accessibility.onHover(event) || super.dispatchHoverEvent(event)
+
+    /**
+     * Hands the elements of the frame just drawn to accessibility services (docs/TOP100.md A7), only while one listens.
+     * A menu card, the scenery picker and the reward choice are modal: only their elements (and the menu button during
+     * the reward choice) are offered. In a game the map is one element that says what is on it; building on the map
+     * needs direct touch.
+     */
+    private fun publishAccessibility() {
+        if (!accessibility.active) return
+        val nodes = ArrayList<UiNode>()
+        val page = menuPage()
+        when {
+            page != null -> nodes += menuPanel.nodes
+            screen == Screen.SCENERIES -> nodes += sceneryPicker.nodes
+            screen == Screen.PLAYING && world.rewardOffer != null -> {
+                nodes += rewardDialog.nodes
+                nodes += hudNodes.filter { it.key == "hud:menu" }
+            }
+            screen == Screen.PLAYING -> {
+                nodes += UiNode(
+                    "hud:map", RectF(0f, 0f, surfaceWidth.toFloat(), surfaceHeight.toFloat()),
+                    context.getString(R.string.a11y_map, world.nodes.size, world.cables.size), UiNode.Kind.TEXT,
+                )
+                tutorial?.let { nodes += tutorialOverlay.nodes }
+                nodes += hudNodes
+            }
+        }
+        accessibility.update(nodes)
+    }
+
+    /** Does what a tap on the accessibility element [key] would do, if it is still there. */
+    private fun activate(key: String) {
+        if (pendingAd != null || failFocusUntil != null) return
+        val id = key.substringAfter(':')
+        when (key.substringBefore(':')) {
+            "menu" -> {
+                val action = MenuAction.entries.firstOrNull { it.name == id } ?: return
+                if (menuPage() == null || menuPanel.targetOf(action) == null) return
+                click()
+                onMenuAction(action)
+            }
+            "hud" -> {
+                if (screen != Screen.PLAYING || buttons.none { it.id == id }) return
+                if (world.rewardOffer != null && id != "menu") return
+                onButton(id)
+            }
+            "scenery" -> if (screen == Screen.SCENERIES && sceneryPicker.targetOf(id) != null) {
+                click()
+                chooseScenery(id)
+            }
+            "reward" -> if (screen == Screen.PLAYING && world.rewardOffer != null) {
+                if (id == "bonus") takeBonusRouter() else id.toIntOrNull()?.let { world.chooseReward(it) }
+            }
+            "tutorial" -> if (screen == Screen.PLAYING && tutorial != null && tutorialOverlay.targetOf(id) != null) {
+                click()
+                onTutorialButton(id)
+            }
+        }
     }
 
     /**
@@ -611,22 +688,25 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             drawIncidentPins(canvas)
             drawHoldProgress(canvas)
         }
-        if (hudVisible) drawHud(canvas)
+        if (hudVisible) drawHud(canvas) else hudNodes.clear()
         if (playing) tutorial?.let {
+            tutorialOverlay.place(safeInsets.left + 16 * density, tutorialTop(), tutorialBottom())
             tutorialOverlay.draw(canvas, it, tutorialFocus(it), renderer, world, ::hudTarget, surfaceWidth, animTime, tutorialPressed)
         }
         if (playing) world.rewardOffer?.let {
-            rewardDialog.draw(canvas, world, it, surfaceWidth, surfaceHeight, animTime, pressedCard, bonusLabel(), video = !monetization.adsRemoved)
+            val side = safeInsets.right + 16 * density + buttonHeight + 8 * density
+            rewardDialog.draw(canvas, world, it, surfaceWidth, surfaceHeight, animTime, pressedCard, bonusLabel(), video = !monetization.adsRemoved, side = side)
             // The menu stays reachable during the reward choice, so its button is drawn above the dimmed map.
             buttons.firstOrNull { b -> b.id == "menu" }?.let { b -> drawIconButton(canvas, b.rect, b.id, active = false) }
         }
-        menuPage()?.let { menuPanel.draw(canvas, it, surfaceWidth, surfaceHeight, pressedAction) }
+        menuPage()?.let { menuPanel.draw(canvas, it, surfaceWidth, surfaceHeight, pressedAction, safeInsets) }
         if (screen == Screen.SCENERIES) {
             sceneryPicker.draw(
                 canvas, context.getString(R.string.scenery_title), context.getString(R.string.menu_back), sceneryCards(),
-                sceneryHint, surfaceWidth, surfaceHeight, pressedScenery, packLabel(),
+                sceneryHint, surfaceWidth, surfaceHeight, pressedScenery, packLabel(), safeInsets,
             )
         }
+        publishAccessibility()
     }
 
     private fun drawHudButton(canvas: Canvas, r: RectF, label: String, active: Boolean) {
@@ -727,6 +807,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     /** Screen rectangle of the HUD button [id] ("menu", "pause", "router", "radio:…", "cable:…") in the last drawn frame, for tests. */
     internal fun hudTarget(id: String): RectF? = buttons.firstOrNull { it.id == id }?.rect
 
+    /** The accessibility layer, for tests; set [CanvasAccessibility.forceActive] to collect elements without a service. */
+    internal val accessibilityLayer: CanvasAccessibility get() = accessibility
+
     /** The last sounds played (only while sound is on) with their rate, newest last, for tests. */
     internal val playedSounds: List<Pair<Sound, Float>> get() = sounds.played
 
@@ -825,48 +908,131 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         else context.getString(R.string.hud_clock_day, now)
     }
 
+    /** Height of the HUD's round buttons and pills: 48 dp, more when large text needs it. */
+    private val buttonHeight get() = maxOf(TouchTargets.MIN_DP * density, btnText.textSize + 24 * density)
+
+    /** Room the HUD's top rows (date, packets, budget) take above the map, grown with the text size. */
+    private val hudTopReserve: Float
+        get() {
+            val m = HudTop(surfaceWidth - safeInsets.left - safeInsets.right - 32 * density)
+            return maxOf(56 * density * textScale.factor(16f), 16 * density + m.bottom)
+        }
+
+    /**
+     * Top edge of the tutorial panel: below the date, its week bar and the clock line at the top left, and below the
+     * counters too where the panel reaches under them.
+     */
+    private fun tutorialTop(): Float {
+        val m = HudTop(surfaceWidth - safeInsets.left - safeInsets.right - 32 * density)
+        val panelRight = tutorialOverlay.reservedRight(surfaceWidth)
+        val underCounters = m.stacked || panelRight > surfaceWidth - safeInsets.right - 16 * density - m.rightW - 8 * density
+        val block = if (underCounters) m.bottom else m.leftBottom
+        return safeInsets.top + maxOf(60 * density, 16 * density + block + 8 * density)
+    }
+
+    /**
+     * The HUD's top rows, measured for a row [width] px wide: the date with its week bar (and clock) at the left, the
+     * packets, budget and vouchers at the right. Offsets are from the top of the HUD area. When both blocks do not fit
+     * side by side (a narrow window with large text), the counters move below the date.
+     */
+    private inner class HudTop(width: Float) {
+        val date: String = context.getString(R.string.hud_date, world.year, world.week)
+        val clock: String? = clockLabel()
+        val delivered: String = resources.getQuantityString(R.plurals.hud_delivered, world.delivered, world.delivered)
+        val stock: String = context.getString(R.string.hud_resources, world.budget, world.routersAvailable)
+        val vouchers: String? =
+            if (world.serverVouchers > 0) resources.getQuantityString(R.plurals.hud_vouchers, world.serverVouchers, world.serverVouchers) else null
+        val barW = 110 * density
+        val dateBaseline = hudText.textSize
+        val barY = dateBaseline + 8 * density
+        val clockBaseline = barY + 4 * density + 6 * density + hudSub.textSize
+        val leftW = maxOf(hudText.measureText(date), barW, clock?.let { hudSub.measureText(it) } ?: 0f)
+        val leftBottom = if (clock != null) clockBaseline + hudSub.descent() else barY + 4 * density
+        val rightW = maxOf(hudText.measureText(delivered), hudSub.measureText(stock), vouchers?.let { hudSub.measureText(it) } ?: 0f)
+        val stacked = leftW + rightW + 16 * density > width
+        val rightTop = if (stacked) leftBottom + 8 * density else 0f
+        val deliveredBaseline = rightTop + hudText.textSize
+        val stockBaseline = deliveredBaseline + hudSub.textSize * 1.5f
+        val voucherBaseline = stockBaseline + hudSub.textSize * 1.5f
+        val rightBottom = (if (vouchers != null) voucherBaseline else stockBaseline) + hudSub.descent()
+        val bottom = maxOf(leftBottom, rightBottom)
+    }
+
+    /** Lowest edge of the tutorial panel: above the cable buttons at the bottom left (and their slab). */
+    private fun tutorialBottom() = surfaceHeight - safeInsets.bottom - 16 * density - buttonHeight - 12 * density
+
+    /** Room the HUD's bottom row takes below the map. */
+    private val hudBottomReserve get() = maxOf(68 * density, 16 * density + buttonHeight + 4 * density)
+
     private fun drawHud(canvas: Canvas) {
-        // Everything stays inside the safe area (display cutout), with a margin of [pad] (docs/TOP100.md A5).
+        // Everything stays inside the safe area (display cutout), with a margin of [pad] (docs/TOP100.md A5). Rows are
+        // measured from the text sizes, which follow the system font size, so large text never overlaps (A7).
+        hudNodes.clear()
         val pad = 16 * density
         val left = safeInsets.left + pad
         val top = safeInsets.top + pad
         val right = surfaceWidth - safeInsets.right - pad
         val bottom = surfaceHeight - safeInsets.bottom - pad
-        canvas.drawText(context.getString(R.string.hud_date, world.year, world.week), left, top + hudText.textSize, hudText)
-        val barY = top + hudText.textSize + 8 * density
-        val barW = 110 * density
-        canvas.drawRoundRect(left, barY, left + barW, barY + 4 * density, 2 * density, 2 * density, barBg)
-        canvas.drawRoundRect(left, barY, left + barW * world.weekProgress, barY + 4 * density, 2 * density, 2 * density, barFg)
-        clockLabel()?.let { canvas.drawText(it, left, barY + 4 * density + 6 * density + hudSub.textSize, hudSub) }
+        buttons.clear()
+        if (world.rewardOffer != null) {
+            // During the week reward choice only the menu button stays (drawn above the dialog); the dialog repeats
+            // the date and covers the rest.
+            val r = RectF(right - buttonHeight, bottom - buttonHeight, right, bottom)
+            buttons += Button("menu", r)
+            hudNodes += UiNode("hud:menu", RectF(r), context.getString(R.string.a11y_menu), UiNode.Kind.BUTTON)
+            return
+        }
+        val m = HudTop(right - left)
+        canvas.drawText(m.date, left, top + m.dateBaseline, hudText)
+        val barY = top + m.barY
+        canvas.drawRoundRect(left, barY, left + m.barW, barY + 4 * density, 2 * density, 2 * density, barBg)
+        canvas.drawRoundRect(left, barY, left + m.barW * world.weekProgress, barY + 4 * density, 2 * density, 2 * density, barFg)
+        m.clock?.let { canvas.drawText(it, left, top + m.clockBaseline, hudSub) }
+        val leftW = m.leftW
+        val leftBottom = top + m.leftBottom
+        hudNodes += UiNode("hud:date", RectF(left, top, left + leftW, leftBottom), listOfNotNull(m.date, m.clock).joinToString(". "), UiNode.Kind.TEXT)
 
         hudText.textAlign = Paint.Align.RIGHT
-        canvas.drawText(resources.getQuantityString(R.plurals.hud_delivered, world.delivered, world.delivered), right, top + hudText.textSize, hudText)
+        canvas.drawText(m.delivered, right, top + m.deliveredBaseline, hudText)
         hudText.textAlign = Paint.Align.LEFT
         hudSub.textAlign = Paint.Align.RIGHT
-        canvas.drawText(
-            context.getString(R.string.hud_resources, world.budget, world.routersAvailable),
-            right, top + hudText.textSize + 20 * density, hudSub,
-        )
-        if (world.serverVouchers > 0) {
-            canvas.drawText(
-                resources.getQuantityString(R.plurals.hud_vouchers, world.serverVouchers, world.serverVouchers),
-                right, top + hudText.textSize + 40 * density, hudSub,
-            )
-        }
+        canvas.drawText(m.stock, right, top + m.stockBaseline, hudSub)
+        m.vouchers?.let { canvas.drawText(it, right, top + m.voucherBaseline, hudSub) }
         hudSub.textAlign = Paint.Align.LEFT
+        // When both blocks do not fit side by side (a narrow window with large text), the counters sit below the date.
+        val rightW = if (m.stacked) right - left else m.rightW
+        val rightBottom = top + m.rightBottom
+        hudNodes += UiNode(
+            "hud:status", RectF(right - m.rightW, top + m.rightTop, right, rightBottom),
+            listOfNotNull(m.delivered, m.stock, m.vouchers).joinToString(". "), UiNode.Kind.TEXT,
+        )
 
+        // Centered lines (week news, incidents, the paused pill) stack from the top; one that would run into the date
+        // or the counters moves below them.
+        val center = (left + right) / 2f
+        val blocksBottom = maxOf(leftBottom, rightBottom) + 6 * density
+        val freeHalf = minOf(center - (left + leftW) , (right - rightW) - center) - 12 * density
+        var cursor = top
+        fun place(w: Float, h: Float): Float {
+            if (cursor < blocksBottom && w / 2f > freeHalf) cursor = blocksBottom
+            val at = cursor
+            cursor += h + 4 * density
+            return at
+        }
         world.lastNews?.let {
             if (world.rewardOffer == null && tutorial == null && world.time - world.lastNewsTime < 3.5f) {
-                bigText.textSize = 15 * density
-                canvas.drawText(texts.news(it, withYear = true), (left + right) / 2f, top + hudText.textSize, bigText)
+                val text = texts.news(it, withYear = true)
+                val line = fitText(text, right - left, bigText)
+                val w = bigText.measureText(line)
+                val at = place(w, bigText.textSize * 1.3f)
+                canvas.drawText(line, center, at + bigText.textSize, bigText)
+                hudNodes += UiNode("hud:news", RectF(center - w / 2f, at, center + w / 2f, at + bigText.textSize * 1.3f), text, UiNode.Kind.TEXT)
             }
         }
+        if (world.rewardOffer == null) drawIncidentLine(canvas, center, right - left, ::place)
+        if (userPaused && world.rewardOffer == null) drawPausedBanner(canvas, center, right - left, ::place)
 
-        if (world.rewardOffer == null) drawIncidentLine(canvas, top + hudText.textSize + 24 * density)
-        if (userPaused && world.rewardOffer == null) drawPausedBanner(canvas, top + hudText.textSize + 50 * density)
-
-        buttons.clear()
-        val bh = 44 * density
+        val bh = buttonHeight
         val gap = 10 * density
         var x = right
         val y = bottom - bh
@@ -875,19 +1041,25 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             val r = RectF(x - bh, y, x, y + bh)
             drawIconButton(canvas, r, id, active = id == "pause" && userPaused)
             buttons += Button(id, r)
+            hudNodes += UiNode(
+                "hud:$id", RectF(r),
+                context.getString(if (id == "menu") R.string.a11y_menu else R.string.a11y_pause),
+                if (id == "menu") UiNode.Kind.BUTTON else UiNode.Kind.TOGGLE, checked = id == "pause" && userPaused,
+            )
             x -= bh + gap
         }
         val routerLabel = context.getString(R.string.button_router, world.routersAvailable)
-        val rw = btnText.measureText(routerLabel) + 32 * density
+        val rw = maxOf(bh, btnText.measureText(routerLabel) + 32 * density)
         val routerRect = RectF(x - rw, y, x, y + bh)
         drawHudButton(canvas, routerRect, routerLabel, active = placing == NodeKind.ROUTER)
         buttons += Button("router", routerRect)
+        hudNodes += UiNode("hud:router", RectF(routerRect), context.getString(R.string.a11y_router, world.routersAvailable), UiNode.Kind.BUTTON, selected = placing == NodeKind.ROUTER)
         val rightEdge = routerRect.left
         // Cable technology picker, bottom left: invented technologies, each with its price per cell on a coin. In a
         // narrow (portrait) window it moves to its own row above; without room for every name even there, only the
         // selected technology keeps its name (the colour dots alone are hard to tell apart), and without room for
         // that either, none does.
-        val coinR = 9 * density
+        val coinR = maxOf(9 * density, coinText.textSize * 0.8f)
         val cables = world.unlockedCables
         fun widthOf(t: CableType, named: Boolean) =
             24 * density + (if (named) btnText.measureText(texts.cable(t)) + 8 * density else 0f) + 2 * coinR + 10 * density
@@ -895,11 +1067,17 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             cables.sumOf { widthOf(it, named(it)).toDouble() }.toFloat() + gap * (cables.size - 1)
         val all = { _: CableType -> true }
         val selectedOnly = { t: CableType -> t == cableType }
-        val ownRow = left + rowWidth(all) > rightEdge - gap
-        val named = when {
-            !ownRow || left + rowWidth(all) <= right -> all
-            left + rowWidth(selectedOnly) <= right -> selectedOnly
-            else -> { _: CableType -> false }
+        // An extra row only where there is height to spare (not on a landscape phone with large text).
+        val tall = bottom - top - m.bottom >= 6 * bh
+        val fitsBeside = { named: (CableType) -> Boolean -> left + rowWidth(named) <= rightEdge - gap }
+        val none = { _: CableType -> false }
+        val (ownRow, named) = when {
+            fitsBeside(all) -> false to all
+            tall && left + rowWidth(all) <= right -> true to all
+            fitsBeside(selectedOnly) -> false to selectedOnly
+            tall && left + rowWidth(selectedOnly) <= right -> true to selectedOnly
+            fitsBeside(none) -> false to none
+            else -> true to none
         }
         val cableY = if (ownRow) y - bh - gap else y
         var cx = left
@@ -920,6 +1098,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             canvas.drawCircle(coinX, r.centerY(), coinR, coinFill)
             canvas.drawText(t.costPerCell.toString(), coinX, r.centerY() + coinText.textSize * 0.36f, coinText)
             buttons += Button("cable:${t.name}", r)
+            hudNodes += UiNode("hud:cable:${t.name}", RectF(r), context.getString(R.string.a11y_cable, texts.cable(t), t.costPerCell), UiNode.Kind.BUTTON, selected = active)
             cx += w + gap
         }
         // Radios in a row above the right buttons (above the cables too when those have their own row), only while
@@ -932,11 +1111,16 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             if (stock == 0) continue
             radioRow = true
             val label = context.getString(if (type == RadioType.WLAN) R.string.button_access_point else R.string.button_cell_tower, stock)
-            val w = btnText.measureText(label) + 32 * density
+            val w = maxOf(bh, btnText.measureText(label) + 32 * density)
             val top = y - (rows + 1) * (bh + gap)
             val r = RectF(x - w, top, x, top + bh)
             drawHudButton(canvas, r, label, active = placing == type.kind)
             buttons += Button("radio:${type.name}", r)
+            hudNodes += UiNode(
+                "hud:radio:${type.name}", RectF(r),
+                context.getString(if (type == RadioType.WLAN) R.string.a11y_access_point else R.string.a11y_cell_tower, stock),
+                UiNode.Kind.BUTTON, selected = placing == type.kind,
+            )
             x -= w + gap
         }
         if (radioRow) rows++
@@ -948,7 +1132,46 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             animTime < hintUntil -> hint
             else -> null
         }
-        hintText?.let { canvas.drawText(it, left, hintY, hudSub) }
+        // A long hint (or large text) wraps into up to three lines that grow upwards from above the buttons.
+        hintText?.let {
+            val lineH = hudSub.textSize * 1.3f
+            // As many lines as fit between the top rows (and the centered lines) and the buttons.
+            val room = ((hintY - hudSub.textSize - maxOf(cursor, blocksBottom)) / lineH).toInt() + 1
+            val lines = wrapText(it, right - left, hudSub, room.coerceIn(1, MAX_HINT_LINES))
+            lines.forEachIndexed { i, line -> canvas.drawText(line, left, hintY - (lines.size - 1 - i) * lineH, hudSub) }
+            val w = lines.maxOf { l -> hudSub.measureText(l) }
+            hudNodes += UiNode("hud:hint", RectF(left, hintY - (lines.size - 1) * lineH - hudSub.textSize, left + w, hintY + hudSub.descent()), it, UiNode.Kind.TEXT)
+        }
+    }
+
+    /** [s], shortened with an ellipsis if it is wider than [maxWidth] in [paint]. */
+    private fun fitText(s: String, maxWidth: Float, paint: Paint): String {
+        if (paint.measureText(s) <= maxWidth) return s
+        var end = s.length
+        while (end > 1 && paint.measureText(s, 0, end) + paint.measureText("…") > maxWidth) end--
+        return s.substring(0, end).trimEnd() + "…"
+    }
+
+    /** [s] broken at spaces into at most [maxLines] lines of [maxWidth] in [paint]; the last one is shortened if needed. */
+    private fun wrapText(s: String, maxWidth: Float, paint: Paint, maxLines: Int): List<String> {
+        val lines = ArrayList<String>()
+        var line = ""
+        val words = s.split(' ')
+        for ((i, word) in words.withIndex()) {
+            val candidate = if (line.isEmpty()) word else "$line $word"
+            if (paint.measureText(candidate) <= maxWidth || line.isEmpty()) {
+                line = candidate
+                continue
+            }
+            if (lines.size == maxLines - 1) {
+                lines += fitText((listOf(line) + words.subList(i, words.size)).joinToString(" "), maxWidth, paint)
+                return lines
+            }
+            lines += line
+            line = word
+        }
+        if (line.isNotEmpty()) lines += fitText(line, maxWidth, paint)
+        return lines
     }
 
     /** A round HUD button with a drawn icon: three lines for the menu, two bars (or a play triangle while paused) for pause. */
@@ -974,27 +1197,35 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     }
 
     /** "Paused, keep building" in a dark pill at the top centre while the clock is stopped in place. */
-    private fun drawPausedBanner(canvas: Canvas, top: Float) {
-        val text = context.getString(R.string.hud_paused)
+    private fun drawPausedBanner(canvas: Canvas, center: Float, maxWidth: Float, place: (Float, Float) -> Float) {
+        val full = context.getString(R.string.hud_paused)
+        val text = fitText(full, maxWidth - 28 * density, btnText)
         val w = btnText.measureText(text) + 28 * density
-        val h = 30 * density
-        val r = RectF(surfaceWidth / 2f - w / 2f, top, surfaceWidth / 2f + w / 2f, top + h)
+        val h = maxOf(30 * density, btnText.textSize * 2f)
+        val top = place(w, h)
+        val r = RectF(center - w / 2f, top, center + w / 2f, top + h)
         canvas.drawRoundRect(r, h / 2, h / 2, btnActive)
         btnText.color = 0xFFFFFFFF.toInt()
         canvas.drawText(text, r.centerX(), r.centerY() + btnText.textSize * 0.35f, btnText)
+        hudNodes += UiNode("hud:paused", r, full, UiNode.Kind.TEXT)
     }
 
     /**
      * One centered line for the most urgent incident (a cut cable first, then the one due soonest), amber while
      * announced, red once struck, with "(+n)" for the others; each also gets a countdown pin on the map.
      */
-    private fun drawIncidentLine(canvas: Canvas, top: Float) {
+    private fun drawIncidentLine(canvas: Canvas, center: Float, maxWidth: Float, place: (Float, Float) -> Float) {
         val incidents = world.incidents
         if (incidents.isEmpty()) return
         val first = incidents.minWith(compareBy({ !(it.struck && it.kind == IncidentKind.EXCAVATOR) }, { if (it.struck) it.remaining else it.warning }))
         incidentText.color = if (first.struck) IncidentStyles.CUT else IncidentStyles.WARNING.shade(-0.25f)
-        val text = texts.incident(first).let { if (incidents.size > 1) context.getString(R.string.incident_more, it, incidents.size - 1) else it }
-        canvas.drawText(text, surfaceWidth / 2f, top, incidentText)
+        val full = texts.incident(first).let { if (incidents.size > 1) context.getString(R.string.incident_more, it, incidents.size - 1) else it }
+        val text = fitText(full, maxWidth, incidentText)
+        val w = incidentText.measureText(text)
+        val h = incidentText.textSize * 1.3f
+        val top = place(w, h)
+        canvas.drawText(text, center, top + incidentText.textSize, incidentText)
+        hudNodes += UiNode("hud:incident", RectF(center - w / 2f, top, center + w / 2f, top + h), full, UiNode.Kind.TEXT)
     }
 
     /** A countdown pin over every incident's spot on the map, so the line at the top points at its cable or node. */
@@ -1067,6 +1298,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 safeInsets = input.insets
                 layoutRenderers()
             }
+            is Input.Activate -> activate(input.key)
+            is Input.Reveal -> if (screen == Screen.SCENERIES && input.key.startsWith("scenery:")) sceneryPicker.reveal(input.key.removePrefix("scenery:"))
         }
     }
 
@@ -1799,6 +2032,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             unlocked = unlocked,
             status = status,
             progress = if (!unlocked && unlock is Unlock.Score) highscores.best(unlock.after) / unlock.packets.toFloat() else null,
+            lockedLabel = if (unlocked) null else context.getString(R.string.a11y_locked),
         )
     }
 
@@ -1808,25 +2042,46 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             MotionEvent.ACTION_DOWN -> {
                 endDrag()
                 pressedScenery = sceneryPicker.hit(e.x, e.y)
+                sceneryDownX = e.x
+                sceneryLastX = e.x
+                sceneryScrolling = false
+            }
+            // A row of cards wider than the screen (large text on a phone) scrolls sideways with a drag.
+            MotionEvent.ACTION_MOVE -> if (sceneryPicker.scrollable) {
+                if (!sceneryScrolling && kotlin.math.abs(e.x - sceneryDownX) >= TAP_SLOP_DP * density) {
+                    sceneryScrolling = true
+                    pressedScenery = null
+                }
+                if (sceneryScrolling) sceneryPicker.scrollBy(sceneryLastX - e.x)
+                sceneryLastX = e.x
             }
             MotionEvent.ACTION_UP -> {
                 val id = pressedScenery
                 pressedScenery = null
+                if (sceneryScrolling) {
+                    sceneryScrolling = false
+                    return
+                }
                 if (id == null || sceneryPicker.hit(e.x, e.y) != id) return
                 click()
-                if (id == SceneryPicker.BACK) {
-                    screen = Screen.MAIN_MENU
-                    return
-                }
-                if (id == SceneryPicker.PACK) {
-                    sceneryHint = if (monetization.purchase(Entitlements.SCENERY_PACK)) null else context.getString(R.string.scenery_hint_no_shop)
-                    return
-                }
-                val s = Scenarios.byId(id) ?: return
-                if (sceneryUnlocked(s)) newGame(s) else sceneryHint = lockedHint(s)
+                chooseScenery(id)
             }
             MotionEvent.ACTION_CANCEL -> pressedScenery = null
         }
+    }
+
+    /** A picked card: an unlocked scenery starts, a locked one says how to get it; or the back or pack pill. */
+    private fun chooseScenery(id: String) {
+        if (id == SceneryPicker.BACK) {
+            screen = Screen.MAIN_MENU
+            return
+        }
+        if (id == SceneryPicker.PACK) {
+            sceneryHint = if (monetization.purchase(Entitlements.SCENERY_PACK)) null else context.getString(R.string.scenery_hint_no_shop)
+            return
+        }
+        val s = Scenarios.byId(id) ?: return
+        if (sceneryUnlocked(s)) newGame(s) else sceneryHint = lockedHint(s)
     }
 
     /** Asks the store for a locked scenery; the hint says how to unlock it, or that buying is not possible yet. */
@@ -1980,9 +2235,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         val insets = if ((screen == Screen.MAIN_MENU || screen == Screen.SCENERIES) && !gameInProgress) {
             ViewInsets(surfaceWidth * 0.55f, 24 * density, 16 * density, 24 * density)
         } else if (tutorial != null) {
-            ViewInsets(tutorialOverlay.reservedRight(surfaceWidth) + 8 * density, 56 * density, 8 * density, 68 * density)
+            tutorialOverlay.place(safeInsets.left + 16 * density, tutorialTop(), tutorialBottom())
+            ViewInsets(tutorialOverlay.reservedRight(surfaceWidth) - safeInsets.left + 8 * density, hudTopReserve, 8 * density, hudBottomReserve)
         } else {
-            ViewInsets(8 * density, 56 * density, 8 * density, 68 * density)
+            ViewInsets(8 * density, hudTopReserve, 8 * density, hudBottomReserve)
         }
         val safe = safeInsets
         val inside = ViewInsets(insets.left + safe.left, insets.top + safe.top, insets.right + safe.right, insets.bottom + safe.bottom)
@@ -2012,6 +2268,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         const val TRAIL_SPACING = 0.2f
         const val MAX_TRAIL = 256
         const val HINT_SECONDS = 2.5f
+        /** Lines a long hint (or one in large text) wraps into above the bottom buttons. */
+        const val MAX_HINT_LINES = 3
         /** How long the camera shows the failed device before the game-over card. */
         const val GAME_OVER_FOCUS_SECONDS = 1.6f
         /** Longer hints: what a new service needs, why a device is stuck. */
