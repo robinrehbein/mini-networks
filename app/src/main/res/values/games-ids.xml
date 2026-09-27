@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Play Games Services ids (docs/TOP100.md C2, C3, C6; setup in docs/RELEASE.md 11).
+
+  TODO(release): every value below is a PLACEHOLDER. Create the Play Games Services project, its 39 achievements and
+  6 leaderboards in the Play Console (Grow users > Play Games Services), then replace each TODO_ value with the id the
+  console shows (Play Console > Play Games Services > Setup and management > Configuration > "Get resources").
+  Keep the resource NAMES as they are: the app maps them to its achievements and leaderboards (games/GamesIds.kt).
+  While app_id is not a number the app runs without Play Games (NoOpGameServices), exactly like a debug build;
+  an achievement or leaderboard whose value still starts with TODO_ is skipped. Never commit ids of another app.
+-->
+<resources>
+    <!-- Numeric project id ("Application ID") of the Play Games Services project. -->
+    <string name="app_id" translatable="false">TODO_PLAY_GAMES_APP_ID</string>
+
+    <!-- Achievements: one per entry of Achievements.all in :core (same order). -->
+    <string name="achievement_delivered_1" translatable="false">TODO_achievement_delivered_1</string>
+    <string name="achievement_delivered_100" translatable="false">TODO_achievement_delivered_100</string>
+    <string name="achievement_delivered_1000" translatable="false">TODO_achievement_delivered_1000</string>
+    <string name="achievement_delivered_10000" translatable="false">TODO_achievement_delivered_10000</string>
+    <string name="achievement_game_100" translatable="false">TODO_achievement_game_100</string>
+    <string name="achievement_game_300" translatable="false">TODO_achievement_game_300</string>
+    <string name="achievement_game_600" translatable="false">TODO_achievement_game_600</string>
+    <string name="achievement_game_1000" translatable="false">TODO_achievement_game_1000</string>
+    <string name="achievement_week_5" translatable="false">TODO_achievement_week_5</string>
+    <string name="achievement_week_10" translatable="false">TODO_achievement_week_10</string>
+    <string name="achievement_week_15" translatable="false">TODO_achievement_week_15</string>
+    <string name="achievement_cables_10" translatable="false">TODO_achievement_cables_10</string>
+    <string name="achievement_cables_100" translatable="false">TODO_achievement_cables_100</string>
+    <string name="achievement_cables_500" translatable="false">TODO_achievement_cables_500</string>
+    <string name="achievement_fiber_1" translatable="false">TODO_achievement_fiber_1</string>
+    <string name="achievement_fiber_25" translatable="false">TODO_achievement_fiber_25</string>
+    <string name="achievement_upgrades_10" translatable="false">TODO_achievement_upgrades_10</string>
+    <string name="achievement_routers_5" translatable="false">TODO_achievement_routers_5</string>
+    <string name="achievement_routers_50" translatable="false">TODO_achievement_routers_50</string>
+    <string name="achievement_server_1" translatable="false">TODO_achievement_server_1</string>
+    <string name="achievement_server_20" translatable="false">TODO_achievement_server_20</string>
+    <string name="achievement_data_center_1" translatable="false">TODO_achievement_data_center_1</string>
+    <string name="achievement_access_points_3" translatable="false">TODO_achievement_access_points_3</string>
+    <string name="achievement_cell_towers_3" translatable="false">TODO_achievement_cell_towers_3</string>
+    <string name="achievement_repairs_5" translatable="false">TODO_achievement_repairs_5</string>
+    <string name="achievement_games_1" translatable="false">TODO_achievement_games_1</string>
+    <string name="achievement_games_10" translatable="false">TODO_achievement_games_10</string>
+    <string name="achievement_games_50" translatable="false">TODO_achievement_games_50</string>
+    <string name="achievement_weeks_50" translatable="false">TODO_achievement_weeks_50</string>
+    <string name="achievement_sceneries_3" translatable="false">TODO_achievement_sceneries_3</string>
+    <string name="achievement_streaming_500" translatable="false">TODO_achievement_streaming_500</string>
+    <string name="achievement_daily_1" translatable="false">TODO_achievement_daily_1</string>
+    <string name="achievement_daily_10" translatable="false">TODO_achievement_daily_10</string>
+    <string name="achievement_streak_3" translatable="false">TODO_achievement_streak_3</string>
+    <string name="achievement_streak_7" translatable="false">TODO_achievement_streak_7</string>
+    <string name="achievement_endless_12" translatable="false">TODO_achievement_endless_12</string>
+    <string name="achievement_creative_1" translatable="false">TODO_achievement_creative_1</string>
+    <string name="achievement_second_chance_1" translatable="false">TODO_achievement_second_chance_1</string>
+    <string name="achievement_budget_300" translatable="false">TODO_achievement_budget_300</string>
+
+    <!-- Leaderboards (Leaderboards.all in :core): one per scenery (normal mode), one for the daily challenge. -->
+    <string name="leaderboard_scenery_river_town" translatable="false">TODO_leaderboard_scenery_river_town</string>
+    <string name="leaderboard_scenery_metropolis" translatable="false">TODO_leaderboard_scenery_metropolis</string>
+    <string name="leaderboard_scenery_island_harbor" translatable="false">TODO_leaderboard_scenery_island_harbor</string>
+    <string name="leaderboard_scenery_mountain_village" translatable="false">TODO_leaderboard_scenery_mountain_village</string>
+    <string name="leaderboard_scenery_future_2030" translatable="false">TODO_leaderboard_scenery_future_2030</string>
+    <string name="leaderboard_daily" translatable="false">TODO_leaderboard_daily</string>
+</resources>

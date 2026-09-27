@@ -443,4 +443,23 @@
     <string name="theme_autumn">Herbst</string>
     <string name="theme_winter">Winter</string>
     <string name="theme_desert">Wüste</string>
+    <!-- Play Games, rating and sharing (docs/TOP100.md C3, C6, D2) -->
+    <string name="menu_leaderboards">Bestenlisten</string>
+    <string name="game_over_share">Netz teilen</string>
+    <string name="share_chooser">Netz teilen</string>
+    <plurals name="share_text">
+        <item quantity="one">Mein Netz in %1$s: %2$s Paket zugestellt, bis ins Jahr %3$d. Schaffst du mehr? #MiniNetworks</item>
+        <item quantity="other">Mein Netz in %1$s: %2$s Pakete zugestellt, bis ins Jahr %3$d. Schaffst du mehr? #MiniNetworks</item>
+    </plurals>
+    <plurals name="share_card_packets">
+        <item quantity="one">Paket zugestellt</item>
+        <item quantity="other">Pakete zugestellt</item>
+    </plurals>
+    <string name="share_card_date">Jahr %1$d · Woche %2$d</string>
+    <string name="share_card_daily">Tagesaufgabe · %1$s</string>
+    <string name="share_card_tagline">Kannst du mein Netz schlagen?</string>
+    <plurals name="cloud_save_description">
+        <item quantity="one">%d Paket zugestellt</item>
+        <item quantity="other">%d Pakete zugestellt</item>
+    </plurals>
 </resources>

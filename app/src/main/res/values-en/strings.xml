@@ -438,4 +438,23 @@
     <string name="theme_autumn">Autumn</string>
     <string name="theme_winter">Winter</string>
     <string name="theme_desert">Desert</string>
+    <!-- Play Games, rating and sharing (docs/TOP100.md C3, C6, D2) -->
+    <string name="menu_leaderboards">Leaderboards</string>
+    <string name="game_over_share">Share network</string>
+    <string name="share_chooser">Share your network</string>
+    <plurals name="share_text">
+        <item quantity="one">My network in %1$s: %2$s packet delivered, all the way to %3$d. Can you beat it? #MiniNetworks</item>
+        <item quantity="other">My network in %1$s: %2$s packets delivered, all the way to %3$d. Can you beat it? #MiniNetworks</item>
+    </plurals>
+    <plurals name="share_card_packets">
+        <item quantity="one">packet delivered</item>
+        <item quantity="other">packets delivered</item>
+    </plurals>
+    <string name="share_card_date">Year %1$d · Week %2$d</string>
+    <string name="share_card_daily">Daily challenge · %1$s</string>
+    <string name="share_card_tagline">Can you beat my network?</string>
+    <plurals name="cloud_save_description">
+        <item quantity="one">%d packet delivered</item>
+        <item quantity="other">%d packets delivered</item>
+    </plurals>
 </resources>

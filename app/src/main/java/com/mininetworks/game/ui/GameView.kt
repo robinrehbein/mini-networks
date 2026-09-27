@@ -93,6 +93,20 @@ import com.mininetworks.game.ui.menu.MenuPicture
 import com.mininetworks.game.ui.menu.SceneryCard
 import com.mininetworks.game.ui.menu.SceneryPicker
 import com.mininetworks.game.ui.menu.Screen
+import com.mininetworks.game.data.GameIo
+import com.mininetworks.game.data.ReviewStore
+import com.mininetworks.game.game.AchievementSync
+import com.mininetworks.game.game.CloudProgress
+import com.mininetworks.game.game.FinishedGame
+import com.mininetworks.game.game.Leaderboards
+import com.mininetworks.game.game.ReviewPolicy
+import com.mininetworks.game.games.GameServices
+import com.mininetworks.game.games.NoOpGameServices
+import com.mininetworks.game.review.NoOpReviewPrompt
+import com.mininetworks.game.review.ReviewPrompt
+import com.mininetworks.game.share.ShareCard
+import com.mininetworks.game.share.ShareSheet
+import java.io.File
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.thread
@@ -174,6 +188,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         data class Activate(val key: String) : Input
         /** An accessibility service moved its focus onto the element [key]; a scrolled-away scenery card scrolls in. */
         data class Reveal(val key: String) : Input
+        /** Play Games signed the player in (docs/TOP100.md C2, C6). */
+        data object SignedIn : Input
+        /** The Play Games cloud save arrived, or null if there is none (C6). */
+        class CloudLoaded(val progress: CloudProgress?) : Input
     }
 
     // ---------------------------------------------------------------- shared between UI and game thread
@@ -232,6 +250,32 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     @Volatile var monetization: Monetization = NoOpMonetization
     private val monetizationStore by lazy { MonetizationStore(context) }
     private val adPolicy by lazy { monetizationStore.loadPolicy() }
+    /**
+     * Play Games (docs/TOP100.md C2, C3, C6); [NoOpGameServices] unless the activity sets the Play implementation. Read
+     * on the game thread; its sign-in reaches the game thread as [Input.SignedIn].
+     */
+    @Volatile var gameServices: GameServices = NoOpGameServices
+        set(value) {
+            field = value
+            value.onSignedIn = { inputs.add(Input.SignedIn) }
+            if (value.signedIn) inputs.add(Input.SignedIn)
+        }
+    /** Achievement ids handed to Play Games since the last sign-in; game thread only. */
+    private val syncedAchievements = HashSet<String>()
+
+    /** The In-App Review dialog (docs/TOP100.md D1); [ReviewPolicy] decides when. */
+    @Volatile var reviewPrompt: ReviewPrompt = NoOpReviewPrompt
+    private val reviewStore by lazy { ReviewStore(context) }
+    /** Set at a game over that earned a rating request; it is made once the game-over card shows. */
+    private var reviewDue = false
+
+    /**
+     * Called on the UI thread with the written share card and its text (docs/TOP100.md D2); the activity opens the
+     * share sheet ([ShareSheet.chooser]).
+     */
+    var onShare: ((File, String) -> Unit)? = null
+    private val shareCard by lazy { ShareCard(context) }
+
     /** The full-screen ad that is open right now; its [Input.AdResult] is awaited. */
     private var pendingAd: AdPlacement? = null
     /** What leaving the game-over card does once the interstitial closed. */
@@ -710,7 +754,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 ?: Cosmetics.themeFor(a.id)?.let { context.getString(R.string.toast_new_theme, texts.theme(it)) }
             toast.add(AchievementToast.Message(context.getString(R.string.toast_achievement, texts.achievementTitle(a)), detail))
         }
-        if (list.isNotEmpty()) saveStats()
+        if (list.isNotEmpty()) {
+            saveStats()
+            syncAchievements()
+        }
     }
 
     /** Stores the stats if they changed; never the first read (so [pause] on the UI thread never loads them). */
@@ -1557,6 +1604,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 screen == Screen.SCENERIES && input.key.startsWith("scenery:") -> sceneryPicker.reveal(input.key.removePrefix("scenery:"))
                 screen == Screen.ACHIEVEMENTS && input.key.startsWith("achievement:") -> achievementsPanel.reveal(input.key.removePrefix("achievement:"))
             }
+            Input.SignedIn -> onSignedIn()
+            is Input.CloudLoaded -> applyCloud(input.progress)
         }
     }
 
@@ -2076,8 +2125,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 MenuItem.Button(MenuAction.DAILY, context.getString(R.string.menu_daily)),
                 MenuItem.Button(MenuAction.CONTINUE, context.getString(R.string.menu_continue), enabled = gameInProgress || hasSave),
                 MenuItem.Button(MenuAction.ACHIEVEMENTS, context.getString(R.string.menu_achievements)),
+            ) + listOfNotNull(
+                if (gameServices.available) MenuItem.Button(MenuAction.LEADERBOARDS, context.getString(R.string.menu_leaderboards)) else null,
                 MenuItem.Button(MenuAction.SETTINGS, context.getString(R.string.menu_settings)),
-            ) + listOfNotNull(removeAdsLabel()?.let { MenuItem.Button(MenuAction.REMOVE_ADS, it) }),
+                removeAdsLabel()?.let { MenuItem.Button(MenuAction.REMOVE_ADS, it) },
+            ),
             footer = highscores.best(highscores.lastScenery).takeIf { it > 0 }?.let { context.getString(R.string.menu_best, it) },
             hero = true,
         )
@@ -2145,6 +2197,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             items = listOfNotNull(
                 MenuItem.Button(MenuAction.PLAY_AGAIN, context.getString(R.string.game_over_again), primary = true),
                 secondChanceLabel()?.let { MenuItem.Button(MenuAction.SECOND_CHANCE, it) },
+                if (tutorial == null) MenuItem.Button(MenuAction.SHARE, context.getString(R.string.game_over_share)) else null,
                 MenuItem.Button(MenuAction.MAIN_MENU, context.getString(R.string.menu_main)),
             ),
         )
@@ -2280,6 +2333,94 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             }
             MenuAction.CABLE_SKIN -> updateSettings(settings.copy(cableSkin = Cosmetics.next(Cosmetic.skin, Cosmetics.skins(tracker.unlocked))))
             MenuAction.COLOR_THEME -> updateSettings(settings.copy(colorTheme = Cosmetics.next(Cosmetic.theme, Cosmetics.themes(tracker.unlocked))))
+            MenuAction.LEADERBOARDS -> gameServices.showLeaderboards()
+            MenuAction.SHARE -> shareNetwork()
+        }
+    }
+
+    // ---------------------------------------------------------------- Play Games, rating, sharing (game thread)
+
+    /** Signed in to Play Games: every reached achievement once more, then the cloud save (docs/TOP100.md C2, C6). */
+    private fun onSignedIn() {
+        syncedAchievements.clear()
+        syncAchievements()
+        gameServices.loadProgress { inputs.add(Input.CloudLoaded(it)) }
+    }
+
+    /** Hands the achievements reached but not yet sent since the sign-in to Play Games (docs/TOP100.md C2). */
+    private fun syncAchievements() {
+        if (!gameServices.signedIn) return
+        val pending = AchievementSync.pending(tracker.stats, syncedAchievements)
+        if (pending.isNotEmpty()) syncedAchievements += gameServices.unlock(pending)
+    }
+
+    /** The progress on this device as a cloud save (docs/TOP100.md C6). */
+    private fun localProgress(): CloudProgress = CloudProgress.of(
+        stats = tracker.stats,
+        best = highscores.all(),
+        streak = streak,
+        dailyDay = progressStore.dailyDay,
+        dailyBest = progressStore.dailyDay?.let(progressStore::dailyBest) ?: 0,
+        savedAt = wallClock(),
+    )
+
+    /**
+     * The cloud save arrived (docs/TOP100.md C6): both sides are merged ([CloudProgress.merge], most progress per value,
+     * the newer day for the streak) and the result goes into the local stores; if the cloud lacked something of this
+     * device, the merged save is written back. A save of a newer app version is merged in but never overwritten.
+     */
+    private fun applyCloud(remote: CloudProgress?) {
+        val local = localProgress()
+        if (remote == null) {
+            gameServices.saveProgress(local)
+            return
+        }
+        val merged = CloudProgress.merge(local, remote)
+        if (merged.stats != tracker.stats) {
+            tracker.replace(merged.stats)
+            progressStore.saveStats(merged.stats)
+            tiles = emptyList()
+            tilesFor = null
+        }
+        highscores.restore(merged.best)
+        if (merged.streak != streak) {
+            streakCache = merged.streak
+            progressStore.streak = merged.streak
+        }
+        progressStore.restoreDaily(merged.dailyDay, merged.dailyBest)
+        syncAchievements()
+        if (!remote.newerFormat && merged.copy(savedAt = 0) != remote.copy(savedAt = 0)) gameServices.saveProgress(merged.copy(savedAt = wallClock()))
+    }
+
+    /**
+     * After a game over of a normal game or a daily challenge: its leaderboard score (C3), the cloud save (C6) and the
+     * rating request (D1). [previousBest] is the best of the same board before this game.
+     */
+    private fun afterGameOver(previousBest: Int) {
+        Leaderboards.forGameOver(world, wallClock())?.let(gameServices::submit)
+        if (gameServices.signedIn) gameServices.saveProgress(localProgress())
+        if (world.mode != GameMode.NORMAL) return
+        val game = FinishedGame(score = world.delivered, previousBest = previousBest, weeks = world.weeksPlayed, continued = world.continued)
+        val decision = ReviewPolicy.onGameOver(reviewStore.state, game, wallClock())
+        reviewStore.state = decision.state
+        if (decision.ask) reviewDue = true
+    }
+
+    /**
+     * Draws the share card of the finished game here, writes it on GameIo and hands it to [onShare] on the UI thread
+     * (docs/TOP100.md D2).
+     */
+    private fun shareNetwork() {
+        val card = shareCard.render(world, animTime)
+        val text = shareCard.message(world)
+        val cache = context.cacheDir
+        GameIo.execute {
+            val file = try {
+                ShareSheet.write(cache, card)
+            } finally {
+                card.recycle()
+            }
+            mainThread.post { onShare?.invoke(file, text) }
         }
     }
 
@@ -2640,6 +2781,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         gameInProgress = false
         // A daily challenge keeps its own best of the day; it never counts towards unlocking sceneries.
         val daily = world.daily
+        val previousBest = when {
+            daily == null -> highscores.best(world.scenario.id)
+            else -> progressStore.dailyBest(daily.day)
+        }
         newBest = when {
             daily == null -> highscores.submit(world.delivered, world.scenario.id)
             // A run finished after its UTC day no longer counts for that day's best (docs/TOP100.md C1).
@@ -2647,6 +2792,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             else -> false
         }
         unlocked(tracker.gameOver(world))
+        afterGameOver(previousBest)
         saves.clearLater()
         hasSave = false
         endDrag()
@@ -2670,6 +2816,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         failFocusUntil = null
         gameOverAt = animTime
         screen = Screen.GAME_OVER
+        // The rating request comes with the result card, not over the camera's glide to the failed device (D1).
+        if (reviewDue) {
+            reviewDue = false
+            reviewPrompt.request()
+        }
     }
 
     /**

@@ -31,6 +31,10 @@ enum class MenuAction {
     CABLE_SKIN, COLOR_THEME,
     /** Settings: the page with the view options and cosmetics, so neither page gets crowded at large text (A7). */
     APPEARANCE,
+    /** Main menu: the Play Games leaderboards (docs/TOP100.md C3); only with Play Games. */
+    LEADERBOARDS,
+    /** Game over: share the network as a picture (docs/TOP100.md D2). */
+    SHARE,
 }
 
 /** One tappable entry of a [MenuPage]. */

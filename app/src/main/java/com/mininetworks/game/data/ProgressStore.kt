@@ -31,6 +31,17 @@ class ProgressStore(context: Context) {
     /** Best delivered packets in the daily challenge of [day], 0 if not played. Only the latest day is kept. */
     fun dailyBest(day: Long): Int = if (prefs.getLong(KEY_DAILY_DAY, Long.MIN_VALUE) == day) prefs.getInt(KEY_DAILY_BEST, 0) else 0
 
+    /** The UTC day [dailyBest] is kept for, null before the first daily challenge. */
+    val dailyDay: Long? get() = if (prefs.contains(KEY_DAILY_DAY)) prefs.getLong(KEY_DAILY_DAY, 0L) else null
+
+    /** Takes a daily best from the cloud save (docs/TOP100.md C6): a later day replaces, the same day keeps the higher. */
+    fun restoreDaily(day: Long?, best: Int) {
+        if (day == null || best <= 0) return
+        val stored = dailyDay
+        if (stored != null && day < stored) return
+        submitDaily(day, best)
+    }
+
     /** Records [score] for the challenge of [day]; returns true if it beats that day's best. */
     fun submitDaily(day: Long, score: Int): Boolean {
         if (score <= dailyBest(day)) return false

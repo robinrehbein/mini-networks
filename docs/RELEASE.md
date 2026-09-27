@@ -189,6 +189,15 @@ die Angaben oben gelten also für Spieler ohne diesen Kauf. Die lokal gemerkten 
 von Backup und Geräteumzug ausgenommen (`res/xml/data_extraction_rules.xml`, `backup_rules.xml`): Besitz kommt immer
 von Google Play.
 
+**Play Games Services und In-App-Review (ab T5, docs/TOP100.md C2, C3, C6, D1):** Solange `games-ids.xml` Platzhalter
+enthält (Abschnitt 11), läuft kein Play-Games-Code. Mit echten IDs meldet Play Games den Spieler automatisch an; dann
+gehen an Google: Spieler-ID/Spielername (Konto: „Persönliche Daten → Nutzer-IDs“), freigeschaltete Erfolge,
+Bestenlisten-Punkte und der Cloud-Spielstand (Statistiken, Bestwerte, Tagesserie; „App-Aktivität → Sonstige
+nutzergenerierte Inhalte/Spielfortschritt“, Zweck „App-Funktionalität“). Vor dem Absenden mit Googles „Play Games
+Services – Datensicherheit“ abgleichen. Die In-App-Review-API überträgt nichts Eigenes der App (Google zeigt nur seinen
+Bewertungsdialog). Teilen (D2) legt ein PNG im App-Cache ab und gibt es nur über das System-Teilen-Menü mit
+Lese-Berechtigung für die gewählte App weiter (FileProvider, keine Speicher-Berechtigung).
+
 Berechtigungen im Release-Manifest (aus den SDKs): `INTERNET`, `ACCESS_NETWORK_STATE`, `com.google.android.gms.permission.AD_ID`,
 `ACCESS_ADSERVICES_AD_ID`/`_ATTRIBUTION`/`_TOPICS` (Privacy Sandbox), `com.android.vending.BILLING`, `WAKE_LOCK`,
 `FOREGROUND_SERVICE`. Die Frage „Verwendet die App die Werbe-ID?“ ist daher mit **Ja, Werbung oder Marketing** zu beantworten.
@@ -203,6 +212,7 @@ Berechtigungen im Release-Manifest (aus den SDKs): `INTERNET`, `ACCESS_NETWORK_S
       `android:appCategory="game"` setzt; Hochformat-Fenster (Split-Screen, frei skalierbar) funktionieren trotzdem
       (`docs/screenshots/portrait-*.png`)
 - [ ] Echte AdMob-IDs gesetzt: ein Release-Build warnt bei Google-Test-IDs und bricht ab, sobald der Upload-Schlüssel gesetzt ist
+- [ ] Play-Games-IDs in `app/src/main/res/values/games-ids.xml` eingetragen (Abschnitt 11); sonst warnt der Release-Build und das Spiel läuft ohne Play Games
 - [ ] `lintRelease` ohne Warnungen; bewusst ignorierte Prüfungen stehen mit Grund in `app/lint.xml`
 - [ ] `./gradlew testDebugUnitTest assembleDebug lintDebug lintRelease bundleRelease` grün
 - [ ] Baseline Profile im Bundle (`app/src/main/baseline-prof.txt`, docs/TOP100.md A4): `unzip -l app/build/outputs/bundle/release/app-release.aab | grep baseline.prof`;
@@ -212,3 +222,43 @@ Berechtigungen im Release-Manifest (aus den SDKs): `INTERNET`, `ACCESS_NETWORK_S
 - [ ] In-App-Produkte angelegt und aktiv, Lizenztester eingetragen
 - [ ] Store-Eintrag DE + EN, Icon 512 px (`docs/screenshots/store-icon-512.png`), Feature-Grafik, Screenshots
 - [ ] Geräte-Checks aus Abschnitt 4 im internen Test bestanden
+
+## 11. Play Games Services (Erfolge, Bestenlisten, Cloud-Spielstand)
+
+Code: `app/src/main/java/com/mininetworks/game/games/` – Interface `GameServices`, Play-Umsetzung `PlayGameServices`
+(Play Games Services v2), `NoOpGameServices` für Debug-Builds und Tests. Die Regeln liegen in `:core`
+(`Leaderboards`, `AchievementSync`, `CloudProgress`) und sind per JVM-Test abgesichert.
+
+**IDs (nur Platzhalter im Repo):** `app/src/main/res/values/games-ids.xml` enthält `app_id`, 39 `achievement_<id>` und
+6 `leaderboard_<key>`, alle mit `TODO_`-Werten. Einrichten:
+
+1. Play Console → „Play Games Services“ → Projekt anlegen und mit der App verknüpfen (OAuth-Client für den
+   Upload- **und** den App-Signaturschlüssel, SHA-1 aus der Play Console).
+2. 39 Erfolge anlegen, je einer pro Eintrag von `Achievements.all` (`core/.../Achievements.kt`; Titel/Beschreibung aus
+   `achievement_*`-Texten in `strings.xml`); alle als normale (nicht inkrementelle) Erfolge – die App schaltet sie frei,
+   sobald die lokalen Statistiken sie erreichen.
+3. 6 Bestenlisten anlegen: je Szenerie (`scenery_river_town`, `scenery_metropolis`, `scenery_island_harbor`,
+   `scenery_mountain_village`, `scenery_future_2030`; Wertung „höher ist besser“, Ganzzahl) und `daily` für die
+   Tagesaufgabe (Punkte tragen das Tag `day<UTC-Tag>`; Hinweis: Play setzt die Tagesansicht um Mitternacht
+   Pazifikzeit zurück, die Aufgabe wechselt um 0 Uhr UTC).
+4. „Gespeicherte Spiele“ in der Konfiguration einschalten (ein Spielstand namens `progress`).
+5. In `games-ids.xml` die `TODO_`-Werte durch die IDs aus „Ressourcen abrufen“ ersetzen; die **Namen** der Einträge
+   bleiben, `app_id` ist die Projekt-ID (nur Ziffern). Nie IDs einer anderen App einchecken.
+6. Tester in der Play Console eintragen, solange das Projekt nicht veröffentlicht ist.
+
+Verhalten: Debug-Builds nutzen immer `NoOpGameServices` (außer mit `-Pmininetworks.playServicesInDebug=true`).
+Release-Builds starten Play Games nur, wenn `app_id` eine Zahl ist (`GamesIds.configured`); der eigene Start-Provider
+des SDK ist im Manifest entfernt, `MainActivity` ruft `PlayGamesSdk.initialize` selbst auf. Solange Platzhalter
+drinstehen, warnt `bundleRelease`/`assembleRelease` („games-ids.xml still holds TODO_ placeholders“), baut aber.
+
+- **Anmeldung:** still beim Start (Play Games v2 meldet automatisch an); „Bestenlisten“ im Hauptmenü meldet bei Bedarf an.
+- **Erfolge (C2):** Bei jeder Anmeldung werden alle lokal erreichten Erfolge gesendet, danach jeder neu erreichte.
+- **Bestenlisten (C3):** Game Over einer normalen Partie → Liste der Szenerie; Tagesaufgabe → `daily`, nur an ihrem UTC-Tag.
+- **Cloud-Spielstand (C6):** Statistiken, Bestwerte, Tagesserie und Tagesbestwert (nicht die laufende Partie). Nach der
+  Anmeldung wird er geladen und mit dem Gerät zusammengeführt (`CloudProgress.merge`: je Wert der höhere, Tagesserie
+  und Tagesbestwert vom neueren Tag), bei jedem Game Over hochgeladen. Konflikte zweier Geräte löst die App selbst
+  auf dieselbe Weise (`RESOLUTION_POLICY_MANUAL`); ein Stand einer neueren App-Version wird nie überschrieben.
+
+**In-App-Review (D1):** `review/ReviewPrompt.kt` (`PlayReviewPrompt`, `NoOpReviewPrompt` in Debug-Builds), Regeln in
+`:core` `ReviewPolicy`. Testen im internen Test-Track (Googles Dialog erscheint nur für Konten ohne Bewertung und
+unterliegt einem Kontingent) oder mit `FakeReviewManager`.

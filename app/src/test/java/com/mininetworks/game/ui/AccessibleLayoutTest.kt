@@ -9,6 +9,7 @@ import com.mininetworks.game.game.ColorTheme
 import com.mininetworks.game.game.DebugApi
 import com.mininetworks.game.game.World
 import com.mininetworks.game.monetization.Entitlements
+import com.mininetworks.game.games.FakeGameServices
 import com.mininetworks.game.monetization.FakeMonetization
 import com.mininetworks.game.render.Cosmetic
 import com.mininetworks.game.render.FormFactor
@@ -95,16 +96,19 @@ class AccessibleLayoutTest {
     @Test
     fun menusKeepLargeEntriesInEveryFormat() = everywhere { size, view, bmp ->
         view.monetization = FakeMonetization(prices = mapOf(Entitlements.REMOVE_ADS to "2,99 €"), privacyOptionsRequired = true)
+        // With Play Games the main menu has its longest list (docs/TOP100.md C3).
+        view.gameServices = FakeGameServices()
         view.drawSnapshot(Canvas(bmp), view.currentWorld, bmp.width, bmp.height, time = 1.3f, screen = null)
-        // Play, daily challenge, achievements, settings, remove ads ("continue" is disabled without a save).
-        check(size, "main menu", view.accessibilityLayer.nodes, expectedActions = 5)
+        // Play, daily challenge, achievements, leaderboards, settings, remove ads ("continue" is disabled without a save).
+        check(size, "main menu", view.accessibilityLayer.nodes, expectedActions = 6)
         // The daily challenge's card: start and back.
         bmp.eraseColor(0)
         view.drawSnapshot(Canvas(bmp), view.currentWorld, bmp.width, bmp.height, time = 1.3f, screen = Screen.DAILY)
         check(size, "daily", view.accessibilityLayer.nodes, expectedActions = 2)
         val game = FormFactorScreenshotTest.busyHud()
-        // Settings: sound, haptics, appearance, tutorial, privacy, back; appearance: three switches, skin, theme, back.
-        for ((screen, actions) in listOf(Screen.PAUSED to 4, Screen.SETTINGS to 6, Screen.APPEARANCE to 6, Screen.GAME_OVER to 2)) {
+        // Settings: sound, haptics, appearance, tutorial, privacy, back; appearance: three switches, skin, theme, back;
+        // game over: again, share (docs/TOP100.md D2), main menu.
+        for ((screen, actions) in listOf(Screen.PAUSED to 4, Screen.SETTINGS to 6, Screen.APPEARANCE to 6, Screen.GAME_OVER to 3)) {
             bmp.eraseColor(0)
             view.drawSnapshot(Canvas(bmp), game, bmp.width, bmp.height, time = 1.3f, style = "Iso", screen = screen)
             check(size, screen.name, view.accessibilityLayer.nodes, expectedActions = actions)
