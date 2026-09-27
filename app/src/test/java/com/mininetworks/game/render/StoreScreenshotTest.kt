@@ -758,6 +758,12 @@ class StoreScreenshotTest {
         c.drawCircle(hp.x, hp.y - 30f, 150f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
             shader = RadialGradient(hp.x, hp.y - 30f, 150f, intArrayOf(glowColor and 0xFFFFFF or 0x88000000.toInt(), glowColor and 0xFFFFFF or 0x33000000, 0), floatArrayOf(0f, 0.5f, 1f), Shader.TileMode.CLAMP)
         })
+        // A haze of the scenery's sky along the top edge: the town runs on past the frame, so whatever the edge cuts
+        // (a packet, a request badge) fades into the sky instead of showing as half an element.
+        val sky = Cosmetic.palette.background and 0xFFFFFF
+        c.drawRect(0f, 0f, w.toFloat(), TOP_HAZE, Paint().apply {
+            shader = LinearGradient(0f, 0f, 0f, TOP_HAZE, intArrayOf(sky or 0xFF000000.toInt(), sky or 0xE6000000.toInt(), sky), floatArrayOf(0f, 0.35f, 1f), Shader.TileMode.CLAMP)
+        })
         // The gradient that carries the title.
         c.drawRect(0f, h * 0.45f, w.toFloat(), h.toFloat(), Paint().apply {
             shader = LinearGradient(0f, h * 0.45f, 0f, h.toFloat(), intArrayOf(0x00112634, 0xCC112634.toInt(), 0xF2112634.toInt()), floatArrayOf(0f, 0.45f, 1f), Shader.TileMode.CLAMP)
@@ -785,6 +791,11 @@ class StoreScreenshotTest {
                 assertTrue("tagline on one line inside the safe area", tag.measureText(tagline) <= w * 0.8f)
             }
             for (x in 0 until w step 64) for (yy in 0 until h step 50) assertEquals("opaque at $x,$yy", 0xFF, shot.getPixel(x, yy) ushr 24)
+            // Nothing is cut by the top edge: the outermost row is plain sky everywhere.
+            for (x in 0 until w step 8) {
+                val px = shot.getPixel(x, 0)
+                for (sh in intArrayOf(0, 8, 16)) assertTrue("sky at $x,0", kotlin.math.abs(((sky shr sh) and 0xFF) - ((px shr sh) and 0xFF)) <= 3)
+            }
             assertEquals(w, shot.width)
             assertEquals(h, shot.height)
             writeRgbPng(shot, file)
@@ -838,6 +849,8 @@ class StoreScreenshotTest {
     }
 
     companion object {
+        /** Height in px of the sky haze along the feature graphic's top edge. */
+        const val TOP_HAZE = 64f
         /**
          * The feature graphic's one-line tagline per language: the game's own arc, from ISDN in 1995 to fiber (as in
          * the store texts). The default graphic has none (docs/store/feature-graphic.png).

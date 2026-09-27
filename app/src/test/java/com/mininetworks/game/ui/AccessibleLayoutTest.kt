@@ -198,7 +198,16 @@ class AccessibleLayoutTest {
                 if (b.textPx / density < MIN_ENTRY_SP) problems += "${size.id}, $lang: ${b.text} at ${b.textPx / density} sp"
                 if (b.shortened) problems += "${size.id}, $lang: ${b.text} cut with …"
             }
-            if (nodes.none { it.key == "menu:picture" }) problems += "${size.id}, $lang: no time-lapse"
+            val picture = nodes.firstOrNull { it.key == "menu:picture" }
+            if (picture == null) {
+                problems += "${size.id}, $lang: no time-lapse"
+            } else {
+                // The time-lapse spans the text pane: no empty band above the title's height or below the last entry.
+                val title = nodes.single { it.key == "menu:title" }
+                val lastEntry = nodes.filter { it.key.startsWith("menu:") && it.kind == UiNode.Kind.BUTTON }.maxOf { it.bounds.bottom }
+                if (picture.bounds.top > title.bounds.top + density) problems += "${size.id}, $lang: time-lapse starts below the title"
+                if (picture.bounds.bottom < lastEntry - density) problems += "${size.id}, $lang: time-lapse ends above the last entry"
+            }
         }
         RuntimeEnvironment.setQualifiers("de")
         assertTrue(problems.joinToString("\n"), problems.isEmpty())

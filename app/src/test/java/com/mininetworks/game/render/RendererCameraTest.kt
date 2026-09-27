@@ -94,6 +94,29 @@ class RendererCameraTest {
         }
     }
 
+    /**
+     * Portrait only happens on large screens (OrientationPolicy: smallest width 600 dp and up). There the iso board,
+     * twice as wide as high, is framed by the width, so a band of sky stays above and below it; but every tile is at
+     * least as large in dp as on a landscape phone, the format the game is designed for, so devices stay as easy to
+     * hit. Zooming further to the height would push nodes at the sides off the screen.
+     */
+    @Test
+    fun portraitTabletsShowTilesAtLeastAsLargeAsALandscapePhone() {
+        fun tileDp(width: Int, height: Int, density: Float): Float {
+            val world = Scenes.hud()
+            val r = IsoRenderer()
+            r.density = density
+            r.layout(width, height, world, ViewInsets(8f * density, 60f * density, 8f * density, 140f * density))
+            if (r.camera.isTall) assertTrue("${width}x$height shows every node", r.camera.shows(r.contentBounds(world)!!))
+            return r.mapBounds(CellRect(0, 0, 1, 1)).width * r.camera.scale / density
+        }
+        val phone = tileDp(2400, 1080, 3f)
+        for ((w, h, d) in listOf(Triple(1600, 2560, 2f), Triple(1200, 1920, 1.5f), Triple(1600, 2000, 2f))) {
+            val tablet = tileDp(w, h, d)
+            assertTrue("${w}x$h at $d: tile $tablet dp, phone $phone dp", tablet >= phone)
+        }
+    }
+
     /** docs/TOP100.md B4: in landscape the built network fills the view instead of the whole diamond of the area. */
     @Test
     fun landscapeFramingZoomsOnTheNetworkButKeepsEveryNode() {

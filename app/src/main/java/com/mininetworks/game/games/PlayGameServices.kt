@@ -14,7 +14,9 @@ import com.google.android.gms.tasks.Tasks
 import com.mininetworks.game.R
 import com.mininetworks.game.game.CloudProgress
 import com.mininetworks.game.game.LeaderboardScore
+import java.util.concurrent.Executor
 import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.TimeUnit
 
 /**
@@ -101,8 +103,8 @@ class PlayGameServices(private val activity: Activity, private val ids: GamesIds
     }
 
     override fun loadProgress(onLoaded: (CloudProgress?) -> Unit) {
-        if (!signedIn || cloud.isShutdown) return onLoaded(null)
-        cloud.execute {
+        if (!signedIn) return onLoaded(null)
+        val queued = cloud.tryExecute {
             val progress = try {
                 openResolved()?.let { snapshot ->
                     read(snapshot).also { await(snapshots.discardAndClose(snapshot)) }
@@ -113,13 +115,14 @@ class PlayGameServices(private val activity: Activity, private val ids: GamesIds
             }
             onLoaded(progress)
         }
+        if (!queued) onLoaded(null)
     }
 
     override fun saveProgress(progress: CloudProgress) {
-        if (!signedIn || cloud.isShutdown) return
-        cloud.execute {
+        if (!signedIn) return
+        cloud.tryExecute {
             try {
-                val snapshot = openResolved() ?: return@execute
+                val snapshot = openResolved() ?: return@tryExecute
                 val remote = read(snapshot)
                 val merged = remote?.let { CloudProgress.merge(it, progress) } ?: progress
                 if (remote != null && (remote.newerFormat || merged == remote)) {
@@ -183,4 +186,15 @@ class PlayGameServices(private val activity: Activity, private val ids: GamesIds
         const val MAX_CONFLICTS = 3
         const val TIMEOUT_SECONDS = 30L
     }
+}
+
+/**
+ * Queues [task] unless the executor was already shut down; returns false instead of throwing. `close()` in `onDestroy`
+ * can race with a save from the game thread, and a rejected cloud save must never crash the game thread.
+ */
+internal fun Executor.tryExecute(task: () -> Unit): Boolean = try {
+    execute(task)
+    true
+} catch (_: RejectedExecutionException) {
+    false
 }

@@ -257,13 +257,10 @@ class MenuPanel(context: Context) {
         val top = safe.top + (areaH - ch) / 2f - SLAB_DP * u / 2f
         card.set(left, top, left + cw, top + ch)
         slab(canvas, card, 18f * u, SLAB_DP * u, 0xFFFAFAF7.toInt(), 0xFFE3E6E1.toInt().shade(-0.2f), shadow = true)
-        // The picture, as large as the left half allows at its aspect ratio, on a rounded plate.
+        // The picture fills the whole left half on a rounded plate, from the title's height down to the last entry, so
+        // no empty band opens above or below it; it draws itself as large as its aspect ratio allows inside.
         val boxW = cw - paneW - 1.5f * l.pad
-        val boxH = ch - 2 * l.pad
-        val pw = minOf(boxW, boxH * pic.aspect)
-        val ph = pw / pic.aspect
-        val pcx = card.left + l.pad + boxW / 2f
-        val pr = RectF(pcx - pw / 2f, card.centerY() - ph / 2f, pcx + pw / 2f, card.centerY() + ph / 2f)
+        val pr = RectF(card.left + l.pad, card.top + l.pad, card.left + l.pad + boxW, card.bottom - l.pad)
         fillP.color = 0xFFEFF2EC.toInt()
         canvas.drawRoundRect(pr.left - 6f * u, pr.top - 6f * u, pr.right + 6f * u, pr.bottom + 6f * u, 14f * u, 14f * u, fillP)
         canvas.save()
