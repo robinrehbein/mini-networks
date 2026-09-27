@@ -37,8 +37,8 @@ class RewardDialog(private val context: Context) {
     private val fillP = fill(0)
     private val icons = DeviceIcons()
     private val texts = Texts(context)
-    /** A dusk-blue scrim: the map stays visible behind the cards, but dark enough that the light cards and texts pop. */
-    private val dim = fill(0xA8132632.toInt())
+    /** A warm dusk scrim: the map stays visible behind the cards, but dark enough that the light cards and texts pop. */
+    private val dim = fill(0x8C33243A.toInt())
     private val ink = 0xFF262B33.toInt()
     private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; color = ink }
 
@@ -119,7 +119,9 @@ class RewardDialog(private val context: Context) {
         // This week's unlock message, without the year the heading already shows.
         news?.let { canvas.drawText(fit(it, width - 2 * side), width / 2f, newsBaseline, text) }
         drawnNodes += UiNode("reward:title", RectF(left, dateBaseline - dateSize, width - left, newsBaseline + newsSize * 0.3f), listOfNotNull(date, news).joinToString(". "), UiNode.Kind.HEADING)
-        text.color = 0xFFDCE4EA.toInt()
+        // White with a soft shadow: the hint must read on the scrim at phone size (judge panel).
+        text.color = 0xFFFFFFFF.toInt()
+        text.setShadowLayer(3f * density, 0f, 1f * density, 0x99000000.toInt())
         text.textSize = promptSize
         // Below the cards' slabs and their soft shadow, so the line never touches them.
         val promptTop = top + cardH + depth * 3f + promptSize * 0.6f
@@ -128,6 +130,7 @@ class RewardDialog(private val context: Context) {
             promptY += promptSize * 1.3f
             canvas.drawText(fit(line, width - 2 * side), width / 2f, promptY - promptSize * 0.3f, text)
         }
+        text.clearShadowLayer()
         drawnNodes += UiNode("reward:prompt", RectF(side, promptTop, width - side, promptY), prompt, UiNode.Kind.TEXT)
         text.color = ink
         bonusShown = bonus != null

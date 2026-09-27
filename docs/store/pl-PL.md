@@ -48,8 +48,8 @@ sieć, kable, strategia, łamigłówka, budowanie miasta, router, Wi-Fi, świat�
 
 1. Okabluj swoje miasto
 2. Jeden ruch, jeden kabel
-3. Nie dopuść do przeciążenia sieci
-4. Obracaj mapę, jak chcesz
+3. Unikaj przeciążenia
+4. Obracaj mapę
 5. Wi-Fi, 4G i 5G
 6. Co tydzień wybór
 7. Pięć scenerii

@@ -1593,15 +1593,36 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         val incidents = world.incidents
         if (incidents.isEmpty()) return
         val first = incidents.minWith(compareBy({ !(it.struck && it.kind == IncidentKind.EXCAVATOR) }, { if (it.struck) it.remaining else it.warning }))
-        incidentText.color = if (first.struck) IncidentStyles.CUT else IncidentStyles.WARNING.shade(-0.25f)
+        // A pill in the incident's colour with a warning sign, like the other HUD plates (judge panel: plain amber
+        // text on the pale map had too little contrast).
+        val pillColor = if (first.struck) IncidentStyles.CUT else IncidentStyles.WARNING.shade(-0.3f)
+        incidentText.color = 0xFFFFFFFF.toInt()
         val full = texts.incident(first).let { if (incidents.size > 1) context.getString(R.string.incident_more, it, incidents.size - 1) else it }
-        val text = fitText(full, maxWidth, incidentText)
-        val w = incidentText.measureText(text)
-        val h = incidentText.textSize * 1.3f
+        val h = incidentText.textSize * 2f
+        val icon = h * 0.62f
+        val pad = h * 0.45f
+        val text = fitText(full, maxWidth - icon - pad * 2.4f, incidentText)
+        val w = incidentText.measureText(text) + icon + pad * 2.4f
         val top = place(w, h)
-        canvas.drawText(text, center, top + incidentText.textSize, incidentText)
-        hudNodes += UiNode("hud:incident", RectF(center - w / 2f, top, center + w / 2f, top + h), full, UiNode.Kind.TEXT)
+        val r = RectF(center - w / 2f, top, center + w / 2f, top + h)
+        pinFill.color = 0x33000000
+        canvas.drawRoundRect(r.left, r.top + 2 * density, r.right, r.bottom + 2 * density, h / 2f, h / 2f, pinFill)
+        pinFill.color = pillColor
+        canvas.drawRoundRect(r, h / 2f, h / 2f, pinFill)
+        // Warning sign: a white triangle with the pill's colour showing through as the "!".
+        val ix = r.left + pad + icon / 2f
+        val iy = r.centerY()
+        incidentIcon.reset()
+        incidentIcon.moveTo(ix, iy - icon * 0.48f); incidentIcon.lineTo(ix + icon * 0.52f, iy + icon * 0.42f); incidentIcon.lineTo(ix - icon * 0.52f, iy + icon * 0.42f); incidentIcon.close()
+        pinFill.color = 0xFFFFFFFF.toInt(); canvas.drawPath(incidentIcon, pinFill)
+        pinFill.color = pillColor
+        canvas.drawRect(ix - icon * 0.05f, iy - icon * 0.2f, ix + icon * 0.05f, iy + icon * 0.14f, pinFill)
+        canvas.drawCircle(ix, iy + icon * 0.26f, icon * 0.06f, pinFill)
+        canvas.drawText(text, r.left + pad + icon + pad * 0.6f + incidentText.measureText(text) / 2f, r.centerY() + incidentText.textSize * 0.36f, incidentText)
+        hudNodes += UiNode("hud:incident", r, full, UiNode.Kind.TEXT)
     }
+
+    private val incidentIcon = android.graphics.Path()
 
     /** A countdown pin over every incident's spot on the map, so the line at the top points at its cable or node. */
     private fun drawIncidentPins(canvas: Canvas) {
@@ -2340,7 +2361,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         if (frames.size < 2 || tutorial != null) return null
         val w = world
         return MenuPicture(context.getString(R.string.a11y_recap, frames.first().week, frames.last().week), recap.aspect(frames)) { c, r ->
-            recap.draw(c, r, frames, animTime - gameOverAt, { x, y -> y in 0 until w.rows && x in 0 until w.cols && w.water[y][x] }, Cosmetic.paletteFor(w.scenario.id))
+            recap.draw(
+                c, r, frames, animTime - gameOverAt, { x, y -> y in 0 until w.rows && x in 0 until w.cols && w.water[y][x] }, Cosmetic.paletteFor(w.scenario.id),
+                seed = w.seed, failed = w.failedNode?.footprint?.get(0),
+            )
         }
     }
 

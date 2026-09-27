@@ -48,8 +48,8 @@ network, cables, strategy, puzzle, city builder, town, router, Wi-Fi, fiber, int
 
 1. Wire up your town
 2. One swipe, one cable
-3. Keep the network from overloading
-4. Turn the map any way you like
+3. Don't let it overload
+4. Spin the map
 5. Wi-Fi, 4G and 5G
 6. A choice every week
 7. Five sceneries

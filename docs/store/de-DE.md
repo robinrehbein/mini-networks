@@ -48,8 +48,8 @@ Netzwerk, Kabel verlegen, Strategiespiel, Puzzle, Aufbauspiel, Stadt, Router, WL
 
 1. Verkabel deine Stadt
 2. Ein Wisch, ein Kabel
-3. Verhindere die Überlastung
-4. Dreh die Karte, wie du willst
+3. Stopp die Überlastung
+4. Dreh die Karte
 5. WLAN, 4G und 5G
 6. Jede Woche eine Wahl
 7. Fünf Szenerien

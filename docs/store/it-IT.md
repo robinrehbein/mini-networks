@@ -48,8 +48,8 @@ rete, cavi, strategia, puzzle, gestionale, città, router, Wi-Fi, fibra, interne
 
 1. Cabla la tua città
 2. Un gesto, un cavo
-3. Evita il sovraccarico della rete
-4. Ruota la mappa come vuoi
+3. Evita il sovraccarico
+4. Ruota la mappa
 5. Wi-Fi, 4G e 5G
 6. Una scelta ogni settimana
 7. Cinque scenari

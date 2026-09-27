@@ -5,12 +5,16 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
+import com.mininetworks.game.game.Cell
 import com.mininetworks.game.game.CellRect
 import com.mininetworks.game.game.GrowthRecorder
 import com.mininetworks.game.game.NodeKind
 import android.graphics.LinearGradient
 import android.graphics.Shader
 import com.mininetworks.game.render.CableStyles
+import com.mininetworks.game.render.Decor
+import com.mininetworks.game.render.DeviceIcons
+import com.mininetworks.game.render.Scenery
 import com.mininetworks.game.render.Cosmetic
 import com.mininetworks.game.render.MapPalette
 import com.mininetworks.game.render.shade
@@ -18,6 +22,7 @@ import com.mininetworks.game.render.ServiceColors
 import com.mininetworks.game.render.Shapes
 import com.mininetworks.game.render.fill
 import com.mininetworks.game.render.stroke
+import kotlin.math.abs
 import kotlin.math.floor
 
 /**
@@ -64,6 +69,10 @@ class GrowthRecap(private val density: Float, private val dateOf: (GrowthRecorde
     fun draw(
         canvas: Canvas, out: RectF, frames: List<GrowthRecorder.Frame>, t: Float, isWater: (Int, Int) -> Boolean,
         palette: MapPalette = Cosmetic.palette,
+        /** The map's seed: trees and cottages stand where they stood on the map. Null leaves the land bare. */
+        seed: Long? = null,
+        /** The cell of the device that lost the game: it pulses red on the last frame. */
+        failed: Cell? = null,
     ) {
         if (frames.isEmpty()) return
         val k = frameAt(t, frames.size)
@@ -97,6 +106,37 @@ class GrowthRecap(private val density: Float, private val dateOf: (GrowthRecorde
             quad(px(x, y), py(x, y), px(x + 1, y), py(x + 1, y), px(x + 1, y + 1), py(x + 1, y + 1), px(x, y + 1), py(x, y + 1))
             canvas.drawPath(path, tile)
         }
+        // Trees and cottages of the map on free land, so the recap is the player's town and not a wiring plan.
+        if (seed != null) {
+            val taken = HashSet<Long>()
+            for (n in f.nodes) for (dy in 0 until n.size) for (dx in 0 until n.size) taken += key(n.x + dx, n.y + dy)
+            for (c in f.cables) for (i in 1 until c.points.size) {
+                val a = c.points[i - 1]; val b = c.points[i]
+                val steps = (abs(b.x - a.x) + abs(b.y - a.y)).toInt() * 2 + 1
+                for (k in 0..steps) {
+                    val q = k / steps.toFloat()
+                    taken += key(floor(a.x + (b.x - a.x) * q).toInt(), floor(a.y + (b.y - a.y) * q).toInt())
+                }
+            }
+            for (cy in a.top until a.bottom) for (cx in a.left until a.right) {
+                if (isWater(cx, cy) || key(cx, cy) in taken) continue
+                val d = Scenery.planned(seed, cx, cy) ?: continue
+                val open = f.unlocked.contains(cx, cy)
+                val x = cx + 0.5f; val y = cy + 0.5f
+                when (d) {
+                    Decor.HOUSE -> box(canvas, x, y, 0.4f, u * 0.2f, if (open) 0xFFC9694F.toInt() else 0xFFD9C3B8.toInt(), 0xFFF4EDE0.toInt())
+                    else -> {
+                        val r0 = u * (if (d == Decor.BUSH) 0.13f else 0.2f)
+                        val gx = px(x, y); val gy = py(x, y) - r0 * 0.9f
+                        dot.color = 0x22000000; canvas.drawOval(gx - r0 * 0.6f, py(x, y) - r0 * 0.25f, gx + r0 * 1.1f, py(x, y) + r0 * 0.3f, dot)
+                        dot.color = if (open) (if (d == Decor.PINE) palette.pineDark else palette.leafDark) else palette.lockedLandB.shade(-0.12f)
+                        canvas.drawCircle(gx, gy, r0, dot)
+                        dot.color = if (open) (if (d == Decor.PINE) palette.pine else palette.leaf) else palette.lockedLandB.shade(-0.05f)
+                        canvas.drawCircle(gx - r0 * 0.18f, gy - r0 * 0.2f, r0 * 0.75f, dot)
+                    }
+                }
+            }
+        }
         for (c in f.cables) {
             path.reset()
             c.points.forEachIndexed { i, p -> if (i == 0) path.moveTo(px(p.x, p.y), py(p.x, p.y)) else path.lineTo(px(p.x, p.y), py(p.x, p.y)) }
@@ -120,10 +160,29 @@ class GrowthRecap(private val density: Float, private val dateOf: (GrowthRecorde
                     Shapes.draw(canvas, n.service!!.shape, px(cx, cy), py(cx, cy, h), u * 0.28f * n.size, dot)
                 }
                 NodeKind.CLIENT -> {
-                    val h = u * 0.3f
+                    val h = u * 0.22f
+                    val lost = k == frames.size - 1 && failed != null && failed.x == n.x && failed.y == n.y
+                    if (lost) {
+                        // The device that lost the game, in a red halo.
+                        val beat = 0.5f + 0.5f * kotlin.math.sin(t * 6f)
+                        dot.color = ((0x55 + (0x55 * beat).toInt()) shl 24) or 0xD7263D
+                        val rr = u * (0.75f + 0.15f * beat)
+                        canvas.drawOval(px(cx, cy) - rr, py(cx, cy) - rr / 2f, px(cx, cy) + rr, py(cx, cy) + rr / 2f, dot)
+                    }
                     box(canvas, cx, cy, 0.5f, h, 0xFFFAFAF7.toInt(), 0xFFE3E6E1.toInt())
-                    dot.color = 0xFF3A4350.toInt()
-                    canvas.drawCircle(px(cx, cy), py(cx, cy, h) - u * 0.02f, maxOf(u * 0.13f, 1.2f * density), dot)
+                    val d = n.device
+                    val s = maxOf(u * 0.26f, 4f * density)
+                    if (d != null) icons.device(canvas, d, px(cx, cy), py(cx, cy, h) - s * 1.05f, s)
+                    else {
+                        dot.color = 0xFF3A4350.toInt()
+                        canvas.drawCircle(px(cx, cy), py(cx, cy, h) - u * 0.02f, maxOf(u * 0.13f, 1.2f * density), dot)
+                    }
+                    if (lost) {
+                        casing.strokeWidth = 2.5f * density
+                        casing.color = 0xFFD7263D.toInt()
+                        canvas.drawCircle(px(cx, cy), py(cx, cy, h) - s * 1.05f, s * 1.7f, casing)
+                        casing.color = 0xFFFFFFFF.toInt()
+                    }
                 }
                 else -> box(canvas, cx, cy, 0.42f, u * 0.2f, 0xFFF5F7F9.toInt(), 0xFFD9DEE3.toInt())
             }
@@ -140,6 +199,9 @@ class GrowthRecap(private val density: Float, private val dateOf: (GrowthRecorde
     }
 
     private val bg = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val icons = DeviceIcons()
+
+    private fun key(x: Int, y: Int) = (x.toLong() shl 32) xor (y.toLong() and 0xFFFFFFFFL)
     private val tile = Paint().apply { style = Paint.Style.FILL }
 
     private fun quad(ax: Float, ay: Float, bx: Float, by: Float, cx: Float, cy: Float, dx: Float, dy: Float) {
@@ -151,9 +213,9 @@ class GrowthRecap(private val density: Float, private val dateOf: (GrowthRecorde
     private fun box(canvas: Canvas, cx: Float, cy: Float, s: Float, h: Float, top: Int, side: Int) {
         val x0 = cx - s / 2; val y0 = cy - s / 2; val x1 = cx + s / 2; val y1 = cy + s / 2
         quad(px(x0, y1), py(x0, y1), px(x1, y1), py(x1, y1), px(x1, y1), py(x1, y1, h), px(x0, y1), py(x0, y1, h))
-        dot.color = side.shade(-0.12f); canvas.drawPath(path, dot)
+        dot.color = Cosmetic.blend(side.shade(-0.1f), 0xFFFFD08A.toInt(), 0.1f); canvas.drawPath(path, dot)
         quad(px(x1, y0), py(x1, y0), px(x1, y1), py(x1, y1), px(x1, y1), py(x1, y1, h), px(x1, y0), py(x1, y0, h))
-        dot.color = side.shade(-0.25f); canvas.drawPath(path, dot)
+        dot.color = Cosmetic.blend(side.shade(-0.26f), 0xFF34467A.toInt(), 0.14f); canvas.drawPath(path, dot)
         quad(px(x0, y0), py(x0, y0, h), px(x1, y0), py(x1, y0, h), px(x1, y1), py(x1, y1, h), px(x0, y1), py(x0, y1, h))
         dot.color = top; canvas.drawPath(path, dot)
     }

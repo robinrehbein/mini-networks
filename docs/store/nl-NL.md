@@ -48,8 +48,8 @@ netwerk, kabels, strategie, puzzel, stad bouwen, router, wifi, glasvezel, intern
 
 1. Verbind je stad
 2. Eén veeg, één kabel
-3. Voorkom overbelasting van je netwerk
-4. Draai de kaart zoals je wilt
+3. Voorkom overbelasting
+4. Draai de kaart
 5. Wifi, 4G en 5G
 6. Elke week een keuze
 7. Vijf landschappen

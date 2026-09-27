@@ -128,7 +128,7 @@ class MenuPanel(context: Context) {
         val u = density * s
         /** A split card's text pane is tighter around its text, so the text itself can stay large on a low phone. */
         val pad = (if (split) SPLIT_PAD_DP else PAD_DP) * u
-        val titleSize = scale.px(if (page.hero) 50f else 28f) * s
+        val titleSize = scale.px(if (page.hero) 44f else 28f) * s
         val highlightSize = scale.px(21f) * s
         val lineSize = scale.px(if (page.hero) 17f else 15f) * s
         val labelSize = scale.px(labelSp(page)) * s
@@ -368,10 +368,18 @@ class MenuPanel(context: Context) {
             text.typeface = Typeface.DEFAULT
             text.color = muted
             text.textSize = l.footerSize
-            // With large text the small print may shrink down to its standard size (13 sp at 100 %) before it is cut.
+            // With large text the small print may shrink down to its standard size (13 sp at 100 %) before it is cut;
+            // a line that is still too long then breaks into two smaller lines in the footer's room.
             val footer = fitShrinking(it, inner, l.footerSize, minOf(l.footerSize * 0.8f, 13f * density))
-            canvas.drawText(footer, cx, y + l.footerSize * 1.2f, text)
-            drawnNodes += UiNode("menu:footer", textBounds(cx, y, inner, l.footerH), it, UiNode.Kind.TEXT, shortened = footer != it)
+            if (footer == it) {
+                canvas.drawText(footer, cx, y + l.footerSize * 1.2f, text)
+                drawnNodes += UiNode("menu:footer", textBounds(cx, y, inner, l.footerH), it, UiNode.Kind.TEXT)
+            } else {
+                text.textSize = l.footerSize * 0.8f
+                val rows = balanced(it, inner, 2)
+                rows.forEachIndexed { i, row -> canvas.drawText(row, cx, y + text.textSize * (1.0f + 1.15f * i), text) }
+                drawnNodes += UiNode("menu:footer", textBounds(cx, y, inner, l.footerH), it, UiNode.Kind.TEXT, shortened = rows.any { r -> r.endsWith(ELLIPSIS) })
+            }
         }
     }
 
@@ -439,10 +447,62 @@ class MenuPanel(context: Context) {
             b.primary -> 0xFFFFFFFF.toInt()
             else -> ink
         }
-        val label = fitShrinking(b.label, r.width() - 24f * u, size, maxOf(size * 0.7f, MIN_LABEL_SP * u))
-        canvas.drawText(label, r.centerX(), r.centerY() + sink + text.textSize * 0.35f, text)
+        // Play, the daily challenge and the achievements carry a small icon before the label (judge panel: the menu
+        // read as generic pills); it gives way first when the label needs the room.
+        val glyph = b.action in ICON_ACTIONS && b.enabled
+        var iconSize = if (glyph) size * 0.95f else 0f
+        var room = r.width() - 24f * u - (if (glyph) iconSize * 1.5f else 0f)
+        text.textSize = size
+        // The icon stays only while the label keeps at least 85 % of its size (and never gets cut) next to it.
+        val keep = maxOf(0.85f, maxOf(size * 0.62f, MIN_LABEL_SP * u) / size)
+        if (glyph && text.measureText(b.label) * keep * 1.03f > room) { iconSize = 0f; room = r.width() - 24f * u }
+        var label = fitShrinking(b.label, room, size, maxOf(size * 0.62f, MIN_LABEL_SP * u))
+        if (iconSize > 0f && label != b.label) {
+            // Hinting made it a hair too wide next to the icon: the label gets the whole button instead.
+            iconSize = 0f
+            label = fitShrinking(b.label, r.width() - 24f * u, size, maxOf(size * 0.62f, MIN_LABEL_SP * u))
+        }
+        val baseline = r.centerY() + sink + text.textSize * 0.35f
+        if (iconSize > 0f) {
+            val lw = text.measureText(label)
+            val start = r.centerX() - (lw + iconSize * 1.5f) / 2f
+            icon(canvas, b.action, start + iconSize / 2f, r.centerY() + sink, iconSize, text.color)
+            canvas.drawText(label, start + iconSize * 1.5f + lw / 2f, baseline, text)
+        } else {
+            canvas.drawText(label, r.centerX(), baseline, text)
+        }
         return label != b.label
     }
+
+    /** The small icon of [action] centred at ([cx], [cy]), [size] px high; line icons in [ink]. */
+    private fun icon(canvas: Canvas, action: MenuAction, cx: Float, cy: Float, size: Float, ink: Int) {
+        val s = size / 2f
+        when (action) {
+            MenuAction.PLAY, MenuAction.CONTINUE -> {
+                // A play triangle in a ring.
+                lineStroke.color = ink; lineStroke.strokeWidth = s * 0.18f
+                canvas.drawCircle(cx, cy, s * 0.95f, lineStroke)
+                cup.reset()
+                cup.moveTo(cx - s * 0.3f, cy - s * 0.48f); cup.lineTo(cx + s * 0.52f, cy); cup.lineTo(cx - s * 0.3f, cy + s * 0.48f); cup.close()
+                fillP.color = ink; canvas.drawPath(cup, fillP)
+            }
+            MenuAction.DAILY -> {
+                // The streak flame: orange with a yellow core.
+                fun flame(k: Float, color: Int) {
+                    cup.reset()
+                    cup.moveTo(cx, cy - s * 1.0f * k)
+                    cup.cubicTo(cx + s * 0.8f * k, cy - s * 0.3f * k, cx + s * 0.75f * k, cy + s * 0.55f * k, cx, cy + s * 0.9f * k)
+                    cup.cubicTo(cx - s * 0.75f * k, cy + s * 0.55f * k, cx - s * 0.8f * k, cy - s * 0.3f * k, cx, cy - s * 1.0f * k)
+                    cup.close()
+                    fillP.color = color; canvas.drawPath(cup, fillP)
+                }
+                flame(1f, 0xFFE4572E.toInt())
+                canvas.save(); canvas.translate(0f, s * 0.3f); flame(0.55f, 0xFFFFC21A.toInt()); canvas.restore()
+            }
+            MenuAction.ACHIEVEMENTS -> trophy(canvas, cx, cy, size)
+            else -> Unit
+        }
+            }
 
     /** Draws the text link [b] centred in [r]: underlined, in the muted ink; true if its label had to be shortened. */
     private fun link(canvas: Canvas, b: MenuItem.Button, down: Boolean, size: Float, u: Float): Boolean {
@@ -584,7 +644,9 @@ class MenuPanel(context: Context) {
         /** Rows a text line of the card may wrap into. */
         const val MAX_LINE_ROWS = 3
         /** The main menu card leaves the rest of the screen to the demo town. */
-        const val HERO_MAX_WIDTH = 0.6f
+        const val HERO_MAX_WIDTH = 0.56f
+        /** Entries with an icon before their label. */
+        val ICON_ACTIONS = setOf(MenuAction.PLAY, MenuAction.DAILY, MenuAction.ACHIEVEMENTS)
         const val ELLIPSIS = "…"
         /** Smallest text scale of a split card's text pane before the picture has given all the room it can. */
         const val SPLIT_MIN_SCALE = 0.86f
@@ -597,7 +659,7 @@ class MenuPanel(context: Context) {
         const val SPLIT_W_DP = 760f
         const val LOGO_DP = 64f
         /** The logo mark over the game's name on the main menu. */
-        const val HERO_LOGO_DP = 88f
+        const val HERO_LOGO_DP = 76f
         /** The brand's dusk blue (launcher icon) for the game's name and the hero numbers. */
         const val BRAND = 0xFF1B4A5E.toInt()
     }

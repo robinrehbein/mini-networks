@@ -48,8 +48,8 @@ rede, cabos, estratégia, quebra-cabeça, construção, cidade, roteador, Wi-Fi,
 
 1. Conecte sua cidade
 2. Um gesto, um cabo
-3. Evite a sobrecarga da rede
-4. Gire o mapa como quiser
+3. Evite a sobrecarga
+4. Gire o mapa
 5. Wi-Fi, 4G e 5G
 6. Uma escolha por semana
 7. Cinco cenários

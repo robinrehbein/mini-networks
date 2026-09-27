@@ -167,6 +167,17 @@ class IsoRenderer : Renderer {
         return -0.185f + 0.065f * (ty - tx)
     }
 
+    /**
+     * [side] on a wall with world normal ([nx], [ny]): shaded by [wallShade], and tinted by the light: warm sunlight on
+     * the lit walls, a cool sky blue in the shade, so buildings get depth instead of two greys (judge panel).
+     */
+    private fun litWall(side: Int, nx: Float, ny: Float): Int {
+        val sh = wallShade(nx, ny)
+        val base = side.shade(sh)
+        val t = ((sh + 0.185f) / 0.092f).coerceIn(-1f, 1f)
+        return if (t >= 0f) blend(base, WARM_LIGHT, 0.12f * t) else blend(base, COOL_SHADE, 0.16f * -t)
+    }
+
     /** World x and y offsets of a screen-fixed offset ([dx], [dy]) given in the unturned map (e.g. a shadow's cast). */
     private fun unturnX(dx: Float, dy: Float) = camera.cosA * dx + camera.sinA * dy
     private fun unturnY(dx: Float, dy: Float) = -camera.sinA * dx + camera.cosA * dy
@@ -225,6 +236,18 @@ class IsoRenderer : Renderer {
         drawArrivalRings(canvas, world)
         world.failedNode?.let { drawFailedPulse(canvas, it, time) }
 
+        // A red glow on the ground under an overloaded device that pulses faster and stronger as its ring closes, so
+        // it draws the eye across the whole map (judge panel: two thin rings read as calm).
+        for (n in world.nodes) {
+            if (n.kind != NodeKind.CLIENT || n.overload <= 0f) continue
+            val cx = sx(n.center.x, n.center.y); val cy = sy(n.center.x, n.center.y)
+            val beat = 0.5f + 0.5f * sin(time * (4f + 6f * n.overload))
+            val reach = 0.75f + 0.25f * n.overload + 0.1f * beat
+            oval.set(cx - tw * reach, cy - th * reach, cx + tw * reach, cy + th * reach)
+            fillP.color = (((n.overload * (0.3f + 0.25f * beat)).coerceIn(0f, 0.6f) * 255).toInt() shl 24) or (alarm and 0xFFFFFF)
+            canvas.drawOval(oval, fillP)
+        }
+
         // Painter's algorithm: everything with height is drawn back-to-front by its depth in the turned map.
         depth.clear()
         val nodes = world.nodes
@@ -252,7 +275,11 @@ class IsoRenderer : Renderer {
             if (n.kind != NodeKind.CLIENT || n.overload <= 0f) continue
             val cx = sx(n.center.x, n.center.y); val cy = sy(n.center.x, n.center.y)
             oval.set(cx - tw * 0.55f, cy - th * 0.55f, cx + tw * 0.55f, cy + th * 0.55f)
-            strokeP.color = alarm; strokeP.strokeWidth = maxOf(tw * 0.05f, RING_MIN_DP * density)
+            val ring = maxOf(tw * 0.06f, RING_MIN_DP * 1.2f * density)
+            // The track the ring runs on, so it reads as a timer running out.
+            strokeP.color = 0x8CFFFFFF.toInt(); strokeP.strokeWidth = ring * 1.2f
+            canvas.drawOval(oval, strokeP)
+            strokeP.color = alarm; strokeP.strokeWidth = ring
             canvas.drawArc(oval, -90f, 360f * n.overload, false, strokeP)
         }
         for (n in nodes) if (n.upgradedAt > Float.NEGATIVE_INFINITY) drawUpgradeJuice(canvas, world, n)
@@ -485,6 +512,9 @@ class IsoRenderer : Renderer {
         c.drawColor(pal.background)
         val open = world.unlocked
         val seed = world.seed
+        // The land the board was cut from, a step lower and hazy: fills the screen around the board, so a phone never
+        // shows the board floating in an empty pale void (judge panel).
+        drawOutskirts(c, world, front = false)
         for (y in 0 until world.rows) for (x in 0 until world.cols) {
             quad(x.toFloat(), y.toFloat(), 1f, 1f, 0f)
             val even = (x + y) % 2 == 0
@@ -507,6 +537,7 @@ class IsoRenderer : Renderer {
             val tx = camera.cosA * nx - camera.sinA * ny; val ty = camera.sinA * nx + camera.cosA * ny
             fillP.color = blend(pal.boardLit, pal.boardShade, ((tx - ty + 1f) / 2f).coerceIn(0f, 1f)); c.drawPath(path, fillP)
         }
+        drawOutskirts(c, world, front = true)
         updatePlan(world, map)
         for (cell in grassCells) drawGrass(c, seed, cell.x, cell.y, open.contains(cell.x, cell.y))
         for (n in world.nodes) drawShadow(c, n)
@@ -530,6 +561,50 @@ class IsoRenderer : Renderer {
         drawFog(c, world)
         drawStaticCables(c, world)
         drawVignette(c)
+    }
+
+    /**
+     * The land around the board, [OUTSKIRT_DROP] tiles lower: washed-out tiles that fade into the backdrop with their
+     * distance, rivers that run on past the board's edge, and a few trees and cottages. [front] draws the part nearer
+     * the viewer than the board (after the board's sides, so they stand in front of them), otherwise the rest.
+     */
+    private fun drawOutskirts(c: Canvas, world: World, front: Boolean) {
+        val w = c.width.toFloat(); val h = c.height.toFloat()
+        if (w <= 0f || h <= 0f) return
+        // World cells the screen shows, as seen on the sunken level.
+        val drop = OUTSKIRT_DROP * tw / 2f
+        var minX = Float.MAX_VALUE; var minY = Float.MAX_VALUE; var maxX = -Float.MAX_VALUE; var maxY = -Float.MAX_VALUE
+        for (k in 0 until 4) {
+            val p = camera.screenToWorld(if (k % 2 == 0) 0f else w, (if (k < 2) 0f else h) - drop)
+            minX = minOf(minX, p.x); maxX = maxOf(maxX, p.x); minY = minOf(minY, p.y); maxY = maxOf(maxY, p.y)
+        }
+        val cols = world.cols; val rows = world.rows
+        val x0 = maxOf(floor(minX).toInt() - 1, -OUTSKIRT_MAX); val x1 = minOf(floor(maxX).toInt() + 1, cols + OUTSKIRT_MAX)
+        val y0 = maxOf(floor(minY).toInt() - 1, -OUTSKIRT_MAX); val y1 = minOf(floor(maxY).toInt() + 1, rows + OUTSKIRT_MAX)
+        if (x0 >= 0 && y0 >= 0 && x1 < cols && y1 < rows) return
+        val seed = world.seed
+        c.save()
+        c.translate(0f, drop)
+        for (pass in 0 until 2) for (y in y0..y1) for (x in x0..x1) {
+            if (x in 0 until cols && y in 0 until rows) continue
+            val ex = x.coerceIn(0, cols - 1); val ey = y.coerceIn(0, rows - 1)
+            if ((depthOf(x + 0.5f, y + 0.5f) > depthOf(ex + 0.5f, ey + 0.5f)) != front) continue
+            val dist = maxOf(abs(x - ex), abs(y - ey))
+            val fade = (dist / OUTSKIRT_FADE).coerceAtMost(1f) * 0.72f + 0.06f
+            // A river leaves the board straight on: only cells beyond one edge (not a corner) continue it.
+            val water = (x in 0 until cols || y in 0 until rows) && world.terrainAt(ex, ey) == Terrain.WATER
+            val even = (x + y) % 2 == 0
+            if (pass == 0) {
+                quad(x.toFloat(), y.toFloat(), 1f, 1f, 0f)
+                val base = if (water) (if (even) lockedWaterA else lockedWaterB) else if (even) lockedLandA else lockedLandB
+                fillP.color = blend(base.shade(Scenery.tileVariation(seed, x, y) * TILE_VARIATION), pal.background, fade)
+                c.drawPath(path, fillP)
+            } else if (!water && dist <= OUTSKIRT_DECOR) {
+                val d = Scenery.planned(seed, x, y) ?: continue
+                drawDecor(c, seed, Cell(x, y), d, open = false)
+            }
+        }
+        c.restore()
     }
 
     /**
@@ -678,15 +753,18 @@ class IsoRenderer : Renderer {
         val h = towerHeight(seed, cell)
         val cx = cell.x + 0.5f; val cy = cell.y + 0.5f
         val half = TOWER_SIZE / 2f
-        val tint = if (Scenery.unit(seed, cell.x, cell.y, 34) < 0.5f) TOWER_A else TOWER_B
-        boxRect(c, cx - half, cy - half, cx + half, cy + half, 0f, h, col(tint.shade(0.25f)), col(tint))
+        val pick = Scenery.unit(seed, cell.x, cell.y, 34)
+        val tint = when { pick < 0.4f -> TOWER_A; pick < 0.75f -> TOWER_B; else -> TOWER_C }
+        // Rooftops in a few warm and green accents, so the downtown is not grey on grey (judge panel).
+        val roof = TOWER_ROOFS[(Scenery.unit(seed, cell.x, cell.y, 36) * TOWER_ROOFS.size).toInt().coerceAtMost(TOWER_ROOFS.size - 1)]
+        boxRect(c, cx - half, cy - half, cx + half, cy + half, 0f, h, col(roof), col(tint))
         val rows = (h / 0.16f).toInt()
         for (r in 0 until rows) {
             val z = 0.08f + r * 0.16f
             if (z + 0.07f > h - 0.04f) break
             for (i in 0 until 3) {
                 val u = -half + 0.05f + i * 0.18f
-                val lit = Scenery.unit(seed, cell.x * 7 + i, cell.y * 7 + r, 35) < 0.18f
+                val lit = Scenery.unit(seed, cell.x * 7 + i, cell.y * 7 + r, 35) < 0.32f
                 fillP.color = col(if (lit) WINDOW_LIT else WINDOW)
                 for (f in 0 until 4) if (wallPatch(cx, cy, half, half, f, u, u + 0.12f, z, z + 0.07f)) c.drawPath(path, fillP)
             }
@@ -751,9 +829,14 @@ class IsoRenderer : Renderer {
             path.reset()
             for (k in 0 until n) if (k == 0) path.moveTo(hullOut[0], hullOut[1]) else path.lineTo(hullOut[2 * k], hullOut[2 * k + 1])
             path.close()
-            fillP.color = SHADOW_ALPHA[pass] shl 24
+            fillP.color = (SHADOW_ALPHA[pass] shl 24) or SHADOW_TINT
             c.drawPath(path, fillP)
         }
+        // Contact shadow: a tight dark rim where the block meets the ground (a touch of ambient occlusion).
+        val e = 0.05f
+        quad(cx - s / 2 - e, cy - s / 2 - e, s + 2 * e, s + 2 * e, 0f)
+        fillP.color = (CONTACT_ALPHA shl 24) or SHADOW_TINT
+        c.drawPath(path, fillP)
     }
 
     private val hullIn = FloatArray(16)
@@ -1024,8 +1107,15 @@ class IsoRenderer : Renderer {
         for (n in radios) {
             val col = RadioStyles.color(n)
             groundEllipse(n.center, n.radius)
-            fillP.color = col and 0x00FFFFFF or 0x24000000; canvas.drawOval(oval, fillP)
-            strokeP.color = col and 0x00FFFFFF or 0xA0000000.toInt(); strokeP.strokeWidth = tw * 0.018f; canvas.drawOval(oval, strokeP)
+            fillP.color = col and 0x00FFFFFF or 0x33000000; canvas.drawOval(oval, fillP)
+            strokeP.color = col and 0x00FFFFFF or 0xB0000000.toInt(); strokeP.strokeWidth = tw * 0.02f; canvas.drawOval(oval, strokeP)
+            // Two signal waves running out from the radio to the edge of its coverage and fading.
+            for (k in 0 until 2) {
+                val f = ((time * RADIO_WAVE_SPEED + k * 0.5f + n.id * 0.37f) % 1f + 1f) % 1f
+                groundEllipse(n.center, n.radius * (0.15f + 0.85f * f))
+                strokeP.color = (((1f - f) * 0xB0).toInt() shl 24) or (col and 0xFFFFFF); strokeP.strokeWidth = tw * 0.03f * (1f - 0.5f * f)
+                canvas.drawOval(oval, strokeP)
+            }
         }
         for (a in radios) for (b in world.interferers(a)) {
             if (b.id < a.id) continue
@@ -1048,6 +1138,17 @@ class IsoRenderer : Renderer {
             airP.color = RadioStyles.color(l.radio)
             val a = l.radio.center; val b = l.device.center
             canvas.drawLine(sx(a.x, a.y), sy(a.x, a.y), sx(b.x, b.y), sy(b.x, b.y), airP)
+            // A signal arc travelling from the radio to the device, bowed towards the device like a radio wave.
+            val f = ((time * 0.8f + l.device.id * 0.29f) % 1f + 1f) % 1f
+            val ax = sx(a.x, a.y); val ay = sy(a.x, a.y); val bx = sx(b.x, b.y); val by = sy(b.x, b.y)
+            val px = ax + (bx - ax) * f; val py = ay + (by - ay) * f
+            val deg = Math.toDegrees(kotlin.math.atan2((by - ay).toDouble(), (bx - ax).toDouble())).toFloat()
+            val rr = tw * 0.14f
+            oval.set(px - rr, py - rr, px + rr, py + rr)
+            strokeP.color = 0xE6FFFFFF.toInt(); strokeP.strokeWidth = tw * 0.05f
+            canvas.drawArc(oval, deg - 50f, 100f, false, strokeP)
+            strokeP.color = airP.color; strokeP.strokeWidth = tw * 0.028f
+            canvas.drawArc(oval, deg - 50f, 100f, false, strokeP)
         }
     }
 
@@ -1430,7 +1531,7 @@ class IsoRenderer : Renderer {
             path.reset()
             path.moveTo(sx(ax, ay), sy(ax, ay, z0)); path.lineTo(sx(bx, by), sy(bx, by, z0))
             path.lineTo(sx(bx, by), sy(bx, by, z1)); path.lineTo(sx(ax, ay), sy(ax, ay, z1)); path.close()
-            fillP.color = side.shade(wallShade(nx, ny)); canvas.drawPath(path, fillP)
+            fillP.color = litWall(side, nx, ny); canvas.drawPath(path, fillP)
         }
         quad(x0, y0, x1 - x0, y1 - y0, z1)
         fillP.color = top; canvas.drawPath(path, fillP)
@@ -1518,7 +1619,19 @@ class IsoRenderer : Renderer {
         const val TILE_VARIATION = 0.035f
         /** Outward spread (cells) and alpha of the soft shadow passes, outermost first. */
         val SHADOW_SPREAD = floatArrayOf(0.1f, 0.05f, 0f)
-        val SHADOW_ALPHA = intArrayOf(0x10, 0x12, 0x1A)
+        val SHADOW_ALPHA = intArrayOf(0x14, 0x19, 0x26)
+        /** Cool blue-black of the ground shadows (shade under a blue sky rather than grey). */
+        const val SHADOW_TINT = 0x1A2440
+        const val CONTACT_ALPHA = 0x1E
+        /** Warm key light on lit walls and cool fill in the shade ([litWall]). */
+        const val WARM_LIGHT = 0xFFFFD08A.toInt()
+        const val COOL_SHADE = 0xFF34467A.toInt()
+        /** The outskirts around the board: how far below it they lie (tile widths, the board's edge depth), how many cells they reach at most,
+         *  over how many cells they fade into the backdrop and up to which distance they carry trees. */
+        const val OUTSKIRT_DROP = 0.5f
+        const val OUTSKIRT_MAX = 40
+        const val OUTSKIRT_FADE = 9f
+        const val OUTSKIRT_DECOR = 7
         const val FLOWER_A = 0xFFFFFFFF.toInt()
         const val FLOWER_B = 0xFFF2D06B.toInt()
         const val TRUNK = 0xFF8A6A4A.toInt()
@@ -1537,8 +1650,10 @@ class IsoRenderer : Renderer {
         const val SNOW_FROM = 0.72f
         const val PAVEMENT_A = 0xFFD4D7D6.toInt()
         const val PAVEMENT_B = 0xFFCDD1D0.toInt()
-        const val TOWER_A = 0xFFA9BACB.toInt()
-        const val TOWER_B = 0xFFB9B3C4.toInt()
+        const val TOWER_A = 0xFF9DB5D0.toInt()
+        const val TOWER_B = 0xFFC9B9A5.toInt()
+        const val TOWER_C = 0xFFB3C4BD.toInt()
+        val TOWER_ROOFS = intArrayOf(0xFFE8E4DC.toInt(), 0xFFD98B5F.toInt(), 0xFF8DBF7E.toInt(), 0xFFE9C46A.toInt(), 0xFFDCE3EA.toInt())
         const val WINDOW = 0xFFE3ECF4.toInt()
         const val WINDOW_LIT = 0xFFF6DE8E.toInt()
         /** Width of a downtown tower's footprint, in cells. */
@@ -1547,6 +1662,8 @@ class IsoRenderer : Renderer {
         const val SERVER_POP = 0.7f
         const val DELIVERY_POP = 0.8f
         const val BADGE_POP = 0.3f
+        /** Signal waves per second running out of a radio's coverage. */
+        const val RADIO_WAVE_SPEED = 0.45f
         /** Streak cycles per second on the water. */
         const val SHIMMER_SPEED = 0.35f
 

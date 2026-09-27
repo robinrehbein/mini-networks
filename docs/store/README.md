@@ -28,17 +28,21 @@ Play Games optional, Werbung nur zwischen Partien, „Werbefrei“ und Szenerien
   `tablet-7` (1920 × 1080, xhdpi, 960 × 540 dp) und `tablet-10` (2560 × 1440, xhdpi); 16:9 und 24-Bit-PNG ohne Alpha,
   wie Play es für Telefone und Tablets verlangt (1080–7680 px je Seite). Eingecheckt: Deutsch und Englisch; weitere
   Sprachen mit `-Pstore.locales=fr,es,it,pt-rBR,pl,nl,tr,ja,ko,zh-rCN`.
-- `feature-graphic.png`: 1024 × 500, 24-Bit-PNG, nichts Wichtiges in den äußeren 10 %, ohne Worte außer dem Namen
-  (passt zu jedem Eintrag). `feature-graphic/<sprache>.png`: dieselbe Grafik mit der Tagline der Sprache („von ISDN bis
+- `feature-graphic.png`: 1024 × 500, 24-Bit-PNG, nichts Wichtiges in den äußeren 10 %: links eine dämmerblaue Fläche
+  mit Glasfaser-Kante, App-Icon, Name und „1995 → 2030“ (Zahlen, passt zu jedem Eintrag), rechts ein Knoten mit
+  leuchtendem Server und einem Gerät in Überlast. `feature-graphic/<sprache>.png`: dieselbe Grafik mit der Tagline der Sprache („von ISDN bis
   Glasfaser“, wie das Spiel 1995 mit ISDN beginnt), für jede erzeugte Sprache; in der Play Console je Sprache hochladen.
 - Vor dem Start (docs/RELEASE.md 4): die übrigen 10 Sprachen mit `-Pstore.locales=fr,es,it,pt-rBR,pl,nl,tr,ja,ko,zh-rCN`
   erzeugen und je Eintrag hochladen; sonst zeigt Play dort die Standardbilder mit deutscher bzw. englischer
   Beschriftung. Nicht eingecheckt, weil jeder Satz rund 8 MB PNG ist (zehn Sprachen ≈ 80 MB bei jedem Neuerzeugen).
-- Motive: 1 lebendige Stadt, 2 Kabel ziehen mit Vorschau, 3 Überlastung im echten Spielbild mit HUD, 4 gedrehte
-  dichte Stadt 2030 (randlos), 5 Funk (WLAN-Kanäle, 5 GHz, Mast), 6 Wochen-Belohnung mit Konfetti, 7 fünf Szenerien
-  mit Tagesaufgaben-Hinweis, 8 Bagger und Stromausfall (randlos).
-- `screenshots/phone-portrait/<sprache>/01-town.png`, `03-overload.png`, `04-rotation.png`: 1080 × 1920 für das
-  Hochformat-Karussell von Play.
+- Eine Vorlage für alle Bilder: das Spiel randlos unter einem dämmerblauen Beschriftungsband mit Glasfaser-Kante,
+  App-Icon und kurzer, einzeiliger Überschrift.
+- Motive: 1 lebendige Stadt (wenige Anfragen), 2 Kabel ziehen mit Vorschau, 3 Überlastung im echten Spielbild mit HUD
+  (glaubwürdiges Budget, pulsierender roter Schein, Rand abgedunkelt), 4 gedrehte dichte Stadt 2030 mit
+  Zwei-Finger-Geste, 5 Funk (Abdeckung mit Signalwellen), 6 Wochen-Belohnung mit Konfetti nur am Rand, 7 fünf
+  Szenerien mit kleinem Tagesaufgaben-Abzeichen, 8 Bagger und Stromausfall.
+- `screenshots/phone-portrait/<sprache>/`: 1080 × 1920 für das Hochformat-Karussell von Play, alle Motive außer 6
+  (die zwei Belohnungskarten brauchen Breite).
 - Trailer: `trailer.md`.
 
 Erzeugen:

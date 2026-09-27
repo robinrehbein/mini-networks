@@ -87,16 +87,16 @@ object Cosmetic {
 
     /** The original look (docs/style-explorations.html). */
     private val MEADOW = MapPalette(
-        landA = 0xFFDDE9D6.toInt(), landB = 0xFFD5E3CD.toInt(), waterA = 0xFF8FC3DA.toInt(), waterB = 0xFFA4D0E3.toInt(),
+        landA = 0xFFD6E9C8.toInt(), landB = 0xFFCBE0BB.toInt(), waterA = 0xFF78B9DA.toInt(), waterB = 0xFF90C7E3.toInt(),
         lockedLandA = 0xFFE3E6E0.toInt(), lockedLandB = 0xFFDDE1DA.toInt(), lockedWaterA = 0xFFC4D8E1.toInt(), lockedWaterB = 0xFFCDDEE6.toInt(),
-        boardLit = 0xFFB9C9AF.toInt(), boardShade = 0xFFA7BA9C.toInt(), background = 0xFFEEF3EA.toInt(),
-        grass = 0xFFB3C9A6.toInt(), leaf = 0xFF93C47D.toInt(), leafDark = 0xFF6FA262.toInt(), pine = 0xFF6FA87A.toInt(), pineDark = 0xFF4E8660.toInt(),
+        boardLit = 0xFFABC39D.toInt(), boardShade = 0xFF93AD86.toInt(), background = 0xFFEEF3EA.toInt(),
+        grass = 0xFFA9C79A.toInt(), leaf = 0xFF8CC572.toInt(), leafDark = 0xFF62A056.toInt(), pine = 0xFF6FA87A.toInt(), pineDark = 0xFF4E8660.toInt(),
         flatLand = 0xFFF3F1EC.toInt(), flatWater = 0xFFC3DCE8.toInt(), flatBackdrop = 0xFFD3CFC5.toInt(),
     )
 
     /** Kleinstadt am Fluss: the meadow, a little fresher. */
     private val RIVER_TOWN = palette(
-        landA = 0xFFD6E8CB.toInt(), landB = 0xFFCDE2C1.toInt(), waterA = 0xFF7FBDDB.toInt(), waterB = 0xFF96CAE3.toInt(),
+        landA = 0xFFD0E8C0.toInt(), landB = 0xFFC4DFB3.toInt(), waterA = 0xFF6AB4DD.toInt(), waterB = 0xFF86C4E6.toInt(),
         boardLit = 0xFFAFC7A1.toInt(), boardShade = 0xFF9BB58D.toInt(), background = 0xFFEAF2E4.toInt(),
         grass = 0xFFA9C79B.toInt(), leaf = 0xFF8CC275.toInt(), leafDark = 0xFF67A05A.toInt(), pine = 0xFF66A674.toInt(), pineDark = 0xFF478459.toInt(),
         flatLand = 0xFFF1F3EA.toInt(), flatWater = 0xFFB9D9E8.toInt(), flatBackdrop = 0xFFD2D8CB.toInt(),
@@ -104,9 +104,9 @@ object Cosmetic {
 
     /** Großstadt: cool asphalt greys, deep river blue, park greens. */
     private val METROPOLIS = palette(
-        landA = 0xFFD3D9DC.toInt(), landB = 0xFFCAD1D5.toInt(), waterA = 0xFF6A9FC4.toInt(), waterB = 0xFF82B1D1.toInt(),
-        boardLit = 0xFF9DA8B0.toInt(), boardShade = 0xFF88949D.toInt(), background = 0xFFE2E7EB.toInt(),
-        grass = 0xFFB3BEC3.toInt(), leaf = 0xFF7DB47A.toInt(), leafDark = 0xFF5B9160.toInt(), pine = 0xFF5B9270.toInt(), pineDark = 0xFF417456.toInt(),
+        landA = 0xFFDCDDD5.toInt(), landB = 0xFFD1D3CA.toInt(), waterA = 0xFF4E95CC.toInt(), waterB = 0xFF6AA9D8.toInt(),
+        boardLit = 0xFFA3A89F.toInt(), boardShade = 0xFF8C9189.toInt(), background = 0xFFE6E8E3.toInt(),
+        grass = 0xFFA9BF9A.toInt(), leaf = 0xFF7DB47A.toInt(), leafDark = 0xFF5B9160.toInt(), pine = 0xFF5B9270.toInt(), pineDark = 0xFF417456.toInt(),
         flatLand = 0xFFECEFF1.toInt(), flatWater = 0xFFB6CFE2.toInt(), flatBackdrop = 0xFFC7CED4.toInt(),
     )
 
@@ -128,7 +128,7 @@ object Cosmetic {
 
     /** Zukunft 2030: dusk violet ground, electric blue water, teal trees. */
     private val FUTURE = palette(
-        landA = 0xFFD7D0EB.toInt(), landB = 0xFFCDC5E4.toInt(), waterA = 0xFF6A80D8.toInt(), waterB = 0xFF8195E1.toInt(),
+        landA = 0xFFD7D0EB.toInt(), landB = 0xFFCDC5E4.toInt(), waterA = 0xFF4F86E0.toInt(), waterB = 0xFF6A9BE8.toInt(),
         boardLit = 0xFF9C8FC8.toInt(), boardShade = 0xFF8778B6.toInt(), background = 0xFFE4DFF2.toInt(),
         grass = 0xFFB5ABD8.toInt(), leaf = 0xFF62C4B3.toInt(), leafDark = 0xFF41A291.toInt(), pine = 0xFF4A9C99.toInt(), pineDark = 0xFF327D7A.toInt(),
         flatLand = 0xFFF0EDF7.toInt(), flatWater = 0xFFC0CAEE.toInt(), flatBackdrop = 0xFFCDC6E0.toInt(),

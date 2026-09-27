@@ -48,8 +48,8 @@ réseau, câbles, stratégie, puzzle, jeu de construction, ville, routeur, Wi-Fi
 
 1. Câble ta ville
 2. Un geste, un câble
-3. Évite la surcharge du réseau
-4. Tourne la carte à ta guise
+3. Évite la surcharge
+4. Tourne la carte
 5. Wi-Fi, 4G et 5G
 6. Un choix chaque semaine
 7. Cinq décors
