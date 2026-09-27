@@ -9,14 +9,32 @@
         <item quantity="other">%1$d Pakete</item>
     </plurals>
     <string name="hud_resources">Budget %1$d  ·  Router %2$d</string>
-    <string name="button_pause">Pause</string>
+    <string name="hud_clock_day">Tag · %1$s</string>
+    <string name="hud_clock_night">Nacht · %1$s · Backups um %2$s</string>
+    <string name="clock_time" translatable="false">%1$02d:%2$02d</string>
     <string name="button_router">Router (%1$d)</string>
-    <string name="button_cable">%1$s · %2$d</string>
     <string name="hint_place_router">Tippe auf ein freies Feld</string>
+    <string name="button_access_point">WLAN (%1$d)</string>
+    <string name="button_cell_tower">Mast (%1$d)</string>
+    <string name="hint_access_point">Access Point antippen: Kanal wechseln · halten: 5 GHz für %1$d</string>
+    <string name="hint_channel">%1$s: Kanal %2$d</string>
+    <plurals name="hint_channel_interference">
+        <item quantity="one">%1$s: Kanal %2$d · stört sich mit %3$d Nachbarn</item>
+        <item quantity="other">%1$s: Kanal %2$d · stört sich mit %3$d Nachbarn</item>
+    </plurals>
+    <string name="hint_5ghz">%1$s funkt jetzt auf 5 GHz (Radius 1)</string>
+    <string name="wifi_error_already_5ghz">Funkt schon auf 5 GHz</string>
+    <string name="wifi_error_no_budget">Zu wenig Budget, 5 GHz kostet %1$d</string>
     <string name="hint_map_grew">Die Stadt wächst: neue Felder am Rand</string>
     <string name="server_error_max_level">Rechenzentrum ist die höchste Stufe</string>
     <string name="server_error_no_budget">Zu wenig Budget, Aufrüsten kostet %1$d</string>
     <string name="server_error_no_space">Rechenzentrum braucht 2×2 freie Felder am Server</string>
+    <string name="incident_excavator_warning">Bagger im Anmarsch: Kabel wird in %1$d s gekappt</string>
+    <string name="incident_outage_warning">Stromausfall droht: %1$s fällt in %2$d s aus</string>
+    <string name="incident_cut">Kabel gekappt: antippen = reparieren für %1$d · von selbst in %2$d s</string>
+    <string name="incident_outage">Stromausfall: %1$s noch %2$d s ohne Strom</string>
+    <string name="repair_error_no_budget">Zu wenig Budget, Reparieren kostet %1$d</string>
+    <string name="hint_repaired">Kabel repariert</string>
     <plurals name="hud_vouchers">
         <item quantity="one">%1$d Server-Gutschein · Server antippen</item>
         <item quantity="other">%1$d Server-Gutscheine · Server antippen</item>
@@ -27,6 +45,9 @@
     <string name="service_call">Telefonie</string>
     <string name="service_gaming">Gaming</string>
     <string name="service_streaming">Streaming</string>
+    <string name="service_video_call">Videocall</string>
+    <string name="service_camera_upload">Kamera-Upload</string>
+    <string name="service_cloud_backup">Cloud-Backup</string>
     <string name="device_pc">PC</string>
     <string name="device_phone">Telefon</string>
     <string name="device_laptop">Laptop</string>
@@ -35,11 +56,15 @@
     <string name="device_tv">Smart-TV</string>
     <string name="device_tablet">Tablet</string>
     <string name="device_watch">Smartwatch</string>
+    <string name="device_camera">Überwachungskamera</string>
+    <string name="device_smart_home">Smart-Home-Hub</string>
     <string name="cable_isdn">ISDN</string>
     <string name="cable_dsl">DSL</string>
-    <string name="cable_coax">Kabel</string>
+    <string name="cable_coax">TV-Kabel</string>
     <string name="cable_fiber">Glasfaser</string>
     <string name="node_router">Router</string>
+    <string name="node_access_point">WLAN-Access-Point</string>
+    <string name="node_cell_tower">Mobilfunkmast</string>
     <string name="node_server">%1$s-Server</string>
 
     <!-- Week news and cable feedback -->
@@ -54,7 +79,7 @@
     <string name="connect_error_no_budget">Budget reicht nicht</string>
 
     <!-- Week rewards -->
-    <string name="reward_prompt">Tippe auf eine Karte, um sie zu wählen</string>
+    <string name="reward_prompt">Wochenlohn: +%1$d · Tippe auf eine Karte für ein Extra</string>
     <string name="reward_amount_plus">+%1$d</string>
     <string name="reward_amount_voucher">Gratis</string>
     <string name="reward_budget_title">Budget</string>
@@ -63,6 +88,10 @@
     <string name="reward_routers_desc">Verteiler mit 6 Ports für dein Netz</string>
     <string name="reward_voucher_title">Server-Gutschein</string>
     <string name="reward_voucher_desc">Nächste Server-Aufrüstung kostet nichts</string>
+    <string name="reward_access_point_title">WLAN-Access-Point</string>
+    <string name="reward_access_point_desc">Funkt ohne Kabel zu bis zu 4 Geräten im Umkreis</string>
+    <string name="reward_cell_tower_title">Mobilfunkmast</string>
+    <string name="reward_cell_tower_desc">Großer Funkradius, aber nur für Smartphone, Tablet und Uhr</string>
 
     <!-- Menus -->
     <string name="menu_tagline">Vernetze die Stadt – von 1995 bis heute</string>
@@ -91,4 +120,100 @@
     <string name="game_over_best">Bestwert: %1$d</string>
     <string name="game_over_new_best">Neuer Bestwert!</string>
     <string name="game_over_again">Nochmal</string>
+
+    <!-- Sceneries -->
+    <string name="scenery_title">Szenerie wählen</string>
+    <string name="scenery_river_town">Kleinstadt am Fluss</string>
+    <string name="scenery_metropolis">Großstadt</string>
+    <string name="scenery_island_harbor">Insel &amp; Hafen</string>
+    <string name="scenery_mountain_village">Bergdorf</string>
+    <string name="scenery_future_2030">Zukunft 2030</string>
+    <string name="scenery_river_town_desc">Ein Fluss · zum Einstieg</string>
+    <string name="scenery_metropolis_desc">Zwei Flüsse · Hochhäuser stören Funk</string>
+    <string name="scenery_island_harbor_desc">Viel Wasser · Seekabel und Funk</string>
+    <string name="scenery_mountain_village_desc">Berge blockieren Funk · teure Pässe</string>
+    <string name="scenery_future_2030_desc">6G für alle Geräte · Server im Orbit</string>
+    <string name="scenery_from_year">ab %1$d</string>
+    <string name="scenery_not_played">Noch nicht gespielt</string>
+    <plurals name="scenery_progress">
+        <item quantity="one">%1$,d / %2$,d Paket</item>
+        <item quantity="other">%1$,d / %2$,d Pakete</item>
+    </plurals>
+    <string name="scenery_progress_in">in %1$s</string>
+    <string name="scenery_shop">Im Shop</string>
+    <string name="scenery_shop_pack">einzeln oder im Paket</string>
+    <plurals name="scenery_hint_score">
+        <item quantity="one">Erreiche %1$,d Paket in %2$s oder kaufe die Szenerie</item>
+        <item quantity="other">Erreiche %1$,d Pakete in %2$s oder kaufe die Szenerie</item>
+    </plurals>
+    <string name="scenery_hint_no_shop">Der Shop ist gerade nicht erreichbar</string>
+
+    <!-- Tutorial -->
+    <string name="tutorial_kicker">TUTORIAL · %1$d/%2$d</string>
+    <string name="tutorial_skip">Überspringen</string>
+    <string name="tutorial_play">Spielen</string>
+    <string name="tutorial_pause">Tutorial · Schritt %1$d/%2$d</string>
+    <string name="settings_tutorial">Tutorial ansehen</string>
+    <string name="tutorial_cable_title">Kabel legen</string>
+    <string name="tutorial_cable_text">Der PC will Mails verschicken. Zieh mit dem Finger vom PC zum Mail-Server: Das Kabel läuft wie eine Straße über das Raster.</string>
+    <string name="tutorial_router_title">Router setzen</string>
+    <string name="tutorial_router_text">Ein Gerät hat nur 2 Anschlüsse, ein Router 6. Tippe unten auf „Router“ und dann auf ein freies Feld bei den Telefonen.</string>
+    <string name="tutorial_router_connect_text">Verbinde jetzt die Telefone und den Telefonie-Server mit dem Router. Er verteilt die Anrufe.</string>
+    <string name="tutorial_type_title">Kabeltypen</string>
+    <string name="tutorial_type_text">1998: DSL ist erfunden. Es trägt doppelt so viele Pakete wie ISDN und ist doppelt so schnell. Wähle unten DSL.</string>
+    <string name="tutorial_type_upgrade_text">Tippe jetzt auf ein ISDN-Kabel, um es auf DSL aufzurüsten. Du zahlst nur den Unterschied.</string>
+    <string name="tutorial_ping_title">Ping</string>
+    <string name="tutorial_ping_text">2010: Der PC will online spielen. Gaming braucht kurzen Ping, hin und zurück höchstens %1$d ms. Verbinde den PC mit dem Game-Server.</string>
+    <string name="tutorial_ping_slow_text">Ping %1$d ms: zu langsam für Gaming (höchstens %2$d ms). Nur Glasfaser ist schnell genug. Wähle Glasfaser und tippe auf das Kabel.</string>
+    <string name="tutorial_overload_title">Überlast</string>
+    <plurals name="tutorial_overload_text">
+        <item quantity="one">Ein neuer PC ohne Anschluss! Ab %1$d wartenden Anfrage füllt sich ein roter Ring. Ist er voll, ist das Spiel vorbei. Schließ den PC an!</item>
+        <item quantity="other">Ein neuer PC ohne Anschluss! Ab %1$d wartenden Anfragen füllt sich ein roter Ring. Ist er voll, ist das Spiel vorbei. Schließ den PC an!</item>
+    </plurals>
+    <string name="tutorial_done_title">Geschafft!</string>
+    <string name="tutorial_done_text">Du kennst die Grundlagen. Tipps: Server antippen rüstet sie auf, ein Kabel zweimal antippen entfernt es, Pause hält die Zeit an und du baust weiter. Viel Spaß!</string>
+    <!-- Monetization (docs/PLAN.md 5.1) -->
+    <string name="menu_remove_ads">Werbefrei · %1$s</string>
+    <string name="settings_privacy">Datenschutz-Einstellungen</string>
+    <string name="game_over_continue_ad">Weiterspielen · Video ansehen</string>
+    <string name="game_over_continue">Weiterspielen</string>
+    <string name="reward_bonus_router_ad">+1 Router · Video ansehen</string>
+    <string name="reward_bonus_router">+1 Router extra</string>
+    <string name="hint_bonus_router">+1 Router</string>
+    <string name="hint_continued">Die Überlast-Ringe sind leer · einmal pro Partie</string>
+    <string name="scenery_pack_buy">Alle Szenerien · %1$s</string>
+
+    <!-- Controls feedback -->
+    <string name="hud_paused">Pausiert · du kannst weiterbauen</string>
+    <string name="hint_cable_info">%1$s: Bandbreite %2$d · %3$s ms pro Feld · Preis pro Feld %4$d</string>
+    <string name="hint_cable_too_narrow">zu schmal für %1$s</string>
+    <string name="hint_cable_upgraded">Kabel auf %1$s aufgerüstet · −%2$d</string>
+    <string name="cable_error_no_budget">Zu wenig Budget, Aufrüsten kostet %1$d</string>
+    <string name="hint_cable_remove">%1$s-Kabel · nochmal antippen zum Entfernen (+%2$d)</string>
+    <string name="hint_cable_removed">Kabel entfernt, zurück: +%1$d</string>
+    <string name="place_error_no_stock">Kein %1$s mehr auf Lager</string>
+    <string name="place_error_locked">Dieses Feld ist noch nicht erschlossen</string>
+    <string name="place_error_occupied">Das Feld ist schon belegt</string>
+    <string name="place_error_terrain">Nur auf freiem Land</string>
+    <string name="hint_router_pick_up">Router ohne Kabel · nochmal antippen: zurück ins Lager</string>
+    <string name="hint_router_picked_up">Router zurück im Lager</string>
+    <string name="server_tier">Stufe %1$d</string>
+    <string name="server_tier_data_center">Rechenzentrum</string>
+    <string name="hint_server_preview">%1$s → %2$s für %3$d · nochmal antippen</string>
+    <string name="hint_server_preview_voucher">%1$s → %2$s mit Gutschein · nochmal antippen</string>
+    <string name="hint_server_upgraded">%1$s jetzt: %2$s</string>
+    <string name="hint_server_busy">%1$s kommt nicht hinterher: antippen zum Aufrüsten</string>
+    <string name="hint_radio_reward">Neu: %1$s – gibt es als Wochen-Belohnung</string>
+    <string name="hint_service_needs">%1$s braucht Bandbreite %2$d</string>
+    <string name="hint_service_needs_ping">%1$s braucht Bandbreite %2$d, Ping höchstens %3$d ms</string>
+    <string name="device_wants">%1$s will %2$s</string>
+    <string name="problem_no_route">%1$s: %2$s – kein Weg zu einem Server</string>
+    <string name="problem_too_narrow">%1$s: %2$s – kein Kabel breit genug (Bandbreite %3$d)</string>
+    <string name="problem_ping">%1$s: %2$s – Ping %3$d ms, erlaubt %4$d ms</string>
+    <string name="problem_jam">%1$s: %2$s – Stau, Kabel oder Server zu voll</string>
+    <string name="drag_too_narrow">%1$s braucht Bandbreite %2$d</string>
+    <string name="drag_ping">%1$s: Ping %2$d/%3$d ms</string>
+    <string name="incident_countdown" translatable="false">%1$d s</string>
+    <string name="hint_two_parts" translatable="false">%1$s · %2$s</string>
+    <string name="incident_more">%1$s (+%2$d)</string>
 </resources>

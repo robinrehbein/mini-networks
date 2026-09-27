@@ -3,13 +3,20 @@ package com.mininetworks.game.ui
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.view.MotionEvent
+import com.mininetworks.game.game.CableType
+import com.mininetworks.game.game.Cell
 import com.mininetworks.game.game.DebugApi
 import com.mininetworks.game.game.Device
+import com.mininetworks.game.game.Incidents
+import com.mininetworks.game.game.NodeKind
+import com.mininetworks.game.game.RadioType
+import com.mininetworks.game.game.Wifi
 import com.mininetworks.game.game.Service
 import com.mininetworks.game.game.World
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -91,5 +98,87 @@ class GameViewGestureTest {
         assertTrue("double tap fits the unlocked area again", camera.followsArea)
         repeat(240) { camera.step(1f / 60f) }
         assertEquals(camera.fitScale(view.activeRenderer.mapBounds(world.unlocked)), camera.scale, 1e-3f)
+    }
+
+    @Test
+    fun wlanButtonPlacesAccessPointTapCyclesChannelHoldSwitchesTo5Ghz() {
+        world.jumpToWeek(6)
+        world.grant(0, extraAccessPoints = 1)
+        val bmp = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)
+        view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 0f, style = "Iso")
+        assertNull("cell towers are not invented yet", view.hudTarget("radio:CELL"))
+        val button = view.hudTarget("radio:WLAN")!!
+        view.injectTouch(MotionEvent.ACTION_DOWN, button.centerX(), button.centerY())
+        view.injectTouch(MotionEvent.ACTION_UP, button.centerX(), button.centerY())
+        val cell = view.activeRenderer.toScreen(Cell(world.unlocked.left + 4, world.unlocked.top + 4).center)
+        view.injectTouch(MotionEvent.ACTION_DOWN, cell.x, cell.y)
+        view.injectTouch(MotionEvent.ACTION_UP, cell.x, cell.y)
+        val ap = world.nodes.single { it.kind == NodeKind.ACCESS_POINT }
+        assertEquals(0, world.accessPointsAvailable)
+        assertEquals(1, ap.channel)
+
+        view.injectTouch(MotionEvent.ACTION_DOWN, cell.x, cell.y, time = 1000L)
+        view.injectTouch(MotionEvent.ACTION_UP, cell.x, cell.y, time = 1100L)
+        assertEquals("a tap switches the channel", 6, ap.channel)
+
+        val budget = world.budget
+        view.injectTouch(MotionEvent.ACTION_DOWN, cell.x, cell.y, time = 2000L)
+        view.injectTouch(MotionEvent.ACTION_UP, cell.x, cell.y, time = 2700L)
+        assertTrue("holding switches to 5 GHz", ap.fiveGhz)
+        assertEquals(Wifi.CHANNELS_5_GHZ.first(), ap.channel)
+        assertEquals(budget - Wifi.UPGRADE_5_GHZ_COST, world.budget)
+    }
+
+    @Test
+    fun holdingAnAccessPointSwitchesTo5GhzWhileTheFingerIsStillDown() {
+        world.jumpToWeek(6)
+        val ap = world.addRadio(RadioType.WLAN, world.unlocked.left + 4, world.unlocked.top + 4)
+        val p = view.activeRenderer.toScreen(ap.center)
+        val pulses = view.hapticPulses
+        view.injectTouch(MotionEvent.ACTION_DOWN, p.x, p.y, time = 0L)
+        repeat(20) { view.advance(1f / 60f) }
+        assertFalse(ap.fiveGhz)
+        repeat(12) { view.advance(1f / 60f) }
+        assertTrue("fires after half a second without lifting the finger", ap.fiveGhz)
+        assertTrue("with a haptic pulse", view.hapticPulses > pulses)
+        view.injectTouch(MotionEvent.ACTION_UP, p.x, p.y, time = 600L)
+        assertEquals("lifting afterwards does not also switch the channel", Wifi.CHANNELS_5_GHZ.first(), ap.channel)
+    }
+
+    @Test
+    fun movingOffTheAccessPointCancelsTheHold() {
+        world.jumpToWeek(6)
+        val ap = world.addRadio(RadioType.WLAN, world.unlocked.left + 4, world.unlocked.top + 4)
+        val p = view.activeRenderer.toScreen(ap.center)
+        view.injectTouch(MotionEvent.ACTION_DOWN, p.x, p.y, time = 0L)
+        view.injectTouch(MotionEvent.ACTION_MOVE, p.x + 200f, p.y, time = 100L)
+        repeat(60) { view.advance(1f / 60f) }
+        assertFalse(ap.fiveGhz)
+        view.injectTouch(MotionEvent.ACTION_UP, p.x + 200f, p.y, time = 1100L)
+        assertFalse(ap.fiveGhz)
+    }
+
+    @Test
+    fun tappingACutCableRepairsItInsteadOfRemovingIt() {
+        val pc = world.addClient(Device.PC, 10, 7)
+        val mail = world.addServer(Service.MAIL, 14, 7)
+        assertTrue(world.connect(pc, mail, CableType.ISDN))
+        val cable = world.cableBetween(pc, mail)!!
+        world.announceExcavator(cable)
+        repeat(60 * 6) { world.update(1f / 60f) }
+        assertTrue(world.isCut(cable))
+        val budget = world.budget
+        val p = view.activeRenderer.toScreen(cable.layout.pointAt(0.5f))
+        view.injectTouch(MotionEvent.ACTION_DOWN, p.x, p.y)
+        view.injectTouch(MotionEvent.ACTION_UP, p.x, p.y)
+        assertFalse(world.isCut(cable))
+        assertTrue("the cable stays", cable in world.cables)
+        assertEquals(budget - Incidents.REPAIR_COST, world.budget)
+        view.injectTouch(MotionEvent.ACTION_DOWN, p.x, p.y, time = 1000L)
+        view.injectTouch(MotionEvent.ACTION_UP, p.x, p.y, time = 1000L)
+        assertTrue("an intact cable is only selected by the first tap", cable in world.cables)
+        view.injectTouch(MotionEvent.ACTION_DOWN, p.x, p.y, time = 1500L)
+        view.injectTouch(MotionEvent.ACTION_UP, p.x, p.y, time = 1500L)
+        assertFalse("the second tap removes it", cable in world.cables)
     }
 }

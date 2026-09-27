@@ -7,14 +7,31 @@
         <item quantity="other">%1$d packets</item>
     </plurals>
     <string name="hud_resources">Budget %1$d  ·  Routers %2$d</string>
-    <string name="button_pause">Pause</string>
+    <string name="hud_clock_day">Day · %1$s</string>
+    <string name="hud_clock_night">Night · %1$s · backups at %2$s</string>
     <string name="button_router">Router (%1$d)</string>
-    <string name="button_cable">%1$s · %2$d</string>
     <string name="hint_place_router">Tap a free cell</string>
+    <string name="button_access_point">Wi-Fi (%1$d)</string>
+    <string name="button_cell_tower">Tower (%1$d)</string>
+    <string name="hint_access_point">Tap the access point to change its channel · hold for 5 GHz (%1$d)</string>
+    <string name="hint_channel">%1$s: channel %2$d</string>
+    <plurals name="hint_channel_interference">
+        <item quantity="one">%1$s: channel %2$d · clashes with %3$d neighbor</item>
+        <item quantity="other">%1$s: channel %2$d · clashes with %3$d neighbors</item>
+    </plurals>
+    <string name="hint_5ghz">%1$s now uses 5 GHz (radius 1)</string>
+    <string name="wifi_error_already_5ghz">Already on 5 GHz</string>
+    <string name="wifi_error_no_budget">Not enough budget, 5 GHz costs %1$d</string>
     <string name="hint_map_grew">The town is growing: new cells at the edge</string>
     <string name="server_error_max_level">The data center is the top tier</string>
     <string name="server_error_no_budget">Not enough budget, the upgrade costs %1$d</string>
     <string name="server_error_no_space">A data center needs 2×2 free cells at the server</string>
+    <string name="incident_excavator_warning">Excavator on its way: cable cut in %1$d s</string>
+    <string name="incident_outage_warning">Power cut ahead: %1$s goes dark in %2$d s</string>
+    <string name="incident_cut">Cable cut: tap to repair for %1$d · fixes itself in %2$d s</string>
+    <string name="incident_outage">Power cut: %1$s dark for %2$d s</string>
+    <string name="repair_error_no_budget">Not enough budget, a repair costs %1$d</string>
+    <string name="hint_repaired">Cable repaired</string>
     <plurals name="hud_vouchers">
         <item quantity="one">%1$d server voucher · tap a server</item>
         <item quantity="other">%1$d server vouchers · tap a server</item>
@@ -25,6 +42,9 @@
     <string name="service_call">Calls</string>
     <string name="service_gaming">Gaming</string>
     <string name="service_streaming">Streaming</string>
+    <string name="service_video_call">Video calls</string>
+    <string name="service_camera_upload">Camera upload</string>
+    <string name="service_cloud_backup">Cloud backup</string>
     <string name="device_pc">PC</string>
     <string name="device_phone">Phone</string>
     <string name="device_laptop">Laptop</string>
@@ -33,11 +53,15 @@
     <string name="device_tv">Smart TV</string>
     <string name="device_tablet">Tablet</string>
     <string name="device_watch">Smartwatch</string>
+    <string name="device_camera">Security camera</string>
+    <string name="device_smart_home">Smart home hub</string>
     <string name="cable_isdn">ISDN</string>
     <string name="cable_dsl">DSL</string>
-    <string name="cable_coax">Cable</string>
+    <string name="cable_coax">Coax</string>
     <string name="cable_fiber">Fiber</string>
     <string name="node_router">Router</string>
+    <string name="node_access_point">Wi-Fi access point</string>
+    <string name="node_cell_tower">Cell tower</string>
     <string name="node_server">%1$s server</string>
 
     <!-- Week news and cable feedback -->
@@ -52,7 +76,7 @@
     <string name="connect_error_no_budget">Not enough budget</string>
 
     <!-- Week rewards -->
-    <string name="reward_prompt">Tap a card to pick it</string>
+    <string name="reward_prompt">Weekly pay: +%1$d · Tap a card for an extra</string>
     <string name="reward_amount_plus">+%1$d</string>
     <string name="reward_amount_voucher">Free</string>
     <string name="reward_budget_title">Budget</string>
@@ -61,6 +85,10 @@
     <string name="reward_routers_desc">Hubs with 6 ports for your network</string>
     <string name="reward_voucher_title">Server voucher</string>
     <string name="reward_voucher_desc">Your next server upgrade is free</string>
+    <string name="reward_access_point_title">Wi-Fi access point</string>
+    <string name="reward_access_point_desc">Reaches up to 4 devices nearby without cables</string>
+    <string name="reward_cell_tower_title">Cell tower</string>
+    <string name="reward_cell_tower_desc">Wide radio range, but only for smartphones, tablets and watches</string>
 
     <!-- Menus -->
     <string name="menu_tagline">Wire up the town – from 1995 to today</string>
@@ -89,4 +117,98 @@
     <string name="game_over_best">Best: %1$d</string>
     <string name="game_over_new_best">New best!</string>
     <string name="game_over_again">Play again</string>
+
+    <!-- Sceneries -->
+    <string name="scenery_title">Choose a scenery</string>
+    <string name="scenery_river_town">River Town</string>
+    <string name="scenery_metropolis">Metropolis</string>
+    <string name="scenery_island_harbor">Island &amp; Harbor</string>
+    <string name="scenery_mountain_village">Mountain Village</string>
+    <string name="scenery_future_2030">Future 2030</string>
+    <string name="scenery_river_town_desc">One river · to get started</string>
+    <string name="scenery_metropolis_desc">Two rivers · towers block radio</string>
+    <string name="scenery_island_harbor_desc">Lots of water · sea cable and radio</string>
+    <string name="scenery_mountain_village_desc">Mountains block radio · costly passes</string>
+    <string name="scenery_future_2030_desc">6G for every device · servers in orbit</string>
+    <string name="scenery_from_year">from %1$d</string>
+    <string name="scenery_not_played">Not played yet</string>
+    <plurals name="scenery_progress">
+        <item quantity="one">%1$,d / %2$,d packet</item>
+        <item quantity="other">%1$,d / %2$,d packets</item>
+    </plurals>
+    <string name="scenery_progress_in">in %1$s</string>
+    <string name="scenery_shop">In the shop</string>
+    <string name="scenery_shop_pack">alone or in the pack</string>
+    <plurals name="scenery_hint_score">
+        <item quantity="one">Deliver %1$,d packet in %2$s or buy this scenery</item>
+        <item quantity="other">Deliver %1$,d packets in %2$s or buy this scenery</item>
+    </plurals>
+    <string name="scenery_hint_no_shop">The shop is not available right now</string>
+
+    <!-- Tutorial -->
+    <string name="tutorial_kicker">TUTORIAL · %1$d/%2$d</string>
+    <string name="tutorial_skip">Skip</string>
+    <string name="tutorial_play">Play</string>
+    <string name="tutorial_pause">Tutorial · step %1$d/%2$d</string>
+    <string name="settings_tutorial">Play tutorial</string>
+    <string name="tutorial_cable_title">Lay a cable</string>
+    <string name="tutorial_cable_text">The PC wants to send mail. Drag from the PC to the mail server: cables run along the grid like streets.</string>
+    <string name="tutorial_router_title">Place a router</string>
+    <string name="tutorial_router_text">A device has only 2 ports, a router has 6. Tap “Router” below, then a free cell near the phones.</string>
+    <string name="tutorial_router_connect_text">Now connect both phones and the telephony server to the router. It shares out the calls.</string>
+    <string name="tutorial_type_title">Cable types</string>
+    <string name="tutorial_type_text">1998: DSL is invented. It carries twice as many packets as ISDN and is twice as fast. Pick DSL below.</string>
+    <string name="tutorial_type_upgrade_text">Now tap an ISDN cable to upgrade it to DSL. You only pay the difference.</string>
+    <string name="tutorial_ping_title">Ping</string>
+    <string name="tutorial_ping_text">2010: The PC wants to play online. Gaming needs a short ping, at most %1$d ms there and back. Connect the PC to the game server.</string>
+    <string name="tutorial_ping_slow_text">Ping %1$d ms: too slow for gaming (at most %2$d ms). Only fiber is fast enough. Pick fiber and tap the cable.</string>
+    <string name="tutorial_overload_title">Overload</string>
+    <plurals name="tutorial_overload_text">
+        <item quantity="one">A new PC without a connection! From %1$d waiting request on, a red ring fills up. When it closes, the game is over. Connect the PC!</item>
+        <item quantity="other">A new PC without a connection! From %1$d waiting requests on, a red ring fills up. When it closes, the game is over. Connect the PC!</item>
+    </plurals>
+    <string name="tutorial_done_title">Well done!</string>
+    <string name="tutorial_done_text">You know the basics. Tips: tap a server to upgrade it, tap a cable twice to remove it, and pause stops the clock while you keep building. Have fun!</string>
+    <!-- Monetization (docs/PLAN.md 5.1) -->
+    <string name="menu_remove_ads">Remove ads · %1$s</string>
+    <string name="settings_privacy">Privacy settings</string>
+    <string name="game_over_continue_ad">Continue · watch a video</string>
+    <string name="game_over_continue">Continue</string>
+    <string name="reward_bonus_router_ad">+1 router · watch a video</string>
+    <string name="reward_bonus_router">+1 extra router</string>
+    <string name="hint_bonus_router">+1 router</string>
+    <string name="hint_continued">Overload rings cleared · once per game</string>
+    <string name="scenery_pack_buy">All sceneries · %1$s</string>
+
+    <!-- Controls feedback -->
+    <string name="hud_paused">Paused · keep building</string>
+    <string name="hint_cable_info">%1$s: bandwidth %2$d · %3$s ms per cell · price per cell %4$d</string>
+    <string name="hint_cable_too_narrow">too narrow for %1$s</string>
+    <string name="hint_cable_upgraded">Cable upgraded to %1$s · −%2$d</string>
+    <string name="cable_error_no_budget">Not enough budget, the upgrade costs %1$d</string>
+    <string name="hint_cable_remove">%1$s cable · tap again to remove it (+%2$d)</string>
+    <string name="hint_cable_removed">Cable removed, refund: +%1$d</string>
+    <string name="place_error_no_stock">No %1$s left in stock</string>
+    <string name="place_error_locked">This cell is not open yet</string>
+    <string name="place_error_occupied">This cell is taken</string>
+    <string name="place_error_terrain">Only on open land</string>
+    <string name="hint_router_pick_up">Router without cables · tap again to put it back in stock</string>
+    <string name="hint_router_picked_up">Router back in stock</string>
+    <string name="server_tier">tier %1$d</string>
+    <string name="server_tier_data_center">data center</string>
+    <string name="hint_server_preview">%1$s → %2$s for %3$d · tap again</string>
+    <string name="hint_server_preview_voucher">%1$s → %2$s with a voucher · tap again</string>
+    <string name="hint_server_upgraded">%1$s is now: %2$s</string>
+    <string name="hint_server_busy">%1$s cannot keep up: tap it to upgrade</string>
+    <string name="hint_radio_reward">New: %1$s – won as a weekly reward</string>
+    <string name="hint_service_needs">%1$s needs bandwidth %2$d</string>
+    <string name="hint_service_needs_ping">%1$s needs bandwidth %2$d, ping at most %3$d ms</string>
+    <string name="device_wants">%1$s wants %2$s</string>
+    <string name="problem_no_route">%1$s: %2$s – no way to a server</string>
+    <string name="problem_too_narrow">%1$s: %2$s – no cable wide enough (bandwidth %3$d)</string>
+    <string name="problem_ping">%1$s: %2$s – ping %3$d ms, allowed %4$d ms</string>
+    <string name="problem_jam">%1$s: %2$s – jammed, cables or server too full</string>
+    <string name="drag_too_narrow">%1$s needs bandwidth %2$d</string>
+    <string name="drag_ping">%1$s: ping %2$d/%3$d ms</string>
+    <string name="incident_more">%1$s (+%2$d)</string>
 </resources>

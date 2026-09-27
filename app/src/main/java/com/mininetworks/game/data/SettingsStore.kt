@@ -12,7 +12,7 @@ data class GameSettings(
     val colorblind: Boolean = false,
 )
 
-/** [GameSettings] in SharedPreferences. */
+/** [GameSettings] and whether the tutorial was seen, in SharedPreferences. */
 class SettingsStore(context: Context) {
     private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
@@ -22,6 +22,11 @@ class SettingsStore(context: Context) {
         overviewMode = prefs.getBoolean(KEY_OVERVIEW, false),
         colorblind = prefs.getBoolean(KEY_COLORBLIND, false),
     )
+
+    /** True once the tutorial was finished, skipped or left; until then the app opens in it. */
+    var tutorialSeen: Boolean
+        get() = prefs.getBoolean(KEY_TUTORIAL_SEEN, false)
+        set(value) = prefs.edit().putBoolean(KEY_TUTORIAL_SEEN, value).apply()
 
     fun save(s: GameSettings) {
         prefs.edit()
@@ -38,5 +43,6 @@ class SettingsStore(context: Context) {
         const val KEY_HAPTICS = "haptics"
         const val KEY_OVERVIEW = "overview_mode"
         const val KEY_COLORBLIND = "colorblind"
+        const val KEY_TUTORIAL_SEEN = "tutorial_seen"
     }
 }

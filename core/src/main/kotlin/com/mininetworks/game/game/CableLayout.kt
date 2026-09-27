@@ -53,6 +53,9 @@ class CableLayout(val waypoints: List<Vec2>) {
     /** Point at fraction [f] (0 = start, 1 = end) of the way along the cable. */
     fun pointAt(f: Float): Vec2 = Geometry.pointAlong(waypoints, f)
 
+    /** Like [pointAt], but writes x and y into [out] instead of allocating. */
+    fun pointAt(f: Float, out: FloatArray) = Geometry.pointAlong(waypoints, f, out)
+
     companion object {
         private fun isCenter(v: Float) = abs(v - floor(v) - 0.5f) < 1e-4f
         private fun cellOf(p: Vec2) = Cell(floor(p.x).toInt(), floor(p.y).toInt())

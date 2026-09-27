@@ -136,6 +136,48 @@ class SaveTest {
         assertNull("unknown node id", Save.decode(kotlinx.serialization.json.Json.encodeToString(WorldSnapshot.serializer(), broken)))
     }
 
+    private fun decode(s: WorldSnapshot) = Save.decode(kotlinx.serialization.json.Json.encodeToString(WorldSnapshot.serializer(), s))
+
+    /** Replaces the first node matching [pick] in [s] by [change] of it. */
+    private fun withNode(s: WorldSnapshot, pick: (NodeSnapshot) -> Boolean, change: (NodeSnapshot) -> NodeSnapshot) =
+        s.copy(nodes = s.nodes.map { if (it === s.nodes.first(pick)) change(it) else it })
+
+    @Test
+    fun inconsistentNodesAreRejected() {
+        val s = busyWorld().snapshot()
+        assertNotNull("the untouched snapshot loads", decode(s))
+        val client = { n: NodeSnapshot -> n.kind == NodeKind.CLIENT }
+        val server = { n: NodeSnapshot -> n.kind == NodeKind.SERVER }
+        assertNull("client without a device", decode(withNode(s, client) { it.copy(device = null) }))
+        assertNull("server without a service", decode(withNode(s, server) { it.copy(service = null) }))
+        assertNull("router with a device", decode(withNode(s, { it.kind == NodeKind.ROUTER }) { it.copy(device = Device.PC) }))
+        assertNull("level 0", decode(withNode(s, server) { it.copy(level = 0) }))
+        assertNull("level 5", decode(withNode(s, server) { it.copy(level = World.Tuning.MAX_SERVER_LEVEL + 1) }))
+        assertNull("footprint off the grid", decode(withNode(s, client) { it.copy(footprint = listOf(Cell(it.cellX, it.cellY), Cell(s.cols, 0))) }))
+        assertNull("cell off the grid", decode(withNode(s, client) { it.copy(cellX = -1, footprint = listOf(Cell(-1, it.cellY))) }))
+        assertNull("footprint not at the cell", decode(withNode(s, client) { it.copy(footprint = listOf(Cell(0, 0))) }))
+        assertNull("overload past full", decode(withNode(s, client) { it.copy(overload = 2f) }))
+    }
+
+    @Test
+    fun brokenGridCalendarAndPacketsAreRejected() {
+        val s = busyWorld().snapshot()
+        assertNull("unlocked block off the grid", decode(s.copy(unlocked = CellRect(-1, 0, s.cols, s.rows))))
+        assertNull("unlocked block too wide", decode(s.copy(unlocked = CellRect(0, 0, s.cols + 1, s.rows))))
+        assertNull("week 0", decode(s.copy(week = 0)))
+        assertNull("id reused by the next node", decode(s.copy(nextId = 0)))
+        assertNull("endless replay", decode(s.copy(randomDraws = Long.MAX_VALUE)))
+        assertNull("cable waypoint off the grid", decode(s.copy(cables = listOf(s.cables.first().let { it.copy(waypoints = it.waypoints + Cell(999, 0)) }) + s.cables.drop(1))))
+        val p = s.packets.first()
+        fun withPacket(q: PacketSnapshot) = s.copy(packets = listOf(q) + s.packets.drop(1))
+        assertNull("packet already at its end", decode(withPacket(p.copy(hop = p.route.size - 1))))
+        assertNull("packet progress past the link", decode(withPacket(p.copy(progress = 3f))))
+        val linked = s.cables.filter { p.route.first() in listOf(it.a, it.b) }.flatMap { listOf(it.a, it.b) }
+        val stranger = s.nodes.first { n -> n.kind == NodeKind.SERVER && n.id !in p.route && n.id !in linked }.id
+        assertNull("route over nodes without a link", decode(withPacket(p.copy(route = listOf(p.route.first(), stranger)))))
+        assertNull("origin not at the route's end", decode(withPacket(p.copy(origin = stranger))))
+    }
+
     @Test
     fun replayableRandomMatchesPlainRandomAndResumes() {
         val plain = Random(42L)

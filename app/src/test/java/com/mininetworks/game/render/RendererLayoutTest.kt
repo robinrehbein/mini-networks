@@ -49,6 +49,9 @@ class RendererLayoutTest {
 
         // Tapping the corner of an L selects that cable in both styles.
         val corner = w.cableBetween(phone, router)!!.layout.waypoints[1]
-        renderers.forEach { assertSame(w.cableBetween(phone, router), it.cableNear(w, corner)) }
+        renderers.forEach {
+            val at = it.toScreen(corner)
+            assertSame(w.cableBetween(phone, router), it.cableAtScreen(w, at.x, at.y, radiusPx = 10f))
+        }
     }
 }

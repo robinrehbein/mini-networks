@@ -72,6 +72,29 @@ class RendererCameraTest {
     }
 
     @Test
+    fun portraitFramingZoomsTowardsTheHeightButKeepsEveryNode() {
+        val w = World(seed = 2L, spawnInitialNodes = false)
+        val a = w.unlocked
+        val mid = a.center
+        w.addClient(Device.PC, mid.x.toInt(), mid.y.toInt())
+        w.addClient(Device.PHONE, mid.x.toInt() + 1, mid.y.toInt() - 1)
+        for (r in renderers(w, 1080, 2400)) {
+            val plainFit = r.camera.fitScale(r.mapBounds(a))
+            assertTrue("${r.name} zooms in on the built middle", r.camera.scale > plainFit * 1.2f)
+            val content = r.contentBounds(w)!!
+            assertTrue("${r.name} shows every node", r.camera.shows(content))
+            assertTrue("${r.name} still fits the area's height", r.camera.scale <= r.camera.fitScale(MapRect(content.left, r.mapBounds(a).top, content.right, r.mapBounds(a).bottom)) + 1e-3f)
+        }
+        val corner = w.addClient(Device.LAPTOP, a.left, a.bottom - 1)
+        for (r in renderers(w, 1080, 2400)) {
+            r.onContentChanged(w)
+            repeat(200) { r.camera.step(0.05f) }
+            val m = r.toMap(corner.footprintCenter)
+            assertTrue("${r.name} glides out to a device on the corner", r.camera.shows(MapRect(m.x, m.y, m.x, m.y)))
+        }
+    }
+
+    @Test
     fun zoomRangeReachesWholeGridAndCloseUp() {
         val w = World(seed = 2L, spawnInitialNodes = false)
         for (r in renderers(w)) {

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+: settings, best scores and the autosave move with the player; the cached purchases do not. Owned
+     products always come from Google Play, so a restored or copied "monetization" file must not unlock anything. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="monetization.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="monetization.xml" />
+    </device-transfer>
+</data-extraction-rules>

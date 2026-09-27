@@ -18,11 +18,15 @@ import kotlin.math.sin
 
 /**
  * The week reward choice, drawn on the game canvas over the paused map: two large cards, each a thick slab with a
- * small isometric diorama of its reward. [hit] maps a tap to the card index for [World.chooseReward].
+ * small isometric diorama of its reward. [hit] maps a tap to the card index for [World.chooseReward], or to [BONUS]
+ * for the optional extra-router pill below the cards ([World.claimBonusRouter]).
  */
 class RewardDialog(private val context: Context) {
     private val density = context.resources.displayMetrics.density
     private val cards = listOf(RectF(), RectF())
+    private val bonus = RectF()
+    private var bonusShown = false
+    private val play = Path()
     private val drawn = RectF()
     private val path = Path()
     private val fillP = fill(0)
@@ -37,16 +41,31 @@ class RewardDialog(private val context: Context) {
     private var oy = 0f
     private var u = 1f
 
-    /** Index of the card under the screen point, or null. Valid for the last drawn frame. */
-    fun hit(x: Float, y: Float): Int? = cards.indexOfFirst { it.contains(x, y) }.takeIf { it >= 0 }
+    /** Index of the card under the screen point, [BONUS] for the bonus pill, or null. Valid for the last drawn frame. */
+    fun hit(x: Float, y: Float): Int? {
+        if (bonusShown && bonus.contains(x, y)) return BONUS
+        return cards.indexOfFirst { it.contains(x, y) }.takeIf { it >= 0 }
+    }
 
-    fun draw(canvas: Canvas, world: World, offer: RewardOffer, width: Int, height: Int, time: Float, pressed: Int? = null) {
+    /** Where the bonus pill was drawn in the last frame, or null. */
+    fun bonusTarget(): RectF? = if (bonusShown) RectF(bonus) else null
+
+    /**
+     * Draws the choice. [bonus] labels the extra-router pill below the cards, null hides it; [video] adds a play sign
+     * because the extra costs a rewarded video.
+     */
+    fun draw(
+        canvas: Canvas, world: World, offer: RewardOffer, width: Int, height: Int, time: Float, pressed: Int? = null,
+        bonus: String? = null, video: Boolean = false,
+    ) {
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), dim)
         val cardW = minOf(width * 0.3f, height * 0.5f, 320 * density)
         val cardH = minOf(cardW * 1.08f, height * 0.56f)
         val gap = cardW * 0.14f
         val depth = cardW * 0.05f
-        val top = height * 0.28f
+        // With the bonus pill the cards move up, so prompt and pill fit below them.
+        val below = if (bonus != null) cardW * 0.27f + bonusHeight(cardW) + 12f * density else 0f
+        val top = minOf(height * 0.28f, height - cardH - below).coerceAtLeast(cardW * 0.34f)
         val left = (width - 2 * cardW - gap) / 2f
 
         text.typeface = Typeface.DEFAULT_BOLD
@@ -59,14 +78,55 @@ class RewardDialog(private val context: Context) {
             canvas.drawText(texts.news(it, withYear = false), width / 2f, top - cardW * 0.1f, text)
         }
         text.color = 0xFF5B6674.toInt()
-        canvas.drawText(context.getString(R.string.reward_prompt), width / 2f, top + cardH + cardW * 0.2f, text)
+        val promptY = top + cardH + cardW * 0.2f
+        canvas.drawText(context.getString(R.string.reward_prompt, World.Tuning.WEEK_BUDGET), width / 2f, promptY, text)
         text.color = ink
+        bonusShown = bonus != null
+        if (bonus != null) drawBonus(canvas, bonus, video, width, height, promptY + cardW * 0.07f, cardW, pressed == BONUS)
 
         offer.choices.forEachIndexed { i, reward ->
             val r = cards[i]
             r.set(left + i * (cardW + gap), top, left + i * (cardW + gap) + cardW, top + cardH)
             drawCard(canvas, r, depth, sink = if (pressed == i) depth * 0.8f else 0f, reward, time + i * 0.7f)
         }
+    }
+
+    private fun bonusHeight(cardW: Float) = minOf(44f * density, cardW * 0.16f)
+
+    /** The extra-router pill: centered under the prompt at [top], kept on screen, pressed when [down]. */
+    private fun drawBonus(canvas: Canvas, label: String, video: Boolean, width: Int, height: Int, top: Float, cardW: Float, down: Boolean) {
+        val h = bonusHeight(cardW)
+        text.typeface = Typeface.DEFAULT_BOLD
+        text.textSize = h * 0.38f
+        val icon = if (video) h * 0.5f else 0f
+        val w = text.measureText(label) + icon + h * 1.1f
+        val y = top.coerceAtMost(height - h - 12f * density)
+        bonus.set((width - w) / 2f, y, (width + w) / 2f, y + h)
+        val accent = accentOf(Reward.ROUTERS)
+        val depth = h * 0.1f
+        val sink = if (down) depth * 0.8f else 0f
+        fillP.color = accent.shade(-0.3f)
+        canvas.drawRoundRect(bonus.left, bonus.top + depth, bonus.right, bonus.bottom + depth, h / 2f, h / 2f, fillP)
+        fillP.color = accent
+        canvas.drawRoundRect(bonus.left, bonus.top + sink, bonus.right, bonus.bottom + sink, h / 2f, h / 2f, fillP)
+        val textX = bonus.centerX() + icon / 2f
+        if (video) {
+            // A play sign in a white disc, left of the label.
+            val cx = textX - text.measureText(label) / 2f - icon * 0.75f
+            val cy = bonus.centerY() + sink
+            fillP.color = 0xFFFFFFFF.toInt()
+            canvas.drawCircle(cx, cy, icon / 2f, fillP)
+            play.reset()
+            play.moveTo(cx - icon * 0.14f, cy - icon * 0.22f)
+            play.lineTo(cx + icon * 0.24f, cy)
+            play.lineTo(cx - icon * 0.14f, cy + icon * 0.22f)
+            play.close()
+            fillP.color = accent
+            canvas.drawPath(play, fillP)
+        }
+        text.color = 0xFFFFFFFF.toInt()
+        canvas.drawText(label, textX, bonus.centerY() + sink + text.textSize * 0.35f, text)
+        text.color = ink
     }
 
     /** Card [slot] on its slab of thickness [depth]; a pressed card's face sinks by [sink] onto the slab. */
@@ -93,6 +153,8 @@ class RewardDialog(private val context: Context) {
             Reward.BUDGET -> coins(canvas, bob)
             Reward.ROUTERS -> routers(canvas, bob, time)
             Reward.SERVER_VOUCHER -> server(canvas, accent, bob)
+            Reward.ACCESS_POINT -> accessPoint(canvas, accent, bob, time)
+            Reward.CELL_TOWER -> cellTower(canvas, time)
         }
 
         val cx = r.centerX()
@@ -119,24 +181,32 @@ class RewardDialog(private val context: Context) {
         Reward.BUDGET -> 0xFFE9A92B.toInt()
         Reward.ROUTERS -> 0xFF3BA55C.toInt()
         Reward.SERVER_VOUCHER -> 0xFF2E86AB.toInt()
+        Reward.ACCESS_POINT -> 0xFF8E6CC0.toInt()
+        Reward.CELL_TOWER -> 0xFF1FA39A.toInt()
     }
 
     private fun amountOf(reward: Reward) = when (reward) {
         Reward.BUDGET -> context.getString(R.string.reward_amount_plus, Rewards.BUDGET)
         Reward.ROUTERS -> context.getString(R.string.reward_amount_plus, Rewards.ROUTERS)
         Reward.SERVER_VOUCHER -> context.getString(R.string.reward_amount_voucher)
+        Reward.ACCESS_POINT -> context.getString(R.string.reward_amount_plus, Rewards.ACCESS_POINTS)
+        Reward.CELL_TOWER -> context.getString(R.string.reward_amount_plus, Rewards.CELL_TOWERS)
     }
 
     private fun titleOf(reward: Reward) = when (reward) {
         Reward.BUDGET -> R.string.reward_budget_title
         Reward.ROUTERS -> R.string.reward_routers_title
         Reward.SERVER_VOUCHER -> R.string.reward_voucher_title
+        Reward.ACCESS_POINT -> R.string.reward_access_point_title
+        Reward.CELL_TOWER -> R.string.reward_cell_tower_title
     }
 
     private fun descOf(reward: Reward) = when (reward) {
         Reward.BUDGET -> R.string.reward_budget_desc
         Reward.ROUTERS -> R.string.reward_routers_desc
         Reward.SERVER_VOUCHER -> R.string.reward_voucher_desc
+        Reward.ACCESS_POINT -> R.string.reward_access_point_desc
+        Reward.CELL_TOWER -> R.string.reward_cell_tower_desc
     }
 
     private fun wrap(s: String, maxWidth: Float): List<String> {
@@ -208,6 +278,19 @@ class RewardDialog(private val context: Context) {
         canvas.drawPath(path, fillP)
     }
 
+    /** An access point on a small plinth inside its tinted radio circle. */
+    private fun accessPoint(canvas: Canvas, color: Int, bob: Float, time: Float) {
+        fillP.color = color and 0x00FFFFFF or 0x33000000
+        canvas.drawOval(sx(0f, 0f) - u * 1.3f, sy(0f, 0f) - u * 0.65f, sx(0f, 0f) + u * 1.3f, sy(0f, 0f) + u * 0.65f, fillP)
+        box(canvas, 0f, 0f, 0.7f, 0.45f, 0xFFF5F7F9.toInt(), 0xFFD9DEE3.toInt())
+        icons.accessPoint(canvas, sx(0f, 0f), sy(0f, 0f, 0.45f + bob) - u * 0.3f, u * 0.55f, color, time)
+    }
+
+    private fun cellTower(canvas: Canvas, time: Float) {
+        box(canvas, 0f, 0f, 0.8f, 0.12f, 0xFFCBD2D9.toInt(), 0xFFB9C2CC.toInt())
+        icons.cellTower(canvas, sx(0f, 0f), sy(0f, 0f, 0.12f) - u * 0.75f, u * 0.75f, time)
+    }
+
     private fun box(canvas: Canvas, cx: Float, cy: Float, s: Float, h: Float, top: Int, side: Int, z0: Float = 0f) {
         val x0 = cx - s / 2; val y0 = cy - s / 2; val x1 = cx + s / 2; val y1 = cy + s / 2
         val z1 = z0 + h
@@ -222,5 +305,10 @@ class RewardDialog(private val context: Context) {
     private fun face(ax: Float, ay: Float, bx: Float, by: Float, cx: Float, cy: Float, dx: Float, dy: Float) {
         path.reset()
         path.moveTo(ax, ay); path.lineTo(bx, by); path.lineTo(cx, cy); path.lineTo(dx, dy); path.close()
+    }
+
+    companion object {
+        /** [hit] result for the extra-router pill. */
+        const val BONUS = -1
     }
 }

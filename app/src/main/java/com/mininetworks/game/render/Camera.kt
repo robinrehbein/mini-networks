@@ -49,6 +49,7 @@ class Camera {
     private var targetScale = 1f
     private var targetX = 0f
     private var targetY = 0f
+    private var rate = ANIM_RATE
 
     val isAnimating get() = animating
 
@@ -80,12 +81,24 @@ class Camera {
         return minOf(w / r.width, h / r.height)
     }
 
-    /** Shows all of [r], centred; with [animate], glides there over the next [step]s. Sets [followsArea]. */
-    fun fit(r: MapRect, animate: Boolean = false) {
+    /** True when the inset viewport is taller than wide (a portrait window). */
+    val isTall get() = viewHeight - insets.top - insets.bottom > viewWidth - insets.left - insets.right
+
+    /** Whether all of [r] is on screen inside the inset viewport right now. */
+    fun shows(r: MapRect): Boolean =
+        toScreenX(r.left) >= insets.left - EPS && toScreenX(r.right) <= viewWidth - insets.right + EPS &&
+            toScreenY(r.top) >= insets.top - EPS && toScreenY(r.bottom) <= viewHeight - insets.bottom + EPS
+
+    /**
+     * Shows all of [r], centred, but zoomed in at least to [atLeast] (then [r] may overflow the view); with [animate],
+     * glides there over the next [step]s. Sets [followsArea].
+     */
+    fun fit(r: MapRect, animate: Boolean = false, atLeast: Float = 0f) {
         followsArea = true
-        val s = fitScale(r).coerceIn(minScale, maxScale)
+        val s = maxOf(fitScale(r), atLeast).coerceIn(minScale, maxScale)
         if (animate) {
             animating = true
+            rate = ANIM_RATE
             targetScale = s
             targetX = r.centerX
             targetY = r.centerY
@@ -95,6 +108,23 @@ class Camera {
             focusX = r.centerX
             focusY = r.centerY
             clampFocus()
+        }
+    }
+
+    /**
+     * Glides to show map point ([mx], [my]) in the centre at [targetScale] (clamped to the zoom range), slower than a
+     * [fit] when [gentle]. Clears [followsArea], like a player move.
+     */
+    fun glideTo(mx: Float, my: Float, targetScale: Float, gentle: Boolean = false) {
+        followsArea = false
+        animating = true
+        rate = if (gentle) GENTLE_RATE else ANIM_RATE
+        this.targetScale = targetScale.coerceIn(minScale, maxScale)
+        targetX = mx
+        targetY = my
+        panBounds?.let { b ->
+            targetX = targetX.coerceIn(b.left, b.right)
+            targetY = targetY.coerceIn(b.top, b.bottom)
         }
     }
 
@@ -119,7 +149,7 @@ class Camera {
     /** Advances a running [fit] animation by [dt] seconds. */
     fun step(dt: Float) {
         if (!animating) return
-        val k = 1f - exp(-ANIM_RATE * dt)
+        val k = 1f - exp(-rate * dt)
         scale += (targetScale - scale) * k
         focusX += (targetX - focusX) * k
         focusY += (targetY - focusY) * k
@@ -146,6 +176,10 @@ class Camera {
     private companion object {
         /** Exponential approach rate of [fit] animations per second. */
         const val ANIM_RATE = 9f
+        /** Rate of a gentle [glideTo], e.g. the game-over focus. */
+        const val GENTLE_RATE = 2.6f
+        /** Tolerance of [shows] in pixels. */
+        const val EPS = 0.5f
     }
 }
 

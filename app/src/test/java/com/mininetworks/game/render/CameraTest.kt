@@ -5,6 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.math.abs
 
 /** Camera math on the plain JVM: fitting, zoom around a pivot, pan, limits and the two-finger gesture. */
 class CameraTest {
@@ -29,6 +30,17 @@ class CameraTest {
         assertNear(Vec2(0f, 50f), c.toScreen(Vec2(0f, 0f)))
         assertNear(Vec2(1000f, 550f), c.toScreen(Vec2(20f, 10f)))
         assertTrue(c.followsArea)
+    }
+
+    @Test
+    fun tallViewportsAndWhatIsShown() {
+        val c = camera()
+        assertFalse("landscape", c.isTall)
+        c.fit(MapRect(0f, 0f, 20f, 10f))
+        assertTrue("the fitted area is shown", c.shows(MapRect(0f, 0f, 20f, 10f)))
+        assertFalse("a wider one is not", c.shows(MapRect(-1f, 0f, 20f, 10f)))
+        c.setViewport(600, 1200)
+        assertTrue("portrait", c.isTall)
     }
 
     @Test
@@ -88,6 +100,32 @@ class CameraTest {
         assertFalse(c.isAnimating)
         assertEquals(c.fitScale(MapRect(-2f, -1f, 22f, 11f)), c.scale, 1e-4f)
         assertNear(Vec2(500f, 300f), c.toScreen(Vec2(10f, 5f)))
+    }
+
+    @Test
+    fun gentleGlideIsSlowerAndEndsOnTheTarget() {
+        val gentle = camera().apply { fit(MapRect(0f, 0f, 20f, 10f)) }
+        val quick = camera().apply { fit(MapRect(0f, 0f, 20f, 10f)) }
+        gentle.glideTo(4f, 3f, 80f, gentle = true)
+        quick.glideTo(4f, 3f, 80f)
+        assertFalse("a focus is not the fitted area", gentle.followsArea)
+        repeat(10) { gentle.step(1f / 60f); quick.step(1f / 60f) }
+        assertTrue("gentle glide has further to go", abs(80f - gentle.scale) > abs(80f - quick.scale) * 2f)
+        repeat(300) { gentle.step(1f / 60f) }
+        assertFalse(gentle.isAnimating)
+        assertEquals(80f, gentle.scale, 1e-4f)
+        assertNear(Vec2(500f, 300f), gentle.toScreen(Vec2(4f, 3f)))
+    }
+
+    @Test
+    fun glideStaysInZoomRangeAndPanBounds() {
+        val c = camera()
+        c.fit(MapRect(0f, 0f, 20f, 10f))
+        c.panBounds = MapRect(0f, 0f, 20f, 10f)
+        c.glideTo(-50f, 40f, 5000f)
+        repeat(300) { c.step(1f / 60f) }
+        assertEquals(400f, c.scale, 0f)
+        assertNear(Vec2(0f, 10f), c.toMap(500f, 300f))
     }
 
     @Test

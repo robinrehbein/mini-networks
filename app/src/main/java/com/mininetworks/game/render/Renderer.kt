@@ -1,6 +1,7 @@
 package com.mininetworks.game.render
 
 import android.graphics.Canvas
+import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
@@ -12,10 +13,12 @@ import com.mininetworks.game.game.Device
 import com.mininetworks.game.game.Geometry
 import com.mininetworks.game.game.Node
 import com.mininetworks.game.game.Packet
+import com.mininetworks.game.game.RouteProblem
 import com.mininetworks.game.game.Service
 import com.mininetworks.game.game.Shape
 import com.mininetworks.game.game.Vec2
 import com.mininetworks.game.game.World
+import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.sin
 
@@ -33,6 +36,10 @@ class DragPreview(
     val blocked: Boolean,
     /** Text above the pointer: the cable and its price, or why it cannot be built. */
     val label: String?,
+    /** A second line under [label]: what the cable means for the device's services (ping, bandwidth), if anything. */
+    val detail: String? = null,
+    /** True if [detail] is a warning (too narrow, ping too high); drawn in the alarm color. */
+    val detailWarning: Boolean = false,
 )
 
 /**
@@ -45,6 +52,15 @@ interface Renderer {
 
     /** Zoom and pan of this style's view. */
     val camera: Camera
+
+    /** Pixels per dp of the screen, for sizes that must stay readable at any zoom; set by the view, 1 by default. */
+    var density: Float
+
+    /**
+     * Smallest zoom the automatic framing ([layout], [fitArea], [onAreaChanged]) goes to, so devices and requests stay
+     * readable on a phone; a bigger area than fits is then centred and the player pans. Pinching zooms out further.
+     */
+    val readableScale: Float
 
     /** World units on the ground plane -> this style's map units (before zoom and pan). */
     fun toMap(p: Vec2): Vec2
@@ -67,16 +83,63 @@ interface Renderer {
         fitArea(world, animate = false)
     }
 
-    /** Zooms so the unlocked area fills the view, e.g. on a double tap. */
+    /**
+     * Zooms so the unlocked area fills the view (not below [readableScale]), e.g. on a double tap. In a portrait view
+     * the iso map (twice as wide as high) would only fill a band in the middle; there the framing ([frame]) zooms in
+     * as far as the height allows while every device, server and cable stays on screen, so only empty ground is cut.
+     */
     fun fitArea(world: World, animate: Boolean) {
         updateLimits(world)
-        camera.fit(mapBounds(world.unlocked), animate)
+        camera.fit(frame(world), animate, atLeast = readableScale)
     }
 
     /** Call when the unlocked area grew: widens the limits and, unless the player moved the view, follows the area. */
     fun onAreaChanged(world: World) {
         updateLimits(world)
-        if (camera.followsArea) camera.fit(mapBounds(world.unlocked), animate = true)
+        if (camera.followsArea) camera.fit(frame(world), animate = true, atLeast = readableScale)
+    }
+
+    /**
+     * Call when nodes or cables changed: in a portrait view that [frame]s on the built content, glides out (unless the
+     * player moved the view) when something new lies outside the view, e.g. a device on an empty corner of the map.
+     */
+    fun onContentChanged(world: World) {
+        if (!camera.isTall || !camera.followsArea) return
+        val content = contentBounds(world) ?: return
+        if (!camera.shows(content)) camera.fit(frame(world), animate = true, atLeast = readableScale)
+    }
+
+    /**
+     * What the automatic framing shows: the unlocked area; in a portrait view its full height, but across only the
+     * width of what is built on it ([contentBounds]), so the view zooms in towards the height without cutting off any
+     * node. Map corners without nodes may lie outside; the player pans there.
+     */
+    fun frame(world: World): MapRect {
+        val area = mapBounds(world.unlocked)
+        if (!camera.isTall) return area
+        val c = contentBounds(world) ?: return area
+        return MapRect(c.left, area.top, c.right, area.bottom)
+    }
+
+    /**
+     * Map-space box around every node (with its building, badges and queue, as [mapBounds] draws them for its cells)
+     * and every cable bend on the unlocked area, plus [CONTENT_MARGIN], within the area's [mapBounds]; null when nothing is there.
+     */
+    fun contentBounds(world: World): MapRect? {
+        var l = Float.MAX_VALUE; var t = Float.MAX_VALUE; var r = -Float.MAX_VALUE; var b = -Float.MAX_VALUE
+        for (n in world.nodes) for (cell in n.footprint) {
+            if (cell !in world.unlocked) continue
+            val m = mapBounds(CellRect(cell.x, cell.y, cell.x + 1, cell.y + 1))
+            l = minOf(l, m.left); t = minOf(t, m.top); r = maxOf(r, m.right); b = maxOf(b, m.bottom)
+        }
+        for (c in world.cables) for (p in c.layout.waypoints) {
+            val m = toMap(p)
+            l = minOf(l, m.x); t = minOf(t, m.y); r = maxOf(r, m.x); b = maxOf(b, m.y)
+        }
+        if (l > r) return null
+        val pad = CONTENT_MARGIN * (mapBounds(CellRect(0, 0, 1, 1)).width)
+        val a = mapBounds(world.unlocked)
+        return MapRect(maxOf(a.left, l - pad), maxOf(a.top, t - pad), minOf(a.right, r + pad), minOf(a.bottom, b + pad))
     }
 
     /**
@@ -90,6 +153,14 @@ interface Renderer {
         camera.panBounds = whole
     }
 
+    /**
+     * Glides the camera gently to [n] and zooms in by [zoom] (within the zoom range), e.g. to show which device failed.
+     */
+    fun focusOn(n: Node, zoom: Float = FOCUS_ZOOM) {
+        val m = toMap(n.footprintCenter)
+        camera.glideTo(m.x, m.y, camera.scale * zoom, gentle = true)
+    }
+
     /** How a cable runs in world space; always the layout stored in the model, so every style agrees. */
     fun cablePath(c: Cable): List<Vec2> = c.layout.waypoints
 
@@ -99,10 +170,6 @@ interface Renderer {
     val unitPx: Float
 
     fun packetPosition(world: World, p: Packet): Vec2 = world.packetPosition(p)
-
-    fun cableNear(world: World, p: Vec2, radius: Float = 0.35f): Cable? =
-        world.cables.minByOrNull { Geometry.distToPolyline(p, cablePath(it)) }
-            ?.takeIf { Geometry.distToPolyline(p, cablePath(it)) <= radius }
 
     /**
      * The node closest to screen point ([sx], [sy]) within [radiusPx], measured to its footprint cells on screen,
@@ -125,7 +192,58 @@ interface Renderer {
         const val ZOOM_OUT_SLACK = 0.9f
         const val ZOOM_IN_COLS = 6
         const val ZOOM_IN_ROWS = 4
+        /** Zoom factor of [focusOn]. */
+        const val FOCUS_ZOOM = 1.6f
+        /** Room around [contentBounds], in widths of one drawn cell. */
+        const val CONTENT_MARGIN = 0.15f
     }
+}
+
+/**
+ * Marks for requests that cannot leave ([World.routeProblem]): a red badge with a clock when the route is too slow for
+ * the service's ping limit, and with two wedges squeezing together when no link on the way is wide enough.
+ * [NO_ROUTE][RouteProblem.NO_ROUTE] gets none: an unconnected device already shows that. Shared by all styles.
+ */
+object ProblemBadges {
+    const val ALARM = 0xFFD7263D.toInt()
+    private val bodyP = fill(ALARM)
+    private val inkP = stroke(0xFFFFFFFF.toInt())
+    private val inkFill = fill(0xFFFFFFFF.toInt())
+    private val path = Path()
+
+    /** True for the problems that get a badge. */
+    fun shows(p: RouteProblem?) = p == RouteProblem.PING_TOO_HIGH || p == RouteProblem.TOO_NARROW
+
+    /** The first problem with a badge among the first [max] waiting requests of client [n], or null. */
+    fun of(world: World, n: Node, max: Int = 8): RouteProblem? {
+        for (i in 0 until minOf(n.pending.size, max)) world.routeProblem(n, n.pending[i]).let { if (shows(it)) return it }
+        return null
+    }
+
+    /** A badge of radius [r] pixels around ([x], [y]). */
+    fun draw(canvas: Canvas, problem: RouteProblem, x: Float, y: Float, r: Float) {
+        canvas.drawCircle(x, y, r, bodyP)
+        inkP.strokeWidth = r * 0.16f
+        canvas.drawCircle(x, y, r, inkP)
+        when (problem) {
+            RouteProblem.PING_TOO_HIGH -> {
+                canvas.drawCircle(x, y, r * 0.55f, inkP)
+                canvas.drawLine(x, y, x, y - r * 0.4f, inkP)
+                canvas.drawLine(x, y, x + r * 0.3f, y, inkP)
+            }
+            RouteProblem.TOO_NARROW -> for (side in SIDES) {
+                path.reset()
+                path.moveTo(x + side * r * 0.62f, y - r * 0.45f)
+                path.lineTo(x + side * r * 0.1f, y)
+                path.lineTo(x + side * r * 0.62f, y + r * 0.45f)
+                path.close()
+                canvas.drawPath(path, inkFill)
+            }
+            RouteProblem.NO_ROUTE -> Unit
+        }
+    }
+
+    private val SIDES = floatArrayOf(-1f, 1f)
 }
 
 /** Minimum touch target sizes; picking works in screen space so targets keep this size at every zoom. */
@@ -162,8 +280,29 @@ object Shapes {
                 val h = r * 1.2f
                 path.moveTo(x, y - h); path.lineTo(x + h, y); path.lineTo(x, y + h); path.lineTo(x - h, y); path.close()
             }
+            Shape.PENTAGON -> polygon(x, y + r * 0.08f, r * 1.1f, 5, -90f)
+            Shape.HEXAGON -> polygon(x, y, r * 1.05f, 6, 0f)
+            Shape.PLUS -> {
+                val a = r * 1.05f
+                val t = r * 0.38f
+                path.moveTo(x - t, y - a); path.lineTo(x + t, y - a); path.lineTo(x + t, y - t); path.lineTo(x + a, y - t)
+                path.lineTo(x + a, y + t); path.lineTo(x + t, y + t); path.lineTo(x + t, y + a); path.lineTo(x - t, y + a)
+                path.lineTo(x - t, y + t); path.lineTo(x - a, y + t); path.lineTo(x - a, y - t); path.lineTo(x - t, y - t)
+                path.close()
+            }
         }
         return path
+    }
+
+    /** Regular polygon with [corners] on a circle of radius [r], the first corner at [startDeg]. */
+    private fun polygon(x: Float, y: Float, r: Float, corners: Int, startDeg: Float) {
+        for (i in 0 until corners) {
+            val a = Math.toRadians((startDeg + 360f * i / corners).toDouble())
+            val px = x + r * cos(a).toFloat()
+            val py = y + r * sin(a).toFloat()
+            if (i == 0) path.moveTo(px, py) else path.lineTo(px, py)
+        }
+        path.close()
     }
 
     fun draw(c: Canvas, shape: Shape, x: Float, y: Float, r: Float, paint: Paint) = c.drawPath(path(shape, x, y, r), paint)
@@ -189,7 +328,9 @@ fun stroke(color: Int, width: Float = 1f) = Paint(Paint.ANTI_ALIAS_FLAG).apply {
 
 /**
  * Service colors of the active palette. The default palette puts green, amber and red side by side, which blur
- * together with red-green color blindness; [colorblind] switches to hues from the Okabe-Ito set that stay apart.
+ * together with red-green color blindness; [colorblind] switches to hues based on the Okabe-Ito set, tuned so that all
+ * seven stay apart (lightness carries what the hue cannot). No service may be as dark as the DSL/coax cables or the
+ * icon ink, or its packets vanish on them.
  * Shapes carry the information either way. Set from the game thread (settings), read while drawing.
  */
 object ServiceColors {
@@ -202,13 +343,19 @@ object ServiceColors {
         Service.CALL -> 0xFF3BA55C.toInt()
         Service.GAMING -> 0xFFE9A92B.toInt()
         Service.STREAMING -> 0xFFE4572E.toInt()
+        Service.VIDEO_CALL -> 0xFF8E5BC6.toInt()
+        Service.CAMERA_UPLOAD -> 0xFFE0529C.toInt()
+        Service.CLOUD_BACKUP -> 0xFF6CC4EC.toInt()
     }
 
     fun colorblindOf(s: Service) = when (s) {
-        Service.MAIL -> 0xFF0072B2.toInt()
-        Service.CALL -> 0xFF009E73.toInt()
+        Service.MAIL -> 0xFF006AB1.toInt()
+        Service.CALL -> 0xFF43B771.toInt()
         Service.GAMING -> 0xFFF0E442.toInt()
         Service.STREAMING -> 0xFFD55E00.toInt()
+        Service.VIDEO_CALL -> 0xFFCA7BA5.toInt()
+        Service.CAMERA_UPLOAD -> 0xFF3D2BD9.toInt()
+        Service.CLOUD_BACKUP -> 0xFF95DAFF.toInt()
     }
 }
 
@@ -216,11 +363,88 @@ object ServiceColors {
 object CableStyles {
     class Style(val color: Int, val width: Float, val core: Int?, val coreWidth: Float)
 
+    private val ISDN = Style(0xFF9AA3AD.toInt(), 0.08f, null, 0f)
+    private val DSL = Style(0xFF39424E.toInt(), 0.13f, null, 0f)
+    private val COAX = Style(0xFF2F2A26.toInt(), 0.17f, 0xFF9C8B7A.toInt(), 0.045f)
+    private val FIBER = Style(0xFFF28C28.toInt(), 0.18f, 0xFFFFE2B8.toInt(), 0.05f)
+
     fun of(t: CableType) = when (t) {
-        CableType.ISDN -> Style(0xFF9AA3AD.toInt(), 0.08f, null, 0f)
-        CableType.DSL -> Style(0xFF39424E.toInt(), 0.13f, null, 0f)
-        CableType.COAX -> Style(0xFF2F2A26.toInt(), 0.17f, 0xFF9C8B7A.toInt(), 0.045f)
-        CableType.FIBER -> Style(0xFFF28C28.toInt(), 0.18f, 0xFFFFE2B8.toInt(), 0.05f)
+        CableType.ISDN -> ISDN
+        CableType.DSL -> DSL
+        CableType.COAX -> COAX
+        CableType.FIBER -> FIBER
+    }
+}
+
+/**
+ * Dash effects reused across frames. [get] builds a new effect only when the dash length changes (zoom) or the phase
+ * reaches a new one of [steps] positions per dash period, so an animated dash costs no allocation per frame.
+ */
+class DashCache(private val steps: Int = 24) {
+    private var dash = Float.NaN
+    private var gapRatio = Float.NaN
+    private val effects = arrayOfNulls<DashPathEffect>(steps)
+
+    /** Dashes [dash] long with gaps of [gapRatio] × [dash], shifted by [phase] pixels (rounded to a step). */
+    fun get(dash: Float, gapRatio: Float, phase: Float): DashPathEffect {
+        if (dash != this.dash || gapRatio != this.gapRatio) {
+            effects.fill(null)
+            this.dash = dash
+            this.gapRatio = gapRatio
+        }
+        val period = dash * (1f + gapRatio)
+        val p = ((phase % period) + period) % period
+        val step = (p / period * steps).toInt().coerceIn(0, steps - 1)
+        return effects[step] ?: DashPathEffect(floatArrayOf(dash, dash * gapRatio), step * period / steps).also { effects[step] = it }
+    }
+}
+
+/**
+ * Colors of radio coverage: one hue per WLAN channel, so equal colors mean "same channel"; cell towers are neutral.
+ * Same-channel overlap is always drawn in [INTERFERENCE].
+ */
+object RadioStyles {
+    const val INTERFERENCE = 0xFFD7263D.toInt()
+    private const val TOWER = 0xFF6B7785.toInt()
+
+    fun color(n: Node): Int = when (n.channel) {
+        0 -> TOWER
+        1 -> 0xFF2E86AB.toInt()
+        6 -> 0xFF8E6CC0.toInt()
+        11 -> 0xFF1FA39A.toInt()
+        36 -> 0xFF4F6BD8.toInt()
+        40 -> 0xFFB5569F.toInt()
+        44 -> 0xFF3C9D5D.toInt()
+        else -> 0xFFC98A2B.toInt()
+    }
+}
+
+/** Colors of incidents ([com.mininetworks.game.game.Incident]), shared by all styles. */
+object IncidentStyles {
+    /** Announcement: pulse rings and the countdown until the incident strikes. */
+    const val WARNING = 0xFFF2A516.toInt()
+    /** A cut cable and the countdown until it repairs itself. */
+    const val CUT = 0xFFD7263D.toInt()
+    const val EXCAVATOR = 0xFFF2B705.toInt()
+    const val EXCAVATOR_DARK = 0xFF3A3F47.toInt()
+    const val DIRT = 0xFF8C6A48.toInt()
+    /** Body of a router or access point without power. */
+    const val DARK_BODY = 0xFF59616B.toInt()
+
+    /** 0..1 phase of the announcement pulse: one ring per second. */
+    fun pulse(time: Float) = time - kotlin.math.floor(time)
+
+    /** A lightning bolt of half-height [r] around ([x], [y]), into a fresh path. */
+    fun bolt(path: Path, x: Float, y: Float, r: Float): Path {
+        path.reset()
+        path.moveTo(x + r * 0.2f, y - r)
+        path.lineTo(x - r * 0.55f, y + r * 0.12f)
+        path.lineTo(x - r * 0.02f, y + r * 0.12f)
+        path.lineTo(x - r * 0.25f, y + r)
+        path.lineTo(x + r * 0.55f, y - r * 0.18f)
+        path.lineTo(x + r * 0.04f, y - r * 0.18f)
+        path.close()
+        return path
     }
 }
 
@@ -303,6 +527,36 @@ class DeviceIcons {
                 canvas.drawLine(x, y, x, y - s * 0.3f, line)
                 canvas.drawLine(x, y, x + s * 0.22f, y, line)
             }
+            Device.CAMERA -> {
+                // Security camera on a wall arm: tilted body, lens at the front, recording light on top.
+                line.strokeWidth = s * 0.16f
+                canvas.drawLine(x + s * 0.75f, y + s * 0.8f, x + s * 0.75f, y + s * 0.1f, line)
+                canvas.drawLine(x + s * 0.75f, y + s * 0.1f, x + s * 0.35f, y - s * 0.05f, line)
+                canvas.save()
+                canvas.rotate(-15f, x, y - s * 0.3f)
+                box(x - s * 0.95f, y - s * 0.62f, x + s * 0.55f, y + s * 0.02f, s * 0.14f, 0xFFFFFFFF.toInt(), s)
+                box(x - s * 1.15f, y - s * 0.52f, x - s * 0.85f, y - s * 0.08f, s * 0.06f, screen, s * 0.8f)
+                canvas.restore()
+                body.color = 0xFFE4572E.toInt()
+                canvas.drawCircle(x + s * 0.2f, y - s * 0.62f, s * 0.1f, body)
+            }
+            Device.SMART_HOME -> {
+                // Hub shaped like a house with a status light in the door.
+                path.reset()
+                path.moveTo(x, y - s * 0.95f); path.lineTo(x + s * 0.95f, y - s * 0.1f); path.lineTo(x + s * 0.72f, y - s * 0.1f)
+                path.lineTo(x + s * 0.72f, y + s * 0.85f); path.lineTo(x - s * 0.72f, y + s * 0.85f); path.lineTo(x - s * 0.72f, y - s * 0.1f)
+                path.lineTo(x - s * 0.95f, y - s * 0.1f); path.close()
+                body.color = 0xFFFFFFFF.toInt(); canvas.drawPath(path, body)
+                line.strokeWidth = s * 0.16f; canvas.drawPath(path, line)
+                line.strokeWidth = s * 0.12f
+                for (i in 1..2) {
+                    val r = s * 0.2f * i
+                    rect.set(x - r, y + s * 0.15f - r, x + r, y + s * 0.15f + r)
+                    canvas.drawArc(rect, -135f, 90f, false, line)
+                }
+                body.color = 0xFF3BA55C.toInt()
+                canvas.drawCircle(x, y + s * 0.5f, s * 0.12f, body)
+            }
         }
     }
 
@@ -357,15 +611,106 @@ class DeviceIcons {
         Shapes.draw(canvas, service.shape, x + s * 0.85f, y - s * 0.8f + if (service.shape == Shape.TRIANGLE) s * 0.02f else 0f, s * 0.13f, body)
     }
 
-    fun router(c: Canvas, x: Float, y: Float, s: Float, time: Float) {
+    /**
+     * WLAN access point: a flat puck with Wi-Fi arcs above it; the LED shows the channel [color].
+     * A [dark] one (power outage) has no arcs and a grey body.
+     */
+    fun accessPoint(c: Canvas, x: Float, y: Float, s: Float, color: Int, time: Float, dark: Boolean = false) {
         canvas = c
+        line.color = ink
+        line.strokeWidth = s * 0.14f
+        if (!dark) for (i in 1..3) {
+            val r = s * (0.3f + 0.28f * i)
+            rect.set(x - r, y - s * 0.15f - r, x + r, y - s * 0.15f + r)
+            line.alpha = if (sin(time * 3f - i * 0.9f) > -0.3f) 255 else 90
+            canvas.drawArc(rect, -135f, 90f, false, line)
+        }
+        line.alpha = 255
+        box(x - s * 0.9f, y - s * 0.1f, x + s * 0.9f, y + s * 0.45f, s * 0.22f, if (dark) IncidentStyles.DARK_BODY else 0xFFFFFFFF.toInt(), s)
+        body.color = if (dark) ink else color
+        canvas.drawCircle(x, y + s * 0.17f, s * 0.11f, body)
+    }
+
+    /** Cell tower: a lattice mast with antenna panels and a blinking warning light on top. */
+    fun cellTower(c: Canvas, x: Float, y: Float, s: Float, time: Float) {
+        canvas = c
+        line.color = ink
+        line.strokeWidth = s * 0.12f
+        val top = y - s * 1.1f
+        val foot = y + s * 0.9f
+        canvas.drawLine(x - s * 0.55f, foot, x, top, line)
+        canvas.drawLine(x + s * 0.55f, foot, x, top, line)
+        line.strokeWidth = s * 0.07f
+        for (i in 1..3) {
+            val f = i / 4f
+            val yy = foot + (top - foot) * f
+            val w = s * 0.55f * (1f - f)
+            canvas.drawLine(x - w, yy, x + w, yy, line)
+            val yn = foot + (top - foot) * (f - 0.25f)
+            val wn = s * 0.55f * (1.25f - f)
+            canvas.drawLine(x - wn, yn, x + w, yy, line)
+        }
+        for (side in listOf(-1f, 1f)) box(x + side * s * 0.32f - s * 0.12f, top + s * 0.2f, x + side * s * 0.32f + s * 0.12f, top + s * 0.62f, s * 0.05f, 0xFFFFFFFF.toInt(), s * 0.6f)
+        body.color = if (sin(time * 2.5f) > 0f) 0xFFE4572E.toInt() else 0xFF8A3A2A.toInt()
+        canvas.drawCircle(x, top, s * 0.13f, body)
+    }
+
+    /**
+     * Router with blinking LEDs. While [warning] (a power outage is announced) the LEDs flicker amber; a [dark] router
+     * (outage in effect) has a grey body and no light.
+     */
+    fun router(c: Canvas, x: Float, y: Float, s: Float, time: Float, warning: Boolean = false, dark: Boolean = false) {
+        canvas = c
+        line.color = ink
         line.strokeWidth = s * 0.14f
         canvas.drawLine(x - s * 0.5f, y - s * 0.2f, x - s * 0.7f, y - s * 0.9f, line)
         canvas.drawLine(x + s * 0.5f, y - s * 0.2f, x + s * 0.7f, y - s * 0.9f, line)
-        box(x - s * 0.9f, y - s * 0.25f, x + s * 0.9f, y + s * 0.45f, s * 0.15f, 0xFFFFFFFF.toInt(), s)
+        box(x - s * 0.9f, y - s * 0.25f, x + s * 0.9f, y + s * 0.45f, s * 0.15f, if (dark) IncidentStyles.DARK_BODY else 0xFFFFFFFF.toInt(), s)
         for (i in 0 until 3) {
-            body.color = if (sin(time * 6f + i * 1.3f) > 0f) 0xFF3BA55C.toInt() else 0xFFB9C2CC.toInt()
+            body.color = when {
+                dark -> ink
+                warning -> if (sin(time * 17f + i * 2.1f) > 0f) IncidentStyles.WARNING else 0xFFB9C2CC.toInt()
+                sin(time * 6f + i * 1.3f) > 0f -> 0xFF3BA55C.toInt()
+                else -> 0xFFB9C2CC.toInt()
+            }
             canvas.drawCircle(x - s * 0.4f + i * s * 0.4f, y + s * 0.1f, s * 0.09f, body)
         }
+    }
+
+    /**
+     * Side view of a small excavator facing right, for the flat style: tracks, cab with window, boom and bucket.
+     * [dig] 0..1 lowers the bucket from raised (0) to the ground (1).
+     */
+    fun excavator(c: Canvas, x: Float, y: Float, s: Float, dig: Float) {
+        canvas = c
+        line.color = ink
+        // Tracks: a rounded belt with three wheels.
+        box(x - s, y + s * 0.45f, x + s * 0.35f, y + s * 0.85f, s * 0.2f, IncidentStyles.EXCAVATOR_DARK, s * 0.7f)
+        for (i in 0 until 3) {
+            body.color = 0xFF9AA3AD.toInt()
+            canvas.drawCircle(x - s * 0.78f + i * s * 0.45f, y + s * 0.65f, s * 0.11f, body)
+        }
+        // Cab and engine.
+        box(x - s * 0.95f, y + s * 0.05f, x + s * 0.25f, y + s * 0.45f, s * 0.08f, IncidentStyles.EXCAVATOR, s * 0.7f)
+        box(x - s * 0.55f, y - s * 0.6f, x + s * 0.2f, y + s * 0.1f, s * 0.1f, IncidentStyles.EXCAVATOR, s * 0.7f)
+        rect.set(x - s * 0.38f, y - s * 0.45f, x + s * 0.08f, y - s * 0.08f)
+        body.color = screen
+        canvas.drawRect(rect, body)
+        // Boom up to the elbow, stick down to the bucket.
+        val ex = x + s * 0.75f; val ey = y - s * 0.75f
+        val bx = x + s * 1.25f; val by = y - s * 0.2f + dig * s * 0.85f
+        line.strokeWidth = s * 0.26f
+        canvas.drawLine(x + s * 0.1f, y + s * 0.05f, ex, ey, line)
+        canvas.drawLine(ex, ey, bx, by - s * 0.15f, line)
+        line.color = IncidentStyles.EXCAVATOR
+        line.strokeWidth = s * 0.14f
+        canvas.drawLine(x + s * 0.1f, y + s * 0.05f, ex, ey, line)
+        canvas.drawLine(ex, ey, bx, by - s * 0.15f, line)
+        line.color = ink
+        path.reset()
+        path.moveTo(bx - s * 0.2f, by - s * 0.2f); path.lineTo(bx + s * 0.25f, by - s * 0.2f)
+        path.lineTo(bx + s * 0.1f, by + s * 0.2f); path.lineTo(bx - s * 0.25f, by + s * 0.12f); path.close()
+        body.color = IncidentStyles.EXCAVATOR_DARK
+        canvas.drawPath(path, body)
     }
 }
