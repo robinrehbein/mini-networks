@@ -115,6 +115,9 @@ class RotationScreenshotTest {
             val bmp = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)
             r.layout(bmp.width, bmp.height, world)
             r.camera.zoomBy(0.75f, 800f, 450f)
+            // One frame at the new zoom first: from then on packets come from their sprites in both frames compared
+            // below, so the comparison is about the ground cache alone (sprites: IsoRenderCacheTest).
+            r.draw(Canvas(bmp), world, drag = null, time = 1.3f)
             for (angle in listOf(37f, 200f)) {
                 r.rotateBy(angle - r.camera.angle, 800f, 450f, world)
                 // Twice: the second frame comes from the ground cache, which must match the turned view.

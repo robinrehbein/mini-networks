@@ -176,15 +176,18 @@ class IsoRenderer : Renderer {
         drawGroundLayer(canvas, world)
         drawWaterShimmer(canvas, world, time)
 
+        preparePacketSprites()
         for (c in world.cables) {
             val grow = growth(world, c)
+            // Laid, uncut cables are part of the cached ground layer ([drawStaticCables]); only growing or cut ones
+            // are drawn here every frame.
+            if (isStatic(world, c, grow)) {
+                drawCableJuice(canvas, world, c)
+                continue
+            }
             if (grow < 1f) partialPolyline(cablePath(c), grow) else polyline(cablePath(c))
             val st = CableStyles.of(c.type)
-            // A dark outline under the white halo keeps every skin's cables apart from any ground colour.
-            strokeP.color = CABLE_OUTLINE; strokeP.strokeWidth = tw * (st.width * 0.75f + 0.13f); canvas.drawPath(path, strokeP)
-            strokeP.color = 0xB3FFFFFF.toInt(); strokeP.strokeWidth = tw * (st.width * 0.75f + 0.08f); canvas.drawPath(path, strokeP)
-            strokeP.color = st.color; strokeP.strokeWidth = tw * st.width * 0.75f; canvas.drawPath(path, strokeP)
-            st.core?.let { strokeP.color = it; strokeP.strokeWidth = tw * st.coreWidth * 0.75f; canvas.drawPath(path, strokeP) }
+            strokeCable(canvas, st)
             if (world.isCut(c)) {
                 cutP.pathEffect = cutDash.get(tw * 0.16f, 0.8f, 0f)
                 cutP.strokeWidth = tw * st.width * 0.6f
@@ -256,27 +259,128 @@ class IsoRenderer : Renderer {
         drawDeliveryPops(canvas, world)
     }
 
+    /** The cable in [path] with style [st]: dark outline, white halo, the cable colour and its core, if any. */
+    private fun strokeCable(canvas: Canvas, st: CableStyles.Style) {
+        // A dark outline under the white halo keeps every skin's cables apart from any ground colour.
+        strokeP.color = CABLE_OUTLINE; strokeP.strokeWidth = tw * (st.width * 0.75f + 0.13f); canvas.drawPath(path, strokeP)
+        strokeP.color = 0xB3FFFFFF.toInt(); strokeP.strokeWidth = tw * (st.width * 0.75f + 0.08f); canvas.drawPath(path, strokeP)
+        strokeP.color = st.color; strokeP.strokeWidth = tw * st.width * 0.75f; canvas.drawPath(path, strokeP)
+        st.core?.let { strokeP.color = it; strokeP.strokeWidth = tw * st.coreWidth * 0.75f; canvas.drawPath(path, strokeP) }
+    }
+
+    /** True if [c] is fully laid ([grow] = 1) and not cut: then it does not change from frame to frame. */
+    private fun isStatic(world: World, c: Cable, grow: Float = growth(world, c)) = grow >= 1f && !world.isCut(c)
+
+    /** The laid, uncut cables, drawn into the ground layer so a still frame does not stroke them again. */
+    private fun drawStaticCables(c: Canvas, world: World) {
+        for (cable in world.cables) {
+            if (!isStatic(world, cable)) continue
+            polyline(cablePath(cable))
+            strokeCable(c, CableStyles.of(cable.type))
+        }
+    }
+
+    /** Radius of a packet of [size] capacity units: large enough to read on a phone at the default zoom. */
+    private fun packetRadius(size: Int) = maxOf(tw * (0.068f + 0.027f * size), (2.6f + 0.8f * size) * density)
+
     /** A packet floating over its link at world point ([x], [y]), with a shadow on the ground. */
     private fun drawPacket(canvas: Canvas, p: Packet, x: Float, y: Float) {
         val gx = sx(x, y); val gy = sy(x, y)
-        // Packets are the game's pulse: drawn large enough to read on a phone at the default zoom.
-        val r = maxOf(tw * (0.068f + 0.027f * p.size), (2.6f + 0.8f * p.size) * density)
+        if (spritesOn) {
+            // Whole pixels plus a sub-pixel phase that picks the sprite: an unfiltered bitmap copy is the cheapest draw
+            // a software canvas has, and the phase keeps packets gliding smoothly instead of hopping from pixel to pixel.
+            val qx = Math.round(gx * SPRITE_PHASES); val qy = Math.round(gy * SPRITE_PHASES)
+            val px = Math.floorDiv(qx, SPRITE_PHASES); val py = Math.floorDiv(qy, SPRITE_PHASES)
+            val phaseX = qx - px * SPRITE_PHASES; val phaseY = qy - py * SPRITE_PHASES
+            val index = spriteIndex(p, phaseX, phaseY)
+            if (index >= 0) {
+                val sprite = packetSprite(p, index, phaseX, phaseY)
+                canvas.drawBitmap(sprite, (px - spriteX[index]).toFloat(), (py - spriteY[index]).toFloat(), null)
+                return
+            }
+        }
+        paintPacket(canvas, p.service, p.isResponse, packetRadius(p.size), gx, gy, sy(x, y, 0.35f))
+    }
+
+    /** Shadow at ([gx], [gy]) and the packet shape at ([gx], [py]), radius [r]. */
+    private fun paintPacket(canvas: Canvas, service: Service, isResponse: Boolean, r: Float, gx: Float, gy: Float, py: Float) {
         oval.set(gx - r * 1.3f, gy - r * 0.65f, gx + r * 1.3f, gy + r * 0.65f)
         fillP.color = 0x2E000000; canvas.drawOval(oval, fillP)
-        val py = sy(x, y, 0.35f)
-        if (p.isResponse) {
+        if (isResponse) {
             // Responses: smaller, white with an outline in the service color.
-            fillP.color = 0xFFFFFFFF.toInt(); Shapes.draw(canvas, p.service.shape, gx, py, r * 0.8f, fillP)
-            strokeP.color = ServiceColors.of(p.service); strokeP.strokeWidth = r * 0.34f
-            Shapes.draw(canvas, p.service.shape, gx, py, r * 0.8f, strokeP)
+            fillP.color = 0xFFFFFFFF.toInt(); Shapes.draw(canvas, service.shape, gx, py, r * 0.8f, fillP)
+            strokeP.color = ServiceColors.of(service); strokeP.strokeWidth = r * 0.34f
+            Shapes.draw(canvas, service.shape, gx, py, r * 0.8f, strokeP)
         } else {
             // Requests: filled, with a light rim so they stay visible on dark cables.
-            fillP.color = ServiceColors.of(p.service)
-            Shapes.draw(canvas, p.service.shape, gx, py, r, fillP)
+            fillP.color = ServiceColors.of(service)
+            Shapes.draw(canvas, service.shape, gx, py, r, fillP)
             strokeP.color = 0xFFFFFFFF.toInt(); strokeP.strokeWidth = r * 0.28f
-            Shapes.draw(canvas, p.service.shape, gx, py, r, strokeP)
+            Shapes.draw(canvas, service.shape, gx, py, r, strokeP)
         }
     }
+
+    /**
+     * Packet sprites: shadow and shape of each kind of packet (service, request or response, size) pre-drawn once for
+     * the current zoom, so a still frame copies a small bitmap per packet instead of filling and stroking three
+     * shapes (docs/TOP100.md section 4). While the zoom changes the packets are drawn directly, like the ground layer.
+     */
+    private val sprites = arrayOfNulls<Bitmap>(Service.entries.size * 2 * SPRITE_SIZES * SPRITE_PHASES * SPRITE_PHASES)
+    private var spriteScale = Float.NaN
+    private var spriteDensity = Float.NaN
+    private var spriteColorblind = false
+    private var lastPacketScale = Float.NaN
+    private var spritesOn = false
+    /** Pixel of each sprite that sits on the packet's ground point. */
+    private val spriteX = IntArray(sprites.size)
+    private val spriteY = IntArray(sprites.size)
+
+    /** Called once per frame: sprites are used while the zoom holds still, and rebuilt when their look changes. */
+    private fun preparePacketSprites() {
+        val scale = camera.scale
+        val still = scale == lastPacketScale
+        lastPacketScale = scale
+        spritesOn = still && scale > 0f
+        if (!spritesOn) return
+        if (scale != spriteScale || density != spriteDensity || ServiceColors.colorblind != spriteColorblind) {
+            for (i in sprites.indices) { sprites[i]?.recycle(); sprites[i] = null }
+            spriteScale = scale; spriteDensity = density; spriteColorblind = ServiceColors.colorblind
+        }
+    }
+
+    /**
+     * Index of [p]'s sprite for a ground point whose position in half pixels has the remainders [phaseX] and [phaseY],
+     * or -1 for sizes the sprites do not cover.
+     */
+    private fun spriteIndex(p: Packet, phaseX: Int, phaseY: Int): Int {
+        val size = p.size
+        if (size !in 0 until SPRITE_SIZES) return -1
+        val kind = (p.service.ordinal * 2 + (if (p.isResponse) 1 else 0)) * SPRITE_SIZES + size
+        return (kind * SPRITE_PHASES + phaseX) * SPRITE_PHASES + phaseY
+    }
+
+    /**
+     * The sprite at [index] (see [spriteIndex]) for [p] at the current zoom, drawn on first use, with the ground point
+     * [phaseX] and [phaseY] steps of 1 / [SPRITE_PHASES] pixel right of and below its anchor pixel.
+     */
+    private fun packetSprite(p: Packet, index: Int, phaseX: Int, phaseY: Int): Bitmap {
+        sprites[index]?.let { return it }
+        val r = packetRadius(p.size)
+        val lift = sy(0f, 0f, 0.35f) - sy(0f, 0f)
+        // Room for the widest shape with its stroke (the plus and the diamond reach 1.2 r, the rim adds 0.14 r).
+        val half = kotlin.math.ceil(r * 1.45f).toInt() + 2
+        val above = kotlin.math.ceil(-lift).toInt() + half
+        val below = maxOf(kotlin.math.ceil(r * 0.65f).toInt() + 2, half - kotlin.math.floor(-lift).toInt())
+        val bmp = Bitmap.createBitmap(2 * half, above + below, Bitmap.Config.ARGB_8888)
+        val gx = half + phaseX.toFloat() / SPRITE_PHASES; val gy = above + phaseY.toFloat() / SPRITE_PHASES
+        paintPacket(Canvas(bmp), p.service, p.isResponse, r, gx, gy, gy + lift)
+        sprites[index] = bmp
+        spriteX[index] = half; spriteY[index] = above
+        return bmp
+    }
+
+    /** True if packets are drawn from sprites this frame; for tests. */
+    internal val packetSpritesOn get() = spritesOn
 
     // ---------------------------------------------------------------- ground layer
 
@@ -300,6 +404,9 @@ class IsoRenderer : Renderer {
         }
         val bmp = cached?.takeIf { it.width == canvas.width && it.height == canvas.height }
             ?: Bitmap.createBitmap(canvas.width, canvas.height, Bitmap.Config.ARGB_8888).also {
+                // The ground covers every pixel with an opaque colour first, so the cache is opaque: copying it to the
+                // screen is a plain copy instead of a blend (docs/TOP100.md section 4).
+                it.setHasAlpha(false)
                 cached?.recycle()
                 groundBitmap = it
                 groundCanvas = Canvas(it)
@@ -319,7 +426,10 @@ class IsoRenderer : Renderer {
      * cells excavators stand on. Runs every frame, so it only mixes numbers and allocates nothing.
      */
     private fun mapSignature(world: World): Long {
-        var h = mix(networkSignature(world), Cosmetic.theme.ordinal)
+        var h = mix(mix(networkSignature(world), Cosmetic.theme.ordinal), Cosmetic.skin.ordinal)
+        // Laid, uncut cables are part of the ground; one that finishes growing or is cut changes it.
+        val cables = world.cables
+        for (k in cables.indices) h = mix(h, if (isStatic(world, cables[k])) 1 else 0)
         val u = world.unlocked
         h = mix(mix(mix(mix(h, u.left), u.top), u.right), u.bottom)
         for (y in 0 until world.rows) for (x in 0 until world.cols) {
@@ -344,7 +454,7 @@ class IsoRenderer : Renderer {
         h = mix(h, cables.size)
         for (k in cables.indices) {
             val c = cables[k]
-            h = mix(mix(h, c.a.id), c.b.id)
+            h = mix(mix(mix(h, c.a.id), c.b.id), c.type.ordinal)
             val pts = c.layout.waypoints
             for (i in pts.indices) h = mix(mix(h, pts[i].x.toRawBits()), pts[i].y.toRawBits())
         }
@@ -418,6 +528,8 @@ class IsoRenderer : Renderer {
             }
         }
         drawFog(c, world)
+        drawStaticCables(c, world)
+        drawVignette(c)
     }
 
     /**
@@ -439,6 +551,12 @@ class IsoRenderer : Renderer {
             strokeP.color = 0x8CFFFFFF.toInt(); strokeP.strokeWidth = tw * 0.08f; c.drawPath(path, strokeP)
             strokeP.color = edge; strokeP.strokeWidth = tw * 0.03f; c.drawPath(path, strokeP)
         }
+    }
+
+    /** A soft darkening towards the screen edges, over the ground and the laid cables. */
+    private fun drawVignette(c: Canvas) {
+        val w = c.width.toFloat(); val h = c.height.toFloat()
+        if (w <= 0f || h <= 0f) return
         val r = hypot(w, h) * 0.62f
         if (vignetteSize != r) {
             vignetteSize = r
@@ -1341,6 +1459,10 @@ class IsoRenderer : Renderer {
         const val CABLE_OUTLINE = 0x5C1C2A30
         /** Request shapes a device's queue shows before it switches to "+N". */
         const val MAX_QUEUE = 3
+        /** Packet sizes (capacity units) with a sprite; larger ones are drawn directly. */
+        const val SPRITE_SIZES = 8
+        /** Sub-pixel steps per axis a packet sprite is drawn for (quarter pixels). */
+        const val SPRITE_PHASES = 4
         /** Darker rim of a request plate. */
         const val PILL_RIM = 0x4D262B33
         const val ICON_MIN_DP = 7f
