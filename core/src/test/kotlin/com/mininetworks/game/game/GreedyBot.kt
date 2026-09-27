@@ -514,13 +514,24 @@ object BotRunner {
     /** The bot looks at the map this often, in game seconds. */
     const val THINK_SECONDS = 0.5f
 
-    fun play(scenario: Scenario, seed: Long, maxWeeks: Int, strategy: BotStrategy = BotStrategy.BALANCED): BotRun {
-        val w = World(scenario, seed = seed)
+    /**
+     * Plays [scenario] with [seed] for at most [maxWeeks] weeks, as the [daily] challenge if one is given, and stops early
+     * once [stopAtPackets] packets are delivered (a guard that only needs a threshold need not play on).
+     */
+    fun play(
+        scenario: Scenario,
+        seed: Long,
+        maxWeeks: Int,
+        strategy: BotStrategy = BotStrategy.BALANCED,
+        daily: DailyChallenge? = null,
+        stopAtPackets: Int = Int.MAX_VALUE,
+    ): BotRun {
+        val w = World(scenario, seed = seed, daily = daily)
         val bot = GreedyBot(w, strategy)
         val start = w.time
         val end = start + maxWeeks * World.Tuning.WEEK_SECONDS
         var think = 0f
-        while (!w.gameOver && w.time < end) {
+        while (!w.gameOver && w.time < end && w.delivered < stopAtPackets) {
             if (w.rewardOffer != null) { bot.chooseReward(); continue }
             think -= STEP
             if (think <= 0f) { bot.act(); think = THINK_SECONDS }
