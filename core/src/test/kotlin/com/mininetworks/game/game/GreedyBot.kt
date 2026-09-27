@@ -12,16 +12,22 @@ import kotlin.math.sign
  * - a device without a route to a service it wants gets the cheapest cable (plus the upgrades the route then needs) that
  *   gives it one within bandwidth and ping, from the device or a node near it with a free port to the nearest suitable
  *   router or server, preferring targets that reach more of its services; a far target gets a new router next to the
- *   device in between when one is in stock;
+ *   device in between when one is in stock; with no router or server port left in reach, it hangs the device off a
+ *   neighbouring device that already reaches the service (devices forward, see [World.routeFor]);
  * - a route that fails on bandwidth or ping gets its cables upgraded; a congested route gets its narrowest cable
  *   upgraded or a faster way around its busiest cable;
  * - a server that keeps requests waiting or has no port left is upgraded; cut cables are repaired;
  * - radios from rewards go where they reach the most devices;
- * - rewards: a server voucher while a server is busy, routers when none are left, otherwise budget.
+ * - rewards: a server voucher while a server is busy, routers while fewer than [ROUTER_STOCK] are left or budget is at
+ *   least [RICH], otherwise budget.
  *
  * It never removes a cable and never uses the rewarded extras (continue after game over, bonus router).
+ *
+ * The [strategy] narrows this down for the one-sided bots of docs/BALANCING.md (G2): [BotStrategy.singleCable] lays
+ * and upgrades to one cable technology only, [BotStrategy.WIRELESS_ONLY] never cables a device and serves them through
+ * radios alone. [BotStrategy.BALANCED] is the full bot above.
  */
-class GreedyBot(private val w: World) {
+class GreedyBot(private val w: World, private val strategy: BotStrategy = BotStrategy.BALANCED) {
 
     /** Smoothed number of requests waiting at each server, sampled on every [act]. */
     private val serverQueue = HashMap<Node, Float>()
@@ -38,7 +44,7 @@ class GreedyBot(private val w: World) {
             .sortedWith(compareByDescending<Node> { it.overload }.thenByDescending { it.pending.size }.thenBy { it.id })
         for (c in clients) fixMissing(c)
         upgradeBusyServers()
-        for (c in clients) if (c.pending.size >= CONGESTED) relieve(c)
+        if (strategy.cablesDevices) for (c in clients) if (c.pending.size >= CONGESTED) relieve(c)
     }
 
     /** Picks one reward of the open offer by the heuristic in the class comment. */
@@ -46,8 +52,12 @@ class GreedyBot(private val w: World) {
         val offer = w.rewardOffer ?: return
         val busy = serverQueue.values.any { it >= BUSY_QUEUE / 2 }
         val order = buildList {
+            if (!strategy.cablesDevices) {
+                add(Reward.ACCESS_POINT)
+                add(Reward.CELL_TOWER)
+            }
             if (busy) add(Reward.SERVER_VOUCHER)
-            if (w.routersAvailable == 0) add(Reward.ROUTERS)
+            if (w.routersAvailable < ROUTER_STOCK || w.budget >= RICH) add(Reward.ROUTERS)
             add(Reward.BUDGET)
             add(Reward.ROUTERS)
             add(Reward.SERVER_VOUCHER)
@@ -83,7 +93,7 @@ class GreedyBot(private val w: World) {
     private fun linkServers() {
         for (s in w.nodes.filter { it.kind == NodeKind.SERVER }) {
             if (w.cables.any { it.connects(s) && it.other(s).kind == NodeKind.ROUTER } || w.ports(s) >= s.maxPorts) continue
-            val type = typesByPrice(BACKBONE_NEED).first()
+            val type = typesByPrice(BACKBONE_NEED).firstOrNull() ?: return
             if (w.routersAvailable > 0) {
                 val cell = w.nearestFree(s.cell) ?: continue
                 if (w.cableCost(w.planLayout(cell, s.cell), type) > w.budget) continue
@@ -113,7 +123,7 @@ class GreedyBot(private val w: World) {
             }
         }
         if (group.values.toSet().size < 2) return
-        val type = typesByPrice(BACKBONE_NEED).first()
+        val type = typesByPrice(BACKBONE_NEED).firstOrNull() ?: return
         val free = routers.filter { w.ports(it) < it.maxPorts }
         var best: Triple<Node, Node, Int>? = null
         for (a in free) for (b in free) {
@@ -149,6 +159,7 @@ class GreedyBot(private val w: World) {
             val path = cablePath(c, s)
             if (path != null && path.cables.any { w.isCut(it) || w.isDark(it.a) || w.isDark(it.b) }) continue
             if (path != null && upgradePath(path, s)) continue
+            if (!strategy.cablesDevices) continue
             if (!attach(c, s)) growServer(s)
         }
     }
@@ -178,7 +189,7 @@ class GreedyBot(private val w: World) {
             upgrades[cable] = typesByPrice(s.bandwidth).firstOrNull { it.ordinal > cable.type.ordinal } ?: return null
         }
         fun oneWay() = fixedMs + cables.sumOf { ((upgrades[it] ?: it.type).msPerCell * it.length).toDouble() }.toFloat()
-        val fastest = w.unlockedCables.minBy { it.msPerCell }
+        val fastest = allowedCables().minByOrNull { it.msPerCell } ?: return null
         for (cable in cables.sortedByDescending { it.latencyMs }) {
             if (fitsPing(s, oneWay())) break
             if ((upgrades[cable] ?: cable.type).msPerCell > fastest.msPerCell) upgrades[cable] = fastest
@@ -199,16 +210,22 @@ class GreedyBot(private val w: World) {
 
     /**
      * Lays the best-scored cable (with the upgrades the route then needs) that gives [c] a route to [s] within bandwidth
-     * and ping, from one of its [origins] to a server of [s] or a router that reaches one. With [shorterThanMs] the new
+     * and ping, from one of its [origins] to a server of [s] or a router that reaches one; only if there is none, to
+     * another device that reaches one ([BotStrategy.chains]). With [shorterThanMs] the new
      * route must be faster than that and must not use [avoid]. A target more than [FAR] steps away from [c] gets a new
      * router next to [c] in between when one is in stock.
      */
     private fun attach(c: Node, s: Service, shorterThanMs: Float = Float.MAX_VALUE, avoid: Cable? = null): Boolean {
         var best: Option? = null
-        for ((from, drop) in origins(c)) for (to in w.nodes) {
-            val option = option(from, to, s, drop, avoid, wanted(c)) ?: continue
-            if (option.oneWayMs >= shorterThanMs) continue
-            if (best == null || option.score < best.score) best = option
+        val origins = origins(c)
+        for (chain in listOf(false, true)) {
+            if (chain && (best != null || !strategy.chains)) break
+            for ((from, drop) in origins) for (to in w.nodes) {
+                if (chain != (to.kind == NodeKind.CLIENT) || chain && to === c) continue
+                val option = option(from, to, s, drop, avoid, wanted(c)) ?: continue
+                if (option.oneWayMs >= shorterThanMs) continue
+                if (best == null || option.score < best.score) best = option
+            }
         }
         best ?: return false
         if (shorterThanMs == Float.MAX_VALUE && best.from === c && steps(c, best.to) > FAR && w.routersAvailable > 0 &&
@@ -247,7 +264,7 @@ class GreedyBot(private val w: World) {
     /** The route from [to] on to a server of [s]: no cables for the server itself, null if [to] cannot reach one. */
     private fun tail(to: Node, s: Service): CablePath? = when (to.kind) {
         NodeKind.SERVER -> if (to.service == s) CablePath(emptyList(), 0, 0f) else null
-        NodeKind.ROUTER -> cablePath(to, s)?.let { CablePath(it.cables, it.hops + 1, it.oneWayMs) }
+        NodeKind.ROUTER, NodeKind.CLIENT -> cablePath(to, s)?.let { CablePath(it.cables, it.hops + 1, it.oneWayMs) }
         else -> null
     }
 
@@ -291,7 +308,7 @@ class GreedyBot(private val w: World) {
         val tail = tail(to, s) ?: return false
         val trunkLayout = w.planLayout(cell, to.cell)
         val dropLayout = w.planLayout(c.cell, cell)
-        val drop = typesByPrice(c.device!!.services.maxOf { it.bandwidth }).first()
+        val drop = typesByPrice(c.device!!.services.maxOf { it.bandwidth }).firstOrNull() ?: return false
         val hopsMs = (tail.hops + 1) * World.Tuning.ROUTER_MS + dropLayout.length * drop.msPerCell
         var best: Triple<CableType, Plan, Int>? = null
         for (t in typesByPrice(maxOf(BACKBONE_NEED, s.bandwidth))) {
@@ -339,7 +356,10 @@ class GreedyBot(private val w: World) {
 
     // ---------------------------------------------------------------- radios
 
-    /** Puts every radio in stock where it links the most devices it can serve (at least two), cabled to the nearest router. */
+    /**
+     * Puts every radio in stock where it links the most devices it can serve (at least two, or one for the wireless-only
+     * bot, which counts only devices no radio links yet), cabled to the nearest router.
+     */
     private fun placeRadios() {
         for (type in RadioType.entries) {
             if (w.radiosAvailable(type) == 0) continue
@@ -348,15 +368,15 @@ class GreedyBot(private val w: World) {
             for (y in area.top until area.bottom) for (x in area.left until area.right) {
                 if (!w.isFree(x, y)) continue
                 val reach = w.nodes.count {
-                    it.kind == NodeKind.CLIENT && w.serves(type, it.device!!) &&
+                    it.kind == NodeKind.CLIENT && w.serves(type, it.device!!) && (strategy.cablesDevices || !linkedByRadio(it)) &&
                         hypot(it.center.x - (x + 0.5f), it.center.y - (y + 0.5f)) <= type.radius
                 }
-                if (reach >= 2 && (best == null || reach > best.second)) best = Cell(x, y) to reach
+                if (reach >= minReach && (best == null || reach > best.second)) best = Cell(x, y) to reach
             }
             val cell = best?.first ?: continue
             val hub = w.nodes.filter { it.kind == NodeKind.ROUTER && w.ports(it) < it.maxPorts }
                 .minByOrNull { abs(it.cellX - cell.x) + abs(it.cellY - cell.y) } ?: continue
-            val cableType = typesByPrice(BACKBONE_NEED).first()
+            val cableType = typesByPrice(BACKBONE_NEED).firstOrNull() ?: continue
             if (w.cableCost(w.planLayout(cell, hub.cell), cableType) > w.budget) continue
             val radio = w.placeRadio(type, cell.x, cell.y) ?: continue
             w.connect(radio, hub, cableType)
@@ -370,10 +390,20 @@ class GreedyBot(private val w: World) {
      * widest invented one alone.
      */
     private fun typesByPrice(need: Int): List<CableType> {
-        val cables = w.unlockedCables
+        val cables = allowedCables()
+        if (cables.isEmpty()) return emptyList()
         return cables.filter { it.capacity >= need }.sortedWith(compareBy<CableType> { it.costPerCell }.thenByDescending { it.capacity })
             .ifEmpty { listOf(cables.maxBy { it.capacity }) }
     }
+
+    /** Invented cable technologies the [strategy] may lay. */
+    private fun allowedCables() = w.unlockedCables.filter { it in strategy.cables }
+
+    /** Devices a radio must reach before the bot places it there. */
+    private val minReach get() = if (strategy.cablesDevices) 2 else 1
+
+    /** True if a radio already links [c]. */
+    private fun linkedByRadio(c: Node) = w.radioLinks.any { it.device === c }
 
     private fun steps(a: Node, b: Node) = abs(a.cellX - b.cellX) + abs(a.cellY - b.cellY)
 
@@ -419,6 +449,9 @@ class GreedyBot(private val w: World) {
     }
 
     companion object {
+        /** The bot picks routers as a reward while it has fewer than this many in stock, or [RICH] budget or more. */
+        const val ROUTER_STOCK = 2
+        const val RICH = 60
         /** How many cables away from a device a new cable for it may start. */
         const val ORIGIN_DEPTH = 2
         /** Beyond this many steps a device gets a router of its own on the way, if one is in stock. */
@@ -441,10 +474,39 @@ class GreedyBot(private val w: World) {
 }
 
 /**
+ * What a [GreedyBot] may use: the cable technologies in [cables], and cables to devices only if [cablesDevices]
+ * (otherwise devices get through radios alone); [chains] lets it hang a device off another device as a last resort.
+ * [id] names the bot in docs/BALANCING.md.
+ */
+data class BotStrategy(val id: String, val cables: Set<CableType>, val cablesDevices: Boolean, val chains: Boolean = true) {
+    companion object {
+        /** The full greedy bot: every invented cable where it is cheapest, radios from rewards on top. */
+        val BALANCED = BotStrategy("balanced", CableType.entries.toSet(), cablesDevices = true)
+
+        /** Devices only through radios; cables only between routers, servers and radios, never to a device. */
+        val WIRELESS_ONLY = BotStrategy("wireless_only", CableType.entries.toSet(), cablesDevices = false)
+
+        /** Lays and upgrades to [type] only, from the week it is invented. */
+        fun singleCable(type: CableType) = BotStrategy("only_${type.name.lowercase()}", setOf(type), cablesDevices = true)
+
+        /** The balanced bot and every one-sided bot of G2. */
+        val all get() = listOf(BALANCED) + CableType.entries.map(::singleCable) + WIRELESS_ONLY
+    }
+}
+
+/**
  * One bot game: how many weeks it lasted (fractional, counted from the scenery's start), what it delivered, and why it
  * ended ([cause]: device, service and "unrouted", "narrow", "ping" or "jam", see [World.failure]; empty if it survived).
  */
-data class BotRun(val scenario: String, val seed: Long, val weeks: Float, val delivered: Int, val survived: Boolean, val cause: String)
+data class BotRun(
+    val scenario: String,
+    val seed: Long,
+    val weeks: Float,
+    val delivered: Int,
+    val survived: Boolean,
+    val cause: String,
+    val bot: String = BotStrategy.BALANCED.id,
+)
 
 /** Plays [GreedyBot] games at the game's fixed step. */
 object BotRunner {
@@ -452,9 +514,9 @@ object BotRunner {
     /** The bot looks at the map this often, in game seconds. */
     const val THINK_SECONDS = 0.5f
 
-    fun play(scenario: Scenario, seed: Long, maxWeeks: Int): BotRun {
+    fun play(scenario: Scenario, seed: Long, maxWeeks: Int, strategy: BotStrategy = BotStrategy.BALANCED): BotRun {
         val w = World(scenario, seed = seed)
-        val bot = GreedyBot(w)
+        val bot = GreedyBot(w, strategy)
         val start = w.time
         val end = start + maxWeeks * World.Tuning.WEEK_SECONDS
         var think = 0f
@@ -473,6 +535,6 @@ object BotRunner {
             }
             "${f.node.device}:${f.service}:$why"
         } ?: w.failedNode?.let { "${it.device}:?" } ?: ""
-        return BotRun(scenario.id, seed, (w.time - start) / World.Tuning.WEEK_SECONDS, w.delivered, !w.gameOver, cause)
+        return BotRun(scenario.id, seed, (w.time - start) / World.Tuning.WEEK_SECONDS, w.delivered, !w.gameOver, cause, strategy.id)
     }
 }

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FileProvider (docs/TOP100.md D2): only the share card in cache/shared/ can leave the app, and only with a grant. -->
+<paths>
+    <cache-path name="shared" path="shared/" />
+</paths>

@@ -20,18 +20,30 @@ import com.mininetworks.game.audio.Sound
 import com.mininetworks.game.audio.SoundPlayer
 import com.mininetworks.game.data.GameSettings
 import com.mininetworks.game.data.HighscoreStore
+import com.mininetworks.game.data.ProgressStore
 import com.mininetworks.game.data.SaveSlot
 import com.mininetworks.game.data.SettingsStore
+import com.mininetworks.game.game.Achievement
+import com.mininetworks.game.game.AchievementTracker
+import com.mininetworks.game.game.Achievements
 import com.mininetworks.game.game.Bend
 import com.mininetworks.game.game.Cable
 import com.mininetworks.game.game.CableLayout
+import com.mininetworks.game.game.CableSkin
 import com.mininetworks.game.game.CableType
 import com.mininetworks.game.game.CableUpgradeError
 import com.mininetworks.game.game.Cell
+import com.mininetworks.game.game.ColorTheme
+import com.mininetworks.game.game.Cosmetics
+import com.mininetworks.game.game.DailyChallenge
+import com.mininetworks.game.game.DailyStreak
 import com.mininetworks.game.game.Demand
 import com.mininetworks.game.game.IncidentKind
 import com.mininetworks.game.game.Incidents
 import com.mininetworks.game.game.FixedStep
+import com.mininetworks.game.game.GameMode
+import com.mininetworks.game.game.PlayerStats
+import com.mininetworks.game.game.GrowthRecorder
 import com.mininetworks.game.game.Node
 import com.mininetworks.game.game.NodeKind
 import com.mininetworks.game.game.PlaceError
@@ -57,6 +69,8 @@ import com.mininetworks.game.monetization.Monetization
 import com.mininetworks.game.monetization.MonetizationStore
 import com.mininetworks.game.monetization.NoOpMonetization
 import com.mininetworks.game.render.CableStyles
+import com.mininetworks.game.render.Camera
+import com.mininetworks.game.render.Cosmetic
 import com.mininetworks.game.render.DragPreview
 import com.mininetworks.game.render.FlatRenderer
 import com.mininetworks.game.render.IncidentStyles
@@ -68,14 +82,31 @@ import com.mininetworks.game.render.TwoFingerGesture
 import com.mininetworks.game.render.ViewInsets
 import com.mininetworks.game.render.fill
 import com.mininetworks.game.render.shade
+import com.mininetworks.game.ui.menu.AchievementTile
+import com.mininetworks.game.ui.menu.AchievementsPanel
 import com.mininetworks.game.ui.menu.DemoCity
 import com.mininetworks.game.ui.menu.MenuAction
 import com.mininetworks.game.ui.menu.MenuItem
 import com.mininetworks.game.ui.menu.MenuPage
 import com.mininetworks.game.ui.menu.MenuPanel
+import com.mininetworks.game.ui.menu.MenuPicture
 import com.mininetworks.game.ui.menu.SceneryCard
 import com.mininetworks.game.ui.menu.SceneryPicker
 import com.mininetworks.game.ui.menu.Screen
+import com.mininetworks.game.data.GameIo
+import com.mininetworks.game.data.ReviewStore
+import com.mininetworks.game.game.AchievementSync
+import com.mininetworks.game.game.CloudProgress
+import com.mininetworks.game.game.FinishedGame
+import com.mininetworks.game.game.Leaderboards
+import com.mininetworks.game.game.ReviewPolicy
+import com.mininetworks.game.games.GameServices
+import com.mininetworks.game.games.NoOpGameServices
+import com.mininetworks.game.review.NoOpReviewPrompt
+import com.mininetworks.game.review.ReviewPrompt
+import com.mininetworks.game.share.ShareCard
+import com.mininetworks.game.share.ShareSheet
+import java.io.File
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.thread
@@ -112,7 +143,10 @@ import kotlin.math.roundToInt
  * Controls:
  *  - drag from a node to another node: lay a cable along the grid (L-shaped; the drag path picks which way it bends);
  *    the label shows the price and, for a device, the ping it would get or that the cable is too narrow
- *  - drag on empty ground or with two fingers: pan; pinch: zoom; double tap on empty ground: fit the playable area
+ *  - drag on empty ground or with two fingers: pan; pinch: zoom; turn two fingers: rotate the map around their midpoint
+ *    (all at once); on release it eases to the nearest multiple of 90° unless "free rotation" is on in the settings;
+ *    the compass button (only while the map is turned) turns it back to north; double tap on empty ground: fit the
+ *    playable area
  *  - pick a cable technology in the bottom-left bar (ISDN, DSL, TV-Kabel, Glasfaser; the coin is the price per cell);
  *    picking one names its bandwidth, speed and price
  *  - tap a server: preview its next hardware tier and price; tap again to upgrade (tier 4 is a data center on 2×2 cells)
@@ -150,6 +184,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         data class Restore(val inGame: Boolean, val inTutorial: Boolean) : Input
         /** New safe-area insets from the window, see [onApplyWindowInsets]. */
         data class Safe(val insets: ViewInsets) : Input
+        /** An accessibility service activated the element [key] (a double tap in TalkBack), see [CanvasAccessibility]. */
+        data class Activate(val key: String) : Input
+        /** An accessibility service moved its focus onto the element [key]; a scrolled-away scenery card scrolls in. */
+        data class Reveal(val key: String) : Input
+        /** Play Games signed the player in (docs/TOP100.md C2, C6). */
+        data object SignedIn : Input
+        /** The Play Games cloud save arrived, or null if there is none (C6). */
+        class CloudLoaded(val progress: CloudProgress?) : Input
     }
 
     // ---------------------------------------------------------------- shared between UI and game thread
@@ -167,7 +209,20 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     // Stores are created and first read on the game thread ([ensureLoaded]), never on the UI thread (docs/TOP100.md A3).
     private val saves = SaveSlot { context.filesDir }
     private val settingsStore by lazy { SettingsStore(context) }
-    private val highscores by lazy { HighscoreStore(context) }
+    private val highscoresLazy = lazy { HighscoreStore(context) }
+    private val highscores by highscoresLazy
+    private val progressStore by lazy { ProgressStore(context) }
+    /** Achievement stats, read on the game thread on first use (docs/TOP100.md C2). */
+    private val trackerLazy = lazy { AchievementTracker(progressStore.loadStats()) }
+    private val tracker by trackerLazy
+    /** The daily streak (docs/TOP100.md C1), read on first use and kept in step with the store. */
+    private var streakCache: DailyStreak? = null
+    private val streak: DailyStreak get() = streakCache ?: progressStore.streak.also { streakCache = it }
+
+    /** The wall clock the daily challenge follows (UTC days); tests set a fixed one. */
+    internal var wallClock: () -> Long = System::currentTimeMillis
+    /** True once the running daily challenge said that its day is over. */
+    private var dailyExpiredHinted = false
     private var settings = GameSettings()
     private val sounds = SoundPlayer(context)
     private val soundCues = SoundCues()
@@ -195,6 +250,32 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     @Volatile var monetization: Monetization = NoOpMonetization
     private val monetizationStore by lazy { MonetizationStore(context) }
     private val adPolicy by lazy { monetizationStore.loadPolicy() }
+    /**
+     * Play Games (docs/TOP100.md C2, C3, C6); [NoOpGameServices] unless the activity sets the Play implementation. Read
+     * on the game thread; its sign-in reaches the game thread as [Input.SignedIn].
+     */
+    @Volatile var gameServices: GameServices = NoOpGameServices
+        set(value) {
+            field = value
+            value.onSignedIn = { inputs.add(Input.SignedIn) }
+            if (value.signedIn) inputs.add(Input.SignedIn)
+        }
+    /** Achievement ids handed to Play Games since the last sign-in; game thread only. */
+    private val syncedAchievements = HashSet<String>()
+
+    /** The In-App Review dialog (docs/TOP100.md D1); [ReviewPolicy] decides when. */
+    @Volatile var reviewPrompt: ReviewPrompt = NoOpReviewPrompt
+    private val reviewStore by lazy { ReviewStore(context) }
+    /** Set at a game over that earned a rating request; it is made once the game-over card shows. */
+    private var reviewDue = false
+
+    /**
+     * Called on the UI thread with the written share card and its text (docs/TOP100.md D2); the activity opens the
+     * share sheet ([ShareSheet.chooser]).
+     */
+    var onShare: ((File, String) -> Unit)? = null
+    private val shareCard by lazy { ShareCard(context) }
+
     /** The full-screen ad that is open right now; its [Input.AdResult] is awaited. */
     private var pendingAd: AdPlacement? = null
     /** What leaving the game-over card does once the interstitial closed. */
@@ -217,10 +298,28 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private val menuPanel = MenuPanel(context)
     private var pressedAction: MenuAction? = null
     private val sceneryPicker = SceneryPicker(context)
+    /** The mode the scenery picker starts games in (docs/TOP100.md C4); its pill switches it. */
+    private var pickerMode = GameMode.NORMAL
+    private val achievementsPanel = AchievementsPanel(context)
+    /** [AchievementsPanel.BACK] under the finger on the achievements screen. */
+    private var pressedAchievement: String? = null
+    /** Vertical drag on the achievements grid. */
+    private var achievementDownY = 0f
+    private var achievementLastY = 0f
+    private var achievementScrolling = false
+    /** Tiles of the achievements screen for [tilesFor]; rebuilt when the stats change. */
+    private var tiles: List<AchievementTile> = emptyList()
+    private var tilesFor: PlayerStats? = null
+    /** Set once this game said that an overload slows its area (endless and creative mode). */
+    private var jamHintShown = false
     /** Scenery id or [SceneryPicker.BACK] under the finger on the picker. */
     private var pressedScenery: String? = null
     /** Why the last tapped scenery is locked, shown under the cards. */
     private var sceneryHint: String? = null
+    /** Sideways drag on a scrolling row of scenery cards. */
+    private var sceneryDownX = 0f
+    private var sceneryLastX = 0f
+    private var sceneryScrolling = false
 
     private var world = DemoCity.build()
     /** The running tutorial; its world is [world]. Null in a normal game and in the menus. */
@@ -284,6 +383,15 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private var gestureConsumed = false
     private var pressedCard: Int? = null
     private val rewardDialog = RewardDialog(context)
+    /** The network's growth during the running game, replayed as a time-lapse on the game-over card (B3). */
+    private val growth = GrowthRecorder()
+    private val recap by lazy { GrowthRecap(density) { f -> context.getString(R.string.hud_date, f.year, f.week) } }
+    /** [animTime] when the game-over card appeared; the time-lapse runs from there. */
+    private var gameOverAt = 0f
+    private val confetti by lazy { Confetti(density) }
+    /** [animTime] when the last week change was celebrated with confetti, and that week; null for none. */
+    private var celebrateAt: Float? = null
+    private var celebratedWeek = -1
 
     /** True from a second finger touching down (or a double tap) until all fingers are up: only the camera moves. */
     private var cameraGesture = false
@@ -305,31 +413,112 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private var growthHintPending = false
 
     private val density = resources.displayMetrics.density
-    private val hudText = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF262B33.toInt(); typeface = Typeface.DEFAULT_BOLD; textSize = 16 * density }
-    private val hudSub = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF5B6674.toInt(); textSize = 13 * density }
+    /** Text sizes that follow the system font size (docs/TOP100.md A7). */
+    private val textScale = TextScale(resources.displayMetrics)
+    /** Unlock toasts of achievements and the daily streak (docs/TOP100.md C1, C2). */
+    private val toast = AchievementToast(textScale)
+    private val hudText = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF262B33.toInt(); typeface = Typeface.DEFAULT_BOLD; textSize = textScale.px(16f) }
+    private val hudSub = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF5B6674.toInt(); textSize = textScale.px(13f) }
     private val btnFill = fill(0xE6FFFFFF.toInt())
     private val btnActive = fill(0xFF262B33.toInt())
     private val holdRing = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND }
-    private val btnText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; textSize = 14 * density }
+    private val btnText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; textSize = textScale.px(14f) }
     private val barBg = fill(0x33262B33)
     private val swatch = fill(0)
     private val barFg = fill(0xFF262B33.toInt())
-    private val bigText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; color = 0xFF262B33.toInt() }
-    private val incidentText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; textSize = 14 * density }
+    private val bigText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; color = 0xFF262B33.toInt(); textSize = textScale.px(15f) }
+    private val incidentText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; textSize = textScale.px(14f) }
     private val iconInk = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeCap = Paint.Cap.ROUND; strokeWidth = 3 * density }
     private val coinFill = fill(COIN_COLOR)
-    private val coinText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; textSize = 11 * density; color = 0xFF5A4300.toInt() }
+    private val coinText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; textSize = textScale.px(11f); color = 0xFF5A4300.toInt() }
     private val pinFill = fill(0)
-    private val pinText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; textSize = 12 * density; color = 0xFFFFFFFF.toInt() }
+    private val pinText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; textSize = textScale.px(12f); color = 0xFFFFFFFF.toInt() }
     private val selectionPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
     private val selectionPath = android.graphics.Path()
+    private val compassPaint = fill(0)
 
     private data class Button(val id: String, val rect: RectF)
     private val buttons = mutableListOf<Button>()
+    /** The HUD's texts and buttons as accessibility elements, collected while drawing it. */
+    private val hudNodes = ArrayList<UiNode>()
+    private val accessibility = CanvasAccessibility(this, activate = { inputs.add(Input.Activate(it)) }, onFocus = { inputs.add(Input.Reveal(it)) })
 
     init {
         holder.addCallback(this)
         renderers.forEach { it.density = density }
+        importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_YES
+    }
+
+    override fun getAccessibilityNodeProvider(): android.view.accessibility.AccessibilityNodeProvider = accessibility
+
+    override fun dispatchHoverEvent(event: MotionEvent): Boolean = accessibility.onHover(event) || super.dispatchHoverEvent(event)
+
+    /**
+     * Hands the elements of the frame just drawn to accessibility services (docs/TOP100.md A7), only while one listens.
+     * A menu card, the scenery picker and the reward choice are modal: only their elements (and the menu button during
+     * the reward choice) are offered. In a game the map is one element that says what is on it; building on the map
+     * needs direct touch.
+     */
+    private fun publishAccessibility() {
+        if (!accessibility.active) return
+        val nodes = ArrayList<UiNode>()
+        val page = menuPage()
+        when {
+            page != null -> nodes += menuPanel.nodes
+            screen == Screen.SCENERIES -> nodes += sceneryPicker.nodes
+            screen == Screen.ACHIEVEMENTS -> nodes += achievementsPanel.nodes
+            screen == Screen.PLAYING && world.rewardOffer != null -> {
+                nodes += rewardDialog.nodes
+                nodes += hudNodes.filter { it.key == "hud:menu" }
+            }
+            screen == Screen.PLAYING -> {
+                nodes += UiNode(
+                    "hud:map", RectF(0f, 0f, surfaceWidth.toFloat(), surfaceHeight.toFloat()),
+                    context.getString(R.string.a11y_map, world.nodes.size, world.cables.size), UiNode.Kind.TEXT,
+                )
+                tutorial?.let { nodes += tutorialOverlay.nodes }
+                nodes += hudNodes
+            }
+        }
+        // The unlock toast is a short announcement over everything; screen readers get it once it has slid in.
+        toast.showing?.takeIf { toast.settled }?.let { m ->
+            toast.bounds?.let { nodes += UiNode("toast", RectF(it), listOfNotNull(m.title, m.detail).joinToString(". "), UiNode.Kind.TEXT) }
+        }
+        accessibility.update(nodes)
+    }
+
+    /** Does what a tap on the accessibility element [key] would do, if it is still there. */
+    private fun activate(key: String) {
+        if (pendingAd != null || failFocusUntil != null) return
+        val id = key.substringAfter(':')
+        when (key.substringBefore(':')) {
+            "menu" -> {
+                val action = MenuAction.entries.firstOrNull { it.name == id } ?: return
+                if (menuPage() == null || menuPanel.targetOf(action) == null) return
+                click()
+                onMenuAction(action)
+            }
+            "hud" -> {
+                if (screen != Screen.PLAYING || buttons.none { it.id == id }) return
+                if (world.rewardOffer != null && id != "menu") return
+                onButton(id)
+            }
+            "scenery" -> if (screen == Screen.SCENERIES && sceneryPicker.targetOf(id) != null) {
+                click()
+                chooseScenery(id)
+            }
+            "reward" -> if (screen == Screen.PLAYING && world.rewardOffer != null) {
+                if (id == "bonus") takeBonusRouter() else id.toIntOrNull()?.let { world.chooseReward(it) }
+            }
+            "achievement" -> if (screen == Screen.ACHIEVEMENTS && id == AchievementsPanel.BACK) {
+                click()
+                screen = Screen.MAIN_MENU
+            }
+            "tutorial" -> if (screen == Screen.PLAYING && tutorial != null && tutorialOverlay.targetOf(id) != null) {
+                click()
+                onTutorialButton(id)
+            }
+        }
     }
 
     /**
@@ -381,7 +570,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         pressedCard = null
         gestureConsumed = false
         cameraGesture = false
-        pinch.stop()
+        stopPinch()
         // A full-screen ad pauses the activity; the game stays where it was (the world waits for the ad's result).
         if (screen == Screen.PLAYING && pendingAd == null) screen = Screen.PAUSED
         autosave()
@@ -509,11 +698,22 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         if (screen == Screen.PLAYING) {
             if (userPaused) clock.reset() else clock.advance(frameSeconds) { world.update(it) }
             tutorial?.update()
+            if (tutorial == null && gameInProgress) {
+                growth.sample(world)
+                track()
+            }
+            world.rewardOffer?.let {
+                if (tutorial == null && it.week != celebratedWeek) {
+                    celebratedWeek = it.week
+                    celebrateAt = animTime
+                }
+            }
             val now = (animTime * 1000).toLong()
             for (cue in soundCues.poll(world)) sounds.play(cue, now)
             if (tutorial == null) {
                 newsHints()
                 busyServerHint()
+                jamHint()
             }
         } else {
             clock.reset()
@@ -523,8 +723,106 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         followArea()
         if (selection != null && animTime >= selectionUntil) selection = null
         if (screen == Screen.PLAYING && animTime >= hintUntil && world.rewardOffer == null) hintQueue.removeFirstOrNull()?.let { showHint(it, LONG_HINT_SECONDS) }
-        renderer.camera.step(animStep)
+        toast.update(animTime)
+        renderer.stepCamera(animStep, world)
     }
+
+    // ---------------------------------------------------------------- achievements and daily streak (game thread)
+
+    /** Counts the running game for achievements and the daily streak, and toasts what that unlocked (docs/TOP100.md C1, C2). */
+    private fun track() {
+        unlocked(tracker.observe(world))
+        val daily = world.daily ?: return
+        val now = wallClock()
+        // Past UTC midnight the run goes on as a plain game; say so once (docs/TOP100.md C1).
+        if (!daily.isToday(now) && !dailyExpiredHinted) {
+            dailyExpiredHinted = true
+            hintQueue.addFirst(context.getString(R.string.hint_daily_expired))
+        }
+        if (!daily.countsFor(streak, world.delivered, now)) return
+        val next = streak.record(daily.day)
+        streakCache = next
+        progressStore.streak = next
+        toast.add(AchievementToast.Message(resources.getQuantityString(R.plurals.toast_daily_counted, next.current, next.current), null))
+        unlocked(tracker.dailyCounted(next))
+    }
+
+    /** A toast for each achievement in [list] (naming the cosmetic it unlocks), and the stats are stored. */
+    private fun unlocked(list: List<Achievement>) {
+        for (a in list) {
+            val detail = Cosmetics.skinFor(a.id)?.let { context.getString(R.string.toast_new_skin, texts.skin(it)) }
+                ?: Cosmetics.themeFor(a.id)?.let { context.getString(R.string.toast_new_theme, texts.theme(it)) }
+            toast.add(AchievementToast.Message(context.getString(R.string.toast_achievement, texts.achievementTitle(a)), detail))
+        }
+        if (list.isNotEmpty()) {
+            saveStats()
+            syncAchievements()
+        }
+    }
+
+    /** Stores the stats if they changed; never the first read (so [pause] on the UI thread never loads them). */
+    private fun saveStats() {
+        if (!trackerLazy.isInitialized() || !tracker.dirty) return
+        progressStore.saveStats(tracker.stats)
+        tracker.saved()
+    }
+
+    /** In endless and creative mode the first full overload ring says that it slows its area instead of ending the game. */
+    private fun jamHint() {
+        if (jamHintShown || world.mode.endsOnOverload || world.rewardOffer != null) return
+        val jammed = world.nodes.firstOrNull { it.kind == NodeKind.CLIENT && it.overload >= 1f } ?: return
+        jamHintShown = true
+        hintQueue.addFirst(context.getString(R.string.hint_endless_jam, texts.node(jammed)))
+    }
+
+    /** The tiles of the achievements screen, rebuilt only when the stats changed. */
+    private fun achievementTiles(): List<AchievementTile> {
+        val stats = tracker.stats
+        if (stats === tilesFor) return tiles
+        tilesFor = stats
+        tiles = Achievements.all.map { a ->
+            val reached = a.reached(stats)
+            val reward = Cosmetics.skinFor(a.id)?.let { context.getString(R.string.ach_reward_skin, texts.skin(it)) }
+                ?: Cosmetics.themeFor(a.id)?.let { context.getString(R.string.ach_reward_theme, texts.theme(it)) }
+            AchievementTile(
+                id = a.id,
+                title = texts.achievementTitle(a),
+                description = texts.achievementDescription(a),
+                progressText = if (reached) context.getString(R.string.ach_reached) else context.getString(R.string.ach_progress, a.progress(stats), a.target),
+                progress = a.progress(stats).toFloat() / a.target,
+                reached = reached,
+                reward = reward,
+                stateLabel = context.getString(if (reached) R.string.ach_reached else R.string.ach_open),
+            )
+        }
+        return tiles
+    }
+
+    /** Stats of the achievements, for tests and screenshots. */
+    internal val achievementStats: PlayerStats get() = run { ensureLoaded(); tracker.stats }
+
+    /** Replaces the achievement stats (and stores them), for tests and screenshots. */
+    internal fun setAchievementStats(stats: PlayerStats) {
+        ensureLoaded()
+        progressStore.saveStats(stats)
+        tracker.replace(stats)
+        applySettings(settings)
+    }
+
+    /** The toast on screen, for tests. */
+    internal val shownToast: AchievementToast.Message? get() = toast.showing
+
+    /** The daily streak, for tests. */
+    internal val dailyStreak: DailyStreak get() = run { ensureLoaded(); streak }
+
+    /** Screen rectangle of the back pill on the achievements screen, or null, for tests. */
+    internal fun achievementTarget(id: String): RectF? = if (screen == Screen.ACHIEVEMENTS) achievementsPanel.targetOf(id) else null
+
+    /** Screen rectangle of the tile of achievement [id] in the last drawn frame, for tests. */
+    internal fun achievementTile(id: String): RectF? = if (screen == Screen.ACHIEVEMENTS) achievementsPanel.tileOf(id) else null
+
+    /** The mode the picker starts games in, for tests. */
+    internal val sceneryMode: GameMode get() = pickerMode
 
     /**
      * When the map grew: widen every style's zoom range, follow the new area, and say so once the reward is picked.
@@ -611,22 +909,36 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             drawIncidentPins(canvas)
             drawHoldProgress(canvas)
         }
-        if (hudVisible) drawHud(canvas)
+        if (hudVisible) drawHud(canvas) else hudNodes.clear()
         if (playing) tutorial?.let {
+            tutorialOverlay.place(safeInsets.left + 16 * density, tutorialTop(), tutorialBottom())
             tutorialOverlay.draw(canvas, it, tutorialFocus(it), renderer, world, ::hudTarget, surfaceWidth, animTime, tutorialPressed)
         }
         if (playing) world.rewardOffer?.let {
-            rewardDialog.draw(canvas, world, it, surfaceWidth, surfaceHeight, animTime, pressedCard, bonusLabel(), video = !monetization.adsRemoved)
+            val side = safeInsets.right + 16 * density + buttonHeight + 8 * density
+            rewardDialog.draw(canvas, world, it, surfaceWidth, surfaceHeight, animTime, pressedCard, bonusLabel(), video = !monetization.adsRemoved, side = side)
+            celebrateAt?.let { at -> confetti.draw(canvas, surfaceWidth, surfaceHeight, animTime - at, celebratedWeek) }
             // The menu stays reachable during the reward choice, so its button is drawn above the dimmed map.
             buttons.firstOrNull { b -> b.id == "menu" }?.let { b -> drawIconButton(canvas, b.rect, b.id, active = false) }
         }
-        menuPage()?.let { menuPanel.draw(canvas, it, surfaceWidth, surfaceHeight, pressedAction) }
+        menuPage()?.let { menuPanel.draw(canvas, it, surfaceWidth, surfaceHeight, pressedAction, safeInsets) }
         if (screen == Screen.SCENERIES) {
             sceneryPicker.draw(
                 canvas, context.getString(R.string.scenery_title), context.getString(R.string.menu_back), sceneryCards(),
-                sceneryHint, surfaceWidth, surfaceHeight, pressedScenery, packLabel(),
+                sceneryHint ?: texts.modeDescription(pickerMode), surfaceWidth, surfaceHeight, pressedScenery, packLabel(), safeInsets,
+                mode = context.getString(R.string.mode_pill, texts.mode(pickerMode)),
             )
         }
+        if (screen == Screen.ACHIEVEMENTS) {
+            val all = Achievements.all.size
+            achievementsPanel.draw(
+                canvas, context.getString(R.string.achievements_title),
+                context.getString(R.string.achievements_count, Achievements.all.count { it.reached(tracker.stats) }, all),
+                context.getString(R.string.menu_back), achievementTiles(), surfaceWidth, surfaceHeight, pressedAchievement, safeInsets,
+            )
+        }
+        toast.draw(canvas, surfaceWidth, animTime, safeInsets)
+        publishAccessibility()
     }
 
     private fun drawHudButton(canvas: Canvas, r: RectF, label: String, active: Boolean) {
@@ -639,8 +951,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     /** The HUD shows under the in-game menus, not under the main menu. */
     private val hudVisible
         get() = when (screen) {
-            Screen.MAIN_MENU, Screen.SCENERIES -> false
-            Screen.SETTINGS -> settingsReturn != Screen.MAIN_MENU
+            Screen.MAIN_MENU, Screen.SCENERIES, Screen.DAILY, Screen.ACHIEVEMENTS -> false
+            Screen.SETTINGS, Screen.APPEARANCE -> settingsReturn != Screen.MAIN_MENU
             else -> true
         }
 
@@ -704,6 +1016,15 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     /** Screen rectangle of a tutorial bubble button ([TutorialOverlay.SKIP] ...) in the last drawn frame, for tests. */
     internal fun tutorialTarget(id: String): RectF? = if (tutorial != null) tutorialOverlay.targetOf(id) else null
 
+    /** Title and text of the tutorial bubble right now, or null outside the tutorial, for tests. */
+    internal fun tutorialText(): String? = tutorial?.let { tutorialOverlay.text(it, tutorialFocus(it)) }
+
+    /** The recorded growth of the running game, for tests (a screenshot records a scripted game with it). */
+    internal val growthRecorder: GrowthRecorder get() = growth
+
+    /** True while week-change confetti is falling, for tests. */
+    internal val celebrating: Boolean get() = celebrateAt?.let { confetti.running(animTime - it) } == true
+
     /** The cable technology picked in the HUD, for tests. */
     internal val pickedCable: CableType get() = cableType
 
@@ -727,8 +1048,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     /** Screen rectangle of the HUD button [id] ("menu", "pause", "router", "radio:…", "cable:…") in the last drawn frame, for tests. */
     internal fun hudTarget(id: String): RectF? = buttons.firstOrNull { it.id == id }?.rect
 
+    /** The accessibility layer, for tests; set [CanvasAccessibility.forceActive] to collect elements without a service. */
+    internal val accessibilityLayer: CanvasAccessibility get() = accessibility
+
     /** The last sounds played (only while sound is on) with their rate, newest last, for tests. */
     internal val playedSounds: List<Pair<Sound, Float>> get() = sounds.played
+
+    /** The accent line of the menu card on top (a new best, the daily streak), or null, for tests. */
+    internal val menuHighlight: String? get() = menuPage()?.highlight
 
     /** The text lines of the menu card on top (game over, pause …), empty without one, for tests. */
     internal val menuLines: List<String> get() = menuPage()?.lines ?: emptyList()
@@ -768,6 +1095,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         val label = when {
             target == null -> texts.cable(cableType)
             error != null -> texts.connectError(error, from, target, cableType)
+            world.unlimited -> texts.cable(cableType)
             else -> context.getString(R.string.drag_cost, texts.cable(cableType), world.cableCost(layout, cableType))
         }
         // What the cable would mean for the device at one of its ends: too narrow for a service, or the ping it gets.
@@ -825,48 +1153,177 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         else context.getString(R.string.hud_clock_day, now)
     }
 
+    /** Height of the HUD's round buttons and pills: 48 dp, more when large text needs it. */
+    private val buttonHeight get() = maxOf(TouchTargets.MIN_DP * density, btnText.textSize + 24 * density)
+
+    /** Room the HUD's top rows (date, packets, budget) take above the map, grown with the text size. */
+    private val hudTopReserve: Float
+        get() {
+            val m = HudTop(surfaceWidth - safeInsets.left - safeInsets.right - 32 * density)
+            return maxOf(56 * density * textScale.factor(16f), 16 * density + m.bottom)
+        }
+
+    /**
+     * Top edge of the tutorial panel: below the date, its week bar and the clock line at the top left, and below the
+     * counters too where the panel reaches under them.
+     */
+    private fun tutorialTop(): Float {
+        val m = HudTop(surfaceWidth - safeInsets.left - safeInsets.right - 32 * density, compassShown)
+        val panelRight = tutorialOverlay.reservedRight(surfaceWidth)
+        val underCounters = m.stacked || panelRight > surfaceWidth - safeInsets.right - 16 * density - m.rightW - 8 * density
+        val block = if (underCounters) m.bottom else m.leftBottom
+        return safeInsets.top + maxOf(60 * density, 16 * density + block + 8 * density)
+    }
+
+    /**
+     * The HUD's top rows, measured for a row [width] px wide: the date with its week bar (and clock) at the left, the
+     * packets, budget and vouchers at the right. Offsets are from the top of the HUD area. When both blocks do not fit
+     * side by side (a narrow window with large text), the counters move below the date. With [compass], the compass
+     * button sits right-aligned below the counters.
+     */
+    private inner class HudTop(width: Float, compass: Boolean = false) {
+        val date: String = context.getString(R.string.hud_date, world.year, world.week)
+        val clock: String? = clockLabel()
+        val delivered: String = resources.getQuantityString(R.plurals.hud_delivered, world.delivered, world.delivered)
+        val stock: String =
+            if (world.unlimited) context.getString(R.string.hud_resources_unlimited) else context.getString(R.string.hud_resources, world.budget, world.routersAvailable)
+        val vouchers: String? =
+            if (world.serverVouchers > 0) resources.getQuantityString(R.plurals.hud_vouchers, world.serverVouchers, world.serverVouchers) else null
+        val barW = 110 * density
+        val dateBaseline = hudText.textSize
+        val barY = dateBaseline + 8 * density
+        val clockBaseline = barY + 4 * density + 6 * density + hudSub.textSize
+        val leftW = maxOf(hudText.measureText(date), barW, clock?.let { hudSub.measureText(it) } ?: 0f)
+        val leftBottom = if (clock != null) clockBaseline + hudSub.descent() else barY + 4 * density
+        val rightW = maxOf(hudText.measureText(delivered), hudSub.measureText(stock), vouchers?.let { hudSub.measureText(it) } ?: 0f)
+        val stacked = leftW + rightW + 16 * density > width
+        val rightTop = if (stacked) leftBottom + 8 * density else 0f
+        val deliveredBaseline = rightTop + hudText.textSize
+        val stockBaseline = deliveredBaseline + hudSub.textSize * 1.5f
+        val voucherBaseline = stockBaseline + hudSub.textSize * 1.5f
+        val countersBottom = (if (vouchers != null) voucherBaseline else stockBaseline) + hudSub.descent()
+        val compassTop = countersBottom + 8 * density
+        val rightBottom = if (compass) compassTop + buttonHeight else countersBottom
+        val bottom = maxOf(leftBottom, rightBottom)
+    }
+
+    /** The compass shows while the map is turned away from north or still easing back (docs/TOP100.md B5). */
+    private val compassShown get() = renderer.camera.angle != 0f
+
+    /**
+     * The compass button: a needle whose red tip points to where the top of the unturned map lies now; a tap turns the
+     * map back to north.
+     */
+    private fun drawCompass(canvas: Canvas, r: RectF) {
+        val h = r.height()
+        canvas.drawRoundRect(r, h / 2, h / 2, btnFill)
+        val cam = renderer.camera
+        // The world direction that points up on the unturned map, as it points on screen now.
+        val proj = cam.projection
+        val up = cam.worldToMap(proj.unprojectX(0f, -1f), proj.unprojectY(0f, -1f))
+        val len = hypot(up.x, up.y).coerceAtLeast(1e-6f)
+        val dx = up.x / len; val dy = up.y / len
+        val cx = r.centerX(); val cy = r.centerY(); val k = h * 0.3f; val w = h * 0.1f
+        selectionPath.reset()
+        selectionPath.moveTo(cx + dx * k, cy + dy * k)
+        selectionPath.lineTo(cx - dy * w, cy + dx * w)
+        selectionPath.lineTo(cx + dy * w, cy - dx * w)
+        selectionPath.close()
+        compassPaint.color = COMPASS_NORTH
+        canvas.drawPath(selectionPath, compassPaint)
+        selectionPath.reset()
+        selectionPath.moveTo(cx - dx * k, cy - dy * k)
+        selectionPath.lineTo(cx - dy * w, cy + dx * w)
+        selectionPath.lineTo(cx + dy * w, cy - dx * w)
+        selectionPath.close()
+        compassPaint.color = 0xFF9AA3AD.toInt()
+        canvas.drawPath(selectionPath, compassPaint)
+        compassPaint.color = 0xFF262B33.toInt()
+        canvas.drawCircle(cx, cy, h * 0.05f, compassPaint)
+    }
+
+    /** Lowest edge of the tutorial panel: above the cable buttons at the bottom left (and their slab). */
+    private fun tutorialBottom() = surfaceHeight - safeInsets.bottom - 16 * density - buttonHeight - 12 * density
+
+    /** Room the HUD's bottom row takes below the map. */
+    private val hudBottomReserve get() = maxOf(68 * density, 16 * density + buttonHeight + 4 * density)
+
     private fun drawHud(canvas: Canvas) {
-        // Everything stays inside the safe area (display cutout), with a margin of [pad] (docs/TOP100.md A5).
+        // Everything stays inside the safe area (display cutout), with a margin of [pad] (docs/TOP100.md A5). Rows are
+        // measured from the text sizes, which follow the system font size, so large text never overlaps (A7).
+        hudNodes.clear()
         val pad = 16 * density
         val left = safeInsets.left + pad
         val top = safeInsets.top + pad
         val right = surfaceWidth - safeInsets.right - pad
         val bottom = surfaceHeight - safeInsets.bottom - pad
-        canvas.drawText(context.getString(R.string.hud_date, world.year, world.week), left, top + hudText.textSize, hudText)
-        val barY = top + hudText.textSize + 8 * density
-        val barW = 110 * density
-        canvas.drawRoundRect(left, barY, left + barW, barY + 4 * density, 2 * density, 2 * density, barBg)
-        canvas.drawRoundRect(left, barY, left + barW * world.weekProgress, barY + 4 * density, 2 * density, 2 * density, barFg)
-        clockLabel()?.let { canvas.drawText(it, left, barY + 4 * density + 6 * density + hudSub.textSize, hudSub) }
+        buttons.clear()
+        if (world.rewardOffer != null) {
+            // During the week reward choice only the menu button stays (drawn above the dialog); the dialog repeats
+            // the date and covers the rest.
+            val r = RectF(right - buttonHeight, bottom - buttonHeight, right, bottom)
+            buttons += Button("menu", r)
+            hudNodes += UiNode("hud:menu", RectF(r), context.getString(R.string.a11y_menu), UiNode.Kind.BUTTON)
+            return
+        }
+        val compass = compassShown
+        val m = HudTop(right - left, compass)
+        canvas.drawText(m.date, left, top + m.dateBaseline, hudText)
+        val barY = top + m.barY
+        canvas.drawRoundRect(left, barY, left + m.barW, barY + 4 * density, 2 * density, 2 * density, barBg)
+        canvas.drawRoundRect(left, barY, left + m.barW * world.weekProgress, barY + 4 * density, 2 * density, 2 * density, barFg)
+        m.clock?.let { canvas.drawText(it, left, top + m.clockBaseline, hudSub) }
+        val leftW = m.leftW
+        val leftBottom = top + m.leftBottom
+        hudNodes += UiNode("hud:date", RectF(left, top, left + leftW, leftBottom), listOfNotNull(m.date, m.clock).joinToString(". "), UiNode.Kind.TEXT)
 
         hudText.textAlign = Paint.Align.RIGHT
-        canvas.drawText(resources.getQuantityString(R.plurals.hud_delivered, world.delivered, world.delivered), right, top + hudText.textSize, hudText)
+        canvas.drawText(m.delivered, right, top + m.deliveredBaseline, hudText)
         hudText.textAlign = Paint.Align.LEFT
         hudSub.textAlign = Paint.Align.RIGHT
-        canvas.drawText(
-            context.getString(R.string.hud_resources, world.budget, world.routersAvailable),
-            right, top + hudText.textSize + 20 * density, hudSub,
-        )
-        if (world.serverVouchers > 0) {
-            canvas.drawText(
-                resources.getQuantityString(R.plurals.hud_vouchers, world.serverVouchers, world.serverVouchers),
-                right, top + hudText.textSize + 40 * density, hudSub,
-            )
-        }
+        canvas.drawText(m.stock, right, top + m.stockBaseline, hudSub)
+        m.vouchers?.let { canvas.drawText(it, right, top + m.voucherBaseline, hudSub) }
         hudSub.textAlign = Paint.Align.LEFT
+        // When both blocks do not fit side by side (a narrow window with large text), the counters sit below the date.
+        val rightW = if (m.stacked) right - left else maxOf(m.rightW, if (compass) buttonHeight else 0f)
+        val rightBottom = top + m.rightBottom
+        hudNodes += UiNode(
+            "hud:status", RectF(right - m.rightW, top + m.rightTop, right, top + m.countersBottom),
+            listOfNotNull(m.delivered, m.stock, m.vouchers).joinToString(". "), UiNode.Kind.TEXT,
+        )
+        if (compass) {
+            val r = RectF(right - buttonHeight, top + m.compassTop, right, top + m.compassTop + buttonHeight)
+            drawCompass(canvas, r)
+            buttons += Button("compass", r)
+            hudNodes += UiNode("hud:compass", RectF(r), context.getString(R.string.a11y_compass), UiNode.Kind.BUTTON)
+        }
 
+        // Centered lines (week news, incidents, the paused pill) stack from the top; one that would run into the date
+        // or the counters moves below them.
+        val center = (left + right) / 2f
+        val blocksBottom = maxOf(leftBottom, rightBottom) + 6 * density
+        val freeHalf = minOf(center - (left + leftW) , (right - rightW) - center) - 12 * density
+        var cursor = top
+        fun place(w: Float, h: Float): Float {
+            if (cursor < blocksBottom && w / 2f > freeHalf) cursor = blocksBottom
+            val at = cursor
+            cursor += h + 4 * density
+            return at
+        }
         world.lastNews?.let {
             if (world.rewardOffer == null && tutorial == null && world.time - world.lastNewsTime < 3.5f) {
-                bigText.textSize = 15 * density
-                canvas.drawText(texts.news(it, withYear = true), (left + right) / 2f, top + hudText.textSize, bigText)
+                val text = texts.news(it, withYear = true)
+                val line = fitText(text, right - left, bigText)
+                val w = bigText.measureText(line)
+                val at = place(w, bigText.textSize * 1.3f)
+                canvas.drawText(line, center, at + bigText.textSize, bigText)
+                hudNodes += UiNode("hud:news", RectF(center - w / 2f, at, center + w / 2f, at + bigText.textSize * 1.3f), text, UiNode.Kind.TEXT)
             }
         }
+        if (world.rewardOffer == null) drawIncidentLine(canvas, center, right - left, ::place)
+        if (userPaused && world.rewardOffer == null) drawPausedBanner(canvas, center, right - left, ::place)
 
-        if (world.rewardOffer == null) drawIncidentLine(canvas, top + hudText.textSize + 24 * density)
-        if (userPaused && world.rewardOffer == null) drawPausedBanner(canvas, top + hudText.textSize + 50 * density)
-
-        buttons.clear()
-        val bh = 44 * density
+        val bh = buttonHeight
         val gap = 10 * density
         var x = right
         val y = bottom - bh
@@ -875,31 +1332,46 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             val r = RectF(x - bh, y, x, y + bh)
             drawIconButton(canvas, r, id, active = id == "pause" && userPaused)
             buttons += Button(id, r)
+            hudNodes += UiNode(
+                "hud:$id", RectF(r),
+                context.getString(if (id == "menu") R.string.a11y_menu else R.string.a11y_pause),
+                if (id == "menu") UiNode.Kind.BUTTON else UiNode.Kind.TOGGLE, checked = id == "pause" && userPaused,
+            )
             x -= bh + gap
         }
-        val routerLabel = context.getString(R.string.button_router, world.routersAvailable)
-        val rw = btnText.measureText(routerLabel) + 32 * density
+        val routerLabel = if (world.unlimited) context.getString(R.string.button_router_unlimited) else context.getString(R.string.button_router, world.routersAvailable)
+        val rw = maxOf(bh, btnText.measureText(routerLabel) + 32 * density)
         val routerRect = RectF(x - rw, y, x, y + bh)
         drawHudButton(canvas, routerRect, routerLabel, active = placing == NodeKind.ROUTER)
         buttons += Button("router", routerRect)
+        val routerA11y = if (world.unlimited) "$routerLabel, ${context.getString(R.string.a11y_unlimited)}" else context.getString(R.string.a11y_router, world.routersAvailable)
+        hudNodes += UiNode("hud:router", RectF(routerRect), routerA11y, UiNode.Kind.BUTTON, selected = placing == NodeKind.ROUTER)
         val rightEdge = routerRect.left
         // Cable technology picker, bottom left: invented technologies, each with its price per cell on a coin. In a
         // narrow (portrait) window it moves to its own row above; without room for every name even there, only the
         // selected technology keeps its name (the colour dots alone are hard to tell apart), and without room for
         // that either, none does.
-        val coinR = 9 * density
+        // Creative mode (docs/TOP100.md C4): nothing costs anything, so no price coins.
+        val priced = !world.unlimited
+        val coinR = maxOf(9 * density, coinText.textSize * 0.8f)
         val cables = world.unlockedCables
         fun widthOf(t: CableType, named: Boolean) =
-            24 * density + (if (named) btnText.measureText(texts.cable(t)) + 8 * density else 0f) + 2 * coinR + 10 * density
+            24 * density + (if (named) btnText.measureText(texts.cable(t)) + 8 * density else 0f) + (if (priced) 2 * coinR + 10 * density else 4 * density)
         fun rowWidth(named: (CableType) -> Boolean) =
             cables.sumOf { widthOf(it, named(it)).toDouble() }.toFloat() + gap * (cables.size - 1)
         val all = { _: CableType -> true }
         val selectedOnly = { t: CableType -> t == cableType }
-        val ownRow = left + rowWidth(all) > rightEdge - gap
-        val named = when {
-            !ownRow || left + rowWidth(all) <= right -> all
-            left + rowWidth(selectedOnly) <= right -> selectedOnly
-            else -> { _: CableType -> false }
+        // An extra row only where there is height to spare (not on a landscape phone with large text).
+        val tall = bottom - top - m.bottom >= 6 * bh
+        val fitsBeside = { named: (CableType) -> Boolean -> left + rowWidth(named) <= rightEdge - gap }
+        val none = { _: CableType -> false }
+        val (ownRow, named) = when {
+            fitsBeside(all) -> false to all
+            tall && left + rowWidth(all) <= right -> true to all
+            fitsBeside(selectedOnly) -> false to selectedOnly
+            tall && left + rowWidth(selectedOnly) <= right -> true to selectedOnly
+            fitsBeside(none) -> false to none
+            else -> true to none
         }
         val cableY = if (ownRow) y - bh - gap else y
         var cx = left
@@ -916,10 +1388,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 canvas.drawText(texts.cable(t), r.left + 24 * density, r.centerY() + btnText.textSize * 0.35f, btnText)
                 btnText.textAlign = Paint.Align.CENTER
             }
-            val coinX = r.right - 10 * density - coinR
-            canvas.drawCircle(coinX, r.centerY(), coinR, coinFill)
-            canvas.drawText(t.costPerCell.toString(), coinX, r.centerY() + coinText.textSize * 0.36f, coinText)
+            if (priced) {
+                val coinX = r.right - 10 * density - coinR
+                canvas.drawCircle(coinX, r.centerY(), coinR, coinFill)
+                canvas.drawText(t.costPerCell.toString(), coinX, r.centerY() + coinText.textSize * 0.36f, coinText)
+            }
             buttons += Button("cable:${t.name}", r)
+            val a11y = if (priced) context.getString(R.string.a11y_cable, texts.cable(t), t.costPerCell) else context.getString(R.string.a11y_cable_free, texts.cable(t))
+            hudNodes += UiNode("hud:cable:${t.name}", RectF(r), a11y, UiNode.Kind.BUTTON, selected = active)
             cx += w + gap
         }
         // Radios in a row above the right buttons (above the cables too when those have their own row), only while
@@ -929,14 +1405,23 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         var radioRow = false
         for (type in RadioType.entries.reversed()) {
             val stock = world.radiosAvailable(type)
-            if (stock == 0) continue
+            if (stock == 0 && !world.unlimited) continue
             radioRow = true
-            val label = context.getString(if (type == RadioType.WLAN) R.string.button_access_point else R.string.button_cell_tower, stock)
-            val w = btnText.measureText(label) + 32 * density
+            val label = when {
+                world.unlimited -> context.getString(if (type == RadioType.WLAN) R.string.button_access_point_unlimited else R.string.button_cell_tower_unlimited)
+                else -> context.getString(if (type == RadioType.WLAN) R.string.button_access_point else R.string.button_cell_tower, stock)
+            }
+            val w = maxOf(bh, btnText.measureText(label) + 32 * density)
             val top = y - (rows + 1) * (bh + gap)
             val r = RectF(x - w, top, x, top + bh)
             drawHudButton(canvas, r, label, active = placing == type.kind)
             buttons += Button("radio:${type.name}", r)
+            hudNodes += UiNode(
+                "hud:radio:${type.name}", RectF(r),
+                if (world.unlimited) "$label, ${context.getString(R.string.a11y_unlimited)}"
+                else context.getString(if (type == RadioType.WLAN) R.string.a11y_access_point else R.string.a11y_cell_tower, stock),
+                UiNode.Kind.BUTTON, selected = placing == type.kind,
+            )
             x -= w + gap
         }
         if (radioRow) rows++
@@ -948,7 +1433,46 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             animTime < hintUntil -> hint
             else -> null
         }
-        hintText?.let { canvas.drawText(it, left, hintY, hudSub) }
+        // A long hint (or large text) wraps into up to three lines that grow upwards from above the buttons.
+        hintText?.let {
+            val lineH = hudSub.textSize * 1.3f
+            // As many lines as fit between the top rows (and the centered lines) and the buttons.
+            val room = ((hintY - hudSub.textSize - maxOf(cursor, blocksBottom)) / lineH).toInt() + 1
+            val lines = wrapText(it, right - left, hudSub, room.coerceIn(1, MAX_HINT_LINES))
+            lines.forEachIndexed { i, line -> canvas.drawText(line, left, hintY - (lines.size - 1 - i) * lineH, hudSub) }
+            val w = lines.maxOf { l -> hudSub.measureText(l) }
+            hudNodes += UiNode("hud:hint", RectF(left, hintY - (lines.size - 1) * lineH - hudSub.textSize, left + w, hintY + hudSub.descent()), it, UiNode.Kind.TEXT)
+        }
+    }
+
+    /** [s], shortened with an ellipsis if it is wider than [maxWidth] in [paint]. */
+    private fun fitText(s: String, maxWidth: Float, paint: Paint): String {
+        if (paint.measureText(s) <= maxWidth) return s
+        var end = s.length
+        while (end > 1 && paint.measureText(s, 0, end) + paint.measureText("…") > maxWidth) end--
+        return s.substring(0, end).trimEnd() + "…"
+    }
+
+    /** [s] broken at spaces into at most [maxLines] lines of [maxWidth] in [paint]; the last one is shortened if needed. */
+    private fun wrapText(s: String, maxWidth: Float, paint: Paint, maxLines: Int): List<String> {
+        val lines = ArrayList<String>()
+        var line = ""
+        val words = s.split(' ')
+        for ((i, word) in words.withIndex()) {
+            val candidate = if (line.isEmpty()) word else "$line $word"
+            if (paint.measureText(candidate) <= maxWidth || line.isEmpty()) {
+                line = candidate
+                continue
+            }
+            if (lines.size == maxLines - 1) {
+                lines += fitText((listOf(line) + words.subList(i, words.size)).joinToString(" "), maxWidth, paint)
+                return lines
+            }
+            lines += line
+            line = word
+        }
+        if (line.isNotEmpty()) lines += fitText(line, maxWidth, paint)
+        return lines
     }
 
     /** A round HUD button with a drawn icon: three lines for the menu, two bars (or a play triangle while paused) for pause. */
@@ -974,27 +1498,35 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     }
 
     /** "Paused, keep building" in a dark pill at the top centre while the clock is stopped in place. */
-    private fun drawPausedBanner(canvas: Canvas, top: Float) {
-        val text = context.getString(R.string.hud_paused)
+    private fun drawPausedBanner(canvas: Canvas, center: Float, maxWidth: Float, place: (Float, Float) -> Float) {
+        val full = context.getString(R.string.hud_paused)
+        val text = fitText(full, maxWidth - 28 * density, btnText)
         val w = btnText.measureText(text) + 28 * density
-        val h = 30 * density
-        val r = RectF(surfaceWidth / 2f - w / 2f, top, surfaceWidth / 2f + w / 2f, top + h)
+        val h = maxOf(30 * density, btnText.textSize * 2f)
+        val top = place(w, h)
+        val r = RectF(center - w / 2f, top, center + w / 2f, top + h)
         canvas.drawRoundRect(r, h / 2, h / 2, btnActive)
         btnText.color = 0xFFFFFFFF.toInt()
         canvas.drawText(text, r.centerX(), r.centerY() + btnText.textSize * 0.35f, btnText)
+        hudNodes += UiNode("hud:paused", r, full, UiNode.Kind.TEXT)
     }
 
     /**
      * One centered line for the most urgent incident (a cut cable first, then the one due soonest), amber while
      * announced, red once struck, with "(+n)" for the others; each also gets a countdown pin on the map.
      */
-    private fun drawIncidentLine(canvas: Canvas, top: Float) {
+    private fun drawIncidentLine(canvas: Canvas, center: Float, maxWidth: Float, place: (Float, Float) -> Float) {
         val incidents = world.incidents
         if (incidents.isEmpty()) return
         val first = incidents.minWith(compareBy({ !(it.struck && it.kind == IncidentKind.EXCAVATOR) }, { if (it.struck) it.remaining else it.warning }))
         incidentText.color = if (first.struck) IncidentStyles.CUT else IncidentStyles.WARNING.shade(-0.25f)
-        val text = texts.incident(first).let { if (incidents.size > 1) context.getString(R.string.incident_more, it, incidents.size - 1) else it }
-        canvas.drawText(text, surfaceWidth / 2f, top, incidentText)
+        val full = texts.incident(first).let { if (incidents.size > 1) context.getString(R.string.incident_more, it, incidents.size - 1) else it }
+        val text = fitText(full, maxWidth, incidentText)
+        val w = incidentText.measureText(text)
+        val h = incidentText.textSize * 1.3f
+        val top = place(w, h)
+        canvas.drawText(text, center, top + incidentText.textSize, incidentText)
+        hudNodes += UiNode("hud:incident", RectF(center - w / 2f, top, center + w / 2f, top + h), full, UiNode.Kind.TEXT)
     }
 
     /** A countdown pin over every incident's spot on the map, so the line at the top points at its cable or node. */
@@ -1067,6 +1599,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 safeInsets = input.insets
                 layoutRenderers()
             }
+            is Input.Activate -> activate(input.key)
+            is Input.Reveal -> when {
+                screen == Screen.SCENERIES && input.key.startsWith("scenery:") -> sceneryPicker.reveal(input.key.removePrefix("scenery:"))
+                screen == Screen.ACHIEVEMENTS && input.key.startsWith("achievement:") -> achievementsPanel.reveal(input.key.removePrefix("achievement:"))
+            }
+            Input.SignedIn -> onSignedIn()
+            is Input.CloudLoaded -> applyCloud(input.progress)
         }
     }
 
@@ -1080,6 +1619,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         }
         if (screen == Screen.SCENERIES) {
             onSceneryTouch(e)
+            return
+        }
+        if (screen == Screen.ACHIEVEMENTS) {
+            onAchievementsTouch(e)
             return
         }
         if (screen != Screen.PLAYING) {
@@ -1119,11 +1662,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 holdAp = null
                 endDrag()
                 cameraGesture = true
+                renderer.camera.stopRotation()
                 startPinch(e)
             }
             MotionEvent.ACTION_MOVE -> when {
                 cameraGesture -> if (e.pointers.size >= 4) {
+                    val before = renderer.camera.angle
                     pinch.move(e.pointers[0], e.pointers[1], e.pointers[2], e.pointers[3], renderer.camera)
+                    if (renderer.camera.angle != before) renderer.updateLimits(world)
                 }
                 dragFrom != null -> {
                     if (hypot(e.x - downX, e.y - downY) >= TAP_SLOP_DP * density) holdAp = null
@@ -1141,7 +1687,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 }
                 if (cameraGesture || world.rewardOffer != null) {
                     cameraGesture = false
-                    pinch.stop()
+                    stopPinch()
                     endDrag()
                     return
                 }
@@ -1182,7 +1728,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 holdAp = null
                 holdFired = false
                 cameraGesture = false
-                pinch.stop()
+                stopPinch()
                 endDrag()
             }
         }
@@ -1191,7 +1737,17 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     /** (Re)starts the two-finger gesture from the fingers still down, or stops it if fewer than two remain. */
     private fun startPinch(e: Input.Touch) {
         val p = e.pointers
-        if (p.size >= 4) pinch.start(p[0], p[1], p[2], p[3]) else pinch.stop()
+        if (p.size >= 4) pinch.start(p[0], p[1], p[2], p[3]) else stopPinch()
+    }
+
+    /**
+     * Ends the two-finger gesture: unless "free rotation" is on, the map eases to the nearest multiple of 90° around
+     * the point where the fingers were (docs/TOP100.md B5).
+     */
+    private fun stopPinch() {
+        if (!pinch.isActive) return
+        pinch.stop()
+        renderer.camera.settleRotation(snap = !settings.freeRotation, pinch.lastMidX, pinch.lastMidY)
     }
 
     /** A drag that started on empty ground moves the map once it leaves the tap slop. */
@@ -1259,7 +1815,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             }
             TutorialOverlay.PLAY -> {
                 settingsStore.tutorialSeen = true
-                newGame(Scenarios.RIVER_TOWN)
+                newGame(Scenarios.RIVER_TOWN, GameMode.NORMAL)
             }
             TutorialOverlay.MENU -> leaveTutorial()
         }
@@ -1353,7 +1909,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 null -> if (world.upgrade(cable, cableType)) {
                     haptic(HapticFeedbackConstants.VIRTUAL_KEY)
                     sounds.play(Sound.CABLE)
-                    showHint(context.getString(R.string.hint_cable_upgraded, texts.cable(cableType), price))
+                    showHint(
+                        if (world.unlimited) context.getString(R.string.hint_cable_upgraded_free, texts.cable(cableType))
+                        else context.getString(R.string.hint_cable_upgraded, texts.cable(cableType), price),
+                    )
                 }
                 CableUpgradeError.NO_BUDGET -> showHint(context.getString(R.string.cable_error_no_budget, price))
                 CableUpgradeError.NOT_INVENTED -> showHint(context.getString(R.string.connect_error_not_invented, texts.cable(cableType)))
@@ -1364,13 +1923,17 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         val refund = world.refundOf(cable)
         if (selection !== cable) {
             select(cable)
-            showHint(context.getString(R.string.hint_cable_remove, texts.cable(cable.type), refund), SELECT_SECONDS)
+            showHint(
+                if (world.unlimited) context.getString(R.string.hint_cable_remove_free, texts.cable(cable.type))
+                else context.getString(R.string.hint_cable_remove, texts.cable(cable.type), refund),
+                SELECT_SECONDS,
+            )
             return
         }
         selection = null
         world.removeCable(cable)
         haptic(HapticFeedbackConstants.CLOCK_TICK)
-        showHint(context.getString(R.string.hint_cable_removed, refund))
+        showHint(if (world.unlimited) context.getString(R.string.hint_cable_removed_free) else context.getString(R.string.hint_cable_removed, refund))
     }
 
     /** A router without cables goes back into stock on a second tap; one with cables does nothing. */
@@ -1521,8 +2084,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         when {
             id == "menu" -> openPauseMenu()
             id == "pause" -> userPaused = !userPaused
-            id == "router" -> togglePlacing(NodeKind.ROUTER, world.routersAvailable)
-            id.startsWith("radio:") -> RadioType.valueOf(id.removePrefix("radio:")).let { togglePlacing(it.kind, world.radiosAvailable(it)) }
+            id == "compass" -> renderer.camera.rotateTo(0f)
+            id == "router" -> togglePlacing(NodeKind.ROUTER, if (world.unlimited) Int.MAX_VALUE else world.routersAvailable)
+            id.startsWith("radio:") -> RadioType.valueOf(id.removePrefix("radio:")).let {
+                togglePlacing(it.kind, if (world.unlimited) Int.MAX_VALUE else world.radiosAvailable(it))
+            }
             id.startsWith("cable:") -> pickCable(CableType.valueOf(id.removePrefix("cable:")))
         }
     }
@@ -1541,7 +2107,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         cableType = t
         if (tutorial != null) return
         val ms = java.text.NumberFormat.getNumberInstance(resources.configuration.locales[0]).format(t.msPerCell.toDouble())
-        val info = context.getString(R.string.hint_cable_info, texts.cable(t), t.capacity, ms, t.costPerCell)
+        val info = if (world.unlimited) context.getString(R.string.hint_cable_info_free, texts.cable(t), t.capacity, ms)
+        else context.getString(R.string.hint_cable_info, texts.cable(t), t.capacity, ms, t.costPerCell)
         val narrow = world.availableServices.filter { it.bandwidth > t.capacity }.sortedBy { it.bandwidth }.firstOrNull()
         showHint(if (narrow == null) info else context.getString(R.string.hint_two_parts, info, context.getString(R.string.hint_cable_too_narrow, texts.service(narrow))))
     }
@@ -1555,16 +2122,21 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             lines = listOf(context.getString(R.string.menu_tagline)),
             items = listOf(
                 MenuItem.Button(MenuAction.PLAY, context.getString(R.string.menu_play), primary = true),
+                MenuItem.Button(MenuAction.DAILY, context.getString(R.string.menu_daily)),
                 MenuItem.Button(MenuAction.CONTINUE, context.getString(R.string.menu_continue), enabled = gameInProgress || hasSave),
+                MenuItem.Button(MenuAction.ACHIEVEMENTS, context.getString(R.string.menu_achievements)),
+            ) + listOfNotNull(
+                if (gameServices.available) MenuItem.Button(MenuAction.LEADERBOARDS, context.getString(R.string.menu_leaderboards)) else null,
                 MenuItem.Button(MenuAction.SETTINGS, context.getString(R.string.menu_settings)),
-            ) + listOfNotNull(removeAdsLabel()?.let { MenuItem.Button(MenuAction.REMOVE_ADS, it) }),
+                removeAdsLabel()?.let { MenuItem.Button(MenuAction.REMOVE_ADS, it) },
+            ),
             footer = highscores.best(highscores.lastScenery).takeIf { it > 0 }?.let { context.getString(R.string.menu_best, it) },
             hero = true,
         )
         Screen.PAUSED -> MenuPage(
             title = context.getString(R.string.pause_title),
             lines = listOf(
-                tutorial?.let { context.getString(R.string.tutorial_pause, it.number, Tutorial.STEPS) } ?: texts.scenario(world.scenario),
+                tutorial?.let { context.getString(R.string.tutorial_pause, it.number, Tutorial.STEPS) } ?: gameLabel(),
                 context.getString(
                     R.string.pause_status,
                     context.getString(R.string.hud_date, world.year, world.week),
@@ -1583,8 +2155,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             items = listOf(
                 MenuItem.Toggle(MenuAction.TOGGLE_SOUND, context.getString(R.string.settings_sound), settings.sound),
                 MenuItem.Toggle(MenuAction.TOGGLE_HAPTICS, context.getString(R.string.settings_haptics), settings.haptics),
-                MenuItem.Toggle(MenuAction.TOGGLE_OVERVIEW, context.getString(R.string.settings_overview), settings.overviewMode),
-                MenuItem.Toggle(MenuAction.TOGGLE_COLORBLIND, context.getString(R.string.settings_colorblind), settings.colorblind),
+                MenuItem.Button(MenuAction.APPEARANCE, context.getString(R.string.settings_appearance)),
                 MenuItem.Button(MenuAction.TUTORIAL, context.getString(R.string.settings_tutorial)),
             ) + listOfNotNull(
                 if (monetization.privacyOptionsRequired) MenuItem.Button(MenuAction.PRIVACY, context.getString(R.string.settings_privacy)) else null,
@@ -1592,20 +2163,100 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             ),
             footer = context.getString(R.string.settings_language),
         )
+        // The view options and the cosmetics (docs/TOP100.md C5) on a page of their own: with everything on one page
+        // the card needed three columns on a 16:9 phone at 200 % text and cut most labels (A7).
+        Screen.APPEARANCE -> MenuPage(
+            title = context.getString(R.string.settings_appearance),
+            items = listOf(
+                MenuItem.Toggle(MenuAction.TOGGLE_OVERVIEW, context.getString(R.string.settings_overview), settings.overviewMode),
+                MenuItem.Toggle(MenuAction.TOGGLE_FREE_ROTATION, context.getString(R.string.settings_free_rotation), settings.freeRotation),
+                MenuItem.Toggle(MenuAction.TOGGLE_COLORBLIND, context.getString(R.string.settings_colorblind), settings.colorblind),
+                MenuItem.Button(MenuAction.CABLE_SKIN, skinLabel()),
+                MenuItem.Button(MenuAction.COLOR_THEME, themeLabel()),
+                MenuItem.Button(MenuAction.BACK, context.getString(R.string.menu_back)),
+            ),
+            footer = context.getString(
+                R.string.settings_cosmetics_unlocked,
+                Cosmetics.skins(tracker.unlocked).size, CableSkin.entries.size,
+                Cosmetics.themes(tracker.unlocked).size, ColorTheme.entries.size,
+            ),
+        )
         Screen.GAME_OVER -> MenuPage(
             title = context.getString(R.string.game_over_title),
             highlight = if (newBest) context.getString(R.string.game_over_new_best) else null,
             lines = listOfNotNull(
                 world.failure?.let { problemText(it.node, it.service, it.problem, it.pingMs) },
                 resources.getQuantityString(R.plurals.game_over_stats, world.delivered, world.delivered, world.week),
-                if (newBest) null else context.getString(R.string.game_over_best, highscores.best(world.scenario.id)),
+                when {
+                    newBest -> null
+                    world.daily != null -> context.getString(R.string.game_over_daily_best, progressStore.dailyBest(world.daily!!.day))
+                    else -> context.getString(R.string.game_over_best, highscores.best(world.scenario.id))
+                },
             ),
+            picture = recapPicture(),
             items = listOfNotNull(
                 MenuItem.Button(MenuAction.PLAY_AGAIN, context.getString(R.string.game_over_again), primary = true),
                 secondChanceLabel()?.let { MenuItem.Button(MenuAction.SECOND_CHANCE, it) },
+                if (tutorial == null) MenuItem.Button(MenuAction.SHARE, context.getString(R.string.game_over_share)) else null,
                 MenuItem.Button(MenuAction.MAIN_MENU, context.getString(R.string.menu_main)),
             ),
         )
+        Screen.DAILY -> dailyPage()
+        Screen.ACHIEVEMENTS -> null
+    }
+
+    /** What the pause card calls the running game: its scenery, with the mode or the daily rule. */
+    private fun gameLabel(): String {
+        world.daily?.let { return context.getString(R.string.daily_pause, texts.rule(it.rule)) }
+        return if (world.mode == GameMode.NORMAL) texts.scenario(world.scenario)
+        else context.getString(R.string.pause_mode, texts.scenario(world.scenario), texts.mode(world.mode))
+    }
+
+    /**
+     * The daily challenge's card (docs/TOP100.md C1): the streak, today's date (UTC) and scenery, the rule of the day,
+     * the goal or today's best, and when the next challenge comes.
+     */
+    private fun dailyPage(): MenuPage {
+        val now = wallClock()
+        val c = DailyChallenge.at(now)
+        val s = streak
+        val current = s.currentOn(c.day)
+        val date = java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM, resources.configuration.locales[0])
+            .apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }
+            .format(java.util.Date(c.day * MILLIS_PER_DAY))
+        val hours = ceil(((c.day + 1) * MILLIS_PER_DAY - now) / 3_600_000.0).toInt().coerceIn(1, 24)
+        return MenuPage(
+            title = context.getString(R.string.daily_title),
+            highlight = if (s.best > 0) resources.getQuantityString(R.plurals.daily_streak, current, current, s.best)
+            else context.getString(R.string.daily_no_streak),
+            lines = listOf(
+                context.getString(R.string.daily_scenery, date, texts.scenario(c.scenario)),
+                context.getString(R.string.daily_rule, texts.rule(c.rule), texts.ruleDescription(c.rule)),
+                if (s.counted(c.day)) context.getString(R.string.daily_done, progressStore.dailyBest(c.day))
+                else resources.getQuantityString(R.plurals.daily_goal, DailyChallenge.STREAK_PACKETS, DailyChallenge.STREAK_PACKETS),
+            ),
+            items = listOf(
+                MenuItem.Button(MenuAction.DAILY_START, context.getString(R.string.daily_start), primary = true),
+                MenuItem.Button(MenuAction.BACK, context.getString(R.string.menu_back)),
+            ),
+            footer = resources.getQuantityString(R.plurals.daily_footer, hours, hours),
+        )
+    }
+
+    /** "Kabel-Skin: Neon (2/5)": the active skin and how many of all are unlocked. */
+    /** "Kabel: Kupfer": short, so the active skin stays readable at 200 % text; the footer counts the unlocked ones. */
+    private fun skinLabel(): String = context.getString(R.string.settings_cable_skin, texts.skin(Cosmetic.skin))
+
+    private fun themeLabel(): String = context.getString(R.string.settings_color_theme, texts.theme(Cosmetic.theme))
+
+    /** The time-lapse of the network that just ended, once there is growth to show. */
+    private fun recapPicture(): MenuPicture? {
+        val frames = growth.frames
+        if (frames.size < 2 || tutorial != null) return null
+        val w = world
+        return MenuPicture(context.getString(R.string.a11y_recap, frames.first().week, frames.last().week), recap.aspect(frames)) { c, r ->
+            recap.draw(c, r, frames, animTime - gameOverAt) { x, y -> y in 0 until w.rows && x in 0 until w.cols && w.water[y][x] }
+        }
     }
 
     /** A menu entry is chosen when the finger goes down and up on the same entry. */
@@ -1638,7 +2289,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 sceneryHint = null
                 screen = Screen.SCENERIES
             }
-            MenuAction.PLAY_AGAIN, MenuAction.RESTART -> if (tutorial != null) startTutorial() else newGame(world.scenario)
+            MenuAction.PLAY_AGAIN, MenuAction.RESTART -> when {
+                tutorial != null -> startTutorial()
+                // After UTC midnight "again" means the new day's challenge, never yesterday's once more.
+                world.daily != null -> startDaily(world.daily!!.again(wallClock()))
+                else -> newGame(world.scenario, world.mode)
+            }
             MenuAction.TUTORIAL -> {
                 autosave()
                 startTutorial()
@@ -1649,7 +2305,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 settingsReturn = screen
                 screen = Screen.SETTINGS
             }
-            MenuAction.BACK -> screen = settingsReturn
+            MenuAction.APPEARANCE -> screen = Screen.APPEARANCE
+            MenuAction.BACK -> screen = when (screen) {
+                Screen.SETTINGS -> settingsReturn
+                Screen.APPEARANCE -> Screen.SETTINGS
+                else -> Screen.MAIN_MENU
+            }
             MenuAction.MAIN_MENU -> {
                 autosave()
                 if (tutorial != null) settingsStore.tutorialSeen = true
@@ -1659,10 +2320,107 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             MenuAction.TOGGLE_SOUND -> updateSettings(settings.copy(sound = !settings.sound))
             MenuAction.TOGGLE_HAPTICS -> updateSettings(settings.copy(haptics = !settings.haptics))
             MenuAction.TOGGLE_OVERVIEW -> updateSettings(settings.copy(overviewMode = !settings.overviewMode))
+            MenuAction.TOGGLE_FREE_ROTATION -> updateSettings(settings.copy(freeRotation = !settings.freeRotation))
             MenuAction.TOGGLE_COLORBLIND -> updateSettings(settings.copy(colorblind = !settings.colorblind))
             MenuAction.SECOND_CHANCE -> askSecondChance()
             MenuAction.REMOVE_ADS -> monetization.purchase(Entitlements.REMOVE_ADS)
             MenuAction.PRIVACY -> monetization.showPrivacyOptions()
+            MenuAction.DAILY -> screen = Screen.DAILY
+            MenuAction.DAILY_START -> startDaily(DailyChallenge.at(wallClock()))
+            MenuAction.ACHIEVEMENTS -> {
+                achievementsPanel.resetScroll()
+                screen = Screen.ACHIEVEMENTS
+            }
+            MenuAction.CABLE_SKIN -> updateSettings(settings.copy(cableSkin = Cosmetics.next(Cosmetic.skin, Cosmetics.skins(tracker.unlocked))))
+            MenuAction.COLOR_THEME -> updateSettings(settings.copy(colorTheme = Cosmetics.next(Cosmetic.theme, Cosmetics.themes(tracker.unlocked))))
+            MenuAction.LEADERBOARDS -> gameServices.showLeaderboards()
+            MenuAction.SHARE -> shareNetwork()
+        }
+    }
+
+    // ---------------------------------------------------------------- Play Games, rating, sharing (game thread)
+
+    /** Signed in to Play Games: every reached achievement once more, then the cloud save (docs/TOP100.md C2, C6). */
+    private fun onSignedIn() {
+        syncedAchievements.clear()
+        syncAchievements()
+        gameServices.loadProgress { inputs.add(Input.CloudLoaded(it)) }
+    }
+
+    /** Hands the achievements reached but not yet sent since the sign-in to Play Games (docs/TOP100.md C2). */
+    private fun syncAchievements() {
+        if (!gameServices.signedIn) return
+        val pending = AchievementSync.pending(tracker.stats, syncedAchievements)
+        if (pending.isNotEmpty()) syncedAchievements += gameServices.unlock(pending)
+    }
+
+    /** The progress on this device as a cloud save (docs/TOP100.md C6). */
+    private fun localProgress(): CloudProgress = CloudProgress.of(
+        stats = tracker.stats,
+        best = highscores.all(),
+        streak = streak,
+        dailyDay = progressStore.dailyDay,
+        dailyBest = progressStore.dailyDay?.let(progressStore::dailyBest) ?: 0,
+        savedAt = wallClock(),
+    )
+
+    /**
+     * The cloud save arrived (docs/TOP100.md C6): both sides are merged ([CloudProgress.merge], most progress per value,
+     * the newer day for the streak) and the result goes into the local stores; if the cloud lacked something of this
+     * device, the merged save is written back. A save of a newer app version is merged in but never overwritten.
+     */
+    private fun applyCloud(remote: CloudProgress?) {
+        val local = localProgress()
+        if (remote == null) {
+            gameServices.saveProgress(local)
+            return
+        }
+        val merged = CloudProgress.merge(local, remote)
+        if (merged.stats != tracker.stats) {
+            tracker.replace(merged.stats)
+            progressStore.saveStats(merged.stats)
+            tiles = emptyList()
+            tilesFor = null
+        }
+        highscores.restore(merged.best)
+        if (merged.streak != streak) {
+            streakCache = merged.streak
+            progressStore.streak = merged.streak
+        }
+        progressStore.restoreDaily(merged.dailyDay, merged.dailyBest)
+        syncAchievements()
+        if (!remote.newerFormat && merged.copy(savedAt = 0) != remote.copy(savedAt = 0)) gameServices.saveProgress(merged.copy(savedAt = wallClock()))
+    }
+
+    /**
+     * After a game over of a normal game or a daily challenge: its leaderboard score (C3), the cloud save (C6) and the
+     * rating request (D1). [previousBest] is the best of the same board before this game.
+     */
+    private fun afterGameOver(previousBest: Int) {
+        Leaderboards.forGameOver(world, wallClock())?.let(gameServices::submit)
+        if (gameServices.signedIn) gameServices.saveProgress(localProgress())
+        if (world.mode != GameMode.NORMAL) return
+        val game = FinishedGame(score = world.delivered, previousBest = previousBest, weeks = world.weeksPlayed, continued = world.continued)
+        val decision = ReviewPolicy.onGameOver(reviewStore.state, game, wallClock())
+        reviewStore.state = decision.state
+        if (decision.ask) reviewDue = true
+    }
+
+    /**
+     * Draws the share card of the finished game here, writes it on GameIo and hands it to [onShare] on the UI thread
+     * (docs/TOP100.md D2).
+     */
+    private fun shareNetwork() {
+        val card = shareCard.render(world, animTime)
+        val text = shareCard.message(world)
+        val cache = context.cacheDir
+        GameIo.execute {
+            val file = try {
+                ShareSheet.write(cache, card)
+            } finally {
+                card.recycle()
+            }
+            mainThread.post { onShare?.invoke(file, text) }
         }
     }
 
@@ -1721,6 +2479,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         screen = Screen.PLAYING
         gameInProgress = true
         newBest = false
+        unlocked(tracker.secondChance())
         autosave()
         showHint(context.getString(R.string.hint_continued))
     }
@@ -1769,7 +2528,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             }
             Screen.PAUSED -> screen = Screen.PLAYING
             Screen.SETTINGS -> screen = settingsReturn
-            Screen.SCENERIES -> screen = Screen.MAIN_MENU
+            Screen.APPEARANCE -> screen = Screen.SETTINGS
+            Screen.SCENERIES, Screen.DAILY, Screen.ACHIEVEMENTS -> screen = Screen.MAIN_MENU
             Screen.GAME_OVER -> onMenuAction(MenuAction.MAIN_MENU)
             Screen.MAIN_MENU -> mainThread.post { onExit?.invoke() }
         }
@@ -1782,9 +2542,16 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private fun sceneryCards(): List<SceneryCard> = Scenarios.all.map { s ->
         val unlocked = sceneryUnlocked(s)
         val unlock = s.unlock
-        val best = highscores.best(s.id)
+        val endless = pickerMode == GameMode.ENDLESS
+        val best = highscores.best(if (endless) endlessKey(s.id) else s.id)
         val status = when {
-            unlocked -> listOf(if (best > 0) context.getString(R.string.menu_best, best) else context.getString(R.string.scenery_not_played))
+            unlocked -> listOf(
+                when {
+                    best <= 0 -> context.getString(R.string.scenery_not_played)
+                    endless -> context.getString(R.string.menu_best_endless, best)
+                    else -> context.getString(R.string.menu_best, best)
+                },
+            )
             unlock is Unlock.Score -> listOf(
                 resources.getQuantityString(R.plurals.scenery_progress, unlock.packets, highscores.best(unlock.after).coerceAtMost(unlock.packets), unlock.packets),
                 context.getString(R.string.scenery_progress_in, texts.scenario(Scenarios.byId(unlock.after)!!)),
@@ -1799,6 +2566,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             unlocked = unlocked,
             status = status,
             progress = if (!unlocked && unlock is Unlock.Score) highscores.best(unlock.after) / unlock.packets.toFloat() else null,
+            lockedLabel = if (unlocked) null else context.getString(R.string.a11y_locked),
         )
     }
 
@@ -1808,25 +2576,51 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             MotionEvent.ACTION_DOWN -> {
                 endDrag()
                 pressedScenery = sceneryPicker.hit(e.x, e.y)
+                sceneryDownX = e.x
+                sceneryLastX = e.x
+                sceneryScrolling = false
+            }
+            // A row of cards wider than the screen (large text on a phone) scrolls sideways with a drag.
+            MotionEvent.ACTION_MOVE -> if (sceneryPicker.scrollable) {
+                if (!sceneryScrolling && kotlin.math.abs(e.x - sceneryDownX) >= TAP_SLOP_DP * density) {
+                    sceneryScrolling = true
+                    pressedScenery = null
+                }
+                if (sceneryScrolling) sceneryPicker.scrollBy(sceneryLastX - e.x)
+                sceneryLastX = e.x
             }
             MotionEvent.ACTION_UP -> {
                 val id = pressedScenery
                 pressedScenery = null
+                if (sceneryScrolling) {
+                    sceneryScrolling = false
+                    return
+                }
                 if (id == null || sceneryPicker.hit(e.x, e.y) != id) return
                 click()
-                if (id == SceneryPicker.BACK) {
-                    screen = Screen.MAIN_MENU
-                    return
-                }
-                if (id == SceneryPicker.PACK) {
-                    sceneryHint = if (monetization.purchase(Entitlements.SCENERY_PACK)) null else context.getString(R.string.scenery_hint_no_shop)
-                    return
-                }
-                val s = Scenarios.byId(id) ?: return
-                if (sceneryUnlocked(s)) newGame(s) else sceneryHint = lockedHint(s)
+                chooseScenery(id)
             }
             MotionEvent.ACTION_CANCEL -> pressedScenery = null
         }
+    }
+
+    /** A picked card: an unlocked scenery starts, a locked one says how to get it; or the back or pack pill. */
+    private fun chooseScenery(id: String) {
+        if (id == SceneryPicker.BACK) {
+            screen = Screen.MAIN_MENU
+            return
+        }
+        if (id == SceneryPicker.MODE) {
+            pickerMode = GameMode.entries[(pickerMode.ordinal + 1) % GameMode.entries.size]
+            sceneryHint = null
+            return
+        }
+        if (id == SceneryPicker.PACK) {
+            sceneryHint = if (monetization.purchase(Entitlements.SCENERY_PACK)) null else context.getString(R.string.scenery_hint_no_shop)
+            return
+        }
+        val s = Scenarios.byId(id) ?: return
+        if (sceneryUnlocked(s)) newGame(s) else sceneryHint = lockedHint(s)
     }
 
     /** Asks the store for a locked scenery; the hint says how to unlock it, or that buying is not possible yet. */
@@ -1840,9 +2634,60 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         }
     }
 
-    private fun newGame(s: Scenario) {
+    private fun newGame(s: Scenario, mode: GameMode = pickerMode) {
         highscores.lastScenery = s.id
-        startGame(World(s, seed = System.currentTimeMillis()))
+        startGame(World(s, seed = System.currentTimeMillis(), mode = mode), fresh = true)
+    }
+
+    /** Starts the daily challenge [c]: the same map for everyone that day, with the rule of the day (docs/TOP100.md C1). */
+    private fun startDaily(c: DailyChallenge) {
+        startGame(World(c.scenario, seed = c.seed, daily = c), fresh = true)
+    }
+
+    /** Best-score key of scenery [id] in endless mode, next to the normal ones in [HighscoreStore]. */
+    private fun endlessKey(id: String) = "endless_$id"
+
+    /** An endless game has no game over: its best score is kept whenever it is saved or replaced. */
+    private fun recordEndlessBest() {
+        // Never the first read of the store: [pause] runs on the UI thread (docs/TOP100.md A3). The picker or the main
+        // menu has read it before any endless game starts; a game restored after the process died records on its next save.
+        if (world.mode == GameMode.ENDLESS && gameInProgress && tutorial == null && highscoresLazy.isInitialized()) {
+            highscores.submit(world.delivered, endlessKey(world.scenario.id))
+        }
+    }
+
+    /** Achievements screen: the back pill on a tap; a vertical drag scrolls the grid. */
+    private fun onAchievementsTouch(e: Input.Touch) {
+        when (e.action) {
+            MotionEvent.ACTION_DOWN -> {
+                endDrag()
+                pressedAchievement = achievementsPanel.hit(e.x, e.y)
+                achievementDownY = e.y
+                achievementLastY = e.y
+                achievementScrolling = false
+            }
+            MotionEvent.ACTION_MOVE -> if (achievementsPanel.scrollable) {
+                if (!achievementScrolling && kotlin.math.abs(e.y - achievementDownY) >= TAP_SLOP_DP * density) {
+                    achievementScrolling = true
+                    pressedAchievement = null
+                }
+                if (achievementScrolling) achievementsPanel.scrollBy(achievementLastY - e.y)
+                achievementLastY = e.y
+            }
+            MotionEvent.ACTION_UP -> {
+                val id = pressedAchievement
+                pressedAchievement = null
+                if (achievementScrolling) {
+                    achievementScrolling = false
+                    return
+                }
+                if (id == AchievementsPanel.BACK && achievementsPanel.hit(e.x, e.y) == id) {
+                    click()
+                    screen = Screen.MAIN_MENU
+                }
+            }
+            MotionEvent.ACTION_CANCEL -> pressedAchievement = null
+        }
     }
 
     private fun openPauseMenu() {
@@ -1870,11 +2715,23 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         startGame(saved)
     }
 
-    private fun startGame(w: World) {
+    /**
+     * Shows [w] as the running game. A [fresh] game (not a save) counts for achievements from its start and says what
+     * its mode or daily rule changes.
+     */
+    private fun startGame(w: World, fresh: Boolean = false) {
         screen = Screen.PLAYING
         showWorld(w)
         gameInProgress = true
         cableType = w.unlockedCables.first()
+        dailyExpiredHinted = false
+        if (fresh) {
+            unlocked(tracker.begin(w, fresh = true))
+            w.daily?.let { hintQueue += context.getString(R.string.daily_rule, texts.rule(it.rule), texts.ruleDescription(it.rule)) }
+            texts.modeDescription(w.mode)?.let { hintQueue += it }
+        } else {
+            tracker.begin(w, fresh = false)
+        }
     }
 
     /** Starts the tutorial from its first step; it is not a game in progress, so it is neither saved nor scored. */
@@ -1886,7 +2743,15 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     }
 
     private fun showWorld(w: World, withTutorial: Tutorial? = null) {
+        recordEndlessBest()
+        saveStats()
         world = w
+        jamHintShown = false
+        // A new map starts facing north.
+        renderers.forEach { it.camera.resetRotation() }
+        growth.clear()
+        celebrateAt = null
+        celebratedWeek = w.rewardOffer?.week ?: -1
         tutorial = withTutorial
         tutorialGesture = false
         tutorialPressed = null
@@ -1912,8 +2777,22 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
      */
     private fun checkGameOver() {
         if (screen != Screen.PLAYING || !world.gameOver || !gameInProgress) return
+        growth.sample(world)
         gameInProgress = false
-        newBest = highscores.submit(world.delivered, world.scenario.id)
+        // A daily challenge keeps its own best of the day; it never counts towards unlocking sceneries.
+        val daily = world.daily
+        val previousBest = when {
+            daily == null -> highscores.best(world.scenario.id)
+            else -> progressStore.dailyBest(daily.day)
+        }
+        newBest = when {
+            daily == null -> highscores.submit(world.delivered, world.scenario.id)
+            // A run finished after its UTC day no longer counts for that day's best (docs/TOP100.md C1).
+            daily.isToday(wallClock()) -> progressStore.submitDaily(daily.day, world.delivered)
+            else -> false
+        }
+        unlocked(tracker.gameOver(world))
+        afterGameOver(previousBest)
         saves.clearLater()
         hasSave = false
         endDrag()
@@ -1925,7 +2804,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         hintQueue.clear()
         val failed = world.failedNode
         if (failed == null) {
-            screen = Screen.GAME_OVER
+            showGameOverCard()
             return
         }
         renderer.focusOn(failed)
@@ -1935,7 +2814,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     private fun showGameOverCard() {
         failFocusUntil = null
+        gameOverAt = animTime
         screen = Screen.GAME_OVER
+        // The rating request comes with the result card, not over the camera's glide to the failed device (D1).
+        if (reviewDue) {
+            reviewDue = false
+            reviewPrompt.request()
+        }
     }
 
     /**
@@ -1943,6 +2828,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
      * full) shows up as a save that does not load, which "Continue" then drops.
      */
     private fun autosave() {
+        saveStats()
+        recordEndlessBest()
         if (!gameInProgress || world.gameOver) return
         saves.saveLater(world)
         hasSave = true
@@ -1957,7 +2844,19 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         settings = s
         sounds.enabled = s.sound
         ServiceColors.colorblind = s.colorblind
-        renderer = if (s.overviewMode) flat else iso
+        // Cosmetics (docs/TOP100.md C5): only what an achievement unlocked; anything else falls back to the default.
+        val unlocked = tracker.unlocked
+        Cosmetic.skin = s.cableSkin.takeIf { it in Cosmetics.skins(unlocked) } ?: CableSkin.CLASSIC
+        Cosmetic.theme = s.colorTheme.takeIf { it in Cosmetics.themes(unlocked) } ?: ColorTheme.MEADOW
+        val next = if (s.overviewMode) flat else iso
+        if (next !== renderer) {
+            // The other style takes over the angle, so switching styles never turns the map.
+            val turn = Camera.shortestTurn(next.camera.angle, renderer.camera.angle)
+            next.rotateBy(turn, next.camera.centerX, next.camera.centerY, world)
+            renderer = next
+        }
+        // Free rotation switched on keeps a turned map as it is; switched off, it snaps to the nearest right angle.
+        if (!s.freeRotation) renderers.forEach { it.camera.settleRotation(snap = true) }
     }
 
     private fun haptic(kind: Int) {
@@ -1977,12 +2876,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
      */
     private fun layoutRenderers() {
         if (surfaceWidth <= 0 || surfaceHeight <= 0) return
-        val insets = if ((screen == Screen.MAIN_MENU || screen == Screen.SCENERIES) && !gameInProgress) {
+        val insets = if (screen in MENU_SCREENS && !gameInProgress) {
             ViewInsets(surfaceWidth * 0.55f, 24 * density, 16 * density, 24 * density)
         } else if (tutorial != null) {
-            ViewInsets(tutorialOverlay.reservedRight(surfaceWidth) + 8 * density, 56 * density, 8 * density, 68 * density)
+            tutorialOverlay.place(safeInsets.left + 16 * density, tutorialTop(), tutorialBottom())
+            ViewInsets(tutorialOverlay.reservedRight(surfaceWidth) - safeInsets.left + 8 * density, hudTopReserve, 8 * density, hudBottomReserve)
         } else {
-            ViewInsets(8 * density, 56 * density, 8 * density, 68 * density)
+            ViewInsets(8 * density, hudTopReserve, 8 * density, hudBottomReserve)
         }
         val safe = safeInsets
         val inside = ViewInsets(insets.left + safe.left, insets.top + safe.top, insets.right + safe.right, insets.bottom + safe.bottom)
@@ -2004,6 +2904,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             else -> ViewInsets.NONE
         }
 
+        /** Screens of the main menu, which show the demo town beside them. */
+        val MENU_SCREENS = setOf(Screen.MAIN_MENU, Screen.SCENERIES, Screen.DAILY, Screen.ACHIEVEMENTS)
+        const val MILLIS_PER_DAY = 86_400_000L
         /** Lower bound per loop iteration, in case posting a frame does not block on vsync. */
         const val MIN_FRAME_NANOS = 8_000_000L
         /** Longest animation step per frame, so animations do not jump after a stall. */
@@ -2012,6 +2915,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         const val TRAIL_SPACING = 0.2f
         const val MAX_TRAIL = 256
         const val HINT_SECONDS = 2.5f
+        /** Lines a long hint (or one in large text) wraps into above the bottom buttons. */
+        const val MAX_HINT_LINES = 3
         /** How long the camera shows the failed device before the game-over card. */
         const val GAME_OVER_FOCUS_SECONDS = 1.6f
         /** Longer hints: what a new service needs, why a device is stuck. */
@@ -2024,6 +2929,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         const val AD_TIMEOUT_SECONDS = 6f
         const val COIN_COLOR = 0xFFF5C542.toInt()
         const val SELECTION_COLOR = 0xFFFFC21A.toInt()
+        const val COMPASS_NORTH = 0xFFD7263D.toInt()
         const val STATE_IN_GAME = "mininetworks.inGame"
         const val STATE_IN_TUTORIAL = "mininetworks.inTutorial"
         /** A finger that moves less than this is a tap. */

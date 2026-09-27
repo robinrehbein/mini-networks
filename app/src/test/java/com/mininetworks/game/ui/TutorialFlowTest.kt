@@ -170,12 +170,21 @@ class TutorialFlowTest {
         val router = w.nodes.single { it.kind == NodeKind.ROUTER }
         for (n in t.phones) assertTrue(w.connect(n, router, CableType.ISDN))
         play(view, 0.1f)
-        assertEquals(TutorialStep.CABLE_TYPE, t.step)
+        assertEquals(TutorialStep.BANDWIDTH, t.step)
 
-        // Step 3: pick DSL, tap the PC's cable.
+        // Step 3: the TV first gets ISDN like everything so far: too narrow for streaming. Then DSL, and tap its cable.
+        val tv = renderer.toScreen(t.tv!!.center)
+        val cdn = renderer.toScreen(t.streamServer!!.center)
+        view.injectTouch(MotionEvent.ACTION_DOWN, tv.x, tv.y)
+        view.injectTouch(MotionEvent.ACTION_MOVE, (tv.x + cdn.x) / 2f, (tv.y + cdn.y) / 2f)
+        view.injectTouch(MotionEvent.ACTION_UP, cdn.x, cdn.y)
+        play(view, 2f)
+        assertEquals(TutorialStep.BANDWIDTH, t.step)
+        assertTrue(t.tooNarrow())
+        assertTrue("the bubble explains the bandwidth", view.tutorialText()!!.contains(app.getString(com.mininetworks.game.R.string.tutorial_bandwidth_narrow_text, 3, 2, 4)))
         tapHud(view, "cable:DSL")
         assertEquals(CableType.DSL, view.pickedCable)
-        val cable = w.cableBetween(t.pc, t.mailServer)!!
+        val cable = w.cableBetween(t.tv!!, t.streamServer!!)!!
         val mid = renderer.toScreen(cable.layout.pointAt(0.5f))
         tapAt(view, mid.x, mid.y)
         assertEquals(CableType.DSL, cable.type)
@@ -210,7 +219,7 @@ class TutorialFlowTest {
         val router = w.placeRouter(t.phones[0].cellX - 1, t.phones[0].cellY)!!
         for (n in t.phones) assertTrue(w.connect(n, router, CableType.ISDN))
         play(view, 0.1f)
-        assertTrue(w.upgrade(w.cableBetween(t.pc, t.mailServer)!!, CableType.DSL))
+        assertTrue(w.connect(t.tv!!, t.streamServer!!, CableType.DSL))
         play(view, 0.1f)
         assertTrue(w.connect(t.pc, t.gameServer!!, CableType.FIBER))
         play(view, 0.1f)
@@ -227,5 +236,36 @@ class TutorialFlowTest {
         assertEquals(Scenarios.RIVER_TOWN.startBudget, view.currentWorld.budget)
         assertTrue(SettingsStore(app).tutorialSeen)
         assertEquals(Tutorial.STEPS, t.number)
+    }
+
+    /**
+     * docs/TOP100.md B1, the tutorial bot in the app: from the very first launch it reads the first bubble as it is
+     * shown (at 150 words per minute, plus 3 s to find the PC), drags the cable with a finger over 1.5 s and waits for
+     * the answer. The first packet must be delivered within 30 s of game time.
+     */
+    @Test
+    fun tutorialBotDeliversTheFirstPacketWithinThirtySeconds() {
+        val view = newView()
+        val t = view.currentTutorial!!
+        val w = view.currentWorld
+        assertEquals(0f, w.time, 0f)
+        val bubble = view.tutorialText()!!
+        val words = bubble.split(' ').count { it.isNotBlank() }
+        val reading = words / 150f * 60f + 3f
+        play(view, reading)
+        val renderer = view.activeRenderer
+        val a = renderer.toScreen(t.pc.center)
+        val b = renderer.toScreen(t.mailServer.center)
+        view.injectTouch(MotionEvent.ACTION_DOWN, a.x, a.y)
+        val frames = 90
+        for (k in 1..frames) {
+            view.injectTouch(MotionEvent.ACTION_MOVE, a.x + (b.x - a.x) * k / frames, a.y + (b.y - a.y) * k / frames)
+            view.advance(1f / 60f)
+        }
+        view.injectTouch(MotionEvent.ACTION_UP, b.x, b.y)
+        assertNotNull("the bot's drag laid the cable", w.cableBetween(t.pc, t.mailServer))
+        while (w.delivered == 0 && w.time < 60f) view.advance(1f / 60f)
+        println("TutorialFlowTest: bot read $words words in %.1f s, first packet delivered at %.1f s of game time".format(reading, w.time))
+        assertTrue("first delivery at ${w.time} s", w.delivered >= 1 && w.time <= 30f)
     }
 }

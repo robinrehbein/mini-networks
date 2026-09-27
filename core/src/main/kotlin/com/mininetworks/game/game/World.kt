@@ -25,6 +25,10 @@ class World(
     val seed: Long = 7L,
     private val spawnInitialNodes: Boolean = true,
     val guided: Boolean = false,
+    /** How this game is played: normal, endless or creative (docs/TOP100.md C4). */
+    val mode: GameMode = GameMode.NORMAL,
+    /** Set for the daily challenge (docs/TOP100.md C1): its [DailyChallenge.rule] applies to this world. */
+    val daily: DailyChallenge? = null,
 ) {
     object Tuning {
         const val WEEK_SECONDS = 45f
@@ -45,7 +49,7 @@ class World(
         const val START_BUDGET = 50
         const val START_ROUTERS = 3
         /** Budget credited at every week change, on top of the reward the player picks. */
-        const val WEEK_BUDGET = 60
+        const val WEEK_BUDGET = 80
         /** Seconds until the first client appears on its own. */
         const val FIRST_SPAWN_SECONDS = 6f
         /**
@@ -53,7 +57,7 @@ class World(
          * [MIN_SPAWN_SECONDS], plus up to [SPAWN_JITTER] at random.
          */
         const val SPAWN_SECONDS = 13f
-        const val SPAWN_SPEEDUP = 0.7f
+        const val SPAWN_SPEEDUP = 0.5f
         const val MIN_SPAWN_SECONDS = 4f
         const val SPAWN_JITTER = 2f
         /**
@@ -61,7 +65,7 @@ class World(
          * per week played, at least [MIN_REQUEST_SECONDS], plus up to [REQUEST_JITTER] at random.
          */
         const val REQUEST_SECONDS = 7f
-        const val REQUEST_SPEEDUP = 0.2f
+        const val REQUEST_SPEEDUP = 0.15f
         const val MIN_REQUEST_SECONDS = 1.6f
         const val REQUEST_JITTER = 2f
         const val WATER_EXTRA_PER_CELL = 2
@@ -86,7 +90,7 @@ class World(
          * one-cell margin), so every device can reach them within the ping limits of their era.
          */
         const val SERVER_AREA = 0.3f
-        /** From this week on, every second week brings a server of a random service (earlier ones follow [Service.serverWeek]). */
+        /** From this week on, every second week brings a server of a random service (earlier ones follow [Service.serverWeek]; see [WeekSchedule]). */
         const val RANDOM_SERVERS_FROM = 10
         /**
          * A new client picks a device weighted by 1 + its unlock week, so newer devices show up more often; weeks past
@@ -117,7 +121,36 @@ class World(
         const val EARLY_CABLE_BUDGET = 24
         /** Grace in those weeks too: overload rings fill this much slower, so the first week's pay can still come. */
         const val EARLY_OVERLOAD_SLOWDOWN = 2f
+
+        /** [GameMode.ENDLESS] and [GameMode.CREATIVE]: devices within this many cells of a full overload ring slow down. */
+        const val SLOW_RADIUS = 3f
+        /** Slowed devices ask this much as often as usual ([World.isSlowed]). */
+        const val SLOW_FACTOR = 0.5f
+
+        /** Daily rules ([DailyRule]). [DailyRule.TIGHT_BUDGET]: share of the start budget, and the pay per week. */
+        const val TIGHT_START_SHARE = 0.6f
+        const val TIGHT_WEEK_BUDGET = 40
+        /** [DailyRule.RUSH_HOUR]: pause between two requests, times this. */
+        const val RUSH_REQUEST_FACTOR = 0.75f
+        /** [DailyRule.FEW_ROUTERS]: routers in stock at the start. */
+        const val FEW_ROUTERS = 1
+        /** [DailyRule.STORM]: the incident plan runs this many weeks ahead of the weeks played. */
+        const val STORM_WEEKS_AHEAD = 2
+        /** [DailyRule.WIDE_LAND]: extra rings of the start block. */
+        const val WIDE_RINGS = 2
+        /** [DailyRule.CROWD]: pause between two new devices times this, and overload rings fill this much slower. */
+        const val CROWD_SPAWN_FACTOR = 0.7f
+        const val CROWD_OVERLOAD_SLOWDOWN = 1.25f
     }
+
+    /** The special rule of the [daily] challenge, if this is one. */
+    val rule: DailyRule? get() = daily?.rule
+
+    /** True in [GameMode.CREATIVE]: nothing costs budget and stock never runs out. */
+    val unlimited get() = mode == GameMode.CREATIVE
+
+    /** What happened in this game so far, for achievements (docs/TOP100.md C2); not saved, see [GameCounters]. */
+    val counters = GameCounters()
 
     private var rng = ReplayableRandom(seed)
     private var nextId = 0
@@ -178,8 +211,10 @@ class World(
     var time = (scenario.startWeek - 1) * Tuning.WEEK_SECONDS; private set
     var week = scenario.startWeek; private set
     var delivered = 0; private set
-    var budget = scenario.startBudget; private set
-    var routersAvailable = scenario.startRouters; private set
+    var budget = if (daily?.rule == DailyRule.TIGHT_BUDGET) (scenario.startBudget * Tuning.TIGHT_START_SHARE).toInt() else scenario.startBudget
+        private set
+    var routersAvailable = if (daily?.rule == DailyRule.FEW_ROUTERS) Tuning.FEW_ROUTERS else scenario.startRouters
+        private set
     /** WLAN access points in stock, won as [Reward.ACCESS_POINT]. */
     var accessPointsAvailable = scenario.startAccessPoints; private set
     /** Cell towers in stock, won as [Reward.CELL_TOWER]. */
@@ -226,8 +261,18 @@ class World(
 
     /** Weeks played in this game, 1 in the scenario's start week: pacing, growth and incidents follow this. */
     val weeksPlayed get() = week - scenario.startWeek + 1
-    val unlockedCables get() = CableType.entries.filter { it.unlockWeek <= week }
-    private val unlockedDevices get() = Device.entries.filter { it.unlockWeek <= week }
+    val unlockedCables get() = CableType.entries.filter(::invented)
+    private val unlockedDevices get() = Device.entries.filter { unlimited || it.unlockWeek <= week }
+
+    /** True if cable technology [t] can be laid: invented by now, or always in creative mode and on a fiber day. */
+    fun invented(t: CableType) = unlimited || rule == DailyRule.FIBER_DAY || t.unlockWeek <= week
+
+    /** True if [cost] can be paid now; always in creative mode. */
+    fun canPay(cost: Int) = unlimited || cost <= budget
+
+    private fun pay(cost: Int) {
+        if (!unlimited) budget -= cost
+    }
 
     /** Services that have a server on the map; servers never go away, so this only grows. */
     var availableServices: Set<Service> = emptySet(); private set
@@ -238,7 +283,7 @@ class World(
      */
     fun unlockedArea(week: Int): CellRect =
         CellRect.centered(bounds, scenario.startCols, scenario.startRows)
-            .expand(((week - scenario.startWeek) / Tuning.GROWTH_WEEKS).coerceAtLeast(0), bounds)
+            .expand(((week - scenario.startWeek) / Tuning.GROWTH_WEEKS).coerceAtLeast(0) + if (rule == DailyRule.WIDE_LAND) Tuning.WIDE_RINGS else 0, bounds)
 
     private var clientSpawnTimer = Tuning.FIRST_SPAWN_SECONDS
 
@@ -278,6 +323,8 @@ class World(
                 addServer(service, at.x, at.y)
             }
             for (service in scenario.startServices) if (service != Service.MAIL && service != Service.CALL) spawnServer(service)
+            // Creative mode has every technology, so a server of every service stands on the map from the start.
+            if (unlimited) for (service in Service.entries) if (service !in availableServices) spawnServer(service)
             repeat(3) { spawnClient() }
         }
     }
@@ -455,10 +502,10 @@ class World(
     fun connectError(a: Node, b: Node, type: CableType, bend: Bend? = null): ConnectError? = when {
         a === b || a.cell == b.cell -> ConnectError.SAME_NODE
         cableBetween(a, b) != null -> ConnectError.ALREADY_CONNECTED
-        type.unlockWeek > week -> ConnectError.NOT_INVENTED
+        !invented(type) -> ConnectError.NOT_INVENTED
         ports(a) >= a.maxPorts -> ConnectError.FROM_PORTS_FULL
         ports(b) >= b.maxPorts -> ConnectError.TO_PORTS_FULL
-        cableCost(a, b, type, bend) > budget -> ConnectError.NO_BUDGET
+        !canPay(cableCost(a, b, type, bend)) -> ConnectError.NO_BUDGET
         else -> null
     }
 
@@ -467,8 +514,12 @@ class World(
         if (gameOver || connectError(a, b, type, bend) != null) return false
         val layout = planLayout(a, b, bend)
         val cost = cableCost(layout, type)
-        cableList += Cable(a, b, type, cost, layout, waterCellsOn(layout)).also { it.builtAt = time }
-        budget -= cost
+        val cable = Cable(a, b, type, cost, layout, waterCellsOn(layout)).also { it.builtAt = time }
+        cableList += cable
+        pay(cost)
+        cable.countedLaid = true
+        if (counters.cableCredit > 0) counters.cableCredit-- else counters.cablesLaid++
+        if (type == CableType.FIBER) countFiber(cable)
         networkChanged()
         return true
     }
@@ -478,8 +529,8 @@ class World(
         val diff = cableCost(c.layout, type) - c.cost
         return when {
             type.ordinal <= c.type.ordinal -> CableUpgradeError.NOT_AN_UPGRADE
-            type.unlockWeek > week -> CableUpgradeError.NOT_INVENTED
-            diff > budget -> CableUpgradeError.NO_BUDGET
+            !invented(type) -> CableUpgradeError.NOT_INVENTED
+            !canPay(diff) -> CableUpgradeError.NO_BUDGET
             else -> null
         }
     }
@@ -487,24 +538,41 @@ class World(
     fun upgrade(c: Cable, type: CableType): Boolean {
         if (gameOver || upgradeError(c, type) != null) return false
         val newCost = cableCost(c.layout, type)
-        budget -= newCost - c.cost
+        pay(newCost - c.cost)
         c.cost = newCost
         c.type = type
+        c.upgradedAt = time
+        c.countedUpgrades++
+        if (counters.upgradeCredit > 0) counters.upgradeCredit-- else counters.cableUpgrades++
+        if (type == CableType.FIBER) countFiber(c)
         forgetRoutes()
         return true
+    }
+
+    /** Counts [c] as fiber laid, unless a fiber cable removed for a refund left a credit (see [GameCounters]). */
+    private fun countFiber(c: Cable) {
+        if (c.countedFiber) return
+        c.countedFiber = true
+        if (counters.fiberCredit > 0) counters.fiberCredit-- else counters.fiberLaid++
     }
 
     /**
      * Budget [removeCable] gives back for [c]: its cost, or nothing while an excavator is announced at it or has cut it,
      * so calling the excavator off by removing and re-laying the cable is never free.
      */
-    fun refundOf(c: Cable) = if (incidentList.any { it.cable === c }) 0 else c.cost
+    fun refundOf(c: Cable) = if (unlimited || incidentList.any { it.cable === c }) 0 else c.cost
 
     /** Removes [c] and refunds [refundOf]; an excavator waiting at it or a cut on it goes with it. */
     fun removeCable(c: Cable) {
         val refund = refundOf(c)
         if (!cableList.remove(c)) return
         budget += refund
+        // A full refund undoes the cable: what it counted comes back as credit, so re-laying it counts nothing new.
+        if (refund > 0 && refund >= c.cost) {
+            if (c.countedLaid) counters.cableCredit++
+            if (c.countedFiber) counters.fiberCredit++
+            counters.upgradeCredit += c.countedUpgrades
+        }
         incidentList.removeAll { it.cable === c }
         networkChanged()
     }
@@ -512,14 +580,15 @@ class World(
     /** Null when [c] can be repaired now, otherwise the reason. */
     fun repairError(c: Cable): RepairError? = when {
         !isCut(c) -> RepairError.NOT_CUT
-        Incidents.REPAIR_COST > budget -> RepairError.NO_BUDGET
+        !canPay(Incidents.REPAIR_COST) -> RepairError.NO_BUDGET
         else -> null
     }
 
     /** Repairs a cut cable at once for [Incidents.REPAIR_COST] instead of waiting for it to repair itself. */
     fun repair(c: Cable): Boolean {
         if (gameOver || repairError(c) != null) return false
-        budget -= Incidents.REPAIR_COST
+        pay(Incidents.REPAIR_COST)
+        counters.repairs++
         incidentList.removeAll { it.cable === c }
         networkChanged()
         return true
@@ -619,7 +688,7 @@ class World(
         n.kind != NodeKind.SERVER -> ServerUpgradeError.NOT_A_SERVER
         n.level >= Tuning.MAX_SERVER_LEVEL -> ServerUpgradeError.MAX_LEVEL
         n.level + 1 == Tuning.DATA_CENTER_LEVEL && dataCenterFootprint(n) == null -> ServerUpgradeError.NO_SPACE
-        serverVouchers == 0 && Tuning.SERVER_UPGRADE_COST[n.level - 1] > budget -> ServerUpgradeError.NO_BUDGET
+        serverVouchers == 0 && !canPay(Tuning.SERVER_UPGRADE_COST[n.level - 1]) -> ServerUpgradeError.NO_BUDGET
         else -> null
     }
 
@@ -629,9 +698,12 @@ class World(
      */
     fun upgradeServer(n: Node): Boolean {
         if (gameOver || serverUpgradeError(n) != null) return false
-        if (serverVouchers > 0) serverVouchers-- else budget -= Tuning.SERVER_UPGRADE_COST[n.level - 1]
+        if (serverVouchers > 0) serverVouchers-- else pay(Tuning.SERVER_UPGRADE_COST[n.level - 1])
         if (n.level + 1 == Tuning.DATA_CENTER_LEVEL) n.footprint = dataCenterFootprint(n)!!
         n.level++
+        n.upgradedAt = time
+        counters.serverUpgrades++
+        if (n.isDataCenter) counters.dataCenters++
         return true
     }
 
@@ -702,7 +774,7 @@ class World(
 
     /** Null when a node of [kind] (a router or a radio) from stock can go on cell ([cx], [cy]), otherwise the reason. */
     fun placeError(kind: NodeKind, cx: Int, cy: Int): PlaceError? = when {
-        (RadioType.of(kind)?.let(::radiosAvailable) ?: routersAvailable) <= 0 -> PlaceError.NO_STOCK
+        !unlimited && (RadioType.of(kind)?.let(::radiosAvailable) ?: routersAvailable) <= 0 -> PlaceError.NO_STOCK
         !unlocked.contains(cx, cy) -> PlaceError.LOCKED
         nodeAt(Cell(cx, cy)) != null -> PlaceError.OCCUPIED
         terrainAt(cx, cy) != Terrain.LAND -> PlaceError.TERRAIN
@@ -711,8 +783,9 @@ class World(
 
     fun placeRouter(cx: Int, cy: Int): Node? {
         if (gameOver || placeError(NodeKind.ROUTER, cx, cy) != null) return null
-        routersAvailable--
-        return addRouter(cx, cy)
+        if (!unlimited) routersAvailable--
+        if (counters.routerCredit > 0) counters.routerCredit-- else counters.routersPlaced++
+        return addRouter(cx, cy).also { it.countedPlacement = true }
     }
 
     /** Null when [n] can go back into stock ([pickUp]), otherwise the reason. */
@@ -728,7 +801,9 @@ class World(
         if (gameOver || pickUpError(n) != null) return false
         nodeList.remove(n)
         for (i in nodeList.indices) nodeList[i].index = i
-        routersAvailable++
+        if (!unlimited) routersAvailable++
+        // Back in stock for free: placing it again counts nothing new (see [GameCounters]).
+        if (n.countedPlacement) counters.routerCredit++
         networkChanged()
         return true
     }
@@ -743,8 +818,14 @@ class World(
     fun placeRadio(type: RadioType, cx: Int, cy: Int): Node? {
         if (gameOver || placeError(type.kind, cx, cy) != null) return null
         when (type) {
-            RadioType.WLAN -> accessPointsAvailable--
-            RadioType.CELL -> cellTowersAvailable--
+            RadioType.WLAN -> {
+                if (!unlimited) accessPointsAvailable--
+                counters.accessPoints++
+            }
+            RadioType.CELL -> {
+                if (!unlimited) cellTowersAvailable--
+                counters.cellTowers++
+            }
         }
         return addRadio(type, cx, cy)
     }
@@ -791,16 +872,17 @@ class World(
     fun wifiUpgradeError(ap: Node): WifiUpgradeError? = when {
         ap.kind != NodeKind.ACCESS_POINT -> WifiUpgradeError.NOT_AN_ACCESS_POINT
         ap.fiveGhz -> WifiUpgradeError.ALREADY_5_GHZ
-        Wifi.UPGRADE_5_GHZ_COST > budget -> WifiUpgradeError.NO_BUDGET
+        !canPay(Wifi.UPGRADE_5_GHZ_COST) -> WifiUpgradeError.NO_BUDGET
         else -> null
     }
 
     /** Switches [ap] to 5 GHz for [Wifi.UPGRADE_5_GHZ_COST]: first 5 GHz channel, radius [Wifi.RADIUS_5_GHZ]. */
     fun upgradeTo5Ghz(ap: Node): Boolean {
         if (gameOver || wifiUpgradeError(ap) != null) return false
-        budget -= Wifi.UPGRADE_5_GHZ_COST
+        pay(Wifi.UPGRADE_5_GHZ_COST)
         ap.fiveGhz = true
         ap.channel = Wifi.CHANNELS_5_GHZ.first()
+        ap.upgradedAt = time
         networkChanged()
         return true
     }
@@ -1071,16 +1153,17 @@ class World(
         if (!guided) clientSpawnTimer -= dt
         if (clientSpawnTimer <= 0f) {
             spawnClient()
-            clientSpawnTimer = max(Tuning.MIN_SPAWN_SECONDS, Tuning.SPAWN_SECONDS - weeksPlayed * Tuning.SPAWN_SPEEDUP) +
-                rng.nextFloat() * Tuning.SPAWN_JITTER
+            clientSpawnTimer = (max(Tuning.MIN_SPAWN_SECONDS, Tuning.SPAWN_SECONDS - weeksPlayed * Tuning.SPAWN_SPEEDUP) +
+                rng.nextFloat() * Tuning.SPAWN_JITTER) * if (rule == DailyRule.CROWD) Tuning.CROWD_SPAWN_FACTOR else 1f
         }
 
         recountLoads()
+        findJammed()
         val served = availableServices
         for (i in nodeList.indices) {
             val n = nodeList[i]
             if (n.kind != NodeKind.CLIENT) continue
-            n.requestTimer -= dt
+            n.requestTimer -= if (jammed.isNotEmpty() && nearJam(n)) dt * Tuning.SLOW_FACTOR else dt
             if (n.requestTimer <= 0f) request(n, served)
             n.dispatchCooldown -= dt
             if (n.pending.isNotEmpty() && n.dispatchCooldown <= 0f) dispatch(n)
@@ -1088,7 +1171,8 @@ class World(
 
         movePackets(dt)
 
-        val fillSeconds = Tuning.OVERLOAD_SECONDS * if (weeksPlayed <= Tuning.EARLY_WEEKS) Tuning.EARLY_OVERLOAD_SLOWDOWN else 1f
+        val fillSeconds = Tuning.OVERLOAD_SECONDS * (if (weeksPlayed <= Tuning.EARLY_WEEKS) Tuning.EARLY_OVERLOAD_SLOWDOWN else 1f) *
+            (if (rule == DailyRule.CROWD) Tuning.CROWD_OVERLOAD_SLOWDOWN else 1f)
         for (i in nodeList.indices) {
             val n = nodeList[i]
             if (n.kind != NodeKind.CLIENT) continue
@@ -1097,12 +1181,52 @@ class World(
             if (guided) n.overload = n.overload.coerceAtMost(Tuning.GUIDED_MAX_OVERLOAD)
             if (n.overload >= 1f) {
                 n.overload = 1f
+                if (!mode.endsOnOverload) continue
                 gameOver = true
                 failedNode = n
                 return
             }
         }
     }
+
+    /** Devices at a full overload ring in a mode without game over, found once per [update] step. */
+    private val jammed = ArrayList<Node>()
+
+    private fun findJammed() {
+        jammed.clear()
+        if (mode.endsOnOverload) return
+        for (i in nodeList.indices) {
+            val n = nodeList[i]
+            if (n.kind == NodeKind.CLIENT && n.overload >= 1f) jammed += n
+        }
+    }
+
+    /**
+     * True if client [n] is slowed down ([GameMode.ENDLESS], [GameMode.CREATIVE]): a device within [Tuning.SLOW_RADIUS]
+     * cells of it (itself included) has a full overload ring, so it asks only [Tuning.SLOW_FACTOR] as often. The jam
+     * costs the area deliveries instead of ending the game. Always false in a normal game.
+     */
+    fun isSlowed(n: Node): Boolean {
+        if (mode.endsOnOverload || n.kind != NodeKind.CLIENT) return false
+        for (i in nodeList.indices) {
+            val j = nodeList[i]
+            if (j.kind == NodeKind.CLIENT && j.overload >= 1f &&
+                hypot(j.center.x - n.center.x, j.center.y - n.center.y) <= Tuning.SLOW_RADIUS + Wifi.EPSILON
+            ) return true
+        }
+        return false
+    }
+
+    private fun nearJam(n: Node): Boolean {
+        for (i in jammed.indices) {
+            val j = jammed[i]
+            if (hypot(j.center.x - n.center.x, j.center.y - n.center.y) <= Tuning.SLOW_RADIUS + Wifi.EPSILON) return true
+        }
+        return false
+    }
+
+    /** In a mode without game over a queue holds at most [Tuning.MAX_PENDING] requests; further ones are lost. */
+    private fun queueHasRoom(n: Node) = mode.endsOnOverload || n.pending.size < Tuning.MAX_PENDING
 
     /**
      * Queues the client's next request. A streaming device ([Device.stream]) asks for its stream in a fixed rhythm;
@@ -1112,14 +1236,17 @@ class World(
         val device = n.device!!
         val stream = device.stream
         if (stream != null) {
-            if (stream in served) n.pending.addLast(stream)
+            if (stream in served && queueHasRoom(n)) n.pending.addLast(stream)
             n.requestTimer += Tuning.STREAM_SECONDS
             return
         }
         val wants = device.services.filter { it.demand == Demand.RANDOM && it in served }
-        if (wants.isNotEmpty()) n.pending.addLast(wants[rng.nextInt(wants.size)])
-        n.requestTimer = max(Tuning.MIN_REQUEST_SECONDS, Tuning.REQUEST_SECONDS - weeksPlayed * Tuning.REQUEST_SPEEDUP) +
-            rng.nextFloat() * Tuning.REQUEST_JITTER
+        if (wants.isNotEmpty()) {
+            val s = wants[rng.nextInt(wants.size)]
+            if (queueHasRoom(n)) n.pending.addLast(s)
+        }
+        n.requestTimer = (max(Tuning.MIN_REQUEST_SECONDS, Tuning.REQUEST_SECONDS - weeksPlayed * Tuning.REQUEST_SPEEDUP) +
+            rng.nextFloat() * Tuning.REQUEST_JITTER) * if (rule == DailyRule.RUSH_HOUR) Tuning.RUSH_REQUEST_FACTOR else 1f
     }
 
     /** True if the nightly backup time ([Tuning.BACKUP_HOUR]) lies in (from, to]. */
@@ -1138,7 +1265,7 @@ class World(
             if (n.kind != NodeKind.CLIENT) continue
             for (s in n.device!!.services) {
                 if (s.demand != Demand.NIGHTLY || s !in served || s in n.pending) continue
-                repeat(Tuning.BACKUP_BURST) { n.pending.addLast(s) }
+                repeat(Tuning.BACKUP_BURST) { if (queueHasRoom(n)) n.pending.addLast(s) }
             }
         }
     }
@@ -1207,6 +1334,7 @@ class World(
                 p.isResponse -> {
                     arrived += p
                     delivered++
+                    counters.deliveredBy[p.service.ordinal]++
                     arrivalList += Arrival(p.origin, p.service, isResponse = true, time)
                 }
                 else -> {
@@ -1298,10 +1426,10 @@ class World(
     /** Announces every incident of this week's [Incidents.plan] whose time lies in (from, to]. */
     @OptIn(DebugApi::class)
     private fun startIncidents(from: Float, to: Float) {
-        if (!incidentsEnabled) return
+        if (!incidentsEnabled || unlimited) return
         if (planWeek != week) {
             planWeek = week
-            weekPlan = Incidents.plan(seed, weeksPlayed)
+            weekPlan = Incidents.plan(seed, weeksPlayed + if (rule == DailyRule.STORM) Tuning.STORM_WEEKS_AHEAD else 0)
         }
         val weekStart = (week - 1) * Tuning.WEEK_SECONDS
         for (p in weekPlan) if (p.at > from - weekStart && p.at <= to - weekStart) startIncident(p)
@@ -1378,14 +1506,18 @@ class World(
 
     private fun onNewWeek() {
         unlocked = unlockedArea(week)
-        budget += Tuning.WEEK_BUDGET
-        rewardOffer = RewardOffer(week, Rewards.offer(seed, week, eligibleRewards()))
-        val newCables = CableType.entries.filter { it.unlockWeek == week }
-        val newDevices = Device.entries.filter { it.unlockWeek == week }
-        val server = Service.entries.firstOrNull { it.serverWeek == week }
-            ?: if (week >= Tuning.RANDOM_SERVERS_FROM && week % 2 == 0) Service.entries[rng.nextInt(Service.entries.size)] else null
+        // Creative mode has unlimited everything: no pay, nothing to pick.
+        if (!unlimited) {
+            budget += if (rule == DailyRule.TIGHT_BUDGET) Tuning.TIGHT_WEEK_BUDGET else Tuning.WEEK_BUDGET
+            rewardOffer = RewardOffer(week, Rewards.offer(seed, week, eligibleRewards()))
+        }
+        // Only what was not there before is news: creative mode (and a fiber day, for cables) invents it all at the start.
+        val newCables = if (unlimited || rule == DailyRule.FIBER_DAY) emptyList() else WeekSchedule.cables(week)
+        val newDevices = if (unlimited) emptyList() else WeekSchedule.devices(week)
+        val server = WeekSchedule.firstServer(week)
+            ?: if (WeekSchedule.randomServer(week)) Service.entries[rng.nextInt(Service.entries.size)] else null
         val newServers = if (server != null && spawnServer(server)) listOf(server) else emptyList()
-        val newRadios = RadioType.entries.filter { it.unlockWeek == week }
+        val newRadios = if (unlimited) emptyList() else WeekSchedule.radios(week)
         if (newCables.isNotEmpty() || newDevices.isNotEmpty() || newServers.isNotEmpty() || newRadios.isNotEmpty()) {
             lastNews = WeekNews(year, newCables, newDevices, newServers, newRadios)
             lastNewsTime = time
@@ -1432,6 +1564,8 @@ class World(
         incidents = incidentList.map {
             IncidentSnapshot(it.kind, it.cable?.a?.id, it.cable?.b?.id, it.node?.id, it.cutAt, it.warning, it.remaining)
         },
+        mode = mode,
+        dailyDay = daily?.day,
     )
 
     companion object {
@@ -1501,7 +1635,9 @@ class World(
             require(s.nodes.all { it.id < s.nextId }) { "next id already used" }
             require(s.randomDraws in 0..MAX_DRAWS) { "bad random draw count" }
             val scenario = requireNotNull(Scenarios.byId(s.scenario)) { "unknown scenario ${s.scenario}" }
-            val w = World(scenario, s.cols, s.rows, s.seed, spawnInitialNodes = false)
+            val daily = s.dailyDay?.let(DailyChallenge::of)
+            require(daily == null || (daily.scenario == scenario && daily.seed == s.seed && s.mode == GameMode.NORMAL)) { "daily challenge does not match" }
+            val w = World(scenario, s.cols, s.rows, s.seed, spawnInitialNodes = false, mode = s.mode, daily = daily)
             for (y in 0 until s.rows) for (x in 0 until s.cols) {
                 val t = TERRAIN_CHARS.indexOf(s.water[y][x])
                 require(t >= 0) { "unknown terrain '${s.water[y][x]}'" }

@@ -16,17 +16,24 @@ import com.mininetworks.game.game.Terrain
 import com.mininetworks.game.game.Vec2
 import com.mininetworks.game.game.World
 
-/** Style A from docs/style-explorations.html: Mini-Metro-like, flat vector.
- * Cables follow the same grid layout as in the isometric style, with softly rounded corners. */
+/**
+ * Style A from docs/style-explorations.html: Mini-Metro-like, flat vector.
+ * Cables follow the same grid layout as in the isometric style, with softly rounded corners.
+ *
+ * The overview turns with the map ([Camera.angle]): the ground (grid, water, towers, veil, cables, radio circles) is
+ * drawn in world-aligned coordinates ([gx], [gy]) on a canvas turned around the view centre, which gives exactly the
+ * camera's world-to-screen mapping; icons, mountains, packets and labels stay upright at their turned positions.
+ */
 class FlatRenderer : Renderer {
     override val name = "Flat"
 
-    private val land = 0xFFF3F1EC.toInt()
-    private val waterColor = 0xFFC3DCE8.toInt()
+    /** Ground colors of the active color theme ([Cosmetic.theme], docs/TOP100.md C5), read at the start of a frame. */
+    private var land = Cosmetic.palette.flatLand
+    private var waterColor = Cosmetic.palette.flatWater
     private val ink = 0xFF262B33.toInt()
     private val alarm = 0xFFD7263D.toInt()
 
-    private val backdrop = 0xFFD3CFC5.toInt()
+    private var backdrop = Cosmetic.palette.flatBackdrop
     /** Veil over cells that are not unlocked yet. */
     private val lockedVeil = 0x66C9C4B8
     private val edge = 0x55262B33
@@ -62,32 +69,53 @@ class FlatRenderer : Renderer {
     private var riverReady = false
     private val river = ArrayList<Vec2>()
 
-    /** Flat map space is world space: one map unit per cell. */
-    override fun toMap(p: Vec2) = p
-    override fun fromMap(mx: Float, my: Float) = Vec2(mx, my)
+    /** Room for icons above the cells and request queues to the right of them (flat map units are turned cells). */
+    override fun mapBounds(area: CellRect, angle: Float) = turnedBounds(area, angle, MapProjection.Identity, 0.3f, 0.6f, 0.9f, 0.3f)
 
-    /** Room for icons above the cells and request queues to the right of them. */
-    override fun mapBounds(area: CellRect) =
-        MapRect(area.left - 0.3f, area.top - 0.6f, area.right + 0.9f, area.bottom + 0.3f)
+    /** The camera focus turned back into world axes, so [gx] and [gy] draw world-aligned under [turnCanvas]. */
+    private var groundFocusX = 0f
+    private var groundFocusY = 0f
+
+    /** Screen x (before the canvas turn of [turnCanvas]) of world x; exactly [Camera.toScreenX] when not turned. */
+    private fun gx(x: Float) = camera.centerX + (x - groundFocusX) * camera.scale
+    private fun gy(y: Float) = camera.centerY + (y - groundFocusY) * camera.scale
+
+    /** Turns [canvas] by the camera's angle around the view centre; draw world-aligned with [gx] and [gy], then restore. */
+    private fun turnCanvas(canvas: Canvas) {
+        canvas.save()
+        canvas.rotate(camera.angle, camera.centerX, camera.centerY)
+    }
 
     override fun draw(canvas: Canvas, world: World, drag: DragPreview?, time: Float) {
+        Cosmetic.palette.let {
+            land = it.flatLand
+            waterColor = it.flatWater
+            backdrop = it.flatBackdrop
+        }
         if (cornerRadius != cell * 0.35f) {
             cornerRadius = cell * 0.35f
             cableP.pathEffect = CornerPathEffect(cornerRadius)
         }
+        groundFocusX = camera.cosA * camera.focusX + camera.sinA * camera.focusY
+        groundFocusY = -camera.sinA * camera.focusX + camera.cosA * camera.focusY
         canvas.drawColor(backdrop)
+        turnCanvas(canvas)
         val grid = screenRect(world.bounds, gridRect)
         fillP.color = land; canvas.drawRect(grid, fillP)
         strokeP.color = edge; strokeP.strokeWidth = cell * 0.03f; canvas.drawRect(grid, strokeP)
         canvas.save()
         canvas.clipRect(grid)
         drawWater(canvas, world)
-        drawRelief(canvas, world)
+        drawTowers(canvas, world)
         canvas.restore()
+        canvas.restore()
+        drawMountains(canvas, world)
+        turnCanvas(canvas)
         drawLockedArea(canvas, world, grid)
 
         for (c in world.cables) {
-            polyline(cablePath(c))
+            val grow = Juice.growth(world.time, c.builtAt, c.layout.length)
+            if (grow < 1f) partialPolyline(cablePath(c), grow) else polyline(cablePath(c))
             val st = CableStyles.of(c.type)
             cableP.color = land; cableP.strokeWidth = cell * (st.width + 0.12f); canvas.drawPath(path, cableP)
             cableP.color = st.color; cableP.strokeWidth = cell * st.width; canvas.drawPath(path, cableP)
@@ -100,18 +128,23 @@ class FlatRenderer : Renderer {
                 cutP.strokeWidth = cell * st.width * 0.6f
                 canvas.drawPath(path, cutP)
             }
+            drawCableJuice(canvas, world, c, grow)
         }
 
         drawRadioCoverage(canvas, world, time)
         for (i in world.incidents) drawIncidentGround(canvas, i, time)
 
         drag?.let { d ->
-            val end = d.layout.end
             polyline(d.layout.waypoints)
             val st = CableStyles.of(d.type)
             cableP.color = if (d.blocked) alarm else st.color and 0x99FFFFFF.toInt()
             cableP.strokeWidth = cell * maxOf(st.width, 0.12f)
             canvas.drawPath(path, cableP)
+        }
+        canvas.restore()
+
+        drag?.let { d ->
+            val end = d.layout.end
             d.label?.let {
                 val s = toScreen(end)
                 labelP.textSize = maxOf(cell * 0.36f, LABEL_MIN_DP * density)
@@ -129,7 +162,7 @@ class FlatRenderer : Renderer {
         for (k in packets.indices) {
             val p = packets[k]
             world.packetPosition(p, pos)
-            val sx = camera.toScreenX(pos[0]); val sy = camera.toScreenY(pos[1])
+            val sx = screenX(pos[0], pos[1]); val sy = screenY(pos[0], pos[1])
             val r = cell * (0.09f + 0.03f * p.size)
             if (p.isResponse) {
                 // Responses: smaller and outlined in the service color.
@@ -152,7 +185,7 @@ class FlatRenderer : Renderer {
         }
 
         for (n in world.nodes) {
-            val nx = camera.toScreenX(n.center.x); val ny = camera.toScreenY(n.center.y)
+            val nx = screenX(n.center.x, n.center.y); val ny = screenY(n.center.x, n.center.y)
             val dark = world.isDark(n)
             val warning = world.incidents.any { it.node === n && !it.struck }
             when (n.kind) {
@@ -172,8 +205,8 @@ class FlatRenderer : Renderer {
                 NodeKind.CELL_TOWER -> icons.cellTower(canvas, nx, ny, cell * 0.34f, time)
                 NodeKind.SERVER -> if (n.isDataCenter) {
                     icons.dataCenter(
-                        canvas, n.service!!, world.serverBusy(n), camera.toScreenX(n.footprintCenter.x),
-                        camera.toScreenY(n.footprintCenter.y), cell * 0.85f, time,
+                        canvas, n.service!!, world.serverBusy(n), screenX(n.footprintCenter.x, n.footprintCenter.y),
+                        screenY(n.footprintCenter.x, n.footprintCenter.y), cell * 0.85f, time,
                     )
                 } else {
                     icons.server(canvas, n.service!!, n.level, world.serverBusy(n), nx, ny, cell * 0.34f, time)
@@ -209,7 +242,7 @@ class FlatRenderer : Renderer {
         for (n in world.nodes) {
             val dark = world.isDark(n)
             if (!dark && world.incidents.none { it.node === n }) continue
-            val nx = camera.toScreenX(n.center.x); val ny = camera.toScreenY(n.center.y)
+            val nx = screenX(n.center.x, n.center.y); val ny = screenY(n.center.x, n.center.y)
             val bx = nx - cell * 0.34f; val by = ny - cell * 0.36f; val r = cell * 0.14f
             fillP.color = if (dark) IncidentStyles.EXCAVATOR_DARK else IncidentStyles.WARNING
             canvas.drawCircle(bx, by, r, fillP)
@@ -217,10 +250,91 @@ class FlatRenderer : Renderer {
             canvas.drawPath(IncidentStyles.bolt(path, bx, by, r * 0.68f), fillP)
         }
 
+        drawNodeJuice(canvas, world)
+
         world.failedNode?.let {
             val s = toScreen(it.center)
             strokeP.color = alarm; strokeP.strokeWidth = cell * 0.05f
             canvas.drawCircle(s.x, s.y, cell * (0.7f + 0.15f * kotlin.math.sin(time * 6f)), strokeP)
+        }
+    }
+
+    /**
+     * On the turned canvas: the growing tip of a cable being laid, the ring clicking in at both ends once it has grown,
+     * and the glint running along it after an upgrade (docs/TOP100.md B3).
+     */
+    private fun drawCableJuice(canvas: Canvas, world: World, c: com.mininetworks.game.game.Cable, grow: Float) {
+        val st = CableStyles.of(c.type)
+        if (grow < 1f) {
+            c.layout.pointAt(grow, pos)
+            val x = gx(pos[0]); val y = gy(pos[1])
+            fillP.color = 0x66FFFFFF; canvas.drawCircle(x, y, cell * 0.16f, fillP)
+            fillP.color = st.color; canvas.drawCircle(x, y, cell * 0.08f, fillP)
+            fillP.color = 0xFFFFFFFF.toInt(); canvas.drawCircle(x, y, cell * 0.04f, fillP)
+        }
+        val land = Juice.landing(world.time, c.builtAt, c.layout.length)
+        if (land in 0f..1f) {
+            strokeP.color = st.color and 0xFFFFFF or (Juice.fade(land) shl 24)
+            strokeP.strokeWidth = cell * 0.05f * (1f - 0.5f * land)
+            canvas.drawCircle(gx(c.a.center.x), gy(c.a.center.y), cell * (0.3f + 0.3f * land), strokeP)
+            canvas.drawCircle(gx(c.b.center.x), gy(c.b.center.y), cell * (0.3f + 0.3f * land), strokeP)
+        }
+        val g = Juice.upgrade(world.time, c.upgradedAt, Juice.CABLE_GLINT_SECONDS)
+        if (g in 0f..1f) {
+            polyline(cablePath(c))
+            cableP.color = 0xFFFFFF or ((Juice.fade(g) * 0.55f).toInt() shl 24)
+            cableP.strokeWidth = cell * (st.width + 0.1f)
+            canvas.drawPath(path, cableP)
+            c.layout.pointAt(g, pos)
+            fillP.color = 0xFFFFFFFF.toInt()
+            Juice.sparkle(canvas, path, gx(pos[0]), gy(pos[1]), cell * 0.16f, fillP)
+        }
+    }
+
+    /** Upright: rings and sparkles at an upgraded node, and a pop with a little burst over each delivered response. */
+    private fun drawNodeJuice(canvas: Canvas, world: World) {
+        for (n in world.nodes) {
+            val t = Juice.upgrade(world.time, n.upgradedAt)
+            if (t !in 0f..1f) continue
+            val x = screenX(n.footprintCenter.x, n.footprintCenter.y); val y = screenY(n.footprintCenter.x, n.footprintCenter.y)
+            val base = cell * if (n.isDataCenter) 1.1f else 0.5f
+            strokeP.color = (n.service?.let(ServiceColors::of) ?: RadioStyles.color(n)) and 0xFFFFFF or (Juice.fade(t) shl 24)
+            strokeP.strokeWidth = cell * 0.05f * (1f - 0.5f * t)
+            canvas.drawCircle(x, y, base * (1f + 0.8f * t), strokeP)
+            Juice.sparkles(canvas, path, x, y - cell * 0.3f, t, base, cell * 0.5f, cell * 0.09f, 0xFFFFD34D.toInt(), fillP)
+        }
+        for (a in world.arrivals) {
+            val t = (world.time - a.time) / DELIVERY_POP
+            if (t !in 0f..1f) continue
+            val x = screenX(a.node.center.x, a.node.center.y); val y = screenY(a.node.center.x, a.node.center.y)
+            strokeP.color = ServiceColors.of(a.service) and 0xFFFFFF or ((1f - t) * 200f).toInt().shl(24)
+            strokeP.strokeWidth = cell * 0.04f
+            canvas.drawCircle(x, y, cell * (0.35f + 0.3f * t), strokeP)
+            if (!a.isResponse) continue
+            val py = y - cell * (0.55f + 0.35f * t)
+            val alpha = Juice.fade(t) shl 24
+            fillP.color = ServiceColors.of(a.service) and 0xFFFFFF or alpha
+            Shapes.draw(canvas, a.service.shape, x, py, cell * 0.08f, fillP)
+            val b = t / 0.45f
+            if (b <= 1f) Juice.sparkles(canvas, path, x, py, b, cell * 0.25f, 0f, cell * 0.05f, ServiceColors.of(a.service), fillP, n = 5)
+        }
+    }
+
+    /** The first [f] of the polyline through [pts] in ground coordinates, into [path]. */
+    private fun partialPolyline(pts: List<Vec2>, f: Float) {
+        path.reset()
+        var left = com.mininetworks.game.game.Geometry.polylineLength(pts) * f
+        path.moveTo(gx(pts[0].x), gy(pts[0].y))
+        for (i in 0 until pts.size - 1) {
+            val a = pts[i]; val b = pts[i + 1]
+            val seg = kotlin.math.hypot(b.x - a.x, b.y - a.y)
+            if (seg >= left) {
+                val u = if (seg > 0f) left / seg else 0f
+                path.lineTo(gx(a.x + (b.x - a.x) * u), gy(a.y + (b.y - a.y) * u))
+                return
+            }
+            path.lineTo(gx(b.x), gy(b.y))
+            left -= seg
         }
     }
 
@@ -231,14 +345,14 @@ class FlatRenderer : Renderer {
         for (n in world.nodes) if (n.radius > 0f && !world.isDark(n)) radios += n
         if (radios.isEmpty()) return
         for (n in radios) {
-            val c = toScreen(n.center); val col = RadioStyles.color(n)
+            val c = ground(n.center); val col = RadioStyles.color(n)
             fillP.color = col and 0x00FFFFFF or 0x1F000000; canvas.drawCircle(c.x, c.y, n.radius * cell, fillP)
             strokeP.color = col and 0x00FFFFFF or 0x99000000.toInt(); strokeP.strokeWidth = cell * 0.025f
             canvas.drawCircle(c.x, c.y, n.radius * cell, strokeP)
         }
         for (a in radios) for (b in world.interferers(a)) {
             if (b.id < a.id) continue
-            val ca = toScreen(a.center); val cb = toScreen(b.center)
+            val ca = ground(a.center); val cb = ground(b.center)
             clip.reset(); clip.addCircle(ca.x, ca.y, a.radius * cell, Path.Direction.CW)
             canvas.save()
             canvas.clipPath(clip)
@@ -246,7 +360,7 @@ class FlatRenderer : Renderer {
             canvas.restore()
         }
         for (n in radios) if (world.interferers(n).isNotEmpty()) {
-            val c = toScreen(n.center)
+            val c = ground(n.center)
             strokeP.color = alarm; strokeP.strokeWidth = cell * 0.03f; canvas.drawCircle(c.x, c.y, n.radius * cell, strokeP)
         }
         val dash = cell * 0.1f
@@ -254,14 +368,14 @@ class FlatRenderer : Renderer {
         airP.strokeWidth = cell * 0.035f
         for (l in world.radioLinks) {
             airP.color = RadioStyles.color(l.radio)
-            val a = toScreen(l.radio.center); val b = toScreen(l.device.center)
+            val a = ground(l.radio.center); val b = ground(l.device.center)
             canvas.drawLine(a.x, a.y, b.x, b.y, airP)
         }
     }
 
     /** Pulsing amber ring and countdown arc while announced, a red arc running down once struck, a hole at a cut. */
     private fun drawIncidentGround(canvas: Canvas, i: Incident, time: Float) {
-        val c = toScreen(i.spot)
+        val c = ground(i.spot)
         val r = cell * (if (i.kind == IncidentKind.EXCAVATOR) 0.32f else 0.5f)
         if (i.kind == IncidentKind.EXCAVATOR && i.struck) {
             fillP.color = IncidentStyles.DIRT; canvas.drawCircle(c.x, c.y, cell * 0.2f, fillP)
@@ -291,10 +405,7 @@ class FlatRenderer : Renderer {
         val r = cell * 0.3f
         for (y in 0 until world.rows) for (x in 0 until world.cols) {
             if (!world.water[y][x]) continue
-            canvas.drawRoundRect(
-                camera.toScreenX(x - 0.04f), camera.toScreenY(y - 0.04f), camera.toScreenX(x + 1.04f), camera.toScreenY(y + 1.04f),
-                r, r, fillP,
-            )
+            canvas.drawRoundRect(gx(x - 0.04f), gy(y - 0.04f), gx(x + 1.04f), gy(y + 1.04f), r, r, fillP)
         }
     }
 
@@ -329,42 +440,48 @@ class FlatRenderer : Renderer {
         return true
     }
 
-    /** Mountains as two-tone peaks, downtown towers as grey blocks, flat like the rest of the overview. */
-    private fun drawRelief(canvas: Canvas, world: World) {
+    /** Downtown towers as grey blocks, flat like the rest of the overview; drawn on the turned canvas. */
+    private fun drawTowers(canvas: Canvas, world: World) {
+        fillP.color = TOWER
         for (y in 0 until world.rows) for (x in 0 until world.cols) {
-            when (world.terrainAt(x, y)) {
-                Terrain.MOUNTAIN -> {
-                    val lx = camera.toScreenX(x + 0.08f); val ly = camera.toScreenY(y + 0.9f)
-                    val tx = camera.toScreenX(x + 0.5f); val ty = camera.toScreenY(y + 0.12f)
-                    val rx = camera.toScreenX(x + 0.92f); val ry = camera.toScreenY(y + 0.9f)
-                    path.reset(); path.moveTo(lx, ly); path.lineTo(tx, ty); path.lineTo(rx, ry); path.close()
-                    fillP.color = MOUNTAIN; canvas.drawPath(path, fillP)
-                    path.reset(); path.moveTo(tx, ty); path.lineTo(rx, ry); path.lineTo(tx, ry); path.close()
-                    fillP.color = MOUNTAIN_SHADE; canvas.drawPath(path, fillP)
-                }
-                Terrain.HIGH_RISE -> {
-                    fillP.color = TOWER
-                    canvas.drawRoundRect(
-                        camera.toScreenX(x + 0.16f), camera.toScreenY(y + 0.16f), camera.toScreenX(x + 0.84f), camera.toScreenY(y + 0.84f),
-                        cell * 0.08f, cell * 0.08f, fillP,
-                    )
-                }
-                else -> Unit
-            }
+            if (world.terrainAt(x, y) != Terrain.HIGH_RISE) continue
+            canvas.drawRoundRect(gx(x + 0.16f), gy(y + 0.16f), gx(x + 0.84f), gy(y + 0.84f), cell * 0.08f, cell * 0.08f, fillP)
         }
     }
+
+    /** Mountains as two-tone peaks that stay upright however the map is turned, lit from the left. */
+    private fun drawMountains(canvas: Canvas, world: World) {
+        for (y in 0 until world.rows) for (x in 0 until world.cols) {
+            if (world.terrainAt(x, y) != Terrain.MOUNTAIN) continue
+            val cx = screenX(x + 0.5f, y + 0.5f); val cy = screenY(x + 0.5f, y + 0.5f)
+            val lx = cx - cell * 0.42f; val ly = cy + cell * 0.4f
+            val tx = cx; val ty = cy - cell * 0.38f
+            val rx = cx + cell * 0.42f
+            path.reset(); path.moveTo(lx, ly); path.lineTo(tx, ty); path.lineTo(rx, ly); path.close()
+            fillP.color = MOUNTAIN; canvas.drawPath(path, fillP)
+            path.reset(); path.moveTo(tx, ty); path.lineTo(rx, ly); path.lineTo(tx, ly); path.close()
+            fillP.color = MOUNTAIN_SHADE; canvas.drawPath(path, fillP)
+        }
+    }
+
+    /** Screen position of world point ([x], [y]) with the turn applied, for things drawn upright. */
+    private fun screenX(x: Float, y: Float) = camera.toScreenX(camera.turnX(x, y))
+    private fun screenY(x: Float, y: Float) = camera.toScreenY(camera.turnY(x, y))
+
+    /** World point [p] in the ground coordinates of the turned canvas ([gx], [gy]). */
+    private fun ground(p: Vec2) = Vec2(gx(p.x), gy(p.y))
 
     /** The [river] as one smooth band. */
     private fun drawRiver(canvas: Canvas) {
         val pts = river
         if (pts.isEmpty()) return
         path.reset()
-        path.moveTo(camera.toScreenX(pts[0].x), camera.toScreenY(pts[0].y))
+        path.moveTo(gx(pts[0].x), gy(pts[0].y))
         for (i in 1 until pts.size - 1) {
             val mx = (pts[i].x + pts[i + 1].x) / 2; val my = (pts[i].y + pts[i + 1].y) / 2
-            path.quadTo(camera.toScreenX(pts[i].x), camera.toScreenY(pts[i].y), camera.toScreenX(mx), camera.toScreenY(my))
+            path.quadTo(gx(pts[i].x), gy(pts[i].y), gx(mx), gy(my))
         }
-        path.lineTo(camera.toScreenX(pts.last().x), camera.toScreenY(pts.last().y))
+        path.lineTo(gx(pts.last().x), gy(pts.last().y))
         strokeP.color = waterColor; strokeP.strokeWidth = cell * 1.0f
         canvas.drawPath(path, strokeP)
     }
@@ -384,17 +501,14 @@ class FlatRenderer : Renderer {
 
     /** [r] on screen, into [out]. */
     private fun screenRect(r: CellRect, out: RectF): RectF {
-        out.set(
-            camera.toScreenX(r.left.toFloat()), camera.toScreenY(r.top.toFloat()),
-            camera.toScreenX(r.right.toFloat()), camera.toScreenY(r.bottom.toFloat()),
-        )
+        out.set(gx(r.left.toFloat()), gy(r.top.toFloat()), gx(r.right.toFloat()), gy(r.bottom.toFloat()))
         return out
     }
 
     private fun polyline(pts: List<Vec2>) {
         path.reset()
         for (i in pts.indices) {
-            val x = camera.toScreenX(pts[i].x); val y = camera.toScreenY(pts[i].y)
+            val x = gx(pts[i].x); val y = gy(pts[i].y)
             if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
         }
     }
@@ -409,6 +523,8 @@ class FlatRenderer : Renderer {
         const val LABEL_MIN_DP = 13f
         /** Radius of an access point's channel badge never shrinks below this, so the number stays readable. */
         const val CHANNEL_BADGE_MIN_DP = 7f
+        /** Seconds of a delivery pop and of the ring where a request reaches its server. */
+        const val DELIVERY_POP = 0.8f
         const val MOUNTAIN = 0xFFB9B2A4.toInt()
         const val MOUNTAIN_SHADE = 0xFF9E9687.toInt()
         const val TOWER = 0xFFB4BAC2.toInt()

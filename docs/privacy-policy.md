@@ -47,7 +47,7 @@ Belohnungsvideos. Anbieter: Google Ireland Limited, Gordon House, Barrow Street,
 - **Einwilligung:** Beim Start fragt die App über die Google User Messaging Platform (UMP) nach deiner Einwilligung,
   wo das gesetzlich nötig ist (EWR, Vereinigtes Königreich, Schweiz). Werbung wird erst angefragt, wenn die
   Einwilligungsabfrage abgeschlossen ist. Du kannst deine Auswahl jederzeit unter
-  **Einstellungen → Datenschutz-Einstellungen** in der App ändern oder widerrufen.
+  **Einstellungen → Datenschutz** in der App ändern oder widerrufen.
 - **Rechtsgrundlagen:** Speichern und Auslesen von Informationen auf dem Gerät und personalisierte Werbung:
   Einwilligung (§ 25 Abs. 1 TDDDG, Art. 6 Abs. 1 lit. a DSGVO). Nicht personalisierte Werbung, soweit ohne Einwilligung
   zulässig, sowie Betrugserkennung: berechtigtes Interesse an der Finanzierung der kostenlosen App und an ihrer

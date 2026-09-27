@@ -181,4 +181,72 @@ class GameViewGestureTest {
         view.injectTouch(MotionEvent.ACTION_UP, p.x, p.y, time = 1500L)
         assertFalse("the second tap removes it", cable in world.cables)
     }
+
+    /** Two fingers turning by [degrees] around (800, 450), spreading nothing, then lifted. */
+    private fun twist(degrees: Float, steps: Int = 6) {
+        val r = 200f
+        fun at(a: Double) = floatArrayOf(
+            800f - r * kotlin.math.cos(a).toFloat(), 450f - r * kotlin.math.sin(a).toFloat(),
+            800f + r * kotlin.math.cos(a).toFloat(), 450f + r * kotlin.math.sin(a).toFloat(),
+        )
+        val start = at(0.0)
+        view.injectTouch(MotionEvent.ACTION_DOWN, start[0], start[1], floatArrayOf(start[0], start[1]))
+        view.injectTouch(MotionEvent.ACTION_POINTER_DOWN, start[2], start[3], start)
+        var p = start
+        for (k in 1..steps) {
+            p = at(Math.toRadians(degrees * k / steps.toDouble()))
+            view.injectTouch(MotionEvent.ACTION_MOVE, p[0], p[1], p)
+        }
+        view.injectTouch(MotionEvent.ACTION_POINTER_UP, p[2], p[3], floatArrayOf(p[0], p[1]))
+        view.injectTouch(MotionEvent.ACTION_UP, p[0], p[1], floatArrayOf())
+    }
+
+    /** docs/TOP100.md B5: turning with two fingers, snapping on release, the compass, and hits after turning. */
+    @Test
+    fun twoFingersTurnTheMapWhichSnapsToRightAnglesAndTheCompassTurnsItBack() {
+        val pc = world.addClient(Device.PC, 10, 7)
+        val mail = world.addServer(Service.MAIL, 14, 9)
+        val under = view.activeRenderer.toWorld(800f, 450f)
+        twist(60f)
+        assertTrue("turned while the fingers move", camera.angle in 50f..70f || camera.isRotating)
+        repeat(90) { view.advance(1f / 60f) }
+        assertEquals("snapped to the nearest right angle", 90f, camera.angle, 0f)
+        val back = view.activeRenderer.toScreen(under)
+        assertEquals("turned around the fingers' midpoint", 800f, back.x, 1f)
+        assertEquals(450f, back.y, 1f)
+
+        // Tapping and dragging hit the same nodes after the turn.
+        val a = view.activeRenderer.toScreen(pc.center)
+        val b = view.activeRenderer.toScreen(mail.center)
+        view.injectTouch(MotionEvent.ACTION_DOWN, a.x, a.y)
+        view.injectTouch(MotionEvent.ACTION_MOVE, (a.x + b.x) / 2f, (a.y + b.y) / 2f)
+        view.injectTouch(MotionEvent.ACTION_UP, b.x, b.y)
+        assertNotNull("a cable dragged on the turned map", world.cableBetween(pc, mail))
+
+        val bmp = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)
+        view.drawCurrent(Canvas(bmp))
+        val compass = view.hudTarget("compass")!!
+        view.injectTouch(MotionEvent.ACTION_DOWN, compass.centerX(), compass.centerY())
+        view.injectTouch(MotionEvent.ACTION_UP, compass.centerX(), compass.centerY())
+        repeat(90) { view.advance(1f / 60f) }
+        assertEquals("the compass turns back to north", 0f, camera.angle, 0f)
+        view.drawCurrent(Canvas(bmp))
+        assertNull("no compass while facing north", view.hudTarget("compass"))
+    }
+
+    @Test
+    fun freeRotationKeepsTheAngle() {
+        val app = RuntimeEnvironment.getApplication()
+        com.mininetworks.game.data.SettingsStore(app).save(com.mininetworks.game.data.GameSettings(freeRotation = true))
+        view = GameView(app)
+        val bmp = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)
+        view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 0f, style = "Flat")
+        twist(37f)
+        repeat(90) { view.advance(1f / 60f) }
+        assertEquals(37f, camera.angle, 0.5f)
+        val p = view.activeRenderer.toWorld(300f, 200f)
+        val s = view.activeRenderer.toScreen(p)
+        assertEquals(300f, s.x, 0.05f)
+        assertEquals(200f, s.y, 0.05f)
+    }
 }

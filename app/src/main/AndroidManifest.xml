@@ -20,10 +20,33 @@
             android:value="${admobAppId}" />
         <!-- The game draws everything itself and adapts to any size, so window changes (multi-window, folding,
              desktop windows, dark mode) must not recreate the activity and throw the running game away.
-             A fixed landscape suits the game; resized windows can still be portrait and are supported. -->
+             Landscape suits the game on phones; on large screens (tablets, unfolded foldables) MainActivity lifts the
+             lock at runtime (OrientationPolicy) so the game fills the screen in any orientation instead of being
+             letterboxed. Resizable for split screen, free-form and desktop windows (docs/TOP100.md A6). -->
+        <!-- Play Games Services v2 (docs/TOP100.md C2, C3, C6; docs/RELEASE.md 11): the project id from games-ids.xml.
+             The SDK's start-up provider is removed: MainActivity initializes the SDK itself, and only once
+             games-ids.xml holds real ids (GamesIds.configured), so a build with placeholders runs no Play Games code. -->
+        <meta-data
+            android:name="com.google.android.gms.games.APP_ID"
+            android:value="@string/app_id" />
+        <provider
+            android:name="com.google.android.gms.games.provider.PlayGamesInitProvider"
+            android:authorities="${applicationId}.playgamesinitprovider"
+            tools:node="remove" />
+        <!-- Share card (docs/TOP100.md D2): the PNG in cache/shared/ is handed out as a content:// URI with a read grant. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:resizeableActivity="true"
             android:screenOrientation="sensorLandscape"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density"
             tools:ignore="DiscouragedApi">

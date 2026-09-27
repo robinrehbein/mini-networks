@@ -1,6 +1,7 @@
 package com.mininetworks.game
 
 import android.app.Activity
+import android.content.res.Configuration
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
@@ -10,14 +11,23 @@ import android.view.WindowInsetsController
 import android.view.WindowManager
 import android.window.OnBackInvokedCallback
 import android.window.OnBackInvokedDispatcher
+import android.content.ActivityNotFoundException
+import android.util.Log
+import com.mininetworks.game.games.GamesIds
+import com.mininetworks.game.games.PlayGameServices
 import com.mininetworks.game.monetization.PlayMonetization
+import com.mininetworks.game.review.PlayReviewPrompt
+import com.mininetworks.game.share.ShareSheet
 import com.mininetworks.game.ui.GameView
+import java.io.File
 
 class MainActivity : Activity() {
 
     private lateinit var gameView: GameView
     /** Ads and purchases; null in debug builds, which run with NoOpMonetization unless configured otherwise. */
     private var monetization: PlayMonetization? = null
+    /** Play Games; null in debug builds and while games-ids.xml holds placeholders (NoOpGameServices then). */
+    private var games: PlayGameServices? = null
 
     /** The registered [OnBackInvokedCallback] (Android 13+), null while back goes to the system; see [setBackHandling]. */
     private var backCallback: Any? = null
@@ -25,6 +35,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         if (BuildConfig.DEBUG) DebugChecks.install()
         super.onCreate(savedInstanceState)
+        applyOrientation(resources.configuration)
         goEdgeToEdge()
         gameView = GameView(this)
         gameView.onExit = ::finish
@@ -36,6 +47,18 @@ class MainActivity : Activity() {
                 it.start()
             }
         }
+        if (BuildConfig.PLAY_SERVICES) {
+            // Play Games only with real ids (docs/RELEASE.md 11); the SDK is initialized here, not by its provider.
+            val ids = GamesIds(resources)
+            if (ids.configured) {
+                games = PlayGameServices(this, ids).also {
+                    gameView.gameServices = it
+                    it.start()
+                }
+            }
+            gameView.reviewPrompt = PlayReviewPrompt(this)
+        }
+        gameView.onShare = ::share
         setContentView(gameView)
         // Recreated after all (process death, or a change not listed in the manifest's configChanges): go on from the
         // autosave in the pause menu instead of starting over on the main menu.
@@ -117,6 +140,18 @@ class MainActivity : Activity() {
         }
     }
 
+    /** Landscape on phones, free rotation on large screens ([OrientationPolicy]). */
+    private fun applyOrientation(config: Configuration) {
+        val wanted = OrientationPolicy.forSmallestWidth(config.smallestScreenWidthDp)
+        if (requestedOrientation != wanted) requestedOrientation = wanted
+    }
+
+    /** Folding, unfolding or resizing the window: the activity stays (manifest configChanges), the orientation adapts. */
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        applyOrientation(newConfig)
+    }
+
     override fun onResume() {
         super.onResume()
         hideSystemBars()
@@ -139,7 +174,20 @@ class MainActivity : Activity() {
         super.onPause()
     }
 
+    /** Opens the Android share sheet for the share card [file] (docs/TOP100.md D2). */
+    private fun share(file: File, text: String) {
+        if (isFinishing) return
+        try {
+            startActivity(ShareSheet.chooser(this, file, text))
+        } catch (e: ActivityNotFoundException) {
+            Log.w("Share", "no app to share with", e)
+        } catch (e: IllegalArgumentException) {
+            Log.w("Share", "share card not shareable", e)
+        }
+    }
+
     override fun onDestroy() {
+        games?.close()
         monetization?.close()
         super.onDestroy()
     }

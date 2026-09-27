@@ -19,6 +19,10 @@ val admobInterstitialId = monetizationProperty("mininetworks.admob.interstitialI
 val admobRewardedId = monetizationProperty("mininetworks.admob.rewardedId", "$admobTestPublisher/5224354917")
 val admobTestIds = listOf(admobAppId, admobInterstitialId, admobRewardedId).filter { it.startsWith(admobTestPublisher) }
 val playMonetizationInDebug = monetizationProperty("mininetworks.playMonetizationInDebug", "false").toBoolean()
+// Play Games Services and In-App Review (docs/TOP100.md C2, C3, C6, D1): no-op in debug builds unless asked for.
+val playServicesInDebug = monetizationProperty("mininetworks.playServicesInDebug", "false").toBoolean()
+/** games-ids.xml still holds the placeholders of the repo (docs/RELEASE.md 11): Play Games then stays off at runtime. */
+val gamesIdsArePlaceholders = file("src/main/res/values/games-ids.xml").readText().contains(">TODO_")
 
 // Version scheme (docs/RELEASE.md): versionName is MAJOR.MINOR.PATCH, versionCode = MAJOR * 10000 + MINOR * 100 + PATCH,
 // so every new name uploads with a higher code. CI may pass -Pmininetworks.versionCode=<n> to upload a rebuild of the same name.
@@ -76,6 +80,7 @@ android {
             versionNameSuffix = "-debug"
             // Debug builds run without ads and billing (NoOpMonetization) unless asked for.
             buildConfigField("boolean", "PLAY_MONETIZATION", playMonetizationInDebug.toString())
+            buildConfigField("boolean", "PLAY_SERVICES", playServicesInDebug.toString())
         }
         release {
             isMinifyEnabled = true
@@ -83,6 +88,7 @@ android {
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs.findByName("upload") ?: signingConfigs.getByName("debug")
             buildConfigField("boolean", "PLAY_MONETIZATION", "true")
+            buildConfigField("boolean", "PLAY_SERVICES", "true")
         }
     }
 
@@ -126,6 +132,15 @@ dependencies {
     // Baseline Profile (docs/TOP100.md A4): installs src/main/baseline-prof.txt at install time on devices where Play
     // does not ship cloud profiles yet (sideloads, early installs), so startup and the game loop run AOT-compiled.
     implementation("androidx.profileinstaller:profileinstaller:1.4.1")
+    // Play Games Services v2 (docs/TOP100.md C2, C3, C6): sign-in, achievements, leaderboards, Saved Games. Behind
+    // games/GameServices.kt; debug builds and tests use NoOpGameServices, release builds only with real ids (games-ids.xml).
+    implementation("com.google.android.gms:play-services-games-v2:22.1.0")
+    // In-App Review (D1), behind review/ReviewPrompt.kt; when to ask is decided by :core ReviewPolicy.
+    implementation("com.google.android.play:review:2.0.2")
+    // FileProvider for the share card (D2); pinned to the version play-services-ads already resolves (newer androidx.core
+    // releases are built with a newer Kotlin than the project's 2.1, see the note on play-services-ads above).
+    //noinspection GradleDependency
+    implementation("androidx.core:core:1.15.0")
     testImplementation(testFixtures(project(":core")))
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.14.1")
@@ -144,5 +159,10 @@ gradle.taskGraph.whenReady {
             "set mininetworks.admob.appId, .interstitialId and .rewardedId (docs/RELEASE.md) or it earns nothing."
         // A build signed for Play must never ship test ads; a local debug-signed release build only warns.
         if (hasUploadKey) throw GradleException(message) else logger.warn(message)
+    }
+    if (gamesIdsArePlaceholders) {
+        // Play Games is optional (docs/TOP100.md A8): the build works and the game runs without it, but say so.
+        logger.warn("Mini Networks: res/values/games-ids.xml still holds TODO_ placeholders (docs/RELEASE.md 11); " +
+            "this build runs without Play Games (no leaderboards, achievement sync or cloud save).")
     }
 }

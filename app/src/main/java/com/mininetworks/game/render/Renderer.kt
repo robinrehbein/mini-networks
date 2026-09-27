@@ -7,6 +7,7 @@ import android.graphics.Path
 import android.graphics.RectF
 import com.mininetworks.game.game.Cable
 import com.mininetworks.game.game.CableLayout
+import com.mininetworks.game.game.CableSkin
 import com.mininetworks.game.game.CableType
 import com.mininetworks.game.game.CellRect
 import com.mininetworks.game.game.Device
@@ -62,20 +63,39 @@ interface Renderer {
      */
     val readableScale: Float
 
-    /** World units on the ground plane -> this style's map units (before zoom and pan). */
-    fun toMap(p: Vec2): Vec2
+    /** World units on the ground plane -> this style's map units (turned by the camera's angle, before zoom and pan). */
+    fun toMap(p: Vec2): Vec2 = camera.worldToMap(p.x, p.y)
 
     /** Map units -> world units on the ground plane; inverse of [toMap]. */
-    fun fromMap(mx: Float, my: Float): Vec2
+    fun fromMap(mx: Float, my: Float): Vec2 = camera.mapToWorld(mx, my)
 
-    /** Map-space box that shows [area] with everything drawn on it (buildings, queues, board edge). */
-    fun mapBounds(area: CellRect): MapRect
+    /**
+     * Map-space box that shows [area] with everything drawn on it (buildings, queues, board edge) when the world is
+     * turned by [angle] degrees: the box around the turned area plus room for what stands up from it.
+     */
+    fun mapBounds(area: CellRect, angle: Float = camera.angle): MapRect
 
     /** World units -> screen pixels, on the ground plane. */
-    fun toScreen(p: Vec2): Vec2 = camera.toScreen(toMap(p))
+    fun toScreen(p: Vec2): Vec2 = camera.worldToScreen(p)
 
-    /** Screen pixels -> world units, on the ground plane. */
-    fun toWorld(sx: Float, sy: Float): Vec2 = camera.toMap(sx, sy).let { fromMap(it.x, it.y) }
+    /** Screen pixels -> world units, on the ground plane. The inverse of [toScreen] at any zoom, pan and angle. */
+    fun toWorld(sx: Float, sy: Float): Vec2 = camera.screenToWorld(sx, sy)
+
+    /**
+     * Turns the view by [degrees] around the screen point ([pivotX], [pivotY]) and renews the angle-dependent pan
+     * limit. Tapping and dragging keep hitting the same cells, as both go through [toScreen] and [toWorld].
+     */
+    fun rotateBy(degrees: Float, pivotX: Float, pivotY: Float, world: World) {
+        camera.rotateBy(degrees, pivotX, pivotY)
+        updateLimits(world)
+    }
+
+    /** Advances the camera's animations by [dt] seconds, renewing the pan limit while the angle changes. */
+    fun stepCamera(dt: Float, world: World) {
+        val before = camera.angle
+        camera.step(dt)
+        if (camera.angle != before) updateLimits(world)
+    }
 
     /** Sets the view size and fits the camera to the world's unlocked area. */
     fun layout(width: Int, height: Int, world: World, insets: ViewInsets = ViewInsets.NONE) {
@@ -143,14 +163,15 @@ interface Renderer {
     }
 
     /**
-     * Zoom range: out to the whole grid (and a bit more), in until about [ZOOM_IN_COLS] × [ZOOM_IN_ROWS] cells fill the view.
-     * The screen centre stays over the grid.
+     * Zoom range: out to the whole grid (and a bit more) at any angle, in until about [ZOOM_IN_COLS] × [ZOOM_IN_ROWS]
+     * cells fill the view. The range does not depend on the current angle, so turning the map never zooms it. The
+     * screen centre stays over the grid as it is turned now.
      */
     fun updateLimits(world: World) {
-        val whole = mapBounds(world.bounds)
-        val out = minOf(camera.fitScale(whole), camera.fitScale(mapBounds(world.unlocked))) * ZOOM_OUT_SLACK
-        camera.setZoomRange(out, camera.fitScale(mapBounds(CellRect(0, 0, ZOOM_IN_COLS, ZOOM_IN_ROWS))))
-        camera.panBounds = whole
+        var out = Float.MAX_VALUE
+        for (a in LIMIT_ANGLES) out = minOf(out, camera.fitScale(mapBounds(world.bounds, a)), camera.fitScale(mapBounds(world.unlocked, a)))
+        camera.setZoomRange(out * ZOOM_OUT_SLACK, camera.fitScale(mapBounds(CellRect(0, 0, ZOOM_IN_COLS, ZOOM_IN_ROWS), 0f)))
+        camera.panBounds = mapBounds(world.bounds)
     }
 
     /**
@@ -189,6 +210,8 @@ interface Renderer {
     }
 
     companion object {
+        /** Angles the zoom-out limit is worked out for; the widest one counts. */
+        val LIMIT_ANGLES = floatArrayOf(0f, 30f, 45f, 60f, 90f, 120f, 135f, 150f)
         const val ZOOM_OUT_SLACK = 0.9f
         const val ZOOM_IN_COLS = 6
         const val ZOOM_IN_ROWS = 4
@@ -244,6 +267,74 @@ object ProblemBadges {
     }
 
     private val SIDES = floatArrayOf(-1f, 1f)
+}
+
+/**
+ * The box in map units around [area] turned by [angle] degrees and flattened by [projection], plus [left], [top],
+ * [right] and [bottom] map units of room for what is drawn on it. Shared by the styles' [Renderer.mapBounds].
+ */
+fun turnedBounds(area: CellRect, angle: Float, projection: MapProjection, left: Float, top: Float, right: Float, bottom: Float): MapRect {
+    val r = Math.toRadians(angle.toDouble())
+    var c = cos(r).toFloat(); var s = sin(r).toFloat()
+    if (angle % 90f == 0f) { c = kotlin.math.round(c); s = kotlin.math.round(s) }
+    var l = Float.MAX_VALUE; var t = Float.MAX_VALUE; var rr = -Float.MAX_VALUE; var b = -Float.MAX_VALUE
+    for (k in 0 until 4) {
+        val x = (if (k == 1 || k == 2) area.right else area.left).toFloat()
+        val y = (if (k >= 2) area.bottom else area.top).toFloat()
+        val tx = c * x - s * y; val ty = s * x + c * y
+        val mx = projection.projectX(tx, ty); val my = projection.projectY(tx, ty)
+        l = minOf(l, mx); t = minOf(t, my); rr = maxOf(rr, mx); b = maxOf(b, my)
+    }
+    return MapRect(l - left, t - top, rr + right, b + bottom)
+}
+
+/**
+ * Timing of the small effects shared by all styles (docs/TOP100.md B3): a cable grows along its path when laid and
+ * clicks in with a ring at both ends, a glint runs along a cable that was upgraded, rings and sparkles rise from an
+ * upgraded server or access point, and a delivered response pops above its device with a little burst.
+ */
+object Juice {
+    /** Seconds a freshly laid cable of [length] cells takes to grow. */
+    fun layDuration(length: Float) = (0.15f + length * 0.06f).coerceAtMost(0.6f)
+
+    /** 0..1: how much of a cable of [length] laid at [builtAt] is drawn at [time], easing out. */
+    fun growth(time: Float, builtAt: Float, length: Float): Float {
+        val t = ((time - builtAt) / layDuration(length)).coerceIn(0f, 1f)
+        return 1f - (1f - t) * (1f - t)
+    }
+
+    /** 0..1 progress of the click-in ring once the cable has grown, or a value outside while none shows. */
+    fun landing(time: Float, builtAt: Float, length: Float) = (time - builtAt - layDuration(length)) / LANDING_SECONDS
+
+    /** 0..1 progress of an upgrade effect that started at [at], or a value outside while none shows. */
+    fun upgrade(time: Float, at: Float, seconds: Float = UPGRADE_SECONDS) = (time - at) / seconds
+
+    const val LANDING_SECONDS = 0.45f
+    const val UPGRADE_SECONDS = 0.9f
+    const val CABLE_GLINT_SECONDS = 0.7f
+
+    /** A four-pointed sparkle of radius [r] around ([x], [y]). */
+    fun sparkle(canvas: Canvas, path: Path, x: Float, y: Float, r: Float, paint: Paint) {
+        val k = r * 0.28f
+        path.reset()
+        path.moveTo(x, y - r); path.lineTo(x + k, y - k); path.lineTo(x + r, y); path.lineTo(x + k, y + k)
+        path.lineTo(x, y + r); path.lineTo(x - k, y + k); path.lineTo(x - r, y); path.lineTo(x - k, y - k); path.close()
+        canvas.drawPath(path, paint)
+    }
+
+    /** Alpha 0..255 that fades out over progress [t] (0..1), quicker at the end. */
+    fun fade(t: Float) = ((1f - t * t).coerceIn(0f, 1f) * 255f).toInt()
+
+    /** Sparkles rising around ([x], [y]) at progress [t]: [n] of them on a ring of [spread] px, [rise] px up at the end. */
+    fun sparkles(canvas: Canvas, path: Path, x: Float, y: Float, t: Float, spread: Float, rise: Float, size: Float, color: Int, paint: Paint, n: Int = 6) {
+        if (t !in 0f..1f) return
+        paint.color = color and 0xFFFFFF or (fade(t) shl 24)
+        for (i in 0 until n) {
+            val a = (i * 2.0 * Math.PI / n + 0.4).toFloat()
+            val d = spread * (0.5f + 0.5f * t)
+            sparkle(canvas, path, x + cos(a) * d, y + sin(a) * d * 0.5f - rise * t, size * (1f - 0.5f * t), paint)
+        }
+    }
 }
 
 /** Minimum touch target sizes; picking works in screen space so targets keep this size at every zoom. */
@@ -359,21 +450,44 @@ object ServiceColors {
     }
 }
 
-/** Look of each cable technology: outer color, width (in world units) and an optional inner core line. */
+/**
+ * Look of each cable technology: outer color, width (in world units) and an optional inner core line. The width grows
+ * with the capacity and stays the same in every cable skin ([Cosmetic.skin], docs/TOP100.md C5); a skin only changes
+ * colors, so the technologies stay apart by width and brightness and nothing about the rules changes.
+ */
 object CableStyles {
     class Style(val color: Int, val width: Float, val core: Int?, val coreWidth: Float)
 
-    private val ISDN = Style(0xFF9AA3AD.toInt(), 0.08f, null, 0f)
-    private val DSL = Style(0xFF39424E.toInt(), 0.13f, null, 0f)
-    private val COAX = Style(0xFF2F2A26.toInt(), 0.17f, 0xFF9C8B7A.toInt(), 0.045f)
-    private val FIBER = Style(0xFFF28C28.toInt(), 0.18f, 0xFFFFE2B8.toInt(), 0.05f)
+    private const val W_ISDN = 0.08f
+    private const val W_DSL = 0.13f
+    private const val W_COAX = 0.17f
+    private const val W_FIBER = 0.18f
+    private const val CORE_COAX = 0.045f
+    private const val CORE_FIBER = 0.05f
 
-    fun of(t: CableType) = when (t) {
-        CableType.ISDN -> ISDN
-        CableType.DSL -> DSL
-        CableType.COAX -> COAX
-        CableType.FIBER -> FIBER
-    }
+    /** ISDN, DSL, coax and fiber of one skin, in [CableType] order. */
+    private fun skin(isdn: Int, dsl: Int, dslCore: Int?, coax: Int, coaxCore: Int, fiber: Int, fiberCore: Int) = listOf(
+        Style(isdn, W_ISDN, null, 0f),
+        Style(dsl, W_DSL, dslCore, if (dslCore != null) 0.035f else 0f),
+        Style(coax, W_COAX, coaxCore, CORE_COAX),
+        Style(fiber, W_FIBER, fiberCore, CORE_FIBER),
+    )
+
+    private val CLASSIC = skin(0xFF9AA3AD.toInt(), 0xFF39424E.toInt(), null, 0xFF2F2A26.toInt(), 0xFF9C8B7A.toInt(), 0xFFF28C28.toInt(), 0xFFFFE2B8.toInt())
+    private val COPPER = skin(0xFFC4A07E.toInt(), 0xFF5E3620.toInt(), null, 0xFF3A2519.toInt(), 0xFFD08A52.toInt(), 0xFFD9A441.toInt(), 0xFFFFF0C2.toInt())
+    private val NEON = skin(0xFF7ED3E6.toInt(), 0xFF262A50.toInt(), 0xFF8F6BFF.toInt(), 0xFF16181F.toInt(), 0xFFFF4FA3.toInt(), 0xFF3EE68A.toInt(), 0xFFE8FFF1.toInt())
+    private val PASTEL = skin(0xFFB9C3D3.toInt(), 0xFF4A4C48.toInt(), 0xFFC9B8E8.toInt(), 0xFF1C191E.toInt(), 0xFFE9C6D6.toInt(), 0xFFF3A6B8.toInt(), 0xFFFFE6EE.toInt())
+    private val GOLD = skin(0xFFC9BC92.toInt(), 0xFF564B36.toInt(), null, 0xFF24211B.toInt(), 0xFFD4AF37.toInt(), 0xFFE8B923.toInt(), 0xFFFFF3C4.toInt())
+
+    fun of(t: CableType) = of(Cosmetic.skin, t)
+
+    fun of(skin: CableSkin, t: CableType): Style = when (skin) {
+        CableSkin.CLASSIC -> CLASSIC
+        CableSkin.COPPER -> COPPER
+        CableSkin.NEON -> NEON
+        CableSkin.PASTEL -> PASTEL
+        CableSkin.GOLD -> GOLD
+    }[t.ordinal]
 }
 
 /**
