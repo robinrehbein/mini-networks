@@ -48,6 +48,23 @@ object TextWrap {
     }
 
     /**
+     * [wrap], but a text that needs several lines is wrapped at the narrowest width that keeps the same number of
+     * lines, so the lines are about equally long and no single word dangles on the last one ("… zum / Start").
+     */
+    fun balanced(s: String, maxWidth: Float, maxLines: Int = Int.MAX_VALUE, measure: (String) -> Float): List<String> {
+        val rows = wrap(s, maxWidth, maxLines, measure)
+        if (rows.size < 2 || rows.last().endsWith(ELLIPSIS)) return rows
+        var lo = maxWidth / rows.size * 0.9f
+        var hi = maxWidth
+        repeat(14) {
+            val mid = (lo + hi) / 2f
+            val r = wrap(s, mid, maxLines, measure)
+            if (r.size == rows.size && !r.last().endsWith(ELLIPSIS)) hi = mid else lo = mid
+        }
+        return wrap(s, hi, maxLines, measure)
+    }
+
+    /**
      * [s] broken into lines no wider than [maxWidth] as measured by [measure]. With [maxLines], the text that does not
      * fit is put on the last line, which is then shortened with "…" if needed (see [fit]); without it, every line is
      * kept (a single piece wider than [maxWidth] gets a line of its own).

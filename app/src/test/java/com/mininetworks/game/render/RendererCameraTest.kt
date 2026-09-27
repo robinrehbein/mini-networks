@@ -94,6 +94,28 @@ class RendererCameraTest {
         }
     }
 
+    /** docs/TOP100.md B4: in landscape the built network fills the view instead of the whole diamond of the area. */
+    @Test
+    fun landscapeFramingZoomsOnTheNetworkButKeepsEveryNode() {
+        val w = World(seed = 2L, spawnInitialNodes = false)
+        val a = w.unlocked
+        val mid = a.center
+        w.addClient(Device.PC, mid.x.toInt() - 1, mid.y.toInt())
+        w.addClient(Device.PHONE, mid.x.toInt() + 1, mid.y.toInt() - 1)
+        for (r in renderers(w)) {
+            val plainFit = r.camera.fitScale(r.mapBounds(a))
+            assertTrue("${r.name} zooms in on the built middle", r.camera.scale > plainFit * 1.2f)
+            assertTrue("${r.name} shows every node", r.camera.shows(r.contentBounds(w)!!))
+        }
+        val corner = w.addClient(Device.LAPTOP, a.left, a.bottom - 1)
+        for (r in renderers(w)) {
+            r.onContentChanged(w)
+            repeat(200) { r.camera.step(0.05f) }
+            val m = r.toMap(corner.footprintCenter)
+            assertTrue("${r.name} glides out to a device on the corner", r.camera.shows(MapRect(m.x, m.y, m.x, m.y)))
+        }
+    }
+
     @Test
     fun zoomRangeReachesWholeGridAndCloseUp() {
         val w = World(seed = 2L, spawnInitialNodes = false)

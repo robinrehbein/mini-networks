@@ -185,10 +185,15 @@ class StoreScreenshotTest {
             val world = Scenes.hud()
             val from = world.nodes.first { it.device == Device.TABLET }
             val to = world.nodes.first { it.service == Service.GAMING }
-            // Slightly above the middle of the drag, so the board fills the lower right of the card too.
-            val mid = Vec2((from.center.x + to.center.x) / 2f - 1f, (from.center.y + to.center.y) / 2f - 1.5f)
+            // Centred between the drag and the board's middle (the drag runs near the board's east edge), close enough
+            // that the board fills the card.
+            val mid = Vec2(
+                (from.center.x + to.center.x) / 2f * 0.6f + world.cols / 2f * 0.4f,
+                (from.center.y + to.center.y) / 2f * 0.6f + world.rows / 2f * 0.4f,
+            )
             val v = view(hud = true)
-            game(bmp, world, zoom = 1.75f, view = v, focus = mid) { gv ->
+            var tip = Vec2(0f, 0f)
+            game(bmp, world, zoom = 2.0f, view = v, focus = mid) { gv ->
                 gv.drawCurrent(Canvas(bmp))
                 tap(gv, "cable:${CableType.FIBER.name}")
                 gv.hudHidden = true
@@ -200,32 +205,40 @@ class StoreScreenshotTest {
                     val t = k * 0.93f / steps
                     // A finger never moves in a straight line: a slight arc makes the trail readable.
                     val bow = kotlin.math.sin(t * Math.PI).toFloat() * (b.y - a.y).let { abs(it) * 0.18f + bmp.height * 0.03f }
-                    gv.injectTouch(MotionEvent.ACTION_MOVE, a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t - bow)
+                    tip = Vec2(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t - bow)
+                    gv.injectTouch(MotionEvent.ACTION_MOVE, tip.x, tip.y)
                 }
             }
+            finger(bmp, tip.x, tip.y)
         },
         // 3. Wireless with the controls: Wi-Fi channels, 5 GHz, a cell tower, traffic on every link.
-        Shot("wireless") { bmp -> game(bmp, busyWireless(), zoom = 1.3f, view = view(hud = true)) },
-        // 4. The turned map, in the winter theme: the metropolis at an odd angle, with a turn gesture drawn over it.
+        //    No HUD: its pills covered a third of the radio zones at phone size (judge panel).
+        Shot("wireless") { bmp ->
+            val world = storeWireless()
+            val radios = world.nodes.filter { it.kind == NodeKind.ACCESS_POINT || it.kind == NodeKind.CELL_TOWER }
+            val focus = Vec2(radios.map { it.center.x }.average().toFloat(), radios.map { it.center.y }.average().toFloat())
+            game(bmp, world, zoom = 1.1f, focus = focus)
+        },
+        // 4. The turned map, in the autumn theme (winter read white-on-white): the metropolis at an odd angle, with a
+        //    turn gesture drawn over it.
         Shot("rotation") { bmp ->
             val world = wiredStart()
-            game(bmp, world, zoom = 1.3f, theme = ColorTheme.WINTER) { v ->
+            game(bmp, world, zoom = 1.3f, theme = ColorTheme.AUTUMN) { v ->
                 val r = v.activeRenderer
                 r.rotateBy(Camera.shortestTurn(r.camera.angle, 34f), r.camera.centerX, r.camera.centerY, world)
             }
             rotationHint(bmp)
         },
-        // 5. The daily challenge: today's map with the streak flame, in the autumn theme.
+        // 5. The daily challenge: today's map with the streak flame.
         Shot("daily") { bmp ->
             val v = view()
             v.drawSnapshot(Canvas(bmp), v.currentWorld, bmp.width, bmp.height, time = 1.3f, screen = Screen.DAILY)
-            Cosmetic.theme = ColorTheme.AUTUMN
             bmp.eraseColor(0)
             v.drawCurrent(Canvas(bmp))
         },
-        // 6. The week reward: two cards and the weekly pay (no ad button in store art).
+        // 6. The week reward: two large cards over the running map (no ad button, no menu button in store art).
         Shot("reward") { bmp ->
-            view(hud = true).drawSnapshot(Canvas(bmp), FormFactorScreenshotTest.rewardWorld(), bmp.width, bmp.height, time = 1.3f, style = "Iso")
+            view().drawSnapshot(Canvas(bmp), FormFactorScreenshotTest.rewardWorld(), bmp.width, bmp.height, time = 1.3f, style = "Iso")
         },
         // 7. Five sceneries, each in colour, as a collage of their maps.
         Shot("sceneries") { bmp -> sceneryCollage(bmp) },
@@ -293,8 +306,41 @@ class StoreScreenshotTest {
         }
     }
 
-    /** The wireless scene a few seconds on, so packets fly over cables and radio links. */
-    private fun busyWireless(): World = Scenes.wireless().also { w -> repeat(60 * 4) { w.update(1f / 60f) }; rushHour(w, seconds = 1.6f, rounds = 1) }
+
+    /**
+     * Wireless for the store: three clearly separate radio zones (a Wi-Fi access point, a 5 GHz one and a cell tower)
+     * with their clients, so each zone reads at thumbnail size (the test scene packs four access points together).
+     */
+    private fun storeWireless(): World {
+        val w = World(cols = 16, rows = 10, seed = 3L, spawnInitialNodes = false)
+        for (row in w.water) row.fill(false)
+        w.incidentsEnabled = false
+        w.jumpToWeek(7)
+        w.grant(400, extraAccessPoints = 1, extraCellTowers = 1)
+        val call = w.addServer(Service.CALL, 13, 1)
+        val cdn = w.addServer(Service.STREAMING, 2, 1)
+        val mail = w.addServer(Service.MAIL, 8, 1)
+        val west = w.addRouter(5, 3)
+        val east = w.addRouter(10, 3)
+        check(w.connect(west, east, CableType.FIBER))
+        listOf(cdn, mail).forEach { check(w.connect(west, it, CableType.FIBER)) }
+        check(w.connect(east, call, CableType.FIBER))
+        repeat(2) { listOf(call, cdn, mail).forEach { s -> w.upgradeServer(s) } }
+        val ap = w.addRadio(com.mininetworks.game.game.RadioType.WLAN, 3, 6)
+        val fast = w.addRadio(com.mininetworks.game.game.RadioType.WLAN, 8, 7)
+        val tower = w.addRadio(com.mininetworks.game.game.RadioType.CELL, 13, 6)
+        w.upgradeTo5Ghz(fast)
+        check(w.connect(ap, west, CableType.FIBER))
+        listOf(fast, tower).forEach { check(w.connect(it, east, CableType.FIBER)) }
+        for ((device, x, y) in listOf(
+            Triple(Device.LAPTOP, 2, 5), Triple(Device.TABLET, 2, 7), Triple(Device.TV, 4, 7),
+            Triple(Device.PC, 7, 8), Triple(Device.TABLET, 9, 8), Triple(Device.SMARTPHONE, 8, 9),
+            Triple(Device.SMARTPHONE, 14, 7), Triple(Device.WATCH, 12, 8), Triple(Device.TABLET, 14, 5),
+        )) w.addClient(device, x, y)
+        repeat(60 * 10) { w.update(1f / 60f) }
+        rushHour(w, seconds = 1.6f, rounds = 1)
+        return w
+    }
 
     /** The metropolis a little after the start, every device wired to the nearest server with the best cable. */
     private fun wiredStart(): World {
@@ -311,6 +357,17 @@ class StoreScreenshotTest {
         }
         repeat(60 * 30) { w.update(1f / 60f) }
         return w
+    }
+
+    /** A fingertip pressing at ([x], [y]): a soft shadow, a translucent pad and a ring, as screen-recording tools show touches. */
+    private fun finger(bmp: Bitmap, x: Float, y: Float) {
+        val c = Canvas(bmp)
+        val d = app.resources.displayMetrics.density * com.mininetworks.game.ui.TextScale.uiScale(app.resources.configuration.smallestScreenWidthDp)
+        val r = 26f * d
+        c.drawCircle(x + 3f * d, y + 5f * d, r, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x33000000; maskFilter = BlurMaskFilter(8f * d, BlurMaskFilter.Blur.NORMAL) })
+        c.drawCircle(x, y, r, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x88FFFFFF.toInt() })
+        c.drawCircle(x, y, r, Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 4f * d; color = 0xFFF28C28.toInt() })
+        c.drawCircle(x, y, r * 0.35f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFF28C28.toInt() })
     }
 
     /** A two-finger turn drawn over the map: a curved double arrow around the middle and two touch points. */
@@ -394,6 +451,10 @@ class StoreScreenshotTest {
             c.restore()
             val title = texts.scenario(s)
             val sub = app.getString(R.string.scenery_from_year, s.startYear)
+            // Long names ("Kleinstadt am Fluss", French, Polish) shrink to the tile instead of running past the label.
+            name.textSize = 17f * d
+            val room = r.width() - 20f * d - 24f * d
+            if (name.measureText(title) > room) name.textSize *= room / name.measureText(title)
             val pw = maxOf(name.measureText(title), era.measureText(sub)) + 24f * d
             val ph = name.textSize + era.textSize + 22f * d
             val pr = RectF(r.left + 10f * d, r.bottom - 10f * d - ph, r.left + 10f * d + pw, r.bottom - 10f * d)

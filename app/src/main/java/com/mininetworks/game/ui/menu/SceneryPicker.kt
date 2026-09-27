@@ -439,7 +439,7 @@ class SceneryPicker(context: Context) {
         private const val MIN_GRID_SCALE = 0.8f
         /** The start block fills the preview a bit beyond its edges. */
         private const val PREVIEW_ZOOM = 1.5f
-        private const val MIN_NAME_SP = 12f
+        private const val MIN_NAME_SP = 10f
         private const val ELLIPSIS = "…"
     }
 }

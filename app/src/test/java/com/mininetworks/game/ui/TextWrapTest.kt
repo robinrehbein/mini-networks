@@ -23,6 +23,19 @@ class TextWrapTest {
         assertEquals(listOf("Budget 3  ·  Router 2"), TextWrap.wrap("Budget 3  ·  Router 2", 40f, measure = measure))
     }
 
+    /** Judge panel (docs/TOP100.md B4): a wrapped card line keeps its lines about equally long, no orphan word. */
+    @Test
+    fun balancedWrapLeavesNoOrphanWord() {
+        val s = "Regel des Tages: Kurze Kabel – nur kurze Kabel bis zum Start"
+        val greedy = TextWrap.wrap(s, 56f, measure = measure)
+        assertEquals(listOf("Regel des Tages: Kurze Kabel – nur kurze Kabel bis zum", "Start"), greedy)
+        val lines = TextWrap.balanced(s, 56f, measure = measure)
+        assertEquals(2, lines.size)
+        assertEquals(s, lines.joinToString(" "))
+        assertTrue("balanced: $lines", lines.all { measure(it) <= 56f } && lines.minOf { measure(it) } >= 0.6f * lines.maxOf { measure(it) })
+        assertEquals(listOf("kurz"), TextWrap.balanced("kurz", 56f, measure = measure))
+    }
+
     @Test
     fun japaneseAndChineseBreakBetweenCharacters() {
         val ja = "PCがメールを送りたがっています。"

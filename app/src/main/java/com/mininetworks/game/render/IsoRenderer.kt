@@ -81,6 +81,9 @@ class IsoRenderer : Renderer {
     private val cutP = stroke(IncidentStyles.CUT)
     private val clip = Path()
     private val shimmerP = stroke(0)
+    private val fogPath = Path()
+    private val vignette = Paint()
+    private var vignetteSize = -1f
 
     /** Ground layer cache: tiles, board, shadows and decorations of [groundMap] as seen from [groundView]. */
     private var groundBitmap: Bitmap? = null
@@ -177,6 +180,8 @@ class IsoRenderer : Renderer {
             val grow = growth(world, c)
             if (grow < 1f) partialPolyline(cablePath(c), grow) else polyline(cablePath(c))
             val st = CableStyles.of(c.type)
+            // A dark outline under the white halo keeps every skin's cables apart from any ground colour.
+            strokeP.color = CABLE_OUTLINE; strokeP.strokeWidth = tw * (st.width * 0.75f + 0.13f); canvas.drawPath(path, strokeP)
             strokeP.color = 0xB3FFFFFF.toInt(); strokeP.strokeWidth = tw * (st.width * 0.75f + 0.08f); canvas.drawPath(path, strokeP)
             strokeP.color = st.color; strokeP.strokeWidth = tw * st.width * 0.75f; canvas.drawPath(path, strokeP)
             st.core?.let { strokeP.color = it; strokeP.strokeWidth = tw * st.coreWidth * 0.75f; canvas.drawPath(path, strokeP) }
@@ -392,10 +397,6 @@ class IsoRenderer : Renderer {
             val tx = camera.cosA * nx - camera.sinA * ny; val ty = camera.sinA * nx + camera.cosA * ny
             fillP.color = blend(pal.boardLit, pal.boardShade, ((tx - ty + 1f) / 2f).coerceIn(0f, 1f)); c.drawPath(path, fillP)
         }
-        if (open != world.bounds) {
-            quad(open.left.toFloat(), open.top.toFloat(), open.width.toFloat(), open.height.toFloat(), 0f)
-            strokeP.color = edge; strokeP.strokeWidth = tw * 0.03f; c.drawPath(path, strokeP)
-        }
         updatePlan(world, map)
         for (cell in grassCells) drawGrass(c, seed, cell.x, cell.y, open.contains(cell.x, cell.y))
         for (n in world.nodes) drawShadow(c, n)
@@ -416,6 +417,36 @@ class IsoRenderer : Renderer {
                 else -> drawDecor(c, seed, cell, Decor.entries[kind - DECOR], lit)
             }
         }
+        drawFog(c, world)
+    }
+
+    /**
+     * Fog over the locked ground and a soft vignette towards the screen edges, so the playable board is the bright
+     * centre of the picture and the land outside reads as "not yet" instead of a flat grey ring (docs/TOP100.md B4).
+     */
+    private fun drawFog(c: Canvas, world: World) {
+        val open = world.unlocked
+        val w = c.width.toFloat(); val h = c.height.toFloat()
+        if (w <= 0f || h <= 0f) return
+        if (open != world.bounds) {
+            quad(open.left.toFloat(), open.top.toFloat(), open.width.toFloat(), open.height.toFloat(), 0f)
+            fogPath.reset()
+            fogPath.fillType = Path.FillType.EVEN_ODD
+            fogPath.addRect(0f, 0f, w, h, Path.Direction.CW)
+            fogPath.addPath(path)
+            fillP.color = pal.fog; c.drawPath(fogPath, fillP)
+            // A light rim where the board meets the fog.
+            strokeP.color = 0x8CFFFFFF.toInt(); strokeP.strokeWidth = tw * 0.08f; c.drawPath(path, strokeP)
+            strokeP.color = edge; strokeP.strokeWidth = tw * 0.03f; c.drawPath(path, strokeP)
+        }
+        val r = hypot(w, h) * 0.62f
+        if (vignetteSize != r) {
+            vignetteSize = r
+            vignette.shader = android.graphics.RadialGradient(0f, 0f, r, intArrayOf(0, 0, VIGNETTE), floatArrayOf(0f, 0.62f, 1f), android.graphics.Shader.TileMode.CLAMP)
+        }
+        c.save(); c.translate(w / 2f, h / 2f)
+        c.drawRect(-w / 2f, -h / 2f, w / 2f, h / 2f, vignette)
+        c.restore()
     }
 
     /**
@@ -948,11 +979,13 @@ class IsoRenderer : Renderer {
                 val r = maxOf(tw * 0.08f, REQUEST_MIN_DP * 1.3f * density)
                 val qx = sx(x, y) + maxOf(tw * 0.38f, icon * 1.6f)
                 val qy = sy(x, y, 0.2f) - icon * 2.2f
-                val count = minOf(n.pending.size, 8)
-                if (count > 0) {
-                    val cols = minOf(count, 4); val rows = (count + 3) / 4
+                // One tidy row: up to [MAX_QUEUE] shapes, or the first few and "+N" for a long queue.
+                val total = n.pending.size
+                val count = if (total > MAX_QUEUE) MAX_QUEUE - 1 else total
+                val slots = if (total > count) count + 1 else count
+                if (slots > 0) {
                     val pad = r * 0.95f
-                    oval.set(qx - r - pad, qy - r - pad, qx + (cols - 1) * r * 2.6f + r + pad, qy + (rows - 1) * r * 2.6f + r + pad)
+                    oval.set(qx - r - pad, qy - r - pad, qx + (slots - 1) * r * 2.6f + r + pad, qy + r + pad)
                     val corner = r + pad
                     oval.offset(0f, r * 0.3f); fillP.color = 0x33000000; canvas.drawRoundRect(oval, corner, corner, fillP)
                     oval.offset(0f, -r * 0.3f); fillP.color = 0xF2FFFFFF.toInt(); canvas.drawRoundRect(oval, corner, corner, fillP)
@@ -960,16 +993,23 @@ class IsoRenderer : Renderer {
                 var badge: RouteProblem? = null
                 for (i in 0 until count) {
                     val svc = n.pending[i]
-                    val px = qx + (i % 4) * r * 2.6f
-                    val py = qy + (i / 4) * r * 2.6f
+                    val px = qx + i * r * 2.6f
                     fillP.color = ServiceColors.of(svc)
-                    Shapes.draw(canvas, svc.shape, px, py, r, fillP)
+                    Shapes.draw(canvas, svc.shape, px, qy, r, fillP)
                     val problem = world.routeProblem(n, svc)
                     if (ProblemBadges.shows(problem)) {
                         strokeP.color = alarm; strokeP.strokeWidth = r * 0.3f
-                        Shapes.draw(canvas, svc.shape, px, py, r * 1.4f, strokeP)
+                        Shapes.draw(canvas, svc.shape, px, qy, r * 1.4f, strokeP)
                         if (badge == null) badge = problem
                     }
+                }
+                if (total > count) {
+                    for (i in count until total) {
+                        if (badge != null) break
+                        world.routeProblem(n, n.pending[i]).takeIf { ProblemBadges.shows(it) }?.let { badge = it }
+                    }
+                    labelP.color = 0xFF3A4350.toInt(); labelP.textSize = r * 1.7f
+                    canvas.drawText("+${total - count}", qx + count * r * 2.6f, qy + r * 0.6f, labelP)
                 }
                 badge?.let { ProblemBadges.draw(canvas, it, sx(x, y) - icon * 1.4f, qy, r * 2.1f) }
             }
@@ -1288,6 +1328,12 @@ class IsoRenderer : Renderer {
         /** Readable sizes on a phone (docs/PLAN.md P4.3 review): tile width of the automatic framing, and minimum dp of
          *  a device icon's half size, a request's radius, an overload ring and the drag label. */
         const val READABLE_TILE_DP = 36f
+        /** Edge colour of the screen vignette over the ground. */
+        const val VIGNETTE = 0x3A14242E
+        /** Thin dark rim around every cable, under its white halo. */
+        const val CABLE_OUTLINE = 0x5C1C2A30
+        /** Request shapes a device's queue shows before it switches to "+N". */
+        const val MAX_QUEUE = 4
         const val ICON_MIN_DP = 7f
         const val REQUEST_MIN_DP = 3.2f
         const val RING_MIN_DP = 2.5f

@@ -126,21 +126,29 @@ interface Renderer {
      * player moved the view) when something new lies outside the view, e.g. a device on an empty corner of the map.
      */
     fun onContentChanged(world: World) {
-        if (!camera.isTall || !camera.followsArea) return
+        if (!camera.followsArea) return
         val content = contentBounds(world) ?: return
         if (!camera.shows(content)) camera.fit(frame(world), animate = true, atLeast = readableScale)
     }
 
     /**
-     * What the automatic framing shows: the unlocked area; in a portrait view its full height, but across only the
-     * width of what is built on it ([contentBounds]), so the view zooms in towards the height without cutting off any
-     * node. Map corners without nodes may lie outside; the player pans there.
+     * What the automatic framing shows: the unlocked area while nothing is built; in a portrait view its full height,
+     * but across only the width of what is built on it ([contentBounds]), so the view zooms in towards the height
+     * without cutting off any node; in landscape every node plus the middle [CORE_FRACTION] of the area. Map corners
+     * without nodes may lie outside; the player pans there.
      */
     fun frame(world: World): MapRect {
         val area = mapBounds(world.unlocked)
-        if (!camera.isTall) return area
         val c = contentBounds(world) ?: return area
-        return MapRect(c.left, area.top, c.right, area.bottom)
+        if (camera.isTall) return MapRect(c.left, area.top, c.right, area.bottom)
+        // Landscape: the built network plus the middle of the area. The iso area is a diamond, so fitting its whole box
+        // left half the screen as empty corners and locked ground; its empty tips may now lie outside (docs/TOP100.md B4).
+        val hx = area.width * CORE_FRACTION / 2f
+        val hy = area.height * CORE_FRACTION / 2f
+        return MapRect(
+            minOf(c.left, area.centerX - hx), minOf(c.top, area.centerY - hy),
+            maxOf(c.right, area.centerX + hx), maxOf(c.bottom, area.centerY + hy),
+        )
     }
 
     /**
@@ -221,6 +229,8 @@ interface Renderer {
         const val FOCUS_ZOOM = 1.6f
         /** Room around [contentBounds], in widths of one drawn cell. */
         const val CONTENT_MARGIN = 0.15f
+        /** Share of the area's width and height a landscape [frame] always shows around its middle. */
+        const val CORE_FRACTION = 0.6f
     }
 }
 
@@ -480,10 +490,11 @@ object CableStyles {
     )
 
     /**
-     * The default skin gives every technology its own hue, not just another grey (light grey ISDN, dark teal DSL,
-     * wine-red coax, orange fiber), so the HUD chips and the map read apart at a glance.
+     * The default skin gives every technology its own hue, not just another grey (light grey ISDN, teal DSL,
+     * wine-red coax, orange fiber), so the HUD chips and the map read apart at a glance. DSL and coax stay dark so
+     * packets show on them; a dark outline and a white halo ([IsoRenderer]) lift them off the green grass.
      */
-    private val CLASSIC = skin(0xFFB4BCC6.toInt(), 0xFF134E48.toInt(), null, 0xFF6A1F3F.toInt(), 0xFFE3A9BC.toInt(), 0xFFF28C28.toInt(), 0xFFFFE2B8.toInt())
+    private val CLASSIC = skin(0xFFB4BCC6.toInt(), 0xFF134E48.toInt(), null, 0xFF6A1F3F.toInt(), 0xFFF2B8CE.toInt(), 0xFFF28C28.toInt(), 0xFFFFE2B8.toInt())
     private val COPPER = skin(0xFFC4A07E.toInt(), 0xFF5E3620.toInt(), null, 0xFF3A2519.toInt(), 0xFFD08A52.toInt(), 0xFFD9A441.toInt(), 0xFFFFF0C2.toInt())
     private val NEON = skin(0xFF7ED3E6.toInt(), 0xFF262A50.toInt(), 0xFF8F6BFF.toInt(), 0xFF16181F.toInt(), 0xFFFF4FA3.toInt(), 0xFF3EE68A.toInt(), 0xFFE8FFF1.toInt())
     private val PASTEL = skin(0xFFB9C3D3.toInt(), 0xFF4A4C48.toInt(), 0xFFC9B8E8.toInt(), 0xFF1C191E.toInt(), 0xFFE9C6D6.toInt(), 0xFFF3A6B8.toInt(), 0xFFFFE6EE.toInt())

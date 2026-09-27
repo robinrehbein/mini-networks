@@ -87,7 +87,7 @@ class MenuPanel(context: Context) {
     private val ink = 0xFF262B33.toInt()
     private val muted = 0xFF5B6674.toInt()
     private val accent = 0xFF3BA55C.toInt()
-    private val dimCenter = fill(0xB3F3F1EC.toInt())
+    private val dimCenter = fill(0xD1F3F1EC.toInt())
     private val dimHero = fill(0x14F3F1EC)
     private val fillP = fill(0)
     private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ink }
@@ -113,12 +113,12 @@ class MenuPanel(context: Context) {
     private inner class Layout(val page: MenuPage, val s: Float, val cols: Int, val width: Float) {
         val u = density * s
         val pad = PAD_DP * u
-        val titleSize = scale.px(if (page.hero) 40f else 28f) * s
-        val highlightSize = scale.px(17f) * s
+        val titleSize = scale.px(if (page.hero) 50f else 28f) * s
+        val highlightSize = scale.px(21f) * s
         val lineSize = scale.px(15f) * s
         val labelSize = scale.px(17f) * s
         /** The main menu's logo mark above the title. */
-        val logoSize = LOGO_DP * u
+        val logoSize = (if (page.hero) HERO_LOGO_DP else LOGO_DP) * u
         val footerSize = scale.px(13f) * s
         val itemH = maxOf(TOUCH_DP * density, labelSize + 24f * u)
         val gap = GAP_DP * u
@@ -126,7 +126,7 @@ class MenuPanel(context: Context) {
         val lines: List<String> = page.lines.flatMap { line ->
             text.textSize = lineSize
             text.typeface = Typeface.DEFAULT
-            wrap(line, inner, MAX_LINE_ROWS)
+            balanced(line, inner, MAX_LINE_ROWS)
         }
         val rows = (page.items.size + cols - 1) / cols
         val titleH = titleSize * 1.25f + (if (page.hero) logoSize + 8f * u else 0f)
@@ -135,7 +135,9 @@ class MenuPanel(context: Context) {
         val highlightH = if (page.highlight != null) highlightSize * 1.55f else 0f
         val lineH = lineSize * 1.6f
         val linesH = lines.size * lineH + if (lines.isNotEmpty() || page.highlight != null) 8f * u else 0f
-        val itemsH = rows * itemH + rows * gap
+        /** The main menu's primary entry (Play) is taller than the rest in a single column: the one thing to tap. */
+        val primaryExtra = if (page.hero && cols == 1 && page.items.any { it is MenuItem.Button && it.primary }) itemH * 0.4f else 0f
+        val itemsH = rows * itemH + rows * gap + primaryExtra
         val footerH = if (page.footer != null) footerSize * 2f else 0f
         val pictureW = page.picture?.let { minOf(inner, PICTURE_MAX_H_DP * u * it.aspect) } ?: 0f
         val pictureH = page.picture?.let { pictureW / it.aspect } ?: 0f
@@ -159,7 +161,7 @@ class MenuPanel(context: Context) {
 
         val cw = l.width
         val ch = l.height
-        val left = if (page.hero) safe.left + maxOf(areaW * 0.07f, 16f * density) else safe.left + (areaW - cw) / 2f
+        val left = if (page.hero && areaW > areaH) safe.left + maxOf(areaW * 0.07f, 16f * density) else safe.left + (areaW - cw) / 2f
         val top = safe.top + (areaH - ch) / 2f - SLAB_DP * u / 2f
         card.set(left, top, left + cw, top + ch)
         slab(canvas, card, 18f * u, SLAB_DP * u, 0xFFFAFAF7.toInt(), 0xFFE3E6E1.toInt().shade(-0.2f), shadow = true)
@@ -257,15 +259,18 @@ class MenuPanel(context: Context) {
         }
 
         val colW = (inner - (l.cols - 1) * l.gap) / l.cols
+        var extra = 0f
         for ((i, item) in page.items.withIndex()) {
             val col = i % l.cols
             val row = i / l.cols
             val x = paneLeft + l.pad + col * (colW + l.gap)
-            val itemTop = y + row * (l.itemH + l.gap)
-            r.set(x, itemTop, x + colW, itemTop + l.itemH)
+            val itemTop = y + row * (l.itemH + l.gap) + extra
+            val big = l.primaryExtra > 0f && item is MenuItem.Button && item.primary
+            r.set(x, itemTop, x + colW, itemTop + l.itemH + if (big) l.primaryExtra else 0f)
+            if (big) extra += l.primaryExtra
             val down = item.action == pressed
             val shortened = when (item) {
-                is MenuItem.Button -> button(canvas, item, down, u, l.labelSize)
+                is MenuItem.Button -> button(canvas, item, down, u, if (big) l.labelSize * 1.25f else l.labelSize)
                 is MenuItem.Toggle -> toggle(canvas, item, down, u, l.labelSize * 16f / 17f)
             }
             val enabled = item !is MenuItem.Button || item.enabled
@@ -296,7 +301,8 @@ class MenuPanel(context: Context) {
      */
     private fun arrange(page: MenuPage, areaW: Float, areaH: Float): Layout {
         val maxH = areaH * 0.92f
-        val maxW = areaW * (if (page.hero) HERO_MAX_WIDTH else 0.86f)
+        // The main menu card leaves room for the city beside it, except in a portrait window, where it takes the width.
+        val maxW = areaW * (if (page.hero && areaW > areaH) HERO_MAX_WIDTH else 0.86f)
         fun widthFor(s: Float, cols: Int): Float {
             val u = density * s
             text.typeface = Typeface.DEFAULT_BOLD
@@ -409,6 +415,9 @@ class MenuPanel(context: Context) {
     /** [s] broken into at most [maxLines] lines of [maxWidth] (at spaces, and between CJK characters); the last one is shortened if needed. */
     private fun wrap(s: String, maxWidth: Float, maxLines: Int): List<String> = TextWrap.wrap(s, maxWidth, maxLines) { text.measureText(it) }
 
+    /** [TextWrap.balanced] in the current text paint. */
+    private fun balanced(s: String, maxWidth: Float, maxLines: Int): List<String> = TextWrap.balanced(s, maxWidth, maxLines) { text.measureText(it) }
+
     private companion object {
         const val CARD_W_DP = 360f
         /** Highest a card's picture gets at full scale. */
@@ -424,12 +433,14 @@ class MenuPanel(context: Context) {
         /** Rows a text line of the card may wrap into. */
         const val MAX_LINE_ROWS = 3
         /** The main menu card leaves the rest of the screen to the demo town. */
-        const val HERO_MAX_WIDTH = 0.55f
+        const val HERO_MAX_WIDTH = 0.6f
         const val ELLIPSIS = "…"
         /** A card with a picture splits into picture and text halves from this width-to-height ratio of the screen. */
         const val SPLIT_ASPECT = 1.25f
         const val SPLIT_W_DP = 760f
         const val LOGO_DP = 64f
+        /** The logo mark over the game's name on the main menu. */
+        const val HERO_LOGO_DP = 88f
         /** The brand's dusk blue (launcher icon) for the game's name and the hero numbers. */
         const val BRAND = 0xFF1B4A5E.toInt()
     }

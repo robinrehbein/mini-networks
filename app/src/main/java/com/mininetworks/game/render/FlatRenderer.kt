@@ -118,9 +118,11 @@ class FlatRenderer : Renderer {
             val grow = Juice.growth(world.time, c.builtAt, c.layout.length)
             if (grow < 1f) partialPolyline(cablePath(c), grow) else polyline(cablePath(c))
             val st = CableStyles.of(c.type)
-            cableP.color = land; cableP.strokeWidth = cell * (st.width + 0.12f); canvas.drawPath(path, cableP)
-            cableP.color = st.color; cableP.strokeWidth = cell * st.width; canvas.drawPath(path, cableP)
-            st.core?.let { cableP.color = it; cableP.strokeWidth = cell * st.coreWidth; canvas.drawPath(path, cableP) }
+            // Bold metro-map lines: the overview reads as a line map, not a wiring plan.
+            val lw = st.width * FLAT_LINE
+            cableP.color = land; cableP.strokeWidth = cell * (lw + 0.12f); canvas.drawPath(path, cableP)
+            cableP.color = st.color; cableP.strokeWidth = cell * lw; canvas.drawPath(path, cableP)
+            st.core?.let { cableP.color = it; cableP.strokeWidth = cell * st.coreWidth * FLAT_LINE; canvas.drawPath(path, cableP) }
             if (world.cableLoad(c) >= c.capacity) {
                 cableP.color = alarm and 0x80FFFFFF.toInt(); cableP.strokeWidth = cell * 0.05f; canvas.drawPath(path, cableP)
             }
@@ -522,6 +524,8 @@ class FlatRenderer : Renderer {
         /** Readable sizes on a phone: cell width of the automatic framing, minimum dp of a device icon's half size, a
          *  request's radius, an overload ring and the drag label. */
         const val READABLE_CELL_DP = 26f
+        /** Cable width factor of the overview over [CableStyles] widths: bold metro-map lines. */
+        const val FLAT_LINE = 1.6f
         const val ICON_MIN_DP = 7f
         const val REQUEST_MIN_DP = 3.2f
         const val RING_MIN_DP = 2.5f

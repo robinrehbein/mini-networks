@@ -29,7 +29,10 @@ class MapPalette(
     val flatLand: Int,
     val flatWater: Int,
     val flatBackdrop: Int,
-)
+) {
+    /** Translucent haze over the locked ground: the board's shade darkened towards slate, so the open board stands out. */
+    val fog: Int = (Cosmetic.blend(boardShade, 0xFF2B3B44.toInt(), 0.6f) and 0xFFFFFF) or 0x52000000
+}
 
 /**
  * The active cosmetics, set from the game thread (settings) and read while drawing, like [ServiceColors.colorblind].
@@ -92,7 +95,7 @@ object Cosmetic {
 
     /** Snow on the ground and on the trees. */
     private val WINTER = palette(
-        landA = 0xFFEEF3F6.toInt(), landB = 0xFFE5ECF0.toInt(), waterA = 0xFF7FB2CF.toInt(), waterB = 0xFF95C3DC.toInt(),
+        landA = 0xFFE3EBF0.toInt(), landB = 0xFFD8E2E9.toInt(), waterA = 0xFF7FB2CF.toInt(), waterB = 0xFF95C3DC.toInt(),
         boardLit = 0xFFC5D2DB.toInt(), boardShade = 0xFFAFBFCA.toInt(), background = 0xFFF5F8FA.toInt(),
         grass = 0xFFD2DDE4.toInt(), leaf = 0xFFDDE7ED.toInt(), leafDark = 0xFFB3C4CF.toInt(), pine = 0xFF5F8E7E.toInt(), pineDark = 0xFF436F61.toInt(),
         flatLand = 0xFFF7F9FA.toInt(), flatWater = 0xFFB7D3E4.toInt(), flatBackdrop = 0xFFCFD8DE.toInt(),

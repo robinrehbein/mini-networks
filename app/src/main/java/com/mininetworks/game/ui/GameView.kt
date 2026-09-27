@@ -427,6 +427,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private val btnActive = fill(0xFF262B33.toInt())
     private val holdRing = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND }
     private val btnText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; textSize = textScale.px(14f) }
+    /** Cable chip names when even the short ones do not fit at a large font size: capped at 130 % of 14 sp. */
+    private val chipLabelSmall = Paint(btnText).apply { textSize = minOf(btnText.textSize, 14f * 1.3f * density) }
     private val barBg = fill(0x33262B33)
     private val glyphPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND }
     private val barFg = fill(0xFF262B33.toInt())
@@ -1381,8 +1383,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         var showPrice = priced
         val coinR = maxOf(9 * density, coinText.textSize * 0.8f)
         val cables = world.unlockedCables
+        var chipText = btnText
         fun widthOf(t: CableType, label: String?) =
-            26 * density + (if (label != null) btnText.measureText(label) + 8 * density else 0f) + (if (showPrice) 2 * coinR + 10 * density else 4 * density)
+            26 * density + (if (label != null) chipText.measureText(label) + 8 * density else 0f) + (if (showPrice) 2 * coinR + 10 * density else 4 * density)
         fun rowWidth(label: (CableType) -> String?) =
             cables.sumOf { widthOf(it, label(it)).toDouble() }.toFloat() + gap * (cables.size - 1)
         val full = { t: CableType -> texts.cable(t) }
@@ -1402,7 +1405,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 showPrice = false
                 true to short
             }
-            fitsBeside(selectedShort) -> false to selectedShort
+            // Beside the buttons without prices, then with the names capped at 130 % of the normal size: a short
+            // name on every chip beats colour alone, which fails colour-blind players (judge panel, docs/TOP100.md B4).
+            priced && run { showPrice = false; fitsBeside(short) } -> false to short
+            run { showPrice = false; chipText = chipLabelSmall; fitsBeside(short) } -> false to short
+            tall && left + rowWidth(short) <= right -> true to short
+            run { showPrice = priced; chipText = btnText; fitsBeside(selectedShort) } -> false to selectedShort
             tall && left + rowWidth(selectedShort) <= right -> true to selectedShort
             fitsBeside(none) -> false to none
             else -> true to none
@@ -1417,10 +1425,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             canvas.drawRoundRect(r, bh / 2, bh / 2, if (active) btnActive else btnFill)
             drawCableGlyph(canvas, t, r.left + 12 * density, r.left + 20 * density, r.centerY())
             if (label != null) {
-                btnText.color = if (active) 0xFFFFFFFF.toInt() else 0xFF262B33.toInt()
-                btnText.textAlign = Paint.Align.LEFT
-                canvas.drawText(label, r.left + 27 * density, r.centerY() + btnText.textSize * 0.35f, btnText)
-                btnText.textAlign = Paint.Align.CENTER
+                chipText.color = if (active) 0xFFFFFFFF.toInt() else 0xFF262B33.toInt()
+                chipText.textAlign = Paint.Align.LEFT
+                canvas.drawText(label, r.left + 27 * density, r.centerY() + chipText.textSize * 0.35f, chipText)
+                chipText.textAlign = Paint.Align.CENTER
             }
             if (showPrice) {
                 val coinX = r.right - 10 * density - coinR
@@ -2174,10 +2182,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             lines = listOf(context.getString(R.string.menu_tagline)),
             items = listOf(
                 MenuItem.Button(MenuAction.PLAY, context.getString(R.string.menu_play), primary = true),
-                MenuItem.Button(MenuAction.DAILY, context.getString(R.string.menu_daily)),
-                MenuItem.Button(MenuAction.CONTINUE, context.getString(R.string.menu_continue), enabled = gameInProgress || hasSave),
-                MenuItem.Button(MenuAction.ACHIEVEMENTS, context.getString(R.string.menu_achievements)),
             ) + listOfNotNull(
+                // Only offered when there is something to continue: a greyed-out pill looked broken (judge panel).
+                if (gameInProgress || hasSave) MenuItem.Button(MenuAction.CONTINUE, context.getString(R.string.menu_continue)) else null,
+                MenuItem.Button(MenuAction.DAILY, context.getString(R.string.menu_daily)),
+                MenuItem.Button(MenuAction.ACHIEVEMENTS, context.getString(R.string.menu_achievements)),
                 if (gameServices.available) MenuItem.Button(MenuAction.LEADERBOARDS, context.getString(R.string.menu_leaderboards)) else null,
                 MenuItem.Button(MenuAction.SETTINGS, context.getString(R.string.menu_settings)),
                 removeAdsLabel()?.let { MenuItem.Button(MenuAction.REMOVE_ADS, it) },

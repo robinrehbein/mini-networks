@@ -37,7 +37,7 @@ class RewardDialog(private val context: Context) {
     private val fillP = fill(0)
     private val icons = DeviceIcons()
     private val texts = Texts(context)
-    private val dim = fill(0xD9F3F1EC.toInt())
+    private val dim = fill(0xA6F3F1EC.toInt())
     private val ink = 0xFF262B33.toInt()
     private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; color = ink }
 
@@ -70,9 +70,9 @@ class RewardDialog(private val context: Context) {
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), dim)
         drawnNodes.clear()
         textK = scale.factor(14f)
-        baseW = minOf(width * 0.3f, height * 0.5f, 320 * density)
+        baseW = minOf(width * 0.42f, height * 0.56f, 380 * density)
         // Two cards and their gap (0.14 of a card) stay clear of the menu button's column at both sides.
-        val cardW = minOf(baseW * textK, (width - 2 * side) / 2.14f, 320 * density * textK)
+        val cardW = minOf(baseW * textK, (width - 2 * side) / 2.14f, 380 * density * textK)
         val dateSize = baseW * 0.1f * scale.factor(20f)
         val newsSize = baseW * 0.065f * textK
         val news = world.lastNews?.takeIf { world.lastNewsTime == world.time }?.let { texts.news(it, withYear = false) }

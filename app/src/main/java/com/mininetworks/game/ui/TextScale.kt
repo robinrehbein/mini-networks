@@ -30,8 +30,8 @@ class TextScale(private val metrics: DisplayMetrics, smallestWidthDp: Int = 0) {
          * distance or in a store thumbnail.
          */
         fun uiScale(smallestWidthDp: Int): Float = when {
-            smallestWidthDp >= 720 -> 1.4f
-            smallestWidthDp >= 600 -> 1.2f
+            smallestWidthDp >= 720 -> 1.6f
+            smallestWidthDp >= 600 -> 1.3f
             else -> 1f
         }
 
