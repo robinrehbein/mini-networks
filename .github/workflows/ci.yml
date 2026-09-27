@@ -27,11 +27,16 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      # The action's default packages are "tools platform-tools"; the obsolete "tools" package no longer exists for
+      # cmdline-tools 16+ and sdkmanager exits 1 (run 36307458530). Install only platform-tools here.
       - name: Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
 
       - name: SDK packages (compileSdk 36)
-        run: sdkmanager "platforms;android-36" "build-tools;35.0.0" "platform-tools"
+        run: sdkmanager "platforms;android-36" "build-tools;35.0.0"
 
       - name: Gradle
         uses: gradle/actions/setup-gradle@v4

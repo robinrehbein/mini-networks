@@ -357,7 +357,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         loop = thread(name = "GameLoop") { runLoop() }
     }
 
-    /** Stops the game thread, opens the pause menu and saves the game; call from `Activity.onPause`. */
+    /**
+     * Stops the game thread, opens the pause menu and saves the game; call from `Activity.onPause`.
+     *
+     * Joining the game thread means that, in the rare case it is inside [ensureLoaded] or [continueGame] waiting on a
+     * `GameIo.call`, this waits for that one read (docs/TOP100.md A3). Accepted: the thread must be stopped before the
+     * snapshot is taken; the UI thread itself never touches the disk.
+     */
     fun pause() {
         loop?.let { t ->
             running = false
