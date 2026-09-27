@@ -162,10 +162,16 @@ class AccessibleLayoutTest {
             val bmp = Bitmap.createBitmap(size.width, size.height, Bitmap.Config.ARGB_8888)
             val game = FormFactorScreenshotTest.busyHud()
             for (screen in listOf(null, Screen.DAILY, Screen.PAUSED, Screen.GAME_OVER)) {
-                bmp.eraseColor(0)
-                val world = if (screen == null || screen == Screen.DAILY) view.currentWorld else game
-                view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 1.3f, style = "Iso", screen = screen)
-                view.accessibilityLayer.nodes.filter { it.shortened }.forEach { cuts += "$lang, ${size.id}, ${screen ?: "MAIN"}: ${it.text}" }
+                // The daily card's footer counts the hours to the next challenge; check the shortest and the longest
+                // wording (1 hour, 5 hours, 23 hours) instead of whatever the real clock says right now.
+                val clocks = if (screen == Screen.DAILY) DAILY_FOOTER_CLOCKS else listOf(null)
+                for (clock in clocks) {
+                    if (clock != null) view.wallClock = { clock }
+                    bmp.eraseColor(0)
+                    val world = if (screen == null || screen == Screen.DAILY) view.currentWorld else game
+                    view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 1.3f, style = "Iso", screen = screen)
+                    view.accessibilityLayer.nodes.filter { it.shortened }.forEach { cuts += "$lang, ${size.id}, ${screen ?: "MAIN"}: ${it.text}" }
+                }
             }
         }
         RuntimeEnvironment.setQualifiers("de")
@@ -314,6 +320,12 @@ class AccessibleLayoutTest {
     private var screen = RectF()
 
     private companion object {
+        private const val DAY = 86_400_000L
+        private const val HOUR = 3_600_000L
+
+        /** Wall clocks 1, 5 and 23 hours before the next UTC day: every plural form and the widest number. */
+        val DAILY_FOOTER_CLOCKS = listOf(20_000 * DAY + 23 * HOUR, 20_000 * DAY + 19 * HOUR, 20_000 * DAY + 1 * HOUR)
+
         val HEADER = setOf("achievement:back", "achievement:title", "achievement:count")
         /** Resource qualifiers of the 12 languages (docs/TOP100.md F1). */
         val LANGUAGES = listOf("de", "en", "fr", "es", "it", "pt-rBR", "pl", "nl", "tr", "ja", "ko", "zh-rCN")
@@ -347,5 +359,4 @@ class AccessibleLayoutTest {
                 fail("$size, $what: ${nodes[i].key} $a overlaps ${nodes[j].key} $b")
             }
         }
-    }
-}
+    }}
