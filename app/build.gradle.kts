@@ -21,12 +21,14 @@ val admobTestIds = listOf(admobAppId, admobInterstitialId, admobRewardedId).filt
 val playMonetizationInDebug = monetizationProperty("mininetworks.playMonetizationInDebug", "false").toBoolean()
 // Play Games Services and In-App Review (docs/TOP100.md C2, C3, C6, D1): no-op in debug builds unless asked for.
 val playServicesInDebug = monetizationProperty("mininetworks.playServicesInDebug", "false").toBoolean()
+val reviewerAccessCode = System.getenv("MININETWORKS_REVIEW_ACCESS_CODE") ?: ""
+require(reviewerAccessCode.matches(Regex("[A-Za-z0-9-]*"))) { "Reviewer access code must be alphanumeric" }
 /** games-ids.xml still holds the placeholders of the repo (docs/RELEASE.md 11): Play Games then stays off at runtime. */
 val gamesIdsArePlaceholders = file("src/main/res/values/games-ids.xml").readText().contains(">TODO_")
 
 // Version scheme (docs/RELEASE.md): versionName is MAJOR.MINOR.PATCH, versionCode = MAJOR * 10000 + MINOR * 100 + PATCH,
 // so every new name uploads with a higher code. CI may pass -Pmininetworks.versionCode=<n> to upload a rebuild of the same name.
-val appVersionName = (findProperty("mininetworks.versionName") as String?) ?: "0.9.1"
+val appVersionName = (findProperty("mininetworks.versionName") as String?) ?: "0.9.2"
 val appVersionCode = (findProperty("mininetworks.versionCode") as String?)?.toInt()
     ?: appVersionName.split('.').map(String::toInt).let { (major, minor, patch) ->
         require(minor < 100 && patch < 100) { "versionName $appVersionName: MINOR and PATCH must stay below 100" }
@@ -58,6 +60,7 @@ android {
         manifestPlaceholders["admobAppId"] = admobAppId
         buildConfigField("String", "ADMOB_INTERSTITIAL_ID", "\"$admobInterstitialId\"")
         buildConfigField("String", "ADMOB_REWARDED_ID", "\"$admobRewardedId\"")
+        buildConfigField("String", "REVIEW_ACCESS_CODE", "\"$reviewerAccessCode\"")
     }
 
     buildFeatures {

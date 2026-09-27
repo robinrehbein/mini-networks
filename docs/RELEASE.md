@@ -6,14 +6,14 @@ Umgebungsvariablen (CI-Secrets). `.gitignore` schließt `*.jks`, `*.keystore` un
 
 ## 1. Versionen
 
-- `versionName` steht in `app/build.gradle.kts` (`appVersionName`) als `MAJOR.MINOR.PATCH`, zurzeit `0.9.1`
+- `versionName` steht in `app/build.gradle.kts` (`appVersionName`) als `MAJOR.MINOR.PATCH`, zurzeit `0.9.2`
   (Release-Kandidat für den internen Test).
 - `versionCode = MAJOR × 10000 + MINOR × 100 + PATCH` (0.9.0 → 900, 1.0.0 → 10000, 1.2.3 → 10203). MINOR und PATCH
   bleiben unter 100, sonst bricht der Build ab. Jede neue Version im Play Store braucht einen höheren Code, also vor
   jedem Upload mindestens PATCH erhöhen.
 - Muss derselbe Name noch einmal hochgeladen werden (z. B. nur neu signiert), überschreibt CI den Code:
-  `-Pmininetworks.versionCode=901`.
-- Debug-Builds heißen `0.9.0-debug`.
+  `-Pmininetworks.versionCode=902`.
+- Debug-Builds heißen `0.9.2-debug`.
 
 ## 2. Upload-Schlüssel anlegen (einmalig)
 

@@ -26,6 +26,8 @@ enum class MenuAction {
     PRIVACY,
     /** Settings: open the published privacy policy. */
     PRIVACY_POLICY,
+    /** Settings: unlock the review-only test access code. */
+    REVIEW_ACCESS,
     /** Main menu: the daily challenge's card (docs/TOP100.md C1); on it: start today's challenge. */
     DAILY, DAILY_START,
     /** Main menu: the achievements and missions (docs/TOP100.md C2). */

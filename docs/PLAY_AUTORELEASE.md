@@ -16,6 +16,7 @@ Einmalige Einrichtung für das GitHub-Environment `play-release`:
 | `PLAY_UPLOAD_KEY_ALIAS` | Secret | Alias des Upload-Schlüssels |
 | `PLAY_UPLOAD_KEY_PASSWORD` | Secret | Passwort des Upload-Schlüssels |
 | `PLAY_SERVICE_ACCOUNT_JSON` | Secret | JSON-Schlüssel eines Google-Cloud-Servicekontos mit Play-Release-Rechten nur für diese App |
+| `PLAY_REVIEW_ACCESS_CODE` | Secret | Prüfercode für die kostenpflichtigen Inhalte im Test-Build; als Anleitung vertraulich in der Play Console hinterlegen |
 | `PLAY_ADMOB_APP_ID` | Variable | Echte AdMob-App-ID |
 | `PLAY_ADMOB_INTERSTITIAL_ID` | Variable | Echte Interstitial-Anzeigenblock-ID |
 | `PLAY_ADMOB_REWARDED_ID` | Variable | Echte Rewarded-Anzeigenblock-ID |
@@ -25,6 +26,10 @@ Das Servicekonto benötigt Zugriff auf die Google Play Developer API sowie die B
 Test-Releases für `de.robinrehbein.mininetworks` zu verwalten. Vor dem ersten Merge einmal den
 Workflow per `workflow_dispatch` testen und in der Play Console beide Versionscodes kontrollieren.
 Fehlende Konfiguration beendet den Lauf vor dem Build. Jeder Lauf verwendet den eindeutigen
-Versionscode `100000 + github.run_number` und den sichtbaren Namen `0.9.1-r<run_number>`.
+Versionscode `100000 + github.run_number` und den sichtbaren Namen `0.9.2-r<run_number>`.
+Im Test-Build lässt sich unter Einstellungen → Reviewer access mit dem Code der Zugriff auf alle
+Premium-Szenerien und die werbefreie Variante aktivieren. Der Code ist kein Play-Kauf und darf
+nicht als Kaufnachweis verwendet werden. Produktions-Builds ohne gesetzte Umgebungsvariable
+zeigen diesen Zugang nicht an.
 Bei einer Änderung des GitHub-Standardbranches müssen die Branch-Filter in diesem Workflow und
 in `ci.yml` angepasst werden.
