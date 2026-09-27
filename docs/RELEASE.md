@@ -80,6 +80,15 @@ keytool -printcert -jarfile app/build/outputs/bundle/release/app-release.aab   #
   minifizierter Build startet, Spielstand speichern → App beenden → Fortsetzen lädt ihn (Serializer nach R8),
   Einwilligungsformular erscheint (EWR-Gerät oder UMP-Debug-Geografie), Test-Interstitial nach der 4. Partie,
   Rewarded „Weiterspielen“, Testkauf „Werbefrei“ mit einem Lizenztester, 60 fps in einer vollen Partie (offen aus P4.2).
+- **Billing-Testmodus auf dem Gerät (E2, T7):** Im Code ist der Ablauf gegen ein nachgebautes Play-Konto getestet
+  (`PurchasesTest` mit `FakeBillingGateway`: Kauf, Szenerie-Paket, ausstehende Zahlung, Bestätigen, Wiederherstellen
+  nach Neuinstallation). Mit einem Lizenztester auf dem internen Test-Track zusätzlich einmal von Hand:
+  1. „Werbefrei“ mit der Testkarte „Immer genehmigt“ kaufen → kein Interstitial mehr, „Weiterspielen“ ohne Video.
+  2. „Alle Szenerien“ kaufen → Bergdorf und Zukunft 2030 spielbar.
+  3. Einen Kauf mit „Langsame Testkarte, wird nach einigen Minuten genehmigt“ → bis zur Genehmigung nicht freigeschaltet
+     und nicht erneut kaufbar, danach freigeschaltet (auch wenn die App zwischendurch geschlossen war).
+  4. App deinstallieren und neu installieren → beim ersten Start ist alles wieder da (Abfrage `queryPurchasesAsync`).
+  5. In der Play Console → Bestellungen: Die Käufe sind bestätigt (nicht nach 3 Tagen erstattet).
 
 ## 5. Play Console einrichten
 
