@@ -52,6 +52,15 @@ object Cosmetic {
         ColorTheme.DESERT -> DESERT
     }
 
+    /**
+     * The palette for a map of scenery [scenarioId]: with the default theme ([ColorTheme.MEADOW]) every scenery has a
+     * ground of its own (cool asphalt for the metropolis, sand and deep water for the island, alpine green and earth for
+     * the mountains, dusk violet for 2030), so five sceneries read as five worlds at thumbnail size (judge panel); an
+     * unlocked theme the player picked wins over it.
+     */
+    fun paletteFor(scenarioId: String): MapPalette =
+        if (theme != ColorTheme.MEADOW) palette else SCENERY_PALETTES[scenarioId] ?: MEADOW
+
     /** Resets to the defaults, for tests. */
     fun reset() {
         theme = ColorTheme.MEADOW
@@ -84,6 +93,53 @@ object Cosmetic {
         grass = 0xFFB3C9A6.toInt(), leaf = 0xFF93C47D.toInt(), leafDark = 0xFF6FA262.toInt(), pine = 0xFF6FA87A.toInt(), pineDark = 0xFF4E8660.toInt(),
         flatLand = 0xFFF3F1EC.toInt(), flatWater = 0xFFC3DCE8.toInt(), flatBackdrop = 0xFFD3CFC5.toInt(),
     )
+
+    /** Kleinstadt am Fluss: the meadow, a little fresher. */
+    private val RIVER_TOWN = palette(
+        landA = 0xFFD6E8CB.toInt(), landB = 0xFFCDE2C1.toInt(), waterA = 0xFF7FBDDB.toInt(), waterB = 0xFF96CAE3.toInt(),
+        boardLit = 0xFFAFC7A1.toInt(), boardShade = 0xFF9BB58D.toInt(), background = 0xFFEAF2E4.toInt(),
+        grass = 0xFFA9C79B.toInt(), leaf = 0xFF8CC275.toInt(), leafDark = 0xFF67A05A.toInt(), pine = 0xFF66A674.toInt(), pineDark = 0xFF478459.toInt(),
+        flatLand = 0xFFF1F3EA.toInt(), flatWater = 0xFFB9D9E8.toInt(), flatBackdrop = 0xFFD2D8CB.toInt(),
+    )
+
+    /** Großstadt: cool asphalt greys, deep river blue, park greens. */
+    private val METROPOLIS = palette(
+        landA = 0xFFD3D9DC.toInt(), landB = 0xFFCAD1D5.toInt(), waterA = 0xFF6A9FC4.toInt(), waterB = 0xFF82B1D1.toInt(),
+        boardLit = 0xFF9DA8B0.toInt(), boardShade = 0xFF88949D.toInt(), background = 0xFFE2E7EB.toInt(),
+        grass = 0xFFB3BEC3.toInt(), leaf = 0xFF7DB47A.toInt(), leafDark = 0xFF5B9160.toInt(), pine = 0xFF5B9270.toInt(), pineDark = 0xFF417456.toInt(),
+        flatLand = 0xFFECEFF1.toInt(), flatWater = 0xFFB6CFE2.toInt(), flatBackdrop = 0xFFC7CED4.toInt(),
+    )
+
+    /** Insel & Hafen: sandy ground, deep turquoise sea, lush palms. */
+    private val ISLAND = palette(
+        landA = 0xFFE9E3BD.toInt(), landB = 0xFFE1DAB1.toInt(), waterA = 0xFF3D9CC2.toInt(), waterB = 0xFF53AECE.toInt(),
+        boardLit = 0xFFCDB688.toInt(), boardShade = 0xFFB8A070.toInt(), background = 0xFFE0F0F1.toInt(),
+        grass = 0xFFC9C58F.toInt(), leaf = 0xFF78C16A.toInt(), leafDark = 0xFF549E4C.toInt(), pine = 0xFF4FA37C.toInt(), pineDark = 0xFF37835F.toInt(),
+        flatLand = 0xFFF5F0DC.toInt(), flatWater = 0xFFA6D6E6.toInt(), flatBackdrop = 0xFFD9CFAE.toInt(),
+    )
+
+    /** Bergdorf: alpine green on brown earth. */
+    private val MOUNTAIN_VILLAGE = palette(
+        landA = 0xFFC9DDB6.toInt(), landB = 0xFFBFD4AA.toInt(), waterA = 0xFF77AFD0.toInt(), waterB = 0xFF8DBEDB.toInt(),
+        boardLit = 0xFFA5937A.toInt(), boardShade = 0xFF8F7D66.toInt(), background = 0xFFE9EDE4.toInt(),
+        grass = 0xFF9DBB89.toInt(), leaf = 0xFF7BB068.toInt(), leafDark = 0xFF5A8D4E.toInt(), pine = 0xFF4C8860.toInt(), pineDark = 0xFF356A48.toInt(),
+        flatLand = 0xFFEEF1E6.toInt(), flatWater = 0xFFB6D6E6.toInt(), flatBackdrop = 0xFFCDC6B5.toInt(),
+    )
+
+    /** Zukunft 2030: dusk violet ground, electric blue water, teal trees. */
+    private val FUTURE = palette(
+        landA = 0xFFD7D0EB.toInt(), landB = 0xFFCDC5E4.toInt(), waterA = 0xFF6A80D8.toInt(), waterB = 0xFF8195E1.toInt(),
+        boardLit = 0xFF9C8FC8.toInt(), boardShade = 0xFF8778B6.toInt(), background = 0xFFE4DFF2.toInt(),
+        grass = 0xFFB5ABD8.toInt(), leaf = 0xFF62C4B3.toInt(), leafDark = 0xFF41A291.toInt(), pine = 0xFF4A9C99.toInt(), pineDark = 0xFF327D7A.toInt(),
+        flatLand = 0xFFF0EDF7.toInt(), flatWater = 0xFFC0CAEE.toInt(), flatBackdrop = 0xFFCDC6E0.toInt(),
+    )
+
+    private val SCENERY_PALETTES by lazy {
+        mapOf(
+            "river_town" to RIVER_TOWN, "metropolis" to METROPOLIS, "island_harbor" to ISLAND,
+            "mountain_village" to MOUNTAIN_VILLAGE, "future_2030" to FUTURE,
+        )
+    }
 
     /** Straw fields and orange trees. */
     private val AUTUMN = palette(

@@ -48,9 +48,9 @@ sieć, kable, strategia, łamigłówka, budowanie miasta, router, Wi-Fi, świat�
 
 1. Okabluj swoje miasto
 2. Jeden ruch, jeden kabel
-3. Wi-Fi, 4G i 5G
+3. Nie dopuść do przeciążenia sieci
 4. Obracaj mapę, jak chcesz
-5. Codziennie nowe wyzwanie
+5. Wi-Fi, 4G i 5G
 6. Co tydzień wybór
 7. Pięć scenerii
 8. Uwaga, koparka!

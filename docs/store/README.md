@@ -29,8 +29,11 @@ Play Games optional, Werbung nur zwischen Partien, „Werbefrei“ und Szenerien
   wie Play es für Telefone und Tablets verlangt (1080–7680 px je Seite). Eingecheckt: Deutsch und Englisch; weitere
   Sprachen mit `-Pstore.locales=fr,es,it,pt-rBR,pl,nl,tr,ja,ko,zh-rCN`.
 - `feature-graphic.png`: 1024 × 500, 24-Bit-PNG, nichts Wichtiges in den äußeren 10 %.
-- Motive: 1 lebendige Stadt, 2 Kabel ziehen mit Vorschau, 3 Funk (WLAN-Kanäle, 5 GHz, Mast), 4 gedrehte Karte
-  (Großstadt, Kompass), 5 Tagesaufgabe, 6 Wochen-Belohnung, 7 fünf Szenerien, 8 Bagger und Stromausfall.
+- Motive: 1 lebendige Stadt, 2 Kabel ziehen mit Vorschau, 3 Überlastung im echten Spielbild mit HUD, 4 gedrehte
+  dichte Stadt 2030 (randlos), 5 Funk (WLAN-Kanäle, 5 GHz, Mast), 6 Wochen-Belohnung mit Konfetti, 7 fünf Szenerien
+  mit Tagesaufgaben-Hinweis, 8 Bagger und Stromausfall (randlos).
+- `screenshots/phone-portrait/<sprache>/01-town.png`, `03-overload.png`, `04-rotation.png`: 1080 × 1920 für das
+  Hochformat-Karussell von Play.
 - Trailer: `trailer.md`.
 
 Erzeugen:

@@ -37,7 +37,8 @@ class RewardDialog(private val context: Context) {
     private val fillP = fill(0)
     private val icons = DeviceIcons()
     private val texts = Texts(context)
-    private val dim = fill(0xA6F3F1EC.toInt())
+    /** A dusk-blue scrim: the map stays visible behind the cards, but dark enough that the light cards and texts pop. */
+    private val dim = fill(0xA8132632.toInt())
     private val ink = 0xFF262B33.toInt()
     private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; color = ink }
 
@@ -70,13 +71,14 @@ class RewardDialog(private val context: Context) {
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), dim)
         drawnNodes.clear()
         textK = scale.factor(14f)
+        fitK = 1f
         baseW = minOf(width * 0.42f, height * 0.56f, 380 * density)
         // Two cards and their gap (0.14 of a card) stay clear of the menu button's column at both sides.
         val cardW = minOf(baseW * textK, (width - 2 * side) / 2.14f, 380 * density * textK)
         val dateSize = baseW * 0.1f * scale.factor(20f)
         val newsSize = baseW * 0.065f * textK
         val news = world.lastNews?.takeIf { world.lastNewsTime == world.time }?.let { texts.news(it, withYear = false) }
-        val headH = dateSize * 1.25f + (if (news != null) newsSize * 1.5f else 0f) + 8f * density
+        val headH = dateSize * 1.25f + (if (news != null) newsSize * 1.5f else 0f) + newsSize * 0.2f + 8f * density
         val promptSize = newsSize
         text.typeface = Typeface.DEFAULT
         text.textSize = promptSize
@@ -86,24 +88,38 @@ class RewardDialog(private val context: Context) {
         val bonusH = bonusHeight()
         // With the bonus pill the cards move up, so prompt and pill fit below them.
         val below = promptSize * (1.0f + 1.3f * promptLines.size) + (if (bonus != null) bonusH + 16f * density else 0f) + cardW * 0.1f
-        val cardH = minOf(cardW * 1.08f, height * 0.62f, height - headH - below - 24f * density)
         val gap = cardW * 0.14f
         val depth = cardW * 0.05f
+        // The card grows with its texts (large font sizes) up to the room between heading and prompt; only when even
+        // that is not enough do the card texts shrink together (autosize), so the amount always stays inside its card.
+        val room = height - headH - below - 24f * density
+        var cardH: Float
+        while (true) {
+            blockH = offer.choices.maxOf { blockHeight(it, cardW) }
+            val needed = blockH + cardW * 0.08f
+            cardH = minOf(maxOf(minOf(cardW * 1.08f, height * 0.62f), needed), room)
+            if (needed <= cardH + 0.5f || fitK <= MIN_FIT) break
+            fitK = maxOf(MIN_FIT, fitK - 0.04f)
+        }
         val top = minOf(height * 0.28f, height - cardH - below - 8f * density).coerceAtLeast(headH + 8f * density)
         val left = (width - 2 * cardW - gap) / 2f
 
         text.typeface = Typeface.DEFAULT_BOLD
         text.textSize = dateSize
         val date = context.getString(R.string.hud_date, world.year, offer.week)
-        val newsBaseline = top - maxOf(10f * density, newsSize * 0.4f)
+        // Clear of the cards: the subtitle keeps most of a line's height from their top edge.
+        val newsBaseline = top - maxOf(12f * density, newsSize * 0.6f)
         val dateBaseline = if (news != null) newsBaseline - newsSize * 1.5f else newsBaseline
+        // Light text on the dark scrim, like a title card over the paused game.
+        text.color = 0xFFFFFFFF.toInt()
         canvas.drawText(date, width / 2f, dateBaseline, text)
         text.typeface = Typeface.DEFAULT
         text.textSize = newsSize
+        text.color = 0xFFFFD58A.toInt()
         // This week's unlock message, without the year the heading already shows.
         news?.let { canvas.drawText(fit(it, width - 2 * side), width / 2f, newsBaseline, text) }
         drawnNodes += UiNode("reward:title", RectF(left, dateBaseline - dateSize, width - left, newsBaseline + newsSize * 0.3f), listOfNotNull(date, news).joinToString(". "), UiNode.Kind.HEADING)
-        text.color = 0xFF5B6674.toInt()
+        text.color = 0xFFDCE4EA.toInt()
         text.textSize = promptSize
         // Below the cards' slabs and their soft shadow, so the line never touches them.
         val promptTop = top + cardH + depth * 3f + promptSize * 0.6f
@@ -120,8 +136,7 @@ class RewardDialog(private val context: Context) {
             drawnNodes += UiNode("reward:bonus", RectF(this.bonus), bonus, UiNode.Kind.BUTTON)
         }
 
-        // Both cards leave the same room for their texts, so their dioramas match.
-        blockH = offer.choices.maxOf { blockHeight(it, cardW) }
+        // Both cards leave the same room for their texts ([blockH], set above), so their dioramas match.
         offer.choices.forEachIndexed { i, reward ->
             val r = cards[i]
             r.set(left + i * (cardW + gap), top, left + i * (cardW + gap) + cardW, top + cardH)
@@ -134,15 +149,20 @@ class RewardDialog(private val context: Context) {
     /** Room the texts of the cards need, the most of both; see [blockHeight]. */
     private var blockH = 0f
 
-    private fun amountSize() = baseW * 0.13f * scale.factor(24f)
+    /** Shrink of the card texts when they do not fit even the tallest card (1 = none). */
+    private var fitK = 1f
+
+    private fun amountSize() = baseW * 0.13f * scale.factor(24f) * fitK
+    private fun titleSize() = baseW * 0.085f * textK * fitK
+    private fun descSize() = baseW * 0.058f * textK * fitK
 
     /** Height of the amount, title and wrapped description of [reward] on a card [cardW] wide. */
     private fun blockHeight(reward: Reward, cardW: Float): Float {
-        val descSize = baseW * 0.058f * textK
+        val descSize = descSize()
         text.typeface = Typeface.DEFAULT
         text.textSize = descSize
         val lines = wrap(context.getString(descOf(reward)), cardW * 0.84f).size
-        return amountSize() * 0.85f + baseW * 0.085f * textK * 1.3f + lines * descSize * 1.3f + cardW * 0.05f
+        return amountSize() * 0.85f + titleSize() * 1.3f + lines * descSize * 1.3f + cardW * 0.05f
     }
 
     private fun bonusHeight() = maxOf(TOUCH_DP * density, scale.px(16f) * 2.4f)
@@ -213,19 +233,27 @@ class RewardDialog(private val context: Context) {
         // Text from the bottom up: amount, title and description; larger text pushes it up and shrinks the diorama.
         val w = r.width()
         val amountSize = amountSize()
-        val titleSize = baseW * 0.085f * textK
-        val descSize = baseW * 0.058f * textK
+        val titleSize = titleSize()
+        val descSize = descSize()
         text.typeface = Typeface.DEFAULT
         text.textSize = descSize
         val desc = wrap(context.getString(descOf(reward)), w * 0.84f)
-        val textTop = minOf(r.top + r.height() * 0.7f - amountSize * 0.85f, r.bottom - blockH)
+        // Never above the card's own top edge: the amount belongs to its card at any font size.
+        val textTop = minOf(r.top + r.height() * 0.7f - amountSize * 0.85f, r.bottom - blockH).coerceAtLeast(r.top + w * 0.04f)
         val f = ((textTop - r.top - r.height() * 0.04f) / (r.height() * 0.56f)).coerceAtMost(1f)
 
         // Diorama: one grass tile with the reward standing on it; left out when large text needs the whole card.
         if (f >= MIN_DIORAMA) {
+            // The diorama stays inside its card (a tall server model poked out of a low card).
+            canvas.save()
+            canvas.clipRect(r.left, r.top + depth * 0.5f, r.right, r.bottom)
             ox = r.centerX()
-            oy = r.top + r.height() * 0.33f * f
-            u = w * 0.2f * f
+            u = minOf(w * 0.2f, r.height() * 0.19f) * f
+            // Tall models (the server with its hovering rack unit) sit lower on their plate, and only shrink when even
+            // then they would reach over the card's top edge.
+            val rise = if (reward == Reward.SERVER_VOUCHER) 2.7f else 1.7f
+            oy = minOf(maxOf(r.top + r.height() * 0.33f * f, r.top + depth + rise * u), r.top + r.height() * 0.55f * f - u * 0.9f)
+            u = minOf(u, (oy - r.top - depth) / rise)
             fillP.color = accent.shade(0.8f)
             canvas.drawRoundRect(r.left + depth, r.top + depth, r.right - depth, r.top + r.height() * 0.55f * f, radius * 0.7f, radius * 0.7f, fillP)
             tile(canvas, 0xFFDDE9D6.toInt(), 0xFFB9C9AF.toInt())
@@ -237,6 +265,7 @@ class RewardDialog(private val context: Context) {
                 Reward.ACCESS_POINT -> accessPoint(canvas, accent, bob, time)
                 Reward.CELL_TOWER -> cellTower(canvas, time)
             }
+            canvas.restore()
         }
 
         val cx = r.centerX()
@@ -248,7 +277,8 @@ class RewardDialog(private val context: Context) {
         text.color = ink
         text.textSize = titleSize
         val title = context.getString(titleOf(reward))
-        if (text.measureText(title) > w * 0.9f) text.textSize = maxOf(titleSize * w * 0.9f / text.measureText(title), titleSize * 0.7f)
+        // A long title ("Server-Gutschein" at 200 %) scales down to the card instead of being cut.
+        if (text.measureText(title) > w * 0.9f) text.textSize = maxOf(titleSize * w * 0.9f / text.measureText(title) * 0.98f, titleSize * 0.45f)
         y += titleSize * 1.3f
         canvas.drawText(fit(title, w * 0.9f), cx, y, text)
         text.typeface = Typeface.DEFAULT
@@ -391,6 +421,8 @@ class RewardDialog(private val context: Context) {
         const val BONUS = -1
         /** Android's minimum touch target. */
         private const val TOUCH_DP = 48f
+        /** Smallest shrink of the card texts when the tallest card is still too low for them. */
+        private const val MIN_FIT = 0.55f
         /** Smallest diorama (share of its size at the default text size) worth drawing. */
         private const val MIN_DIORAMA = 0.4f
     }

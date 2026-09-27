@@ -927,7 +927,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             // The menu stays reachable during the reward choice, so its button is drawn above the dimmed map.
             buttons.firstOrNull { b -> b.id == "menu" }?.let { b -> drawIconButton(canvas, b.rect, b.id, active = false) }
         }
-        menuPage()?.let { menuPanel.draw(canvas, it, surfaceWidth, surfaceHeight, pressedAction, safeInsets) }
+        menuPage()?.let { page ->
+            // A centred card moves below an achievement toast rather than under it (the main menu's card sits beside).
+            val toastRoom = if (page.hero) 0f else toast.reservedTop()
+            val safe = if (toastRoom > 0f) ViewInsets(safeInsets.left, maxOf(safeInsets.top, toastRoom), safeInsets.right, safeInsets.bottom) else safeInsets
+            menuPanel.draw(canvas, page, surfaceWidth, surfaceHeight, pressedAction, safe)
+        }
         if (screen == Screen.SCENERIES) {
             sceneryPicker.draw(
                 canvas, context.getString(R.string.scenery_title), context.getString(R.string.menu_back), sceneryCards(),
@@ -2189,7 +2194,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 MenuItem.Button(MenuAction.ACHIEVEMENTS, context.getString(R.string.menu_achievements)),
                 if (gameServices.available) MenuItem.Button(MenuAction.LEADERBOARDS, context.getString(R.string.menu_leaderboards)) else null,
                 MenuItem.Button(MenuAction.SETTINGS, context.getString(R.string.menu_settings)),
-                removeAdsLabel()?.let { MenuItem.Button(MenuAction.REMOVE_ADS, it) },
+                // A small text link under the buttons, not a third row of pills that crowds the card (judge panel).
+                removeAdsLabel()?.let { MenuItem.Button(MenuAction.REMOVE_ADS, it, link = true) },
             ),
             footer = highscores.best(highscores.lastScenery).takeIf { it > 0 }?.let { context.getString(R.string.menu_best, it) },
             hero = true,
@@ -2321,7 +2327,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         if (frames.size < 2 || tutorial != null) return null
         val w = world
         return MenuPicture(context.getString(R.string.a11y_recap, frames.first().week, frames.last().week), recap.aspect(frames)) { c, r ->
-            recap.draw(c, r, frames, animTime - gameOverAt) { x, y -> y in 0 until w.rows && x in 0 until w.cols && w.water[y][x] }
+            recap.draw(c, r, frames, animTime - gameOverAt, { x, y -> y in 0 until w.rows && x in 0 until w.cols && w.water[y][x] }, Cosmetic.paletteFor(w.scenario.id))
         }
     }
 
@@ -2674,6 +2680,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private fun chooseScenery(id: String) {
         if (id == SceneryPicker.BACK) {
             screen = Screen.MAIN_MENU
+            return
+        }
+        if (id == SceneryPicker.NEXT || id == SceneryPicker.PREV) {
+            sceneryPicker.page(id)
             return
         }
         if (id == SceneryPicker.MODE) {

@@ -37,7 +37,7 @@ class FormFactorScreenshotTest {
     @Before
     fun setUp() {
         SettingsStore(app).tutorialSeen = true
-        HighscoreStore(app).submit(1234)
+        HighscoreStore(app).submit(1187)
     }
 
     @Test

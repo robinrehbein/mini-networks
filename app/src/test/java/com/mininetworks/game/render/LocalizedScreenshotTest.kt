@@ -36,7 +36,7 @@ class LocalizedScreenshotTest {
     @Before
     fun setUp() {
         SettingsStore(app).tutorialSeen = true
-        HighscoreStore(app).submit(1234)
+        HighscoreStore(app).submit(1187)
     }
 
     private val stats = PlayerStats(

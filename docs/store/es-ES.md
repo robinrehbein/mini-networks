@@ -48,9 +48,9 @@ red, cables, estrategia, puzle, construcción, ciudad, pueblo, router, Wi-Fi, fi
 
 1. Conecta tu pueblo
 2. Un gesto, un cable
-3. Wi-Fi, 4G y 5G
+3. Evita que la red se sature
 4. Gira el mapa a tu gusto
-5. Un reto nuevo cada día
+5. Wi-Fi, 4G y 5G
 6. Una elección cada semana
 7. Cinco escenarios
 8. ¡Cuidado con la excavadora!

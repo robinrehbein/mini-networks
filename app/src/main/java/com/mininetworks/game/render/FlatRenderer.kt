@@ -87,7 +87,7 @@ class FlatRenderer : Renderer {
     }
 
     override fun draw(canvas: Canvas, world: World, drag: DragPreview?, time: Float) {
-        Cosmetic.palette.let {
+        Cosmetic.paletteFor(world.scenario.id).let {
             land = it.flatLand
             waterColor = it.flatWater
             backdrop = it.flatBackdrop

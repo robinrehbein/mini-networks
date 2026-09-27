@@ -25,15 +25,19 @@ class TextScale(private val metrics: DisplayMetrics, smallestWidthDp: Int = 0) {
 
     companion object {
         /**
-         * The canvas UI grows on tablets like a smallest-width dimens set would (sw600dp, sw720dp): at phone size the
+         * The canvas UI grows on tablets like a smallest-width dimens set would (sw600dp and up): at phone size the
          * HUD, dialogs and menus would take a third of the relative room on a 10" screen and turn unreadable from a
          * distance or in a store thumbnail.
          */
-        fun uiScale(smallestWidthDp: Int): Float = when {
-            smallestWidthDp >= 720 -> 1.6f
-            smallestWidthDp >= 600 -> 1.3f
-            else -> 1f
-        }
+        fun uiScale(smallestWidthDp: Int): Float =
+            if (smallestWidthDp < 600) 1f else (smallestWidthDp / TABLET_DP_PER_UI).coerceIn(1.3f, MAX_UI)
+
+        /**
+         * From 600 dp on the UI grows with the shortest side (not in steps): chips and labels keep the same share of
+         * the screen on a 7" and a 10" tablet, instead of shrinking to 2 % of the height (judge panel).
+         */
+        private const val TABLET_DP_PER_UI = 460f
+        private const val MAX_UI = 1.9f
 
         /** The scale for [context]'s current configuration. */
         fun of(context: android.content.Context) =

@@ -48,9 +48,9 @@ ağ, kablo, strateji, bulmaca, şehir kurma, router, Wi-Fi, fiber, internet, çe
 
 1. Şehrini kabloyla bağla
 2. Bir kaydırma, bir kablo
-3. Wi-Fi, 4G ve 5G
+3. Ağın aşırı yüklenmesini önle
 4. Haritayı dilediğin gibi döndür
-5. Her gün yeni bir görev
+5. Wi-Fi, 4G ve 5G
 6. Her hafta bir seçim
 7. Beş manzara
 8. Dikkat, kepçe!

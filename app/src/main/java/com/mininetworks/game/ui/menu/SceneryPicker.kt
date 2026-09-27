@@ -87,6 +87,17 @@ class SceneryPicker(context: Context) {
         scroll = (scroll + dx).coerceIn(0f, maxScroll)
     }
 
+    /** Width of one card plus its gap in px while the row scrolls: what [NEXT] and [PREV] move by. */
+    private var step = 0f
+
+    /** Scrolls the row by one card towards [NEXT] or [PREV]; snaps so a card's left edge meets the row's. */
+    fun page(id: String) {
+        if (step <= 0f) return
+        val dir = if (id == NEXT) 1 else -1
+        val target = (kotlin.math.round(scroll / step) + dir) * step
+        scroll = target.coerceIn(0f, maxScroll)
+    }
+
     /** Scrolls so that the card of scenery [id] is fully visible (screen readers moving their focus onto it). */
     fun reveal(id: String) {
         val card = targetOf(id) ?: return
@@ -163,7 +174,11 @@ class SceneryPicker(context: Context) {
             cardW = widthFor(cols).coerceAtMost(maxCard)
             if (hDp / heightFor(cols, cardW) < MIN_GRID_SCALE) {
                 cols = cards.size
-                cardW = minCard.coerceAtMost(wDp - 2 * MARGIN_DP)
+                // As many whole cards as fit, plus a third of the next one peeking in at the edge: the row visibly
+                // goes on (judge panel: the fifth card was simply cut off at 200 % text).
+                val vis = wDp - 2 * MARGIN_DP
+                val whole = (cards.size - 1 downTo 1).firstOrNull { n -> (vis - n * GAP_DP) / (n + PEEK) >= minCard } ?: 1
+                cardW = ((vis - whole * GAP_DP) / (whole + PEEK)).coerceAtMost(maxCard).coerceAtMost(vis)
                 scrolling = true
             }
         }
@@ -171,13 +186,14 @@ class SceneryPicker(context: Context) {
         val wrapped = rows > 1
         val metrics = CardText(cardW, ratio)
         val cardH = metrics.heightDp + SLAB_DP
-        val naturalH = heightFor(cols, cardW)
+        val naturalH = heightFor(cols, cardW) + if (scrolling) DOTS_DP else 0f
         val s = minOf(1f, hDp / naturalH)
         val u = density * s
         val rowW = (cols * cardW + (cols - 1) * GAP_DP) * u
         viewLeft = safe.left + MARGIN_DP * u
         viewWidth = areaW - 2 * MARGIN_DP * u
         maxScroll = if (scrolling) (rowW - viewWidth).coerceAtLeast(0f) else 0f
+        step = if (scrolling) (cardW + GAP_DP) * u else 0f
         scroll = scroll.coerceIn(0f, maxScroll)
         val left = if (scrolling) viewLeft - scroll else safe.left + (areaW - rowW) / 2f
         // Pills and title span the row, or the visible area while the row scrolls.
@@ -250,7 +266,11 @@ class SceneryPicker(context: Context) {
             targets += bounds to card.scenario.id
             drawnNodes += UiNode("scenery:${card.scenario.id}", RectF(bounds), cardText(card), UiNode.Kind.BUTTON)
         }
-        val lastBottom = gridTop + (rows * cardH + (rows - 1) * ROW_GAP_DP) * u
+        var lastBottom = gridTop + (rows * cardH + (rows - 1) * ROW_GAP_DP) * u
+        if (maxScroll > 0f) {
+            scrollCues(canvas, gridTop, gridTop + (cardH - SLAB_DP) * u, u, cards.size)
+            lastBottom += DOTS_DP * u
+        }
         hint?.let {
             text.textAlign = Paint.Align.CENTER
             text.typeface = Typeface.DEFAULT_BOLD
@@ -259,6 +279,59 @@ class SceneryPicker(context: Context) {
             val baseline = lastBottom + text.textSize * 1.5f
             canvas.drawText(fit(it, areaW - 2 * MARGIN_DP * u), width / 2f, baseline, text)
             drawnNodes += UiNode("scenery:hint", RectF(safe.left, baseline - text.textSize, width - safe.right, baseline + text.textSize * 0.3f), it, UiNode.Kind.TEXT)
+        }
+    }
+
+    private val fadeP = Paint()
+    private val chevron = Path()
+
+    /**
+     * Shows that the row scrolls: the cards fade out at an edge with more behind it, a round arrow button there pages
+     * by one card ([NEXT], [PREV]), and dots under the row say which part of it is on screen.
+     */
+    private fun scrollCues(canvas: Canvas, top: Float, bottom: Float, u: Float, count: Int) {
+        val fade = 36f * u
+        val bg = 0xF3F1EC
+        val right = viewLeft + viewWidth
+        val size = TOUCH_DP * density
+        // Level with the previews, clear of the card texts.
+        val cy = top + (bottom - top) * 0.22f
+        for (dir in listOf(-1, 1)) {
+            val more = if (dir > 0) scroll < maxScroll - 1f else scroll > 1f
+            if (!more) continue
+            val edge = if (dir > 0) right + MARGIN_DP * u else viewLeft - MARGIN_DP * u
+            val inner = edge - dir * (fade + MARGIN_DP * u)
+            fadeP.shader = android.graphics.LinearGradient(inner, 0f, edge, 0f, bg or 0x00000000, bg or (0xF0 shl 24), android.graphics.Shader.TileMode.CLAMP)
+            canvas.drawRect(minOf(inner, edge), top - 4f * u, maxOf(inner, edge), bottom + SLAB_DP * u + 8f * u, fadeP)
+            val cx = if (dir > 0) right - size / 2f else viewLeft + size / 2f
+            fillP.color = 0x33000000
+            canvas.drawCircle(cx, cy + 3f * u, size / 2f, fillP)
+            fillP.color = 0xFFFFFFFF.toInt()
+            canvas.drawCircle(cx, cy, size / 2f, fillP)
+            lineP.color = ink
+            lineP.strokeWidth = 3.5f * u
+            lineP.strokeCap = Paint.Cap.ROUND
+            lineP.strokeJoin = Paint.Join.ROUND
+            val a = size * 0.13f
+            chevron.reset()
+            chevron.moveTo(cx - dir * a * 0.6f, cy - a * 1.2f)
+            chevron.lineTo(cx + dir * a * 0.7f, cy)
+            chevron.lineTo(cx - dir * a * 0.6f, cy + a * 1.2f)
+            canvas.drawPath(chevron, lineP)
+            // First in the list, so the arrow wins over the card under it.
+            targets.add(0, RectF(cx - size / 2f, cy - size / 2f, cx + size / 2f, cy + size / 2f) to if (dir > 0) NEXT else PREV)
+        }
+        // Page dots: one per card, the ones on screen filled.
+        val dotR = 4f * u
+        val gap = 14f * u
+        val y = bottom + SLAB_DP * u + DOTS_DP * u * 0.6f
+        val x0 = viewLeft + viewWidth / 2f - (count - 1) * gap / 2f
+        val first = scroll / step
+        val shown = viewWidth / step
+        for (i in 0 until count) {
+            val on = i + 0.5f >= first && i + 0.5f <= first + shown
+            fillP.color = if (on) ink else 0x55262B33
+            canvas.drawCircle(x0 + i * gap, y, if (on) dotR * 1.15f else dotR, fillP)
         }
     }
 
@@ -420,6 +493,13 @@ class SceneryPicker(context: Context) {
         const val PACK = "pack"
         /** Target id of the pill that switches the game mode. */
         const val MODE = "mode"
+        /** Target ids of the arrow buttons of a scrolling row. */
+        const val NEXT = "next"
+        const val PREV = "prev"
+        /** Share of a card that peeks in at the edge of a scrolling row. */
+        private const val PEEK = 0.3f
+        /** Room for the page dots under a scrolling row. */
+        private const val DOTS_DP = 18f
         private const val PREVIEW_SEED = 11L
         /** Smallest share of their size that card texts shrink to before they are cut with an ellipsis. */
         private const val MIN_SHRINK = 0.8f

@@ -54,9 +54,10 @@ import kotlin.math.abs
  *
  * Every picture is the real game (GameView with its map, menus and cards) in the language of the listing, on a card
  * that fills most of the frame: the game is laid out at the card's own size, so the map reaches its edges instead of
- * floating in the middle. Marketing shots hide the HUD ([GameView.hudHidden]) except the wireless one, which shows the
- * controls. Each slide has its own accent colour (one of the service colours), a packet in that colour before the
- * caption and a faint cable pattern in the backdrop; the first one carries the logo mark as the hero frame.
+ * floating in the middle. Marketing shots hide the HUD ([GameView.hudHidden]) except the drag and the overload shot,
+ * which sells the tension with the real play screen. Each slide has its own accent colour and a faint cable pattern in
+ * the backdrop, the app icon before every caption; two slides are full bleed so the set does not repeat one template.
+ * Portrait phones get three of the slides.
  * 16:9 as Play asks for phones and tablets (1080–7680 px per side): phone 1920 × 1080 at 420 dpi (731 × 411 dp),
  * 7" tablet 1920 × 1080 at 280 dpi (1097 × 617 dp, sw600), 10" tablet 2560 × 1440 at xhdpi (1280 × 720 dp, sw720);
  * the UI grows on tablets like it does on the devices ([com.mininetworks.game.ui.TextScale.uiScale]).
@@ -72,11 +73,22 @@ import kotlin.math.abs
 class StoreScreenshotTest {
 
     /** A device class of the store listing: the frame size and the density of the game drawn inside it. */
-    enum class StoreDevice(val id: String, val width: Int, val height: Int, val qualifiers: String) {
+    enum class StoreDevice(
+        val id: String, val width: Int, val height: Int, val qualifiers: String,
+        /** Tablets show more of the map than a phone (their screens do): the shots' zoom times this. */
+        val zoom: Float = 1f,
+        /** Which of the eight slides this device gets (portrait phones: the three that read best upright). */
+        val slides: List<Int> = (0 until 8).toList(),
+    ) {
         PHONE("phone", 1920, 1080, "w731dp-h411dp-land-420dpi"),
-        TABLET_7("tablet-7", 1920, 1080, "w1097dp-h617dp-land-280dpi"),
-        TABLET_10("tablet-10", 2560, 1440, "w1280dp-h720dp-land-xhdpi"),
+        TABLET_7("tablet-7", 1920, 1080, "w1097dp-h617dp-land-280dpi", zoom = 0.88f),
+        TABLET_10("tablet-10", 2560, 1440, "w1280dp-h720dp-land-xhdpi", zoom = 0.82f),
+        /** Portrait is what the Play Store carousel shows first on phones. */
+        PHONE_PORTRAIT("phone-portrait", 1080, 1920, "w411dp-h731dp-port-420dpi", slides = listOf(0, 2, 3)),
     }
+
+    /** The device being rendered; its [StoreDevice.zoom] scales every shot. */
+    private var device = StoreDevice.PHONE
 
     private val app get() = RuntimeEnvironment.getApplication()
 
@@ -107,17 +119,20 @@ class StoreScreenshotTest {
             val captions = LANGUAGES[lang] ?: error("no captions for $lang")
             for (device in StoreDevice.entries) {
                 RuntimeEnvironment.setQualifiers("$lang-${device.qualifiers}")
+                this.device = device
                 val dir = File(storeDir, "screenshots/${device.id}/$lang").apply { mkdirs() }
+                dir.listFiles()?.forEach { it.delete() }
                 val shots = shots()
                 assertEquals(8, shots.size)
                 assertEquals(8, captions.size)
-                for ((i, shot) in shots.withIndex()) {
+                for (i in device.slides) {
+                    val shot = shots[i]
                     Cosmetic.reset()
-                    val card = cardRect(device)
+                    val card = cardRect(device, shot.bleed)
                     val game = Bitmap.createBitmap(card.width().toInt(), card.height().toInt(), Bitmap.Config.ARGB_8888)
                     shot.draw(game)
                     Cosmetic.reset()
-                    val framed = frame(device, game, captions[i], i)
+                    val framed = frame(device, game, captions[i], i, shot.bleed)
                     writeRgbPng(framed, File(dir, "%02d-%s.png".format(i + 1, shot.name)))
                     assertEquals(device.width, framed.width)
                     assertEquals(device.height, framed.height)
@@ -126,15 +141,25 @@ class StoreScreenshotTest {
         }
     }
 
-    /** One of the eight motifs: a name for the file and how to draw it on the game surface. */
-    private class Shot(val name: String, val draw: (Bitmap) -> Unit)
+    /**
+     * One of the eight motifs: a name for the file and how to draw it on the game surface. A [bleed] shot fills the
+     * whole frame with the game and carries its caption on a dark gradient, so the set does not repeat one template.
+     */
+    private class Shot(val name: String, val bleed: Boolean = false, val draw: (Bitmap) -> Unit)
 
-    /** Where the game card sits in the frame of [d]: 93 % of the width, from under the caption band to near the bottom. */
-    private fun cardRect(d: StoreDevice): RectF {
+    /** Height of the caption band of [d]. */
+    private fun band(d: StoreDevice) = if (d.height > d.width) d.height * 0.12f else d.height * BAND
+
+    /**
+     * Where the game sits in the frame of [d]: on a card 93 % of the width, from under the caption band to near the
+     * bottom; or the whole frame for a [bleed] shot.
+     */
+    private fun cardRect(d: StoreDevice, bleed: Boolean = false): RectF {
         val w = d.width.toFloat()
         val h = d.height.toFloat()
+        if (bleed) return RectF(0f, 0f, w, h)
         val side = w * 0.035f
-        return RectF(side, h * BAND, w - side, h - h * 0.04f)
+        return RectF(side, band(d), w - side, h - h * 0.04f)
     }
 
     private fun view(hud: Boolean = false): GameView = GameView(app).also {
@@ -159,7 +184,7 @@ class StoreScreenshotTest {
             val p = view.activeRenderer.toScreen(focus)
             cam.panBy(bmp.width / 2f - p.x, bmp.height / 2f - p.y)
         }
-        cam.zoomBy(zoom, bmp.width / 2f, bmp.height / 2f)
+        cam.zoomBy(zoom * device.zoom, bmp.width / 2f, bmp.height / 2f)
         before(view)
         bmp.eraseColor(0)
         view.drawCurrent(Canvas(bmp))
@@ -176,24 +201,24 @@ class StoreScreenshotTest {
         Shot("town") { bmp ->
             val world = lateTown()
             val nodes = world.nodes
-            val focus = Vec2(nodes.map { it.center.x }.average().toFloat(), nodes.map { it.center.y }.average().toFloat())
-            game(bmp, world, zoom = 1.45f, focus = focus)
+            // A little right of the network's middle, so the cables at its east edge stay in the picture.
+            val focus = Vec2(nodes.map { it.center.x }.average().toFloat() + 0.8f, nodes.map { it.center.y }.average().toFloat())
+            game(bmp, world, zoom = if (bmp.height > bmp.width) 2.1f else 1.5f, focus = focus)
         },
         // 2. Laying a cable, close up: fiber picked, the finger drags from the tablet to the game server; glow, touch
-        //    trail and the price bubble.
+        //    trail and the price bubble fill the card (no empty board edge).
         Shot("drag") { bmp ->
             val world = Scenes.hud()
             val from = world.nodes.first { it.device == Device.TABLET }
             val to = world.nodes.first { it.service == Service.GAMING }
-            // Centred between the drag and the board's middle (the drag runs near the board's east edge), close enough
-            // that the board fills the card.
+            // Between the drag and the board's middle (the drag runs near the board's edge), so no empty backdrop shows.
             val mid = Vec2(
-                (from.center.x + to.center.x) / 2f * 0.6f + world.cols / 2f * 0.4f,
-                (from.center.y + to.center.y) / 2f * 0.6f + world.rows / 2f * 0.4f,
+                (from.center.x + to.center.x) / 2f * 0.5f + world.cols / 2f * 0.5f,
+                (from.center.y + to.center.y) / 2f * 0.5f + world.rows / 2f * 0.5f - 1f,
             )
             val v = view(hud = true)
             var tip = Vec2(0f, 0f)
-            game(bmp, world, zoom = 2.0f, view = v, focus = mid) { gv ->
+            game(bmp, world, zoom = 3.1f, view = v, focus = mid) { gv ->
                 gv.drawCurrent(Canvas(bmp))
                 tap(gv, "cable:${CableType.FIBER.name}")
                 gv.hudHidden = true
@@ -210,46 +235,147 @@ class StoreScreenshotTest {
                 }
             }
             finger(bmp, tip.x, tip.y)
+            // The small tutorial board ends below the drag: crop onto the action so no bare board edge shows.
+            cropZoom(bmp, 1.25f, 0.02f, 0.02f)
         },
-        // 3. Wireless with the controls: Wi-Fi channels, 5 GHz, a cell tower, traffic on every link.
-        //    No HUD: its pills covered a third of the radio zones at phone size (judge panel).
-        Shot("wireless") { bmp ->
-            val world = storeWireless()
-            val radios = world.nodes.filter { it.kind == NodeKind.ACCESS_POINT || it.kind == NodeKind.CELL_TOWER }
-            val focus = Vec2(radios.map { it.center.x }.average().toFloat(), radios.map { it.center.y }.average().toFloat())
-            game(bmp, world, zoom = 1.1f, focus = focus)
+        // 3. The tension: the real play screen with its HUD (date, packet count, cable bar), two devices whose queues
+        //    are full and whose red overload rings are closing.
+        Shot("overload") { bmp ->
+            val world = lateTown()
+            // Half a minute more of normal play, so the packet counter shows a game well under way.
+            repeat(60 * 30) {
+                if (world.rewardOffer != null) world.chooseReward(0)
+                world.update(1f / 60f)
+                // A steady player: no ring ever fills during this stretch.
+                world.nodes.forEach { it.overload = 0f }
+            }
+            check(!world.gameOver)
+            val hot = overloaded(world)
+            game(bmp, world, zoom = if (bmp.height > bmp.width) 1.9f else 1.35f, view = view(hud = true), focus = hot.center)
         },
-        // 4. The turned map, in the autumn theme (winter read white-on-white): the metropolis at an odd angle, with a
-        //    turn gesture drawn over it.
-        Shot("rotation") { bmp ->
-            val world = wiredStart()
-            game(bmp, world, zoom = 1.3f, theme = ColorTheme.AUTUMN) { v ->
+        // 4. The turned map, full bleed: the dense city of 2030 late in a game, packets on every line, at an odd
+        //    angle with a turn gesture drawn over it.
+        Shot("rotation", bleed = true) { bmp ->
+            val world = lateFuture()
+            val focus = Vec2(world.nodes.map { it.center.x }.average().toFloat(), world.nodes.map { it.center.y }.average().toFloat())
+            game(bmp, world, zoom = if (bmp.height > bmp.width) 2.2f else 1.55f, focus = focus) { v ->
                 val r = v.activeRenderer
                 r.rotateBy(Camera.shortestTurn(r.camera.angle, 34f), r.camera.centerX, r.camera.centerY, world)
             }
             rotationHint(bmp)
         },
-        // 5. The daily challenge: today's map with the streak flame.
-        Shot("daily") { bmp ->
-            val v = view()
-            v.drawSnapshot(Canvas(bmp), v.currentWorld, bmp.width, bmp.height, time = 1.3f, screen = Screen.DAILY)
-            bmp.eraseColor(0)
-            v.drawCurrent(Canvas(bmp))
+        // 5. Wireless, close on the radios: coverage circles and the dashed radio links are the hero, no queues.
+        Shot("wireless") { bmp ->
+            val world = storeWireless()
+            world.nodes.forEach { it.pending.clear() }
+            val radios = world.nodes.filter { it.kind == NodeKind.ACCESS_POINT || it.kind == NodeKind.CELL_TOWER }
+            val focus = Vec2(radios.map { it.center.x }.average().toFloat() + 0.8f, radios.map { it.center.y }.average().toFloat() - 1.3f)
+            game(bmp, world, zoom = 1.9f, focus = focus)
         },
-        // 6. The week reward: two large cards over the running map (no ad button, no menu button in store art).
+        // 6. The week reward at its moment: confetti over the dark-scrimmed map and the two cards.
         Shot("reward") { bmp ->
             view().drawSnapshot(Canvas(bmp), FormFactorScreenshotTest.rewardWorld(), bmp.width, bmp.height, time = 1.3f, style = "Iso")
+            com.mininetworks.game.ui.Confetti(uiDensity()).draw(Canvas(bmp), bmp.width, bmp.height, 0.55f, 6)
         },
-        // 7. Five sceneries, each in colour, as a collage of their maps.
-        Shot("sceneries") { bmp -> sceneryCollage(bmp) },
-        // 8. Incidents, close up and in the desert theme: an excavator cuts a cable, a router is dark.
-        Shot("incidents") { bmp ->
+        // 7. Five sceneries, each in its own colours, as a collage of their maps; the daily challenge as a callout.
+        Shot("sceneries") { bmp ->
+            sceneryCollage(bmp)
+            dailyCallout(bmp)
+        },
+        // 8. Incidents, full bleed and close up in the desert theme: an excavator cuts a cable, a router is dark.
+        Shot("incidents", bleed = true) { bmp ->
             val world = Scenes.incidents()
             repeat(60 * 2) { world.update(1f / 60f) }
             val focus = world.incidents.first { it.struck && it.cable != null }.spot
-            game(bmp, world, zoom = 1.6f, focus = focus, theme = ColorTheme.DESERT)
+            game(bmp, world, zoom = 1.7f, focus = focus, theme = ColorTheme.DESERT)
         },
     )
+
+    /** Enlarges [bmp] in place by [f], keeping the part that starts at ([fx], [fy]) of its size in the top left. */
+    private fun cropZoom(bmp: Bitmap, f: Float, fx: Float, fy: Float) {
+        val src = bmp.copy(Bitmap.Config.ARGB_8888, false)
+        val w = bmp.width / f
+        val h = bmp.height / f
+        val l = (bmp.width * fx).coerceAtMost(bmp.width - w)
+        val t = (bmp.height * fy).coerceAtMost(bmp.height - h)
+        bmp.eraseColor(0)
+        Canvas(bmp).drawBitmap(src, android.graphics.Rect(l.toInt(), t.toInt(), (l + w).toInt(), (t + h).toInt()), RectF(0f, 0f, bmp.width.toFloat(), bmp.height.toFloat()), Paint(Paint.FILTER_BITMAP_FLAG))
+    }
+
+    /** Pixels per UI dp of the current qualifiers, as the game computes them. */
+    private fun uiDensity() = app.resources.displayMetrics.density * com.mininetworks.game.ui.TextScale.uiScale(app.resources.configuration.smallestScreenWidthDp)
+
+    /**
+     * Two devices near the middle of [w] with full queues and closing overload rings (the tension of the game); the
+     * worse one is returned.
+     */
+    private fun overloaded(w: World): com.mininetworks.game.game.Node {
+        val cx = w.nodes.map { it.center.x }.average().toFloat()
+        val cy = w.nodes.map { it.center.y }.average().toFloat()
+        val hot = w.nodes.filter { it.kind == NodeKind.CLIENT }.sortedBy { abs(it.center.x - cx) + abs(it.center.y - cy) }.take(2)
+        hot.forEachIndexed { i, n ->
+            val services = n.device!!.services
+            n.pending.clear()
+            repeat(World.Tuning.MAX_PENDING) { k -> n.pending.addLast(services[k % services.size]) }
+            n.overload = if (i == 0) 0.78f else 0.45f
+        }
+        return hot.first()
+    }
+
+    /** The 2030 scenery late in a game: grown, every device wired, servers upgraded, rush-hour traffic. */
+    private fun lateFuture(): World {
+        val w = World(Scenarios.FUTURE, seed = 4L)
+        w.incidentsEnabled = false
+        repeat(60 * 45) {
+            if (w.rewardOffer != null) w.chooseReward(0)
+            w.nodes.forEach { it.pending.clear() }
+            w.update(1f / 60f)
+        }
+        w.jumpToWeek(w.week + 3)
+        w.grant(3000)
+        repeat(60 * 30) {
+            if (w.rewardOffer != null) w.chooseReward(0)
+            w.nodes.forEach { it.pending.clear() }
+            w.update(1f / 60f)
+        }
+        wireNearest(w)
+        w.nodes.filter { it.kind == NodeKind.SERVER }.forEach { s -> repeat(2) { w.upgradeServer(s) } }
+        repeat(60 * 5) {
+            if (w.rewardOffer != null) w.chooseReward(0)
+            w.update(1f / 60f)
+        }
+        rushHour(w)
+        check(!w.gameOver) { "the 2030 city must still run" }
+        return w
+    }
+
+    /** A small callout in the bottom right corner: a flame and "Daily challenge", instead of a whole slide of UI. */
+    private fun dailyCallout(bmp: Bitmap) {
+        val c = Canvas(bmp)
+        val d = uiDensity()
+        val label = app.getString(R.string.menu_daily)
+        val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = Typeface.DEFAULT_BOLD; textSize = 17f * d; color = 0xFFFFFFFF.toInt() }
+        val h = 46f * d
+        val w = p.measureText(label) + h * 1.5f
+        val r = RectF(bmp.width - 18f * d - w, bmp.height - 18f * d - h, bmp.width - 18f * d, bmp.height - 18f * d)
+        c.drawRoundRect(RectF(r).apply { offset(0f, 3f * d) }, h / 2f, h / 2f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x40000000 })
+        c.drawRoundRect(r, h / 2f, h / 2f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFE4572E.toInt() })
+        // The streak flame: an orange drop with a yellow core.
+        val fx = r.left + h * 0.55f
+        val fy = r.centerY() + h * 0.08f
+        fun flame(size: Float, color: Int) {
+            val path = Path().apply {
+                moveTo(fx, fy - size * 1.25f)
+                cubicTo(fx + size * 0.9f, fy - size * 0.4f, fx + size * 0.8f, fy + size * 0.6f, fx, fy + size * 0.65f)
+                cubicTo(fx - size * 0.8f, fy + size * 0.6f, fx - size * 0.9f, fy - size * 0.4f, fx, fy - size * 1.25f)
+                close()
+            }
+            c.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color })
+        }
+        flame(h * 0.32f, 0xFFFFFFFF.toInt())
+        flame(h * 0.2f, 0xFFFFC21A.toInt())
+        c.drawText(label, r.left + h * 1.0f, r.centerY() + p.textSize * 0.36f, p)
+    }
 
     /**
      * A busy town late in a game: grown twice, every client wired to its nearest server with the cable a player would
@@ -479,52 +605,66 @@ class StoreScreenshotTest {
         return w
     }
 
-    /** [game] on its card in the frame of [d], under [caption]; slide [index] picks the accent colour. */
-    private fun frame(d: StoreDevice, game: Bitmap, caption: String, index: Int): Bitmap {
+    /** Livelier colours for store art: saturation up by a third and a touch more contrast than the game's calm look. */
+    private val vivid = Paint(Paint.FILTER_BITMAP_FLAG).apply {
+        val m = android.graphics.ColorMatrix().apply { setSaturation(1.35f) }
+        val k = 1.08f
+        val t = -0.04f * 255f
+        m.postConcat(android.graphics.ColorMatrix(floatArrayOf(k, 0f, 0f, 0f, t, 0f, k, 0f, 0f, t, 0f, 0f, k, 0f, t, 0f, 0f, 0f, 1f, 0f)))
+        colorFilter = android.graphics.ColorMatrixColorFilter(m)
+    }
+
+    /**
+     * [game] in the frame of [d] under [caption]: on a card over the backdrop, or full bleed with the caption on a dark
+     * gradient ([bleed]); slide [index] picks the accent colour. Every caption carries the app icon.
+     */
+    private fun frame(d: StoreDevice, game: Bitmap, caption: String, index: Int, bleed: Boolean): Bitmap {
         val out = Bitmap.createBitmap(d.width, d.height, Bitmap.Config.ARGB_8888)
         val c = Canvas(out)
         val w = d.width.toFloat()
         val h = d.height.toFloat()
         val service = SLIDE_SERVICES[index]
         val accent = ServiceColors.defaultOf(service)
-        background(c, w, h, accent, index)
-        val dst = cardRect(d)
-        val radius = w * 0.016f
-        val shadow = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x73000000; maskFilter = BlurMaskFilter(w * 0.012f, BlurMaskFilter.Blur.NORMAL) }
-        c.drawRoundRect(RectF(dst.left, dst.top + w * 0.006f, dst.right, dst.bottom + w * 0.006f), radius, radius, shadow)
-        c.save()
-        c.clipPath(Path().apply { addRoundRect(dst, radius, radius, Path.Direction.CW) })
-        c.drawBitmap(game, dst.left, dst.top, Paint(Paint.FILTER_BITMAP_FLAG))
-        c.restore()
-        // A thin rim in the slide's accent ties the card to the backdrop.
-        c.drawRoundRect(dst, radius, radius, Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = w * 0.0022f; color = accent and 0xFFFFFF or 0xCC000000.toInt() })
+        val band = band(d)
+        if (bleed) {
+            c.drawBitmap(game, 0f, 0f, vivid)
+            val scrim = Paint().apply {
+                shader = LinearGradient(0f, 0f, 0f, band * 2f, intArrayOf(0xF2112634.toInt(), 0xCC112634.toInt(), 0x00112634), floatArrayOf(0f, 0.55f, 1f), Shader.TileMode.CLAMP)
+            }
+            c.drawRect(0f, 0f, w, band * 2f, scrim)
+        } else {
+            background(c, w, h, accent, index)
+            val dst = cardRect(d)
+            val radius = minOf(w, h) * 0.028f
+            val shadow = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x73000000; maskFilter = BlurMaskFilter(w * 0.012f, BlurMaskFilter.Blur.NORMAL) }
+            c.drawRoundRect(RectF(dst.left, dst.top + w * 0.006f, dst.right, dst.bottom + w * 0.006f), radius, radius, shadow)
+            c.save()
+            c.clipPath(Path().apply { addRoundRect(dst, radius, radius, Path.Direction.CW) })
+            c.drawBitmap(game, dst.left, dst.top, vivid)
+            c.restore()
+            // A thin rim in the slide's accent ties the card to the backdrop.
+            c.drawRoundRect(dst, radius, radius, Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = w * 0.0022f; color = accent and 0xFFFFFF or 0xCC000000.toInt() })
+        }
 
-        // Caption: a packet in the accent colour, then the headline in a heavy weight, centered in the band above.
-        val band = dst.top
+        // Caption: the app icon, then the headline in a heavy weight, centred in the band above.
         val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFFFFFF.toInt(); typeface = display; textAlign = Paint.Align.LEFT }
+        if (bleed) text.setShadowLayer(band * 0.04f, 0f, band * 0.02f, 0x99000000.toInt())
         text.textSize = band * 0.5f
         val hero = index == 0
-        val markSize = band * (if (hero) 0.7f else 0.34f)
-        val maxW = w * 0.86f - markSize * 1.4f
+        val markSize = band * (if (hero) 0.7f else 0.56f)
+        val maxW = w * 0.9f - markSize * 1.3f
         while (text.measureText(caption) > maxW && text.textSize > band * 0.3f) text.textSize *= 0.96f
         val lines = TextWrap.wrap(caption, maxW) { text.measureText(it) }
         assertTrue("caption \"$caption\" fits ${d.id}: $lines", lines.size <= 2 && lines.all { text.measureText(it) <= maxW })
         if (lines.size == 2) text.textSize = minOf(text.textSize, band * 0.36f)
         val lineH = text.textSize * 1.08f
         val textW = lines.maxOf { text.measureText(it) }
-        val total = markSize * 1.4f + textW
+        val total = markSize * 1.3f + textW
         val x0 = (w - total) / 2f
         val cy = band * 0.5f
-        if (hero) {
-            LogoMark(app).draw(c, x0 + markSize / 2f, cy, markSize)
-        } else {
-            val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFFFFFF.toInt() }
-            Shapes.draw(c, service.shape, x0 + markSize / 2f, cy, markSize * 0.62f, p)
-            p.color = accent
-            Shapes.draw(c, service.shape, x0 + markSize / 2f, cy, markSize * 0.5f, p)
-        }
+        LogoMark(app).draw(c, x0 + markSize / 2f, cy, markSize)
         val firstBaseline = cy - (lines.size - 1) * lineH / 2f + text.textSize * 0.36f
-        lines.forEachIndexed { i, l -> c.drawText(l, x0 + markSize * 1.4f, firstBaseline + i * lineH, text) }
+        lines.forEachIndexed { i, l -> c.drawText(l, x0 + markSize * 1.3f, firstBaseline + i * lineH, text) }
         return out
     }
 
@@ -581,9 +721,10 @@ class StoreScreenshotTest {
     }
 
     /**
-     * The feature graphic (1024 × 500, no alpha): the busy late-game town across the whole graphic, a clean diagonal
-     * split to a dusk-blue panel edged by a glowing fiber cable with packets, and on it the logo mark, the name in a
-     * heavy weight and the tagline. Nothing important lies in the outer 10 % (Play may crop it or lay buttons over it).
+     * The feature graphic (1024 × 500, no alpha): the busy late-game town across the whole width, one server glowing
+     * with packets streaming to it as the hero moment, and a dusk-blue gradient rising from the bottom that carries
+     * the app icon, the name as a large heavy wordmark and a one-line tagline. Nothing important lies in the outer 10 %
+     * (Play may crop it or lay buttons over it).
      */
     @Test
     @Config(qualifiers = "en-w731dp-h411dp-land-420dpi")
@@ -593,56 +734,44 @@ class StoreScreenshotTest {
         val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val c = Canvas(out)
         c.drawColor(0xFF1B3848.toInt())
-        // The town, drawn by the isometric renderer alone (no HUD), across the whole graphic, centered left of the panel.
         val world = lateTown()
         val town = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val r = IsoRenderer()
-        r.density = 1.6f
-        r.layout(740, h, world)
-        val focus = Vec2(world.nodes.map { it.center.x }.average().toFloat(), world.nodes.map { it.center.y }.average().toFloat())
-        r.toScreen(focus).let { p -> r.camera.panBy(370f - p.x, h / 2f - p.y) }
-        r.camera.zoomBy(1.45f, 370f, h / 2f)
+        r.density = 1.7f
+        r.layout(w, h, world)
+        // The hero: the busiest server, placed a little above the middle, where the gradient does not reach.
+        val hero = world.nodes.filter { it.kind == NodeKind.SERVER }.maxBy { s -> world.cables.count { it.a === s || it.b === s } }
+        r.toScreen(hero.center).let { p -> r.camera.panBy(w * 0.5f - p.x, h * 0.36f - p.y) }
+        r.camera.zoomBy(1.7f, w * 0.5f, h * 0.36f)
         r.draw(Canvas(town), world, drag = null, time = 1.3f)
-        c.drawBitmap(town, 0f, 0f, null)
-        // The panel: a diagonal edge from (600, 0) to (520, 500).
-        val panel = Path().apply { moveTo(600f, 0f); lineTo(w.toFloat(), 0f); lineTo(w.toFloat(), h.toFloat()); lineTo(520f, h.toFloat()); close() }
-        val pp = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            shader = LinearGradient(560f, 0f, w.toFloat(), h.toFloat(), 0xF2204A5E.toInt(), 0xFF112634.toInt(), Shader.TileMode.CLAMP)
-        }
-        c.drawPath(panel, pp)
-        // The fiber cable along the edge: glow, line, core, and packets riding it.
-        val edge = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND }
-        edge.color = 0x55F28C28; edge.strokeWidth = 22f; c.drawLine(600f, -10f, 520f, h + 10f, edge)
-        edge.color = 0xFFF28C28.toInt(); edge.strokeWidth = 8f; c.drawLine(600f, -10f, 520f, h + 10f, edge)
-        edge.color = 0xFFFFE2B8.toInt(); edge.strokeWidth = 2.5f; c.drawLine(600f, -10f, 520f, h + 10f, edge)
-        val services = listOf(Service.MAIL, Service.GAMING, Service.CALL, Service.STREAMING, Service.VIDEO_CALL)
-        services.forEachIndexed { i, s ->
-            val t = 0.12f + i * 0.19f
-            val x = 600f - 80f * t
-            val y = h * t
-            val dp = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFFFFFF.toInt() }
-            Shapes.draw(c, s.shape, x, y, 13f, dp)
-            dp.color = ServiceColors.defaultOf(s)
-            Shapes.draw(c, s.shape, x, y, 9.5f, dp)
-        }
-        // Logo mark, name and tagline, centered in the panel, inside the safe area.
-        val cx = 790f
-        LogoMark(app).draw(c, cx, 150f, 130f)
-        val title = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFFFFFF.toInt(); typeface = display; textAlign = Paint.Align.CENTER; textSize = 62f }
+        c.drawBitmap(town, 0f, 0f, vivid)
+        // A soft glow around the hero server and a stream of packets towards it.
+        val hp = r.toScreen(hero.center)
+        val glowColor = ServiceColors.of(hero.service!!)
+        c.drawCircle(hp.x, hp.y - 30f, 150f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = RadialGradient(hp.x, hp.y - 30f, 150f, intArrayOf(glowColor and 0xFFFFFF or 0x88000000.toInt(), glowColor and 0xFFFFFF or 0x33000000, 0), floatArrayOf(0f, 0.5f, 1f), Shader.TileMode.CLAMP)
+        })
+        // The gradient that carries the title.
+        c.drawRect(0f, h * 0.45f, w.toFloat(), h.toFloat(), Paint().apply {
+            shader = LinearGradient(0f, h * 0.45f, 0f, h.toFloat(), intArrayOf(0x00112634, 0xCC112634.toInt(), 0xF2112634.toInt()), floatArrayOf(0f, 0.45f, 1f), Shader.TileMode.CLAMP)
+        })
+        // Icon, wordmark and tagline, centred as one group inside the safe area.
+        val title = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFFFFFF.toInt(); typeface = display; textSize = 92f; setShadowLayer(8f, 0f, 3f, 0x80000000.toInt()) }
         val name = app.getString(R.string.app_name)
-        while (title.measureText(name) / 2f > minOf(cx - 560f, w * 0.9f - cx) - 4f) title.textSize -= 1f
-        c.drawText(name, cx, 290f, title)
-        val half = title.measureText(name) / 2f
-        assertTrue("name inside the safe area", cx - half >= w * 0.1f && cx + half <= w * 0.9f)
-        val tag = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFFD9A8.toInt(); typeface = Typeface.DEFAULT_BOLD; textAlign = Paint.Align.CENTER; textSize = 28f }
-        val maxTag = minOf(cx - 580f, w * 0.9f - cx) * 2f - 8f
-        var tagLines = TextWrap.wrap(app.getString(R.string.menu_tagline), maxTag) { tag.measureText(it) }
-        while (tagLines.size > 2 && tag.textSize > 18f) {
-            tag.textSize -= 1f
-            tagLines = TextWrap.wrap(app.getString(R.string.menu_tagline), maxTag) { tag.measureText(it) }
-        }
-        assertTrue("tagline fits in two lines: $tagLines", tagLines.size <= 2)
-        tagLines.forEachIndexed { i, l -> c.drawText(l, cx, 340f + i * tag.textSize * 1.2f, tag) }
+        val icon = 108f
+        val gap = 22f
+        while (icon + gap + title.measureText(name) > w * 0.78f) title.textSize -= 1f
+        val groupW = icon + gap + title.measureText(name)
+        val x0 = (w - groupW) / 2f
+        val baseline = 408f
+        LogoMark(app).draw(c, x0 + icon / 2f, baseline - title.textSize * 0.36f, icon)
+        c.drawText(name, x0 + icon + gap, baseline, title)
+        assertTrue("name inside the safe area", x0 >= w * 0.1f && x0 + groupW <= w * 0.9f)
+        val tag = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFFD9A8.toInt(); typeface = Typeface.DEFAULT_BOLD; textAlign = Paint.Align.CENTER; textSize = 30f }
+        val line = FEATURE_TAGLINE
+        while (tag.measureText(line) > w * 0.78f) tag.textSize -= 1f
+        c.drawText(line, w / 2f, 448f, tag)
+        assertTrue("tagline on one line inside the safe area", tag.measureText(line) <= w * 0.8f)
         for (x in 0 until w step 64) for (yy in 0 until h step 50) assertEquals("opaque at $x,$yy", 0xFF, out.getPixel(x, yy) ushr 24)
         writeRgbPng(out, File(storeDir, "feature-graphic.png"))
         assertEquals(w, out.width)
@@ -691,6 +820,9 @@ class StoreScreenshotTest {
     }
 
     companion object {
+        /** The feature graphic's one-line tagline (the graphic is language neutral and in English). */
+        const val FEATURE_TAGLINE = "Wire up the town, from dial-up to 5G"
+
         /** Height of the caption band, as a share of the frame. */
         const val BAND = 0.17f
 
@@ -702,18 +834,18 @@ class StoreScreenshotTest {
 
         /** Captions of the eight screenshots in every language of the listing (docs/store/<language>.md). */
         val LANGUAGES = mapOf(
-            "de" to listOf("Verkabel deine Stadt", "Ein Wisch, ein Kabel", "WLAN, 4G und 5G", "Dreh die Karte, wie du willst", "Jeden Tag eine neue Aufgabe", "Jede Woche eine Wahl", "Fünf Szenerien", "Achtung, Bagger!"),
-            "en" to listOf("Wire up your town", "One swipe, one cable", "Wi-Fi, 4G and 5G", "Turn the map any way you like", "A new challenge every day", "A choice every week", "Five sceneries", "Mind the excavator!"),
-            "fr" to listOf("Câble ta ville", "Un geste, un câble", "Wi-Fi, 4G et 5G", "Tourne la carte à ta guise", "Un nouveau défi chaque jour", "Un choix chaque semaine", "Cinq décors", "Attention, pelleteuse !"),
-            "es" to listOf("Conecta tu pueblo", "Un gesto, un cable", "Wi-Fi, 4G y 5G", "Gira el mapa a tu gusto", "Un reto nuevo cada día", "Una elección cada semana", "Cinco escenarios", "¡Cuidado con la excavadora!"),
-            "it" to listOf("Cabla la tua città", "Un gesto, un cavo", "Wi-Fi, 4G e 5G", "Ruota la mappa come vuoi", "Una nuova sfida ogni giorno", "Una scelta ogni settimana", "Cinque scenari", "Attenti alla ruspa!"),
-            "pt-rBR" to listOf("Conecte sua cidade", "Um gesto, um cabo", "Wi-Fi, 4G e 5G", "Gire o mapa como quiser", "Um desafio novo por dia", "Uma escolha por semana", "Cinco cenários", "Cuidado com a escavadeira!"),
-            "pl" to listOf("Okabluj swoje miasto", "Jeden ruch, jeden kabel", "Wi-Fi, 4G i 5G", "Obracaj mapę, jak chcesz", "Codziennie nowe wyzwanie", "Co tydzień wybór", "Pięć scenerii", "Uwaga, koparka!"),
-            "nl" to listOf("Verbind je stad", "Eén veeg, één kabel", "Wifi, 4G en 5G", "Draai de kaart zoals je wilt", "Elke dag een nieuwe opdracht", "Elke week een keuze", "Vijf landschappen", "Pas op voor de graafmachine!"),
-            "tr" to listOf("Şehrini kabloyla bağla", "Bir kaydırma, bir kablo", "Wi-Fi, 4G ve 5G", "Haritayı dilediğin gibi döndür", "Her gün yeni bir görev", "Her hafta bir seçim", "Beş manzara", "Dikkat, kepçe!"),
-            "ja" to listOf("町をケーブルでつなごう", "なぞるだけでケーブル", "Wi-Fi、4G、5G", "地図を自由に回転", "毎日新しいチャレンジ", "毎週選べるボーナス", "5つのステージ", "ショベルカーに注意！"),
-            "ko" to listOf("도시를 케이블로 연결하세요", "한 번 밀면 케이블 하나", "Wi-Fi, 4G, 5G", "지도를 마음대로 회전", "매일 새로운 도전", "매주 고르는 보상", "다섯 가지 배경", "굴착기 주의!"),
-            "zh-rCN" to listOf("为你的城镇铺设网络", "一划即是一条电缆", "Wi-Fi、4G 和 5G", "随心旋转地图", "每天一个新挑战", "每周一次选择", "五个场景", "小心挖掘机！"),
+            "de" to listOf("Verkabel deine Stadt", "Ein Wisch, ein Kabel", "Verhindere die Überlastung", "Dreh die Karte, wie du willst", "WLAN, 4G und 5G", "Jede Woche eine Wahl", "Fünf Szenerien", "Achtung, Bagger!"),
+            "en" to listOf("Wire up your town", "One swipe, one cable", "Keep the network from overloading", "Turn the map any way you like", "Wi-Fi, 4G and 5G", "A choice every week", "Five sceneries", "Mind the excavator!"),
+            "fr" to listOf("Câble ta ville", "Un geste, un câble", "Évite la surcharge du réseau", "Tourne la carte à ta guise", "Wi-Fi, 4G et 5G", "Un choix chaque semaine", "Cinq décors", "Attention, pelleteuse !"),
+            "es" to listOf("Conecta tu pueblo", "Un gesto, un cable", "Evita que la red se sature", "Gira el mapa a tu gusto", "Wi-Fi, 4G y 5G", "Una elección cada semana", "Cinco escenarios", "¡Cuidado con la excavadora!"),
+            "it" to listOf("Cabla la tua città", "Un gesto, un cavo", "Evita il sovraccarico della rete", "Ruota la mappa come vuoi", "Wi-Fi, 4G e 5G", "Una scelta ogni settimana", "Cinque scenari", "Attenti alla ruspa!"),
+            "pt-rBR" to listOf("Conecte sua cidade", "Um gesto, um cabo", "Evite a sobrecarga da rede", "Gire o mapa como quiser", "Wi-Fi, 4G e 5G", "Uma escolha por semana", "Cinco cenários", "Cuidado com a escavadeira!"),
+            "pl" to listOf("Okabluj swoje miasto", "Jeden ruch, jeden kabel", "Nie dopuść do przeciążenia sieci", "Obracaj mapę, jak chcesz", "Wi-Fi, 4G i 5G", "Co tydzień wybór", "Pięć scenerii", "Uwaga, koparka!"),
+            "nl" to listOf("Verbind je stad", "Eén veeg, één kabel", "Voorkom overbelasting van je netwerk", "Draai de kaart zoals je wilt", "Wifi, 4G en 5G", "Elke week een keuze", "Vijf landschappen", "Pas op voor de graafmachine!"),
+            "tr" to listOf("Şehrini kabloyla bağla", "Bir kaydırma, bir kablo", "Ağın aşırı yüklenmesini önle", "Haritayı dilediğin gibi döndür", "Wi-Fi, 4G ve 5G", "Her hafta bir seçim", "Beş manzara", "Dikkat, kepçe!"),
+            "ja" to listOf("町をケーブルでつなごう", "なぞるだけでケーブル", "ネットワークの過負荷を防ごう", "地図を自由に回転", "Wi-Fi、4G、5G", "毎週選べるボーナス", "5つのステージ", "ショベルカーに注意！"),
+            "ko" to listOf("도시를 케이블로 연결하세요", "한 번 밀면 케이블 하나", "네트워크 과부하를 막으세요", "지도를 마음대로 회전", "Wi-Fi, 4G, 5G", "매주 고르는 보상", "다섯 가지 배경", "굴착기 주의!"),
+            "zh-rCN" to listOf("为你的城镇铺设网络", "一划即是一条电缆", "别让网络过载", "随心旋转地图", "Wi-Fi、4G 和 5G", "每周一次选择", "五个场景", "小心挖掘机！"),
         )
     }
 }

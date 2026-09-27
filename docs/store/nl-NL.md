@@ -48,9 +48,9 @@ netwerk, kabels, strategie, puzzel, stad bouwen, router, wifi, glasvezel, intern
 
 1. Verbind je stad
 2. Eén veeg, één kabel
-3. Wifi, 4G en 5G
+3. Voorkom overbelasting van je netwerk
 4. Draai de kaart zoals je wilt
-5. Elke dag een nieuwe opdracht
+5. Wifi, 4G en 5G
 6. Elke week een keuze
 7. Vijf landschappen
 8. Pas op voor de graafmachine!

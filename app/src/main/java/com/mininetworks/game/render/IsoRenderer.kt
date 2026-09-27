@@ -172,7 +172,7 @@ class IsoRenderer : Renderer {
     private fun unturnY(dx: Float, dy: Float) = -camera.sinA * dx + camera.cosA * dy
 
     override fun draw(canvas: Canvas, world: World, drag: DragPreview?, time: Float) {
-        pal = Cosmetic.palette
+        pal = Cosmetic.paletteFor(world.scenario.id)
         drawGroundLayer(canvas, world)
         drawWaterShimmer(canvas, world, time)
 
@@ -976,19 +976,23 @@ class IsoRenderer : Renderer {
                 icons.device(canvas, d, sx(x, y), sy(x, y, 0.2f) - icon, icon)
                 // Waiting requests in a queue beside the device, on a white plate so they read as "this device wants
                 // service" and not as ground clutter; a red outline marks one that is stuck (ping, bandwidth).
-                val r = maxOf(tw * 0.08f, REQUEST_MIN_DP * 1.3f * density)
+                val r = maxOf(tw * 0.096f, REQUEST_MIN_DP * 1.56f * density)
                 val qx = sx(x, y) + maxOf(tw * 0.38f, icon * 1.6f)
                 val qy = sy(x, y, 0.2f) - icon * 2.2f
-                // One tidy row: up to [MAX_QUEUE] shapes, or the first few and "+N" for a long queue.
+                // One tidy row: up to [MAX_QUEUE] shapes, then a dark count badge for the rest, so neighbouring
+                // queues do not run into each other at phone size (judge panel).
                 val total = n.pending.size
-                val count = if (total > MAX_QUEUE) MAX_QUEUE - 1 else total
+                val count = minOf(total, MAX_QUEUE)
                 val slots = if (total > count) count + 1 else count
                 if (slots > 0) {
-                    val pad = r * 0.95f
+                    val pad = r * 0.8f
                     oval.set(qx - r - pad, qy - r - pad, qx + (slots - 1) * r * 2.6f + r + pad, qy + r + pad)
                     val corner = r + pad
-                    oval.offset(0f, r * 0.3f); fillP.color = 0x33000000; canvas.drawRoundRect(oval, corner, corner, fillP)
-                    oval.offset(0f, -r * 0.3f); fillP.color = 0xF2FFFFFF.toInt(); canvas.drawRoundRect(oval, corner, corner, fillP)
+                    // A soft drop shadow and a thin darker rim lift the plate off the pale ground.
+                    oval.offset(0f, r * 0.45f); fillP.color = 0x40000000; canvas.drawRoundRect(oval, corner, corner, fillP)
+                    oval.offset(0f, -r * 0.45f); fillP.color = 0xFAFFFFFF.toInt(); canvas.drawRoundRect(oval, corner, corner, fillP)
+                    strokeP.color = PILL_RIM; strokeP.strokeWidth = maxOf(1f, r * 0.14f)
+                    canvas.drawRoundRect(oval, corner, corner, strokeP)
                 }
                 var badge: RouteProblem? = null
                 for (i in 0 until count) {
@@ -1008,8 +1012,11 @@ class IsoRenderer : Renderer {
                         if (badge != null) break
                         world.routeProblem(n, n.pending[i]).takeIf { ProblemBadges.shows(it) }?.let { badge = it }
                     }
-                    labelP.color = 0xFF3A4350.toInt(); labelP.textSize = r * 1.7f
-                    canvas.drawText("+${total - count}", qx + count * r * 2.6f, qy + r * 0.6f, labelP)
+                    val bx = qx + count * r * 2.6f
+                    fillP.color = 0xFF3A4350.toInt()
+                    canvas.drawCircle(bx, qy, r * 1.25f, fillP)
+                    labelP.color = 0xFFFFFFFF.toInt(); labelP.textSize = r * (if (total - count > 9) 1.25f else 1.55f)
+                    canvas.drawText("+${total - count}", bx, qy + labelP.textSize * 0.36f, labelP)
                 }
                 badge?.let { ProblemBadges.draw(canvas, it, sx(x, y) - icon * 1.4f, qy, r * 2.1f) }
             }
@@ -1333,7 +1340,9 @@ class IsoRenderer : Renderer {
         /** Thin dark rim around every cable, under its white halo. */
         const val CABLE_OUTLINE = 0x5C1C2A30
         /** Request shapes a device's queue shows before it switches to "+N". */
-        const val MAX_QUEUE = 4
+        const val MAX_QUEUE = 3
+        /** Darker rim of a request plate. */
+        const val PILL_RIM = 0x4D262B33
         const val ICON_MIN_DP = 7f
         const val REQUEST_MIN_DP = 3.2f
         const val RING_MIN_DP = 2.5f

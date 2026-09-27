@@ -532,7 +532,7 @@ class ScreenshotTest {
     @Test
     @Config(qualifiers = "de-xhdpi")
     fun renderMainMenu() {
-        HighscoreStore(RuntimeEnvironment.getApplication()).submit(1234)
+        HighscoreStore(RuntimeEnvironment.getApplication()).submit(1187)
         val view = GameView(RuntimeEnvironment.getApplication())
         val bmp = phoneBitmap()
         view.drawSnapshot(Canvas(bmp), view.currentWorld, bmp.width, bmp.height, time = 1.3f, screen = null)
