@@ -26,7 +26,7 @@
     <string name="server_error_max_level">The data center is the top tier</string>
     <string name="server_error_no_budget">Not enough budget, the upgrade costs %1$d</string>
     <string name="server_error_no_space">A data center needs 2×2 free cells at the server</string>
-    <string name="incident_excavator_warning">Excavator on its way: cable cut in %1$d s</string>
+    <string name="incident_excavator_warning">Excavator! Cable cut in %1$d s</string>
     <string name="incident_outage_warning">Power cut ahead: %1$s goes dark in %2$d s</string>
     <string name="incident_cut">Cable cut: tap to repair for %1$d · fixes itself in %2$d s</string>
     <string name="incident_outage">Power cut: %1$s dark for %2$d s</string>
@@ -214,7 +214,7 @@
     <string name="problem_jam">%1$s: %2$s – jammed, cables or server too full</string>
     <string name="drag_too_narrow">%1$s needs bandwidth %2$d</string>
     <string name="drag_ping">%1$s: ping %2$d/%3$d ms</string>
-    <string name="incident_more">%1$s (+%2$d)</string>
+    <string name="incident_more">%1$s · +%2$d more</string>
     <!-- Accessibility (TalkBack) descriptions of the canvas-drawn HUD, docs/TOP100.md A7 -->
     <string name="a11y_menu">Menu</string>
     <string name="a11y_pause">Pause the clock</string>

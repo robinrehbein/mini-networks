@@ -38,11 +38,11 @@ class RewardDialog(private val context: Context) {
     private val icons = DeviceIcons()
     private val texts = Texts(context)
     /**
-     * A light dusk-blue scrim (judge panel: the old purple-grey dim read as muddy): the map stays visible at the edges,
-     * and a warm spotlight with slowly turning rays lifts the cards in the middle, so the week's reward feels like a
+     * A deep dusk-blue scrim (judge panel: a light one let the yellow glow and the teal map mix into an olive wash):
+     * the map stays a quiet backdrop, and a tight warm spotlight with slowly turning rays lifts the cards in the middle, so the week's reward feels like a
      * celebration rather than a settings dialog.
      */
-    private val dim = fill(0x730E2A38)
+    private val dim = fill(0xB80E2A38.toInt())
     private val glowP = Paint(Paint.ANTI_ALIAS_FLAG)
     private val rayP = Paint(Paint.ANTI_ALIAS_FLAG)
     private val haloP = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -121,7 +121,7 @@ class RewardDialog(private val context: Context) {
         }
         val top = minOf(height * 0.28f, height - cardH - below - 8f * density).coerceAtLeast(headH + 8f * density)
         val left = (width - 2 * cardW - gap) / 2f
-        spotlight(canvas, width / 2f, top + cardH * 0.45f, (2 * cardW + gap) * 0.78f, time)
+        spotlight(canvas, width / 2f, top + cardH * 0.45f, (2 * cardW + gap) * 0.64f, time)
 
         text.typeface = display
         text.textSize = dateSize
@@ -280,11 +280,11 @@ class RewardDialog(private val context: Context) {
         if (cx != spotX || cy != spotY || r != spotR) {
             spotX = cx; spotY = cy; spotR = r
             glowP.shader = android.graphics.RadialGradient(
-                cx, cy, r, intArrayOf(0x99FFE6A8.toInt(), 0x4DFFC46B, 0x00FFC46B), floatArrayOf(0f, 0.55f, 1f),
+                cx, cy, r, intArrayOf(0x73FFEBC8, 0x1FFFB84D, 0x00FFB84D), floatArrayOf(0f, 0.45f, 1f),
                 android.graphics.Shader.TileMode.CLAMP,
             )
             rayP.shader = android.graphics.RadialGradient(
-                cx, cy, r * 1.25f, intArrayOf(0x40FFF3D6, 0x1AFFF3D6, 0x00FFF3D6), floatArrayOf(0f, 0.6f, 1f),
+                cx, cy, r * 1.25f, intArrayOf(0x1FFFF3D6, 0x0AFFF3D6, 0x00FFF3D6), floatArrayOf(0f, 0.5f, 1f),
                 android.graphics.Shader.TileMode.CLAMP,
             )
         }
@@ -309,7 +309,7 @@ class RewardDialog(private val context: Context) {
         val accent = accentOf(reward)
         val radius = r.width() * 0.07f
         // A warm halo around the card: the prize glows in the spotlight.
-        haloP.color = 0x8CFFD27A.toInt()
+        haloP.color = 0x66FFD27A
         haloP.maskFilter = haloFor(depth * 3.2f)
         canvas.drawRoundRect(slot.left - depth, slot.top - depth, slot.right + depth, slot.bottom + depth * 2f, radius * 1.3f, radius * 1.3f, haloP)
         // One soft drop shadow straight below the card (a hard offset copy read as a misprinted second card).

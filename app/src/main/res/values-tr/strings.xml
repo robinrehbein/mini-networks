@@ -26,7 +26,7 @@
     <string name="server_error_max_level">Veri merkezi en üst seviye</string>
     <string name="server_error_no_budget">Bütçe yetmiyor, yükseltmenin bedeli %1$d</string>
     <string name="server_error_no_space">Veri merkezi için sunucunun yanında 2×2 boş kare gerekir</string>
-    <string name="incident_excavator_warning">Kepçe geliyor: kablo %1$d sn sonra kesilecek</string>
+    <string name="incident_excavator_warning">Kepçe! %1$d sn sonra kesilir</string>
     <string name="incident_outage_warning">Elektrik kesintisi yaklaşıyor: %1$s · %2$d sn sonra kapanır</string>
     <string name="incident_cut">Kablo kesildi: %1$d karşılığında onarmak için dokun · %2$d sn sonra kendiliğinden düzelir</string>
     <string name="incident_outage">Elektrik kesintisi: %1$s · %2$d sn daha elektriksiz</string>
@@ -214,7 +214,7 @@
     <string name="problem_jam">%1$s: %2$s – tıkanıklık, kablolar ya da sunucu dolu</string>
     <string name="drag_too_narrow">%1$s için bant genişliği %2$d gerekir</string>
     <string name="drag_ping">%1$s: ping %2$d/%3$d ms</string>
-    <string name="incident_more">%1$s (+%2$d)</string>
+    <string name="incident_more">%1$s · +%2$d daha</string>
     <!-- Accessibility (TalkBack) descriptions of the canvas-drawn HUD, docs/TOP100.md A7 -->
     <string name="a11y_menu">Menü</string>
     <string name="a11y_pause">Saati durdur</string>

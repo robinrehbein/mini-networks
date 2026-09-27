@@ -48,10 +48,10 @@ netwerk, kabels, strategie, puzzel, stad bouwen, router, wifi, glasvezel, intern
 
 1. Verbind je stad
 2. Eén veeg, één kabel
-3. Pas op voor de graafmachine!
+3. Graafmachines knippen kabels
 4. Voorkom overbelasting
 5. Wifi, 4G en 5G
-6. Elke week een keuze
+6. Kies je upgrade
 7. Draai de kaart
 8. Vijf landschappen
 

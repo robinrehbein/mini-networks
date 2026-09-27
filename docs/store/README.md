@@ -31,8 +31,10 @@ Play Games optional, Werbung nur zwischen Partien, „Werbefrei“ und Szenerien
 - `feature-graphic.png`: 1024 × 500, 24-Bit-PNG, nichts Wichtiges in den äußeren 10 %: über die ganze Breite die Ära
   des Spiels, eine belebte Kleinstadt (Wiese, ein Gerät in Überlast) geht an einer diagonalen Glasfaser-Naht in die
   dichte Stadt 2030 über, beide echte Karten spät im Spiel, mit den Jahres-Schildern „1995“ und „2030“; links auf
-  einem dämmerblauen Verlauf App-Icon, Name in Nunito Black und „1995 → 2030“. `feature-graphic/<sprache>.png`:
-  dieselbe Grafik mit der Tagline der Sprache (en: „Build the internet, one cable at a time“), für jede erzeugte
+  einer ruhigen, festen Markenfläche mit eigener Diagonale App-Icon, Name in Nunito Black und die englische Tagline
+  „Wire your town – from dial-up to fiber“; die Naht zu 2030 ist eine kräftige, leuchtende Glasfaser-Linie, die
+  Jahres-Schilder stehen beiderseits der Naht. `feature-graphic/<sprache>.png`:
+  dieselbe Grafik mit der Tagline der Sprache (en: „Wire your town – from dial-up to fiber“), für jede erzeugte
   Sprache; in der Play Console je Sprache hochladen.
 - Vor dem Start (docs/RELEASE.md 4): die übrigen 10 Sprachen mit `-Pstore.locales=fr,es,it,pt-rBR,pl,nl,tr,ja,ko,zh-rCN`
   erzeugen und je Eintrag hochladen; sonst zeigt Play dort die Standardbilder mit deutscher bzw. englischer

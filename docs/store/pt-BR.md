@@ -48,10 +48,10 @@ rede, cabos, estratégia, quebra-cabeça, construção, cidade, roteador, Wi-Fi,
 
 1. Conecte sua cidade
 2. Um gesto, um cabo
-3. Cuidado com a escavadeira!
+3. Escavadeiras cortam cabos
 4. Evite a sobrecarga
 5. Wi-Fi, 4G e 5G
-6. Uma escolha por semana
+6. Escolha seu bônus
 7. Gire o mapa
 8. Cinco cenários
 

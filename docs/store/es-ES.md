@@ -48,10 +48,10 @@ red, cables, estrategia, puzle, construcción, ciudad, pueblo, router, Wi-Fi, fi
 
 1. Conecta tu pueblo
 2. Un gesto, un cable
-3. ¡Cuidado con la excavadora!
+3. Las excavadoras cortan cables
 4. Evita la saturación
 5. Wi-Fi, 4G y 5G
-6. Una elección cada semana
+6. Elige tu mejora
 7. Gira el mapa
 8. Cinco escenarios
 

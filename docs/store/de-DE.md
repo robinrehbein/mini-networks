@@ -48,10 +48,10 @@ Netzwerk, Kabel verlegen, Strategiespiel, Puzzle, Aufbauspiel, Stadt, Router, WL
 
 1. Verkabel deine Stadt
 2. Ein Wisch, ein Kabel
-3. Achtung, Bagger!
+3. Bagger kappen Kabel
 4. Stopp die Überlastung
 5. WLAN, 4G und 5G
-6. Jede Woche eine Wahl
+6. Wähl dein Upgrade
 7. Dreh die Karte
 8. Fünf Szenerien
 

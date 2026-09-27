@@ -28,7 +28,7 @@
     <string name="server_error_max_level">Le data center est le niveau maximum</string>
     <string name="server_error_no_budget">Budget insuffisant, l’amélioration coûte %1$d</string>
     <string name="server_error_no_space">Un data center a besoin de 2×2 cases libres autour du serveur</string>
-    <string name="incident_excavator_warning">Pelleteuse en approche : câble coupé dans %1$d s</string>
+    <string name="incident_excavator_warning">Pelleteuse ! Câble coupé dans %1$d s</string>
     <string name="incident_outage_warning">Coupure de courant imminente : %1$s s’éteint dans %2$d s</string>
     <string name="incident_cut">Câble coupé : touche pour réparer (%1$d) · réparé seul dans %2$d s</string>
     <string name="incident_outage">Coupure de courant : %1$s éteint encore %2$d s</string>
@@ -220,7 +220,7 @@
     <string name="problem_jam">%1$s : %2$s – bouchon, câbles ou serveur saturés</string>
     <string name="drag_too_narrow">%1$s demande une bande passante de %2$d</string>
     <string name="drag_ping">%1$s : ping %2$d/%3$d ms</string>
-    <string name="incident_more">%1$s (+%2$d)</string>
+    <string name="incident_more">%1$s · +%2$d autres</string>
     <!-- Accessibility (TalkBack) descriptions of the canvas-drawn HUD, docs/TOP100.md A7 -->
     <string name="a11y_menu">Menu</string>
     <string name="a11y_pause">Arrêter l’horloge</string>

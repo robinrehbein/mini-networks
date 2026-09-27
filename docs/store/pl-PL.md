@@ -48,10 +48,10 @@ sieć, kable, strategia, łamigłówka, budowanie miasta, router, Wi-Fi, świat�
 
 1. Okabluj swoje miasto
 2. Jeden ruch, jeden kabel
-3. Uwaga, koparka!
+3. Koparki tną kable
 4. Unikaj przeciążenia
 5. Wi-Fi, 4G i 5G
-6. Co tydzień wybór
+6. Wybierz ulepszenie
 7. Obracaj mapę
 8. Pięć scenerii
 

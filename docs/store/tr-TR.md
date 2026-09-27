@@ -48,10 +48,10 @@ ağ, kablo, strateji, bulmaca, şehir kurma, router, Wi-Fi, fiber, internet, çe
 
 1. Şehrini kabloyla bağla
 2. Bir kaydırma, bir kablo
-3. Dikkat, kepçe!
+3. Kepçeler kabloları keser
 4. Aşırı yükü önle
 5. Wi-Fi, 4G ve 5G
-6. Her hafta bir seçim
+6. Yükseltmeni seç
 7. Haritayı döndür
 8. Beş manzara
 

@@ -321,7 +321,7 @@ class IsoRenderer : Renderer {
     }
 
     /** Radius of a packet of [size] capacity units: large enough to read on a phone at the default zoom. */
-    private fun packetRadius(size: Int) = maxOf(tw * (0.068f + 0.027f * size), (2.6f + 0.8f * size) * density)
+    private fun packetRadius(size: Int) = maxOf(tw * (0.088f + 0.034f * size), (2.6f + 0.8f * size) * density)
 
     /** A packet floating over its link at world point ([x], [y]), with a shadow on the ground. */
     private fun drawPacket(canvas: Canvas, p: Packet, x: Float, y: Float) {
@@ -1199,16 +1199,18 @@ class IsoRenderer : Renderer {
                 }
                 val top = n.level * unit - 0.06f
                 fillP.color = 0xFFFFFFFF.toInt()
-                Shapes.draw(canvas, service.shape, sx(x, y), sy(x, y, top), tw * 0.1f * badgePop(world, n), fillP)
+                Shapes.draw(canvas, service.shape, sx(x, y), sy(x, y, top), tw * 0.13f * badgePop(world, n), fillP)
             }
             NodeKind.CLIENT -> {
                 val d = n.device!!
-                box(canvas, x, y, 0.5f, 0.2f, 0xFFFAFAF7.toInt(), 0xFFE3E6E1.toInt())
-                val icon = maxOf(tw * 0.2f, ICON_MIN_DP * density)
+                box(canvas, x, y, 0.56f, 0.2f, 0xFFFAFAF7.toInt(), 0xFFE3E6E1.toInt())
+                // Devices, queues and packets are drawn about 1.3x the tile ratio they once had, so everyday play at the
+                // default zoom reads like the close-up store shots (judge panel, docs/TOP100.md B4).
+                val icon = maxOf(tw * 0.26f, ICON_MIN_DP * density)
                 icons.device(canvas, d, sx(x, y), sy(x, y, 0.2f) - icon, icon)
                 // Waiting requests in a queue beside the device, on a white plate so they read as "this device wants
                 // service" and not as ground clutter; a red outline marks one that is stuck (ping, bandwidth).
-                val r = maxOf(tw * 0.096f, REQUEST_MIN_DP * 1.56f * density)
+                val r = maxOf(tw * 0.12f, REQUEST_MIN_DP * 1.56f * density)
                 val qx = sx(x, y) + maxOf(tw * 0.38f, icon * 1.6f)
                 val qy = sy(x, y, 0.2f) - icon * 2.2f
                 // One tidy row: up to [MAX_QUEUE] shapes, then a dark count badge for the rest, so neighbouring
@@ -1331,46 +1333,47 @@ class IsoRenderer : Renderer {
     /**
      * A small excavator drawn with paths: tracks along the cable, a yellow cab with a window towards it, and a boom
      * whose bucket hangs raised over the cable while announced and digs in the hole once the cable is cut.
-     * A beacon on the roof flashes during the announcement.
+     * A beacon on the roof flashes during the announcement. Drawn about 1.3x its first size, so the threat reads at
+     * phone size (judge panel: the excavator was too small).
      */
     private fun drawExcavator(canvas: Canvas, i: Incident, at: Vec2, d: Vec2, time: Float) {
         val alongX = d.y != 0f
         // Boom and window share the cab wall facing the viewer, side by side along the cable, so the boom never covers
         // the window: the boom takes the half it swings across.
         val u = if (depthOf(d.x, d.y) > 0f) -1f else 1f
-        val side = if (alongX) Vec2(0.09f * u, 0f) else Vec2(0f, 0.09f * u)
-        val lx = if (alongX) 0.28f else 0.2f
-        val ly = if (alongX) 0.2f else 0.28f
-        oval.set(sx(at.x, at.y) - tw * 0.3f, sy(at.x, at.y) - th * 0.3f, sx(at.x, at.y) + tw * 0.3f, sy(at.x, at.y) + th * 0.3f)
+        val side = if (alongX) Vec2(0.12f * u, 0f) else Vec2(0f, 0.12f * u)
+        val lx = if (alongX) 0.37f else 0.26f
+        val ly = if (alongX) 0.26f else 0.37f
+        oval.set(sx(at.x, at.y) - tw * 0.4f, sy(at.x, at.y) - th * 0.4f, sx(at.x, at.y) + tw * 0.4f, sy(at.x, at.y) + th * 0.4f)
         fillP.color = 0x2E000000; canvas.drawOval(oval, fillP)
-        boxRect(canvas, at.x - lx, at.y - ly, at.x + lx, at.y + ly, 0f, 0.12f, IncidentStyles.EXCAVATOR_DARK.shade(0.25f), IncidentStyles.EXCAVATOR_DARK)
+        boxRect(canvas, at.x - lx, at.y - ly, at.x + lx, at.y + ly, 0f, 0.15f, IncidentStyles.EXCAVATOR_DARK.shade(0.25f), IncidentStyles.EXCAVATOR_DARK)
         val cx = at.x - d.x * 0.04f; val cy = at.y - d.y * 0.04f
-        val cab = 0.16f
-        val cabTop = 0.44f
-        boxRect(canvas, cx - cab, cy - cab, cx + cab, cy + cab, 0.12f, cabTop - 0.12f, IncidentStyles.EXCAVATOR.shade(0.2f), IncidentStyles.EXCAVATOR)
+        val cab = 0.21f
+        val cabTop = 0.58f
+        boxRect(canvas, cx - cab, cy - cab, cx + cab, cy + cab, 0.15f, cabTop - 0.15f, IncidentStyles.EXCAVATOR.shade(0.2f), IncidentStyles.EXCAVATOR)
         fillP.color = 0xFFBFD6E6.toInt()
         val w0 = if (u < 0f) 0.02f else -cab + 0.03f
         val w1 = if (u < 0f) cab - 0.03f else -0.02f
         // The window sits on whichever long side of the cab faces the viewer.
         val face = if (alongX) (if (facing(0f, 1f)) FACE_SOUTH else FACE_NORTH) else (if (facing(1f, 0f)) FACE_EAST else FACE_WEST)
-        if (wallPatch(cx, cy, cab, cab, face, w0, w1, 0.2f, 0.4f)) canvas.drawPath(path, fillP)
+        if (wallPatch(cx, cy, cab, cab, face, w0, w1, 0.26f, 0.52f)) canvas.drawPath(path, fillP)
         if (!i.struck) {
             fillP.color = if (sin(time * 12f) > 0f) IncidentStyles.WARNING else IncidentStyles.WARNING.shade(-0.45f)
-            canvas.drawCircle(sx(cx, cy), sy(cx, cy, cabTop + 0.04f), tw * 0.035f, fillP)
+            canvas.drawCircle(sx(cx, cy), sy(cx, cy, cabTop + 0.04f), tw * 0.05f, fillP)
         }
-        val baseX = cx + d.x * 0.12f + side.x; val baseY = cy + d.y * 0.12f + side.y
+        val baseX = cx + d.x * 0.16f + side.x; val baseY = cy + d.y * 0.16f + side.y
         val elbowX = at.x + d.x * 0.4f + side.x; val elbowY = at.y + d.y * 0.4f + side.y
         val spot = i.spot
-        val bucketZ = if (i.struck) 0.06f + 0.1f * (sin(time * 3f) + 1f) else 0.42f + 0.04f * sin(time * 2f)
-        val b0x = sx(baseX, baseY); val b0y = sy(baseX, baseY, 0.34f)
-        val e0x = sx(elbowX, elbowY); val e0y = sy(elbowX, elbowY, 0.82f)
+        val bucketZ = if (i.struck) 0.06f + 0.1f * (sin(time * 3f) + 1f) else 0.52f + 0.05f * sin(time * 2f)
+        val b0x = sx(baseX, baseY); val b0y = sy(baseX, baseY, 0.44f)
+        val e0x = sx(elbowX, elbowY); val e0y = sy(elbowX, elbowY, 1.05f)
         val kx = sx(spot.x, spot.y); val ky = sy(spot.x, spot.y, bucketZ + 0.12f)
-        strokeP.color = IncidentStyles.EXCAVATOR_DARK; strokeP.strokeWidth = tw * 0.065f
+        strokeP.color = IncidentStyles.EXCAVATOR_DARK; strokeP.strokeWidth = tw * 0.085f
         canvas.drawLine(b0x, b0y, e0x, e0y, strokeP); canvas.drawLine(e0x, e0y, kx, ky, strokeP)
-        strokeP.color = IncidentStyles.EXCAVATOR; strokeP.strokeWidth = tw * 0.04f
+        strokeP.color = IncidentStyles.EXCAVATOR; strokeP.strokeWidth = tw * 0.052f
         canvas.drawLine(b0x, b0y, e0x, e0y, strokeP); canvas.drawLine(e0x, e0y, kx, ky, strokeP)
         val bx = sx(spot.x, spot.y); val by = sy(spot.x, spot.y, bucketZ)
-        val k = tw * 0.07f
+        val k = tw * 0.095f
         path.reset()
         path.moveTo(bx - k, by - k * 0.9f); path.lineTo(bx + k, by - k * 0.9f)
         path.lineTo(bx + k * 0.55f, by + k * 0.6f); path.lineTo(bx - k * 0.8f, by + k * 0.35f); path.close()

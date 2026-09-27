@@ -26,7 +26,7 @@
     <string name="server_error_max_level">Het datacenter is het hoogste niveau</string>
     <string name="server_error_no_budget">Te weinig budget, upgraden kost %1$d</string>
     <string name="server_error_no_space">Een datacenter heeft 2×2 vrije vakken bij de server nodig</string>
-    <string name="incident_excavator_warning">Graafmachine in aantocht: kabel geknipt over %1$d s</string>
+    <string name="incident_excavator_warning">Graafmachine! Kabel stuk over %1$d s</string>
     <string name="incident_outage_warning">Stroomstoring dreigt: %1$s valt uit over %2$d s</string>
     <string name="incident_cut">Kabel geknipt: tik om te repareren voor %1$d · vanzelf over %2$d s</string>
     <string name="incident_outage">Stroomstoring: %1$s nog %2$d s zonder stroom</string>
@@ -214,7 +214,7 @@
     <string name="problem_jam">%1$s: %2$s – file, kabels of server te vol</string>
     <string name="drag_too_narrow">%1$s heeft bandbreedte %2$d nodig</string>
     <string name="drag_ping">%1$s: ping %2$d/%3$d ms</string>
-    <string name="incident_more">%1$s (+%2$d)</string>
+    <string name="incident_more">%1$s · +%2$d meer</string>
     <!-- Accessibility (TalkBack) descriptions of the canvas-drawn HUD, docs/TOP100.md A7 -->
     <string name="a11y_menu">Menu</string>
     <string name="a11y_pause">Klok stilzetten</string>

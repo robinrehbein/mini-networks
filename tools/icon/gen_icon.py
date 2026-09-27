@@ -74,7 +74,8 @@ TU0, TV0, TW, TF = TOWER
 PORT_V = TV0 + 3.0                     # cable leaves the tower's right face here
 CABLE = [(TU0 + TW, PORT_V), (29.0, PORT_V), (29.0, 25.5)]
 PACKET = (22.5, PORT_V)                 # on the leg leaving the tower
-TREES = [(29.0, 3.0, 3.3)]   # one tree at the right tip (two read as clutter at 48 dp)
+TREES = []   # no props: server, fiber, packet and one device read at 48 dp (judge panel)
+PACKET_S = 6.6                          # packet cube edge: the glowing packet is the hero
 
 
 def box_faces(u, v, w, dd, h, h0=0.0):
@@ -150,9 +151,6 @@ def foreground():
     u0, v0, w, fl = TOWER
     s.append(fill(poly_d([P(u0 + w, v0), P(u0 + w + 3.5, v0 + 1.5), P(u0 + w + 3.5, v0 + w + 1.5),
                           P(u0 + 1.5, v0 + w + 1.5), P(u0, v0 + w)]), SHADOW, 0.13))
-    su, sv, sw, sh = SMALL
-    s.append(fill(poly_d([P(su + sw, sv), P(su + sw + 2.5, sv + 1), P(su + sw + 2.5, sv + sw + 1),
-                          P(su + 1, sv + sw + 1), P(su, sv + sw)]), SHADOW, 0.13))
     # trees at the two side tips
     for (tu, tv, r) in TREES:
         x, y = P(tu, tv)
@@ -160,10 +158,6 @@ def foreground():
         s.append(fill(rrect_d(x - 0.65, y - 3.2, 1.3, 3.4, 0.4), TRUNK))
         s.append(fill(circle_d(x, y - 3 - r * 0.8, r), TREE))
         s.append(fill(f"M{fmt(x)},{fmt(y - 3 - r * 1.8)} a{fmt(r)},{fmt(r)} 0 0,1 0,{fmt(2 * r)} Z", TREE_D, 0.55))
-    # small gaming server (yellow roof, white triangle): hints that the network serves several services
-    s += server(su, sv, sw, sh, 1, YELLOW, YELLOW_D, windows=False)
-    tx, ty = P(su + sw / 2, sv + sw / 2, sh)
-    s.append(fill(poly_d([(tx, ty - 2.1), (tx + 2.1, ty + 1.3), (tx - 2.1, ty + 1.3)]), "#FFFFFF"))
     # mail server tower
     s += server(u0, v0, w, fl, 2, BLUE, BLUE_D)
     cx, cy = P(u0 + w / 2, v0 + w / 2, 2 * fl)
@@ -176,17 +170,17 @@ def foreground():
     s.append(fill(poly_d(inner), FIBER))
     # glass fiber: dark under-stroke, orange body, light core line (the game's fiber look)
     cp = [P(*c) for c in CABLE]
-    s.append(stroke(line_d(cp), "#FFFFFF", 10.2, 0.45))
-    s.append(stroke(line_d(cp), FIBER_D, 8.6))
-    s.append(stroke(line_d(cp), FIBER, 6.4))
-    s.append(stroke(line_d(cp), FIBER_CORE, 1.8))
+    s.append(stroke(line_d(cp), "#FFF3DC", 14.0, 0.5))
+    s.append(stroke(line_d(cp), FIBER_D, 11.6))
+    s.append(stroke(line_d(cp), FIBER, 8.8))
+    s.append(stroke(line_d(cp), FIBER_CORE, 2.6))
     # device: white plinth with a monitor (dark outline, light-blue screen) like the in-game markers
     du, dv, dw, dh = DEVICE
     f = box_faces(du, dv, dw, dw, dh)
     s += [fill(poly_d(f["left"]), WHITE), fill(poly_d(f["right"]), WHITE_S), fill(poly_d(f["top"]), WHITE)]
     mx, my = P(du + dw / 2, dv + dw / 2, dh)
     s.append(("group", (1.0, 0.5, mx, my), [fill(circle_d(mx, my, 4.6), SHADOW, 0.18)]))
-    k = 1.3  # a larger monitor, so the device reads at launcher size
+    k = 1.05  # a modest monitor: the fiber and the packet are the hero (judge panel)
     s.append(fill(rrect_d(mx - 1.0 * k, my - 3.2 * k, 2.0 * k, 2.9 * k, 0.3), INK))       # stand
     s.append(fill(rrect_d(mx - 3.0 * k, my - 1.1 * k, 6.0 * k, 1.4 * k, 0.7), INK))       # foot
     s.append(fill(rrect_d(mx - 5.3 * k, my - 11.0 * k, 10.6 * k, 8.0 * k, 1.5 * k), INK))     # bezel
@@ -195,15 +189,16 @@ def foreground():
                           (mx - 2.8 * k, my - 4.2 * k), (mx - 4.1 * k, my - 4.2 * k)]), "#FFFFFF", 0.45))       # glare
     # the packet: glowing white cube with an orange core, travelling along the fiber
     kx, ky = P(*PACKET)
-    s.append(grad(circle_d(kx, ky - 4.5, 8), kx, ky - 4.5, 8,
-                  [(0, "#FFF8E6", 1), (0.45, "#FFE9BE", 0.7), (1, "#FFE9BE", 0)]))
-    s.append(("group", (1.0, 0.5, kx + 0.8, ky + 0.8), [fill(circle_d(kx + 0.8, ky + 0.8, 4.2), "#6B3606", 0.35)]))
-    k = box_faces(PACKET[0] - 2.5, PACKET[1] - 2.5, 5.0, 5.0, 4.4, h0=2.0)
+    h = PACKET_S / 2
+    s.append(grad(circle_d(kx, ky - 6, 12), kx, ky - 6, 12,
+                  [(0, "#FFFBEF", 1), (0.4, "#FFE9BE", 0.8), (1, "#FFE9BE", 0)]))
+    s.append(("group", (1.0, 0.5, kx + 0.8, ky + 0.8), [fill(circle_d(kx + 0.8, ky + 0.8, 5.4), "#6B3606", 0.35)]))
+    k = box_faces(PACKET[0] - h, PACKET[1] - h, PACKET_S, PACKET_S, PACKET_S * 0.88, h0=2.4)
     s += [fill(poly_d(k["left"]), "#FFFFFF"), fill(poly_d(k["right"]), "#F1E4D2"), fill(poly_d(k["top"]), "#FFFFFF")]
-    qx, qy = P(PACKET[0], PACKET[1], 6.4)
-    s.append(fill(poly_d([(qx, qy - 1.5), (qx + 3.0, qy), (qx, qy + 1.5), (qx - 3.0, qy)]), FIBER))
-    s.append(fill(poly_d([P(PACKET[0] + 2.5, PACKET[1] - 1.2, 3.1), P(PACKET[0] + 2.5, PACKET[1] + 1.2, 3.1),
-                          P(PACKET[0] + 2.5, PACKET[1] + 1.2, 4.8), P(PACKET[0] + 2.5, PACKET[1] - 1.2, 4.8)]),
+    qx, qy = P(PACKET[0], PACKET[1], 2.4 + PACKET_S * 0.88)
+    s.append(fill(poly_d([(qx, qy - 2.0), (qx + 4.0, qy), (qx, qy + 2.0), (qx - 4.0, qy)]), FIBER))
+    s.append(fill(poly_d([P(PACKET[0] + h, PACKET[1] - 1.6, 3.6), P(PACKET[0] + h, PACKET[1] + 1.6, 3.6),
+                          P(PACKET[0] + h, PACKET[1] + 1.6, 6.0), P(PACKET[0] + h, PACKET[1] - 1.6, 6.0)]),
                   FIBER))
     return s
 
@@ -226,31 +221,25 @@ def monochrome():
         cuts.append(LineString([a, b, c]).buffer(0.75, cap_style=2, join_style=2))
     cx, cy = P(u0 + w / 2, v0 + w / 2, H)
     cuts.append(sp([(cx, cy - 2.4), (cx + 4.8, cy), (cx, cy + 2.4), (cx - 4.8, cy)]))
-    # gaming server with its triangle
-    su, sv, sw, sh = SMALL
-    solids.append(sp(box_faces(su, sv, sw, sw, sh)["outline"]))
-    a, b, c = P(su, sv + sw, sh - 1.6), P(su + sw, sv + sw, sh - 1.6), P(su + sw, sv, sh - 1.6)
-    cuts.append(LineString([a, b, c]).buffer(0.7, cap_style=2, join_style=2))
-    tx, ty = P(su + sw / 2, sv + sw / 2, sh)
-    cuts.append(sp([(tx, ty - 1.9), (tx + 1.9, ty + 1.2), (tx - 1.9, ty + 1.2)]))
     # cable as a solid thick L
     cp = [P(*c) for c in CABLE]
-    cable = LineString(cp).buffer(3.2, quad_segs=Q, cap_style=1, join_style=1)
+    cable = LineString(cp).buffer(4.2, quad_segs=Q, cap_style=1, join_style=1)
     # device: plinth + monitor with the screen cut out
     du, dv, dw, dh = DEVICE
     plinth = sp(box_faces(du, dv, dw, dw, dh)["outline"])
     mx, my = P(du + dw / 2, dv + dw / 2, dh)
-    k = 1.3
+    k = 1.05
     bezel = Polygon([(mx - 5.3 * k, my - 11.0 * k), (mx + 5.3 * k, my - 11.0 * k), (mx + 5.3 * k, my - 3.0 * k), (mx - 5.3 * k, my - 3.0 * k)])
     bezel = bezel.buffer(-1.3, join_style=2).buffer(1.3, quad_segs=Q)
     stand = Polygon([(mx - 1.1 * k, my - 3.2 * k), (mx + 1.1 * k, my - 3.2 * k), (mx + 1.1 * k, my), (mx - 1.1 * k, my)])
     screen = Polygon([(mx - 3.9 * k, my - 9.6 * k), (mx + 3.9 * k, my - 9.6 * k), (mx + 3.9 * k, my - 4.4 * k), (mx - 3.9 * k, my - 4.4 * k)])
     device = unary_union([plinth.difference(bezel.buffer(1.3)), bezel.union(stand).difference(screen)])
     # packet cube with its orange core as a hole, framed by a gap cut into the cable
-    k = box_faces(PACKET[0] - 2.5, PACKET[1] - 2.5, 5.0, 5.0, 4.4, h0=2.0)
+    h = PACKET_S / 2
+    k = box_faces(PACKET[0] - h, PACKET[1] - h, PACKET_S, PACKET_S, PACKET_S * 0.88, h0=2.4)
     packet = sp(k["outline"])
-    qx, qy = P(PACKET[0], PACKET[1], 6.4)
-    packet = packet.difference(sp([(qx, qy - 1.6), (qx + 3.2, qy), (qx, qy + 1.6), (qx - 3.2, qy)]))
+    qx, qy = P(PACKET[0], PACKET[1], 2.4 + PACKET_S * 0.88)
+    packet = packet.difference(sp([(qx, qy - 2.0), (qx + 4.0, qy), (qx, qy + 2.0), (qx - 4.0, qy)]))
     cable = cable.difference(sp(k["outline"]).buffer(1.4, quad_segs=Q))
     # trees
     trees = []

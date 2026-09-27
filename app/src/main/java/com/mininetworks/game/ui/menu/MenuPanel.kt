@@ -81,6 +81,8 @@ data class MenuPage(
     val picture: MenuPicture? = null,
     /** The page's most important number (the packets delivered on the game-over card), drawn large under the title. */
     val score: String? = null,
+    /** The first text line says why the game ended: drawn bold in alarm red, the "one more try" hook (judge panel). */
+    val alertFirstLine: Boolean = false,
 )
 
 /**
@@ -141,11 +143,17 @@ class MenuPanel(context: Context) {
         val linkH = maxOf(TOUCH_DP * density, linkSize * 2.2f)
         val gap = (if (split) SPLIT_GAP_DP else GAP_DP) * u
         val inner = width - 2 * pad
-        val lines: List<String> = page.lines.flatMap { line ->
+        val lines: List<String> = page.lines.flatMapIndexed { i, line ->
             text.textSize = lineSize
-            text.typeface = Typeface.DEFAULT
+            text.typeface = if (page.alertFirstLine && i == 0) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
             balanced(line, inner, MAX_LINE_ROWS)
-        }
+        }.also { text.typeface = Typeface.DEFAULT }
+        /** Rows the first text line wrapped into (bold when [MenuPage.alertFirstLine]). */
+        val firstLineRows: Int = page.lines.firstOrNull()?.let { first ->
+            text.textSize = lineSize
+            text.typeface = if (page.alertFirstLine) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+            balanced(first, inner, MAX_LINE_ROWS).size.also { text.typeface = Typeface.DEFAULT }
+        } ?: 0
         /** Pill buttons in the grid; [links] go below it as text links. */
         val grid = page.items.filter { it !is MenuItem.Button || !it.link }
         val links = page.items.filter { it is MenuItem.Button && it.link }
@@ -315,10 +323,14 @@ class MenuPanel(context: Context) {
         text.color = muted
         text.textSize = l.lineSize
         val linesTop = y
-        for (line in l.lines) {
+        for ((i, line) in l.lines.withIndex()) {
+            val alert = page.alertFirstLine && i < l.firstLineRows
+            text.color = if (alert) ALERT else muted
+            text.typeface = if (alert) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
             canvas.drawText(line, cx, y + l.lineSize * 1.15f, text)
             y += l.lineH
         }
+        text.typeface = Typeface.DEFAULT
         if (l.lines.isNotEmpty()) drawnNodes += UiNode("menu:lines", textBounds(cx, linesTop, inner, y - linesTop), page.lines.joinToString("\n"), UiNode.Kind.TEXT, textPx = l.lineSize)
         if (l.lines.isNotEmpty() || page.highlight != null) y += 8f * u
         page.picture?.let { pic ->
@@ -507,6 +519,18 @@ class MenuPanel(context: Context) {
                 canvas.save(); canvas.translate(0f, s * 0.3f); flame(0.55f, 0xFFFFC21A.toInt()); canvas.restore()
             }
             MenuAction.ACHIEVEMENTS -> trophy(canvas, cx, cy, size)
+            MenuAction.SETTINGS -> {
+                // A cog: eight teeth round a ring, in the label's ink (judge panel: the one entry without an icon).
+                fillP.color = ink
+                for (k in 0 until 8) {
+                    canvas.save()
+                    canvas.rotate(k * 45f, cx, cy)
+                    canvas.drawRect(cx - s * 0.2f, cy - s * 0.98f, cx + s * 0.2f, cy - s * 0.55f, fillP)
+                    canvas.restore()
+                }
+                lineStroke.color = ink; lineStroke.strokeWidth = s * 0.3f
+                canvas.drawCircle(cx, cy, s * 0.55f, lineStroke)
+            }
             else -> Unit
         }
             }
@@ -638,6 +662,8 @@ class MenuPanel(context: Context) {
 
     private companion object {
         const val CARD_W_DP = 360f
+        /** The reason a game ended, dark alarm red. */
+        const val ALERT = 0xFFC2182B.toInt()
         /** Highest a card's picture gets at full scale. */
         const val PICTURE_MAX_H_DP = 150f
         const val PAD_DP = 22f
@@ -653,7 +679,7 @@ class MenuPanel(context: Context) {
         /** The main menu card leaves the rest of the screen to the demo town. */
         const val HERO_MAX_WIDTH = 0.56f
         /** Entries with an icon before their label. */
-        val ICON_ACTIONS = setOf(MenuAction.PLAY, MenuAction.DAILY, MenuAction.ACHIEVEMENTS)
+        val ICON_ACTIONS = setOf(MenuAction.PLAY, MenuAction.DAILY, MenuAction.ACHIEVEMENTS, MenuAction.SETTINGS)
         const val ELLIPSIS = "…"
         /** Smallest text scale of a split card's text pane before the picture has given all the room it can. */
         const val SPLIT_MIN_SCALE = 0.86f

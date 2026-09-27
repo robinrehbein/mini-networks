@@ -28,7 +28,7 @@
     <string name="server_error_max_level">O data center é o nível máximo</string>
     <string name="server_error_no_budget">Verba insuficiente, a melhoria custa %1$d</string>
     <string name="server_error_no_space">Um data center precisa de 2×2 espaços livres junto ao servidor</string>
-    <string name="incident_excavator_warning">Escavadeira chegando: um cabo será cortado em %1$d s</string>
+    <string name="incident_excavator_warning">Escavadeira! Corte em %1$d s</string>
     <string name="incident_outage_warning">Queda de energia à vista: %1$s apaga em %2$d s</string>
     <string name="incident_cut">Cabo cortado: toque para consertar por %1$d · volta sozinho em %2$d s</string>
     <string name="incident_outage">Queda de energia: %1$s sem luz por mais %2$d s</string>
@@ -220,7 +220,7 @@
     <string name="problem_jam">%1$s: %2$s – congestionado, cabos ou servidor cheios</string>
     <string name="drag_too_narrow">%1$s precisa de banda %2$d</string>
     <string name="drag_ping">%1$s: ping %2$d/%3$d ms</string>
-    <string name="incident_more">%1$s (+%2$d)</string>
+    <string name="incident_more">%1$s · +%2$d mais</string>
     <!-- Accessibility (TalkBack) descriptions of the canvas-drawn HUD, docs/TOP100.md A7 -->
     <string name="a11y_menu">Menu</string>
     <string name="a11y_pause">Parar o relógio</string>

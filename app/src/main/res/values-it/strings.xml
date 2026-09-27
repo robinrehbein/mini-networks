@@ -28,7 +28,7 @@
     <string name="server_error_max_level">Il data center è il livello massimo</string>
     <string name="server_error_no_budget">Budget insufficiente, il potenziamento costa %1$d</string>
     <string name="server_error_no_space">Un data center richiede 2×2 caselle libere accanto al server</string>
-    <string name="incident_excavator_warning">Arriva una ruspa: taglierà un cavo tra %1$d s</string>
+    <string name="incident_excavator_warning">Ruspa! Cavo tagliato tra %1$d s</string>
     <string name="incident_outage_warning">Blackout in arrivo: %1$s si spegne tra %2$d s</string>
     <string name="incident_cut">Cavo tagliato: tocca per ripararlo (%1$d) · si ripara da solo tra %2$d s</string>
     <string name="incident_outage">Blackout: %1$s senza corrente per altri %2$d s</string>
@@ -220,7 +220,7 @@
     <string name="problem_jam">%1$s: %2$s – ingorgo, cavi o server troppo pieni</string>
     <string name="drag_too_narrow">%1$s richiede banda %2$d</string>
     <string name="drag_ping">%1$s: ping %2$d/%3$d ms</string>
-    <string name="incident_more">%1$s (+%2$d)</string>
+    <string name="incident_more">%1$s · +%2$d altri</string>
     <!-- Accessibility (TalkBack) descriptions of the canvas-drawn HUD, docs/TOP100.md A7 -->
     <string name="a11y_menu">Menu</string>
     <string name="a11y_pause">Ferma l’orologio</string>

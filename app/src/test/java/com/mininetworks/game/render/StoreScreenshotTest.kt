@@ -205,17 +205,24 @@ class StoreScreenshotTest {
             val world = lateTown()
             val nodes = world.nodes
             // A little right of the network's middle, so the cables at its east edge stay in the picture.
-            val focus = Vec2(nodes.map { it.center.x }.average().toFloat() + 0.2f, nodes.map { it.center.y }.average().toFloat() - 0.7f)
-            // A calm moment between rushes: packets on the lines, only a few devices waiting (judge panel: a bubble on
-            // every device read as clutter).
-            calm(world, keep = 3, near = focus)
+            val middle = Vec2(nodes.map { it.center.x }.average().toFloat() + 0.2f, nodes.map { it.center.y }.average().toFloat() - 0.7f)
             world.nodes.forEach { it.overload = 0f }
-            // The one under pressure stands where no server hides its ring.
+            // One clear focal point (judge panel: the ring sat half behind a server in a cramped middle): the device
+            // under pressure is one with no server standing near it, and the camera centres on it.
             val servers = world.nodes.filter { it.kind == NodeKind.SERVER }
-            world.nodes.filter { it.kind == NodeKind.CLIENT && it.pending.isNotEmpty() }
-                .filter { n -> servers.none { s -> s.cellX - n.cellX in -1..2 && s.cellY - n.cellY in -1..2 } }
-                .minByOrNull { abs(it.center.x - focus.x) + abs(it.center.y - focus.y) }?.overload = 0.62f
-            game(bmp, world, zoom = if (bmp.height > bmp.width) 2.4f else 1.18f, focus = focus)
+            val hero = world.nodes.filter { it.kind == NodeKind.CLIENT }
+                .filter { n -> servers.none { s -> abs(s.cellX - n.cellX) <= 3 && abs(s.cellY - n.cellY) <= 3 } }
+                .minByOrNull { abs(it.center.x - middle.x) + abs(it.center.y - middle.y) }
+            val focus = hero?.center?.let { Vec2((it.x * 2f + middle.x) / 3f, (it.y * 2f + middle.y) / 3f) } ?: middle
+            // A calm moment between rushes: packets on the lines, only the hero and one neighbour waiting (judge
+            // panel: a bubble on every device read as clutter).
+            calm(world, keep = 2, near = hero?.center ?: middle)
+            hero?.let { n ->
+                n.pending.clear()
+                n.device!!.services.take(2).forEach { n.pending.addLast(it) }
+                n.overload = 0.7f
+            }
+            game(bmp, world, zoom = if (bmp.height > bmp.width) 2.4f else 1.3f, focus = focus)
         },
         // 2. Laying a cable, close up: fiber picked, the finger drags from the tablet to the game server; glow, touch
         //    trail and the price bubble fill the card (no empty board edge).
@@ -255,11 +262,14 @@ class StoreScreenshotTest {
         },
         // 3. Incidents, full bleed and close up in the desert theme: an excavator cuts a cable, a router is dark.
         //    Conflict sells: it comes early in the set (judge panel).
-        Shot("incidents", 0xFF3B2410.toInt(), 0xFFFFB347.toInt()) { bmp ->
-            val world = Scenes.incidents()
+        //    On the set's own green ground under the brand's dusk caption with a hot accent (judge panel: the sand palette
+        //    and the brown header clashed), and close on the one excavator so the threat is the hero.
+        Shot("incidents", BRAND_DARK, 0xFFFF6B3D.toInt()) { bmp ->
+            val world = Scenes.incidents(single = true)
             repeat(60 * 2) { world.update(1f / 60f) }
             val focus = world.incidents.first { it.struck && it.cable != null }.spot
-            game(bmp, world, zoom = if (bmp.height > bmp.width) 2.4f else 1.7f, focus = focus, theme = ColorTheme.DESERT)
+            calm(world, keep = 2, near = focus)
+            game(bmp, world, zoom = if (bmp.height > bmp.width) 2.8f else 2.3f, focus = focus)
         },
         // 4. The tension: the real play screen with its HUD (date, packet count, cable bar), two devices whose queues
         //    are full and whose red overload rings are closing, closer in so the pressure shows.
@@ -586,7 +596,8 @@ class StoreScreenshotTest {
         val bigW = (w - 3 * gap) * 0.5f
         val smallW = (w - 3 * gap - bigW - gap) / 2f
         val smallH = (h - 3 * gap) / 2f
-        val order = listOf(Scenarios.METROPOLIS, Scenarios.RIVER_TOWN, Scenarios.ISLAND, Scenarios.MOUNTAIN_VILLAGE, Scenarios.FUTURE)
+        // The small tiles in the order of their years (judge panel: 2004 stood before 2001).
+        val order = listOf(Scenarios.METROPOLIS, Scenarios.RIVER_TOWN, Scenarios.MOUNTAIN_VILLAGE, Scenarios.ISLAND, Scenarios.FUTURE)
         // Upright: the metropolis across the top, the other four in a 2 × 2 grid below.
         val tallH = (h - 4 * gap) * 0.4f
         val cellW = (w - 3 * gap) / 2f
@@ -781,15 +792,15 @@ class StoreScreenshotTest {
         IsoRenderer().apply {
             density = 1.6f
             layout(w, h, town)
-            val hx = w * 0.58f
+            val hx = w * 0.66f
             val hy = h * 0.52f
             toScreen(hero.center).let { p -> camera.panBy(hx - p.x, hy - p.y) }
-            camera.zoomBy(1.7f, hx, hy)
+            camera.zoomBy(1.5f, hx, hy)
             draw(Canvas(past), town, drag = null, time = 1.3f)
         }
         // The future: the city of 2030, framed on its towers.
         val city = lateFuture()
-        calm(city, keep = 2, near = Vec2(city.cols / 2f, city.rows / 2f))
+        calm(city, keep = 1, near = Vec2(city.cols / 2f, city.rows / 2f))
         val future = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         IsoRenderer().apply {
             density = 1.6f
@@ -798,48 +809,57 @@ class StoreScreenshotTest {
             val fx = w * 0.83f
             val fy = h * 0.5f
             toScreen(focus).let { p -> camera.panBy(fx - p.x, fy - p.y) }
-            camera.zoomBy(1.6f, fx, fy)
+            camera.zoomBy(1.9f, fx, fy)
             draw(Canvas(future), city, drag = null, time = 1.3f)
         }
         c.drawBitmap(past, 0f, 0f, vivid)
-        // The city takes over right of a diagonal seam with a short feather, lined in glowing fiber.
-        val top = w * 0.7f
-        val bottom = w * 0.6f
+        // The city takes over right of a bold diagonal seam in glowing fiber (judge panel: the old hairline read as an
+        // artifact); a soft feather keeps the cut clean.
+        val top = w * 0.74f
+        val bottom = w * 0.64f
         val layer = future.copy(Bitmap.Config.ARGB_8888, true)
         val seam = Path().apply { moveTo(top, 0f); lineTo(w.toFloat(), 0f); lineTo(w.toFloat(), h.toFloat()); lineTo(bottom, h.toFloat()); close() }
         val mask = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-        Canvas(mask).drawPath(seam, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF000000.toInt(); maskFilter = BlurMaskFilter(14f, BlurMaskFilter.Blur.NORMAL) })
+        Canvas(mask).drawPath(seam, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF000000.toInt(); maskFilter = BlurMaskFilter(4f, BlurMaskFilter.Blur.NORMAL) })
         Canvas(layer).drawBitmap(mask, 0f, 0f, Paint().apply { xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_IN) })
         c.drawBitmap(layer, 0f, 0f, vivid)
         val edge = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.BUTT }
-        edge.color = 0x40F28C28; edge.strokeWidth = 18f; c.drawLine(top, -10f, bottom, h + 10f, edge)
-        edge.color = 0xCCF28C28.toInt(); edge.strokeWidth = 5f; c.drawLine(top, -10f, bottom, h + 10f, edge)
-        edge.color = 0xFFFFE2B8.toInt(); edge.strokeWidth = 1.5f; c.drawLine(top, -10f, bottom, h + 10f, edge)
-        // The title's ground: a dusk gradient from the left edge that fades into the town.
-        c.drawRect(0f, 0f, w * 0.52f, h.toFloat(), Paint().apply {
-            shader = LinearGradient(0f, 0f, w * 0.52f, 0f, intArrayOf(0xF20E2A38.toInt(), 0xD90E2A38.toInt(), 0x590E2A38, 0x000E2A38), floatArrayOf(0f, 0.5f, 0.78f, 1f), Shader.TileMode.CLAMP)
+        edge.color = 0x40FF9A3C; edge.strokeWidth = 34f; edge.maskFilter = BlurMaskFilter(10f, BlurMaskFilter.Blur.NORMAL)
+        c.drawLine(top, -10f, bottom, h + 10f, edge)
+        edge.maskFilter = null
+        edge.color = 0xFFF28C28.toInt(); edge.strokeWidth = 10f; c.drawLine(top, -10f, bottom, h + 10f, edge)
+        edge.color = 0xFFFFE2B8.toInt(); edge.strokeWidth = 3f; c.drawLine(top, -10f, bottom, h + 10f, edge)
+        // The title's ground: a calm, solid brand panel with its own diagonal edge, so the logo sits on a clean
+        // backdrop and the 1995 town beside it stays bright (judge panel: the dusk gradient muddied the left third).
+        val pTop = w * 0.43f
+        val pBottom = w * 0.35f
+        val panel = Path().apply { moveTo(0f, 0f); lineTo(pTop, 0f); lineTo(pBottom, h.toFloat()); lineTo(0f, h.toFloat()); close() }
+        c.drawPath(panel, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x40000000; maskFilter = BlurMaskFilter(16f, BlurMaskFilter.Blur.NORMAL) })
+        c.drawPath(panel, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = LinearGradient(0f, 0f, pTop, h.toFloat(), 0xFF14506A.toInt(), 0xFF0C2F40.toInt(), Shader.TileMode.CLAMP)
         })
-        c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), Paint().apply {
-            shader = RadialGradient(w * 0.12f, -h * 0.2f, w * 0.5f, 0x2EFFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP)
+        c.drawPath(panel, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = RadialGradient(w * 0.1f, h * 0.15f, w * 0.4f, 0x33FFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP)
         })
-        // Year tags at the two ends of the era.
-        val tagP = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = display; textSize = 26f; color = 0xFFFFFFFF.toInt() }
+        edge.color = 0xFF2FA36B.toInt(); edge.strokeWidth = 6f; c.drawLine(pTop, -10f, pBottom, h + 10f, edge)
+        // Year tags on either side of the seam, where the two eras meet.
+        val tagP = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = display; textSize = 28f; color = 0xFFFFFFFF.toInt() }
         fun yearTag(text: String, cx: Float, y: Float, color: Int) {
-            val tw = tagP.measureText(text) + 28f
-            val r = RectF(cx - tw / 2f, y, cx + tw / 2f, y + 40f)
-            c.drawRoundRect(RectF(r).apply { offset(0f, 3f) }, 20f, 20f, Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = 0x40000000 })
-            c.drawRoundRect(r, 20f, 20f, Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color })
+            val tw = tagP.measureText(text) + 30f
+            val r = RectF(cx - tw / 2f, y, cx + tw / 2f, y + 44f)
+            c.drawRoundRect(RectF(r).apply { offset(0f, 3f) }, 22f, 22f, Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = 0x50000000 })
+            c.drawRoundRect(r, 22f, 22f, Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color })
             c.drawText(text, cx - tagP.measureText(text) / 2f, r.centerY() + tagP.textSize * 0.36f, tagP)
         }
-        yearTag("1995", w * 0.52f, h * 0.82f, 0xFF2E7D46.toInt())
-        yearTag("2030", w * 0.8f, h * 0.82f, 0xFF5B3FB0.toInt())
+        yearTag("1995", w * 0.585f, h * 0.84f, 0xFF2E7D46.toInt())
+        yearTag("2030", w * 0.76f, h * 0.84f, 0xFF5B3FB0.toInt())
 
         val name = app.getString(R.string.app_name)
-        val left = w * 0.1f
-        val room = w * 0.44f - left
-        val title = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFFFFFF.toInt(); typeface = display; textSize = 78f; setShadowLayer(8f, 0f, 3f, 0x80000000.toInt()) }
+        val left = w * 0.06f
+        val room = w * 0.35f - left
+        val title = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFFFFFF.toInt(); typeface = display; textSize = 96f; setShadowLayer(8f, 0f, 3f, 0x80000000.toInt()) }
         while (title.measureText(name) > room) title.textSize -= 1f
-        val icon = 84f
+        val icon = 96f
         fun write(tagline: String, file: File) {
             val shot = out.copy(Bitmap.Config.ARGB_8888, true)
             val sc = Canvas(shot)
@@ -865,9 +885,9 @@ class StoreScreenshotTest {
             assertEquals(h, shot.height)
             writeRgbPng(shot, file)
         }
-        // The default graphic carries only the era, in numbers every language reads; each language that has its
-        // listing's graphics rendered also gets one with its own tagline (Play takes a feature graphic per language).
-        write("1995 → 2030", File(storeDir, "feature-graphic.png"))
+        // The default graphic carries the English value line (judge panel: "1995 → 2030" said too little); each
+        // language that has its listing's graphics rendered also gets one with its own tagline.
+        write(FEATURE_TAGLINES.getValue("en"), File(storeDir, "feature-graphic.png"))
         val dir = File(storeDir, "feature-graphic").apply { mkdirs() }
         for (lang in languages) write(FEATURE_TAGLINES.getValue(lang), File(dir, "$lang.png"))
     }
@@ -920,7 +940,7 @@ class StoreScreenshotTest {
          */
         val FEATURE_TAGLINES = mapOf(
             "de" to "Verkabel deine Stadt – von ISDN bis Glasfaser",
-            "en" to "Build the internet, one cable at a time",
+            "en" to "Wire your town – from dial-up to fiber",
             "fr" to "Câble ta ville, du RNIS à la fibre",
             "es" to "Conecta tu pueblo, de la RDSI a la fibra",
             "it" to "Cabla la tua città, dall'ISDN alla fibra",
@@ -942,18 +962,18 @@ class StoreScreenshotTest {
 
         /** Captions of the eight screenshots in every language of the listing (docs/store/<language>.md). */
         val LANGUAGES = mapOf(
-            "de" to listOf("Verkabel deine Stadt", "Ein Wisch, ein Kabel", "Achtung, Bagger!", "Stopp die Überlastung", "WLAN, 4G und 5G", "Jede Woche eine Wahl", "Dreh die Karte", "Fünf Szenerien"),
-            "en" to listOf("Wire up your town", "One swipe, one cable", "Mind the excavator!", "Don't let it overload", "Wi-Fi, 4G and 5G", "A choice every week", "Spin the map", "Five sceneries"),
-            "fr" to listOf("Câble ta ville", "Un geste, un câble", "Attention, pelleteuse !", "Évite la surcharge", "Wi-Fi, 4G et 5G", "Un choix chaque semaine", "Tourne la carte", "Cinq décors"),
-            "es" to listOf("Conecta tu pueblo", "Un gesto, un cable", "¡Cuidado con la excavadora!", "Evita la saturación", "Wi-Fi, 4G y 5G", "Una elección cada semana", "Gira el mapa", "Cinco escenarios"),
-            "it" to listOf("Cabla la tua città", "Un gesto, un cavo", "Attenti alla ruspa!", "Evita il sovraccarico", "Wi-Fi, 4G e 5G", "Una scelta ogni settimana", "Ruota la mappa", "Cinque scenari"),
-            "pt-rBR" to listOf("Conecte sua cidade", "Um gesto, um cabo", "Cuidado com a escavadeira!", "Evite a sobrecarga", "Wi-Fi, 4G e 5G", "Uma escolha por semana", "Gire o mapa", "Cinco cenários"),
-            "pl" to listOf("Okabluj swoje miasto", "Jeden ruch, jeden kabel", "Uwaga, koparka!", "Unikaj przeciążenia", "Wi-Fi, 4G i 5G", "Co tydzień wybór", "Obracaj mapę", "Pięć scenerii"),
-            "nl" to listOf("Verbind je stad", "Eén veeg, één kabel", "Pas op voor de graafmachine!", "Voorkom overbelasting", "Wifi, 4G en 5G", "Elke week een keuze", "Draai de kaart", "Vijf landschappen"),
-            "tr" to listOf("Şehrini kabloyla bağla", "Bir kaydırma, bir kablo", "Dikkat, kepçe!", "Aşırı yükü önle", "Wi-Fi, 4G ve 5G", "Her hafta bir seçim", "Haritayı döndür", "Beş manzara"),
-            "ja" to listOf("町をケーブルでつなごう", "なぞるだけでケーブル", "ショベルカーに注意！", "過負荷を防ごう", "Wi-Fi、4G、5G", "毎週選べるボーナス", "地図を回転", "5つのステージ"),
-            "ko" to listOf("도시를 케이블로 연결하세요", "한 번 밀면 케이블 하나", "굴착기 주의!", "과부하를 막으세요", "Wi-Fi, 4G, 5G", "매주 고르는 보상", "지도를 회전", "다섯 가지 배경"),
-            "zh-rCN" to listOf("为你的城镇铺设网络", "一划即是一条电缆", "小心挖掘机！", "别让网络过载", "Wi-Fi、4G 和 5G", "每周一次选择", "旋转地图", "五个场景"),
+            "de" to listOf("Verkabel deine Stadt", "Ein Wisch, ein Kabel", "Bagger kappen Kabel", "Stopp die Überlastung", "WLAN, 4G und 5G", "Wähl dein Upgrade", "Dreh die Karte", "Fünf Szenerien"),
+            "en" to listOf("Wire up your town", "One swipe, one cable", "Excavators cut your cables", "Don't let it overload", "Wi-Fi, 4G and 5G", "Pick your upgrade", "Spin the map", "Five sceneries"),
+            "fr" to listOf("Câble ta ville", "Un geste, un câble", "Les pelleteuses coupent tes câbles", "Évite la surcharge", "Wi-Fi, 4G et 5G", "Choisis ton bonus", "Tourne la carte", "Cinq décors"),
+            "es" to listOf("Conecta tu pueblo", "Un gesto, un cable", "Las excavadoras cortan cables", "Evita la saturación", "Wi-Fi, 4G y 5G", "Elige tu mejora", "Gira el mapa", "Cinco escenarios"),
+            "it" to listOf("Cabla la tua città", "Un gesto, un cavo", "Le ruspe tagliano i cavi", "Evita il sovraccarico", "Wi-Fi, 4G e 5G", "Scegli il potenziamento", "Ruota la mappa", "Cinque scenari"),
+            "pt-rBR" to listOf("Conecte sua cidade", "Um gesto, um cabo", "Escavadeiras cortam cabos", "Evite a sobrecarga", "Wi-Fi, 4G e 5G", "Escolha seu bônus", "Gire o mapa", "Cinco cenários"),
+            "pl" to listOf("Okabluj swoje miasto", "Jeden ruch, jeden kabel", "Koparki tną kable", "Unikaj przeciążenia", "Wi-Fi, 4G i 5G", "Wybierz ulepszenie", "Obracaj mapę", "Pięć scenerii"),
+            "nl" to listOf("Verbind je stad", "Eén veeg, één kabel", "Graafmachines knippen kabels", "Voorkom overbelasting", "Wifi, 4G en 5G", "Kies je upgrade", "Draai de kaart", "Vijf landschappen"),
+            "tr" to listOf("Şehrini kabloyla bağla", "Bir kaydırma, bir kablo", "Kepçeler kabloları keser", "Aşırı yükü önle", "Wi-Fi, 4G ve 5G", "Yükseltmeni seç", "Haritayı döndür", "Beş manzara"),
+            "ja" to listOf("町をケーブルでつなごう", "なぞるだけでケーブル", "ショベルカーがケーブルを切る！", "過負荷を防ごう", "Wi-Fi、4G、5G", "アップグレードを選ぼう", "地図を回転", "5つのステージ"),
+            "ko" to listOf("도시를 케이블로 연결하세요", "한 번 밀면 케이블 하나", "굴착기가 케이블을 끊어요", "과부하를 막으세요", "Wi-Fi, 4G, 5G", "업그레이드를 고르세요", "지도를 회전", "다섯 가지 배경"),
+            "zh-rCN" to listOf("为你的城镇铺设网络", "一划即是一条电缆", "挖掘机会挖断电缆", "别让网络过载", "Wi-Fi、4G 和 5G", "选择你的升级", "旋转地图", "五个场景"),
         )
     }
 }

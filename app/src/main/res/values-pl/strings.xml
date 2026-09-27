@@ -30,7 +30,7 @@
     <string name="server_error_max_level">Centrum danych to najwyższy poziom</string>
     <string name="server_error_no_budget">Za mały budżet, ulepszenie kosztuje %1$d</string>
     <string name="server_error_no_space">Centrum danych potrzebuje 2×2 wolnych pól przy serwerze</string>
-    <string name="incident_excavator_warning">Nadjeżdża koparka: przetnie kabel za %1$d s</string>
+    <string name="incident_excavator_warning">Koparka! Cięcie za %1$d s</string>
     <string name="incident_outage_warning">Grozi awaria prądu: %1$s zgaśnie za %2$d s</string>
     <string name="incident_cut">Kabel przecięty: dotknij, by naprawić za %1$d · sam wróci za %2$d s</string>
     <string name="incident_outage">Awaria prądu: %1$s bez zasilania jeszcze %2$d s</string>
@@ -226,7 +226,7 @@
     <string name="problem_jam">%1$s: %2$s – korek, kable lub serwer przepełnione</string>
     <string name="drag_too_narrow">%1$s: potrzeba przepustowości %2$d</string>
     <string name="drag_ping">%1$s: ping %2$d/%3$d ms</string>
-    <string name="incident_more">%1$s (+%2$d)</string>
+    <string name="incident_more">%1$s · +%2$d kolejne</string>
     <!-- Accessibility (TalkBack) descriptions of the canvas-drawn HUD, docs/TOP100.md A7 -->
     <string name="a11y_menu">Menu</string>
     <string name="a11y_pause">Zatrzymaj zegar</string>

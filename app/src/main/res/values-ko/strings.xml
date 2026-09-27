@@ -24,7 +24,7 @@
     <string name="server_error_max_level">데이터 센터가 최고 단계입니다</string>
     <string name="server_error_no_budget">예산 부족: 업그레이드 비용 %1$d</string>
     <string name="server_error_no_space">데이터 센터를 지으려면 서버 옆에 2×2 빈칸이 필요합니다</string>
-    <string name="incident_excavator_warning">굴착기 접근 중: %1$d초 뒤 케이블 절단</string>
+    <string name="incident_excavator_warning">굴착기! %1$d초 뒤 절단</string>
     <string name="incident_outage_warning">정전 경보: %2$d초 뒤 %1$s 꺼짐</string>
     <string name="incident_cut">케이블 절단: 탭해서 수리(%1$d) · %2$d초 뒤 자동 복구</string>
     <string name="incident_outage">정전: %1$s · %2$d초 더 전원 없음</string>
@@ -208,7 +208,7 @@
     <string name="problem_jam">%1$s: %2$s – 정체, 케이블이나 서버가 꽉 참</string>
     <string name="drag_too_narrow">%1$s: 대역폭 %2$d 필요</string>
     <string name="drag_ping">%1$s: 핑 %2$d/%3$dms</string>
-    <string name="incident_more">%1$s (+%2$d)</string>
+    <string name="incident_more">%1$s · 외 %2$d건</string>
     <!-- Accessibility (TalkBack) descriptions of the canvas-drawn HUD, docs/TOP100.md A7 -->
     <string name="a11y_menu">메뉴</string>
     <string name="a11y_pause">시계 멈추기</string>

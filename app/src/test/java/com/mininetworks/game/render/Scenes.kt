@@ -98,7 +98,7 @@ object Scenes {
      * it repairs itself), a second one is announced at the mail server's fiber (amber pulse and countdown), the east router is dark
      * from a power outage, and an outage is announced for the access point.
      */
-    fun incidents(): World {
+    fun incidents(single: Boolean = false): World {
         val w = World(cols = 16, rows = 10, seed = 3L, spawnInitialNodes = false)
         for (row in w.water) row.fill(false)
         w.incidentsEnabled = false
@@ -127,8 +127,10 @@ object Scenes {
         }
         repeat(60 * 4) { w.update(1f / 60f) }
         w.announceExcavator(w.cableBetween(west, east)!!)
-        w.announcePowerOutage(east)
+        if (!single) w.announcePowerOutage(east)
         repeat(60 * 9) { w.update(1f / 60f) }
+        // [single]: just the one excavator on the fiber trunk, the store's close-up of one clear threat.
+        if (single) return w
         // On the vertical leg of the L to the mail server: (4,4) → (2,4) → (2,1), digging at (2,3).
         w.announceExcavator(w.cableBetween(west, mail)!!, cutAt = 0.6f)
         w.announcePowerOutage(ap)

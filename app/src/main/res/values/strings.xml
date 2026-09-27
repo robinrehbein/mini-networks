@@ -29,7 +29,7 @@
     <string name="server_error_max_level">Rechenzentrum ist die höchste Stufe</string>
     <string name="server_error_no_budget">Zu wenig Budget, Aufrüsten kostet %1$d</string>
     <string name="server_error_no_space">Rechenzentrum braucht 2×2 freie Felder am Server</string>
-    <string name="incident_excavator_warning">Bagger im Anmarsch: Kabel wird in %1$d s gekappt</string>
+    <string name="incident_excavator_warning">Bagger! Kabel gekappt in %1$d s</string>
     <string name="incident_outage_warning">Stromausfall droht: %1$s fällt in %2$d s aus</string>
     <string name="incident_cut">Kabel gekappt: antippen = reparieren für %1$d · von selbst in %2$d s</string>
     <string name="incident_outage">Stromausfall: %1$s noch %2$d s ohne Strom</string>
@@ -65,7 +65,7 @@
     <string name="cable_short_isdn">ISDN</string>
     <string name="cable_short_dsl">DSL</string>
     <string name="cable_short_coax">TV</string>
-    <string name="cable_short_fiber">Glas</string>
+    <string name="cable_short_fiber">Faser</string>
     <string name="node_router">Router</string>
     <string name="node_access_point">WLAN-Access-Point</string>
     <string name="node_cell_tower">Mobilfunkmast</string>
@@ -219,7 +219,7 @@
     <string name="drag_ping">%1$s: Ping %2$d/%3$d ms</string>
     <string name="incident_countdown" translatable="false">%1$d s</string>
     <string name="hint_two_parts" translatable="false">%1$s · %2$s</string>
-    <string name="incident_more">%1$s (+%2$d)</string>
+    <string name="incident_more">%1$s · +%2$d weitere</string>
     <!-- Accessibility (TalkBack) descriptions of the canvas-drawn HUD, docs/TOP100.md A7 -->
     <string name="a11y_menu">Menü</string>
     <string name="a11y_pause">Uhr anhalten</string>

@@ -209,12 +209,24 @@ class AchievementsPanel(context: Context) {
         canvas.drawRoundRect(r.left + 2f * u, r.top + 4f * u, r.right + 2f * u, r.bottom + 4f * u, radius, radius, fillP)
         fillP.color = if (t.reached) 0xFFFAFAF7.toInt() else 0xFFEEF0EC.toInt()
         canvas.drawRoundRect(r, radius, radius, fillP)
+        if (t.reached) {
+            // A reached tile wears a warm gold edge on its left, like a ribbon, so the earned ones stand out at a
+            // glance (judge panel: every tile looked the same flat white).
+            canvas.save()
+            canvas.clipRect(r.left, r.top, r.left + 6f * u, r.bottom)
+            fillP.color = GOLD
+            canvas.drawRoundRect(r, radius, radius, fillP)
+            canvas.restore()
+        }
         // Badge: a green disc with a check once reached, an outlined ring with the progress arc before.
         val cx = r.left + pad + iconR
         val cy = r.top + pad + iconR
         if (t.reached) {
+            // A medal: the green disc with the check inside a gold rim.
+            fillP.color = GOLD
+            canvas.drawCircle(cx, cy, iconR * 1.12f, fillP)
             fillP.color = accent
-            canvas.drawCircle(cx, cy, iconR, fillP)
+            canvas.drawCircle(cx, cy, iconR * 0.92f, fillP)
             lineP.color = 0xFFFFFFFF.toInt()
             lineP.strokeWidth = iconR * 0.22f
             canvas.drawLine(cx - iconR * 0.42f, cy + iconR * 0.02f, cx - iconR * 0.1f, cy + iconR * 0.34f, lineP)
@@ -297,6 +309,8 @@ class AchievementsPanel(context: Context) {
     private fun wrap(s: String, maxWidth: Float, maxLines: Int): List<String> = TextWrap.wrap(s, maxWidth, maxLines) { text.measureText(it) }
 
     companion object {
+        /** The gold of an earned tile's ribbon and medal rim. */
+        private const val GOLD = 0xFFE9A92B.toInt()
         /** Target id of the back pill. */
         const val BACK = "back"
         private const val MARGIN_DP = 16f

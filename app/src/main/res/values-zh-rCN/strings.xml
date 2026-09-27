@@ -24,7 +24,7 @@
     <string name="server_error_max_level">数据中心已是最高等级</string>
     <string name="server_error_no_budget">预算不足，升级需要 %1$d</string>
     <string name="server_error_no_space">数据中心需要服务器旁有 2×2 个空格子</string>
-    <string name="incident_excavator_warning">挖掘机来了：%1$d 秒后将挖断电缆</string>
+    <string name="incident_excavator_warning">挖掘机！%1$d 秒后挖断</string>
     <string name="incident_outage_warning">即将停电：%1$s 将在 %2$d 秒后断电</string>
     <string name="incident_cut">电缆被挖断：点按花 %1$d 修复 · %2$d 秒后自动恢复</string>
     <string name="incident_outage">停电：%1$s 还要断电 %2$d 秒</string>
@@ -208,7 +208,7 @@
     <string name="problem_jam">%1$s：%2$s——拥堵，电缆或服务器已满</string>
     <string name="drag_too_narrow">%1$s需要带宽 %2$d</string>
     <string name="drag_ping">%1$s：延迟 %2$d/%3$d 毫秒</string>
-    <string name="incident_more">%1$s（+%2$d）</string>
+    <string name="incident_more">%1$s · 另有 %2$d 个</string>
     <!-- Accessibility (TalkBack) descriptions of the canvas-drawn HUD, docs/TOP100.md A7 -->
     <string name="a11y_menu">菜单</string>
     <string name="a11y_pause">暂停时间</string>
