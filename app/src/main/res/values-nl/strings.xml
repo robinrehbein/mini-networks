@@ -175,6 +175,7 @@
     <!-- Monetization (docs/PLAN.md 5.1) -->
     <string name="menu_remove_ads">Reclamevrij · %1$s</string>
     <string name="settings_privacy">Privacy</string>
+    <string name="settings_privacy_policy">Privacybeleid</string>
     <string name="game_over_continue_ad">Doorspelen · video bekijken</string>
     <string name="game_over_continue">Doorspelen</string>
     <string name="reward_bonus_router_ad">+1 router · video bekijken</string>

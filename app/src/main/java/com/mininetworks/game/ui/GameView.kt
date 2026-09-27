@@ -1,7 +1,9 @@
 package com.mininetworks.game.ui
 
 import android.annotation.SuppressLint
+import android.app.AlertDialog
 import android.content.Context
+import android.content.Intent
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
@@ -9,7 +11,10 @@ import android.graphics.Typeface
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.net.Uri
 import android.util.Log
+import android.widget.EditText
+import android.widget.Toast
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.SoundEffectConstants
@@ -69,6 +74,7 @@ import com.mininetworks.game.monetization.Entitlements
 import com.mininetworks.game.monetization.Monetization
 import com.mininetworks.game.monetization.MonetizationStore
 import com.mininetworks.game.monetization.NoOpMonetization
+import com.mininetworks.game.monetization.PlayMonetization
 import com.mininetworks.game.render.CableStyles
 import com.mininetworks.game.render.Camera
 import com.mininetworks.game.render.Cosmetic
@@ -2229,6 +2235,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 MenuItem.Button(MenuAction.TUTORIAL, context.getString(R.string.settings_tutorial)),
             ) + listOfNotNull(
                 if (monetization.privacyOptionsRequired) MenuItem.Button(MenuAction.PRIVACY, context.getString(R.string.settings_privacy)) else null,
+                MenuItem.Button(MenuAction.PRIVACY_POLICY, context.getString(R.string.settings_privacy_policy), link = true),
+                if ((monetization as? PlayMonetization)?.reviewerAccessAvailable == true)
+                    MenuItem.Button(MenuAction.REVIEW_ACCESS, "Reviewer access", link = true) else null,
                 MenuItem.Button(MenuAction.BACK, context.getString(R.string.menu_back)),
             ),
             footer = context.getString(R.string.settings_language),
@@ -2401,6 +2410,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             MenuAction.SECOND_CHANCE -> askSecondChance()
             MenuAction.REMOVE_ADS -> monetization.purchase(Entitlements.REMOVE_ADS)
             MenuAction.PRIVACY -> monetization.showPrivacyOptions()
+            MenuAction.PRIVACY_POLICY -> context.startActivity(
+                Intent(Intent.ACTION_VIEW, Uri.parse("https://robinrehbein.github.io/mini-networks/privacy/"))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+            MenuAction.REVIEW_ACCESS -> showReviewerAccessDialog()
             MenuAction.DAILY -> screen = Screen.DAILY
             MenuAction.DAILY_START -> startDaily(DailyChallenge.at(wallClock()))
             MenuAction.ACHIEVEMENTS -> {
@@ -2411,6 +2425,22 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             MenuAction.COLOR_THEME -> updateSettings(settings.copy(colorTheme = Cosmetics.next(Cosmetic.theme, Cosmetics.themes(tracker.unlocked))))
             MenuAction.LEADERBOARDS -> gameServices.showLeaderboards()
             MenuAction.SHARE -> shareNetwork()
+        }
+    }
+
+    private fun showReviewerAccessDialog() {
+        val play = monetization as? PlayMonetization ?: return
+        post {
+            val input = EditText(context).apply { hint = "Review code"; isSingleLine = true }
+            AlertDialog.Builder(context)
+                .setTitle("Reviewer access")
+                .setView(input)
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Unlock") { _, _ ->
+                    val unlocked = play.unlockReviewerAccess(input.text.toString())
+                    Toast.makeText(context, if (unlocked) "Review access enabled" else "Invalid review code", Toast.LENGTH_SHORT).show()
+                }
+                .show()
         }
     }
 

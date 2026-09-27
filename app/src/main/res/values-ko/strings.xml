@@ -169,6 +169,7 @@
     <!-- Monetization (docs/PLAN.md 5.1) -->
     <string name="menu_remove_ads">광고 제거 · %1$s</string>
     <string name="settings_privacy">개인정보</string>
+    <string name="settings_privacy_policy">개인정보 처리방침</string>
     <string name="game_over_continue_ad">계속하기 · 동영상 보기</string>
     <string name="game_over_continue">계속하기</string>
     <string name="reward_bonus_router_ad">라우터 +1 · 동영상 보기</string>

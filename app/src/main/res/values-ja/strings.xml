@@ -169,6 +169,7 @@
     <!-- Monetization (docs/PLAN.md 5.1) -->
     <string name="menu_remove_ads">広告を削除 · %1$s</string>
     <string name="settings_privacy">プライバシー</string>
+    <string name="settings_privacy_policy">プライバシーポリシー</string>
     <string name="game_over_continue_ad">続ける · 動画を見る</string>
     <string name="game_over_continue">プレイを続ける</string>
     <string name="reward_bonus_router_ad">ルーター+1 · 動画を見る</string>

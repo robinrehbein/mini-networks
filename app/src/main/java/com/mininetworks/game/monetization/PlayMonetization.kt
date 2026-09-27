@@ -37,6 +37,18 @@ import kotlin.concurrent.thread
  */
 class PlayMonetization(private val activity: Activity) : Monetization {
     private val main = Handler(Looper.getMainLooper())
+    private val reviewerPrefs by lazy { activity.getSharedPreferences("reviewer_access", Activity.MODE_PRIVATE) }
+    @Volatile private var reviewerAccess = reviewerPrefs.getBoolean("unlocked", false)
+    val reviewerAccessAvailable get() = BuildConfig.REVIEW_ACCESS_CODE.isNotEmpty() && !reviewerAccess
+
+    fun unlockReviewerAccess(code: String): Boolean {
+        if (BuildConfig.REVIEW_ACCESS_CODE.isEmpty() || code.trim() != BuildConfig.REVIEW_ACCESS_CODE) return false
+        reviewerPrefs.edit().putBoolean("unlocked", true).apply()
+        reviewerAccess = true
+        interstitial.set(null)
+        rewarded.set(null)
+        return true
+    }
     // Created on the GameIo thread in [start]: reading the stored products is disk work (docs/TOP100.md A3).
     private val store by lazy { MonetizationStore(activity) }
     // Main thread only: the UMP SDK wants its calls there. First used in [gatherConsent].
@@ -56,11 +68,11 @@ class PlayMonetization(private val activity: Activity) : Monetization {
     @Volatile private var purchases: Purchases? = null
     private val owned get() = purchases?.owned ?: emptySet()
 
-    override val adsRemoved get() = Entitlements.REMOVE_ADS in owned
+    override val adsRemoved get() = reviewerAccess || Entitlements.REMOVE_ADS in owned
     override val rewardedReady get() = !adsRemoved && rewarded.get() != null
     override val privacyOptionsRequired get() = privacyRequired
 
-    override fun ownsScenery(sceneryId: String) = Entitlements.ownsScenery(owned, sceneryId)
+    override fun ownsScenery(sceneryId: String) = reviewerAccess || Entitlements.ownsScenery(owned, sceneryId)
 
     override fun price(productId: String): String? = purchases?.price(productId)
 

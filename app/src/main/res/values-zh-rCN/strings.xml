@@ -169,6 +169,7 @@
     <!-- Monetization (docs/PLAN.md 5.1) -->
     <string name="menu_remove_ads">去除广告 · %1$s</string>
     <string name="settings_privacy">隐私</string>
+    <string name="settings_privacy_policy">隐私政策</string>
     <string name="game_over_continue_ad">继续 · 观看视频</string>
     <string name="game_over_continue">继续游戏</string>
     <string name="reward_bonus_router_ad">路由器 +1 · 观看视频</string>
