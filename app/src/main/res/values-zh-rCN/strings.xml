@@ -424,4 +424,11 @@
     <plurals name="cloud_save_description">
         <item quantity="other">已送达 %d 个数据包</item>
     </plurals>
+
+    <string name="age_gate_title">出生日期</string>
+    <string name="age_gate_message">请输入出生日期。此信息仅保存在本设备上，用于确定可展示的广告。</string>
+    <string name="age_gate_date_hint">YYYY-MM-DD</string>
+    <string name="age_gate_exit">退出</string>
+    <string name="age_gate_invalid">请按 YYYY-MM-DD 格式输入有效日期。</string>
+    <string name="age_gate_minimum">Mini Networks 适合 13 岁及以上的玩家。</string>
 </resources>

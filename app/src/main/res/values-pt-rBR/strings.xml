@@ -494,4 +494,11 @@
         <item quantity="many">%d pacotes entregues</item>
         <item quantity="other">%d pacotes entregues</item>
     </plurals>
+
+    <string name="age_gate_title">Data de nascimento</string>
+    <string name="age_gate_message">Informe sua data de nascimento. Ela fica apenas neste dispositivo e determina quais anúncios podem ser exibidos.</string>
+    <string name="age_gate_date_hint">AAAA-MM-DD</string>
+    <string name="age_gate_exit">Sair</string>
+    <string name="age_gate_invalid">Informe uma data válida no formato AAAA-MM-DD.</string>
+    <string name="age_gate_minimum">Mini Networks é para jogadores a partir de 13 anos.</string>
 </resources>

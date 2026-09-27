@@ -424,4 +424,11 @@
     <plurals name="cloud_save_description">
         <item quantity="other">패킷 %d개 배달</item>
     </plurals>
+
+    <string name="age_gate_title">생년월일</string>
+    <string name="age_gate_message">생년월일을 입력하세요. 이 정보는 기기에만 저장되며 표시할 수 있는 광고를 결정하는 데 사용됩니다.</string>
+    <string name="age_gate_date_hint">YYYY-MM-DD</string>
+    <string name="age_gate_exit">종료</string>
+    <string name="age_gate_invalid">YYYY-MM-DD 형식의 올바른 날짜를 입력하세요.</string>
+    <string name="age_gate_minimum">Mini Networks는 만 13세 이상을 위한 게임입니다.</string>
 </resources>

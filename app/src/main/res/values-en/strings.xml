@@ -459,4 +459,11 @@
         <item quantity="one">%d packet delivered</item>
         <item quantity="other">%d packets delivered</item>
     </plurals>
+
+    <string name="age_gate_title">Date of birth</string>
+    <string name="age_gate_message">Enter your date of birth. It stays on this device and determines which ads may be shown.</string>
+    <string name="age_gate_date_hint">YYYY-MM-DD</string>
+    <string name="age_gate_exit">Exit</string>
+    <string name="age_gate_invalid">Enter a valid date as YYYY-MM-DD.</string>
+    <string name="age_gate_minimum">Mini Networks is for players aged 13 and older.</string>
 </resources>

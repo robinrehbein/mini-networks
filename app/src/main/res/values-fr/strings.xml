@@ -494,4 +494,11 @@
         <item quantity="many">%d paquets livrés</item>
         <item quantity="other">%d paquets livrés</item>
     </plurals>
+
+    <string name="age_gate_title">Date de naissance</string>
+    <string name="age_gate_message">Saisissez votre date de naissance. Elle reste sur cet appareil et détermine les annonces qui peuvent être affichées.</string>
+    <string name="age_gate_date_hint">AAAA-MM-JJ</string>
+    <string name="age_gate_exit">Quitter</string>
+    <string name="age_gate_invalid">Saisissez une date valide au format AAAA-MM-JJ.</string>
+    <string name="age_gate_minimum">Mini Networks est réservé aux joueurs de 13 ans et plus.</string>
 </resources>
