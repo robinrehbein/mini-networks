@@ -24,23 +24,27 @@ Play Games optional, Werbung nur zwischen Partien, „Werbefrei“ und Szenerien
 
 **Grafiken** (Robolectric, `app/src/test/.../render/StoreScreenshotTest.kt`):
 
-- `screenshots/<gerät>/<sprache>/01-town.png` … `08-incidents.png`, je 8 für `phone` (1920 × 1080, 420 dpi),
+- `screenshots/<gerät>/<sprache>/01-town.png` … `08-sceneries.png`, je 8 für `phone` (1920 × 1080, 420 dpi),
   `tablet-7` (1920 × 1080, xhdpi, 960 × 540 dp) und `tablet-10` (2560 × 1440, xhdpi); 16:9 und 24-Bit-PNG ohne Alpha,
   wie Play es für Telefone und Tablets verlangt (1080–7680 px je Seite). Eingecheckt: Deutsch und Englisch; weitere
   Sprachen mit `-Pstore.locales=fr,es,it,pt-rBR,pl,nl,tr,ja,ko,zh-rCN`.
-- `feature-graphic.png`: 1024 × 500, 24-Bit-PNG, nichts Wichtiges in den äußeren 10 %: links eine dämmerblaue Fläche
-  mit Glasfaser-Kante, App-Icon, Name und „1995 → 2030“ (Zahlen, passt zu jedem Eintrag), rechts ein Knoten mit
-  leuchtendem Server und einem Gerät in Überlast. `feature-graphic/<sprache>.png`: dieselbe Grafik mit der Tagline der Sprache („von ISDN bis
-  Glasfaser“, wie das Spiel 1995 mit ISDN beginnt), für jede erzeugte Sprache; in der Play Console je Sprache hochladen.
+- `feature-graphic.png`: 1024 × 500, 24-Bit-PNG, nichts Wichtiges in den äußeren 10 %: über die ganze Breite die Ära
+  des Spiels, eine belebte Kleinstadt (Wiese, ein Gerät in Überlast) geht an einer diagonalen Glasfaser-Naht in die
+  dichte Stadt 2030 über, beide echte Karten spät im Spiel, mit den Jahres-Schildern „1995“ und „2030“; links auf
+  einem dämmerblauen Verlauf App-Icon, Name in Nunito Black und „1995 → 2030“. `feature-graphic/<sprache>.png`:
+  dieselbe Grafik mit der Tagline der Sprache (en: „Build the internet, one cable at a time“), für jede erzeugte
+  Sprache; in der Play Console je Sprache hochladen.
 - Vor dem Start (docs/RELEASE.md 4): die übrigen 10 Sprachen mit `-Pstore.locales=fr,es,it,pt-rBR,pl,nl,tr,ja,ko,zh-rCN`
   erzeugen und je Eintrag hochladen; sonst zeigt Play dort die Standardbilder mit deutscher bzw. englischer
   Beschriftung. Nicht eingecheckt, weil jeder Satz rund 8 MB PNG ist (zehn Sprachen ≈ 80 MB bei jedem Neuerzeugen).
-- Eine Vorlage für alle Bilder: das Spiel randlos unter einem dämmerblauen Beschriftungsband mit Glasfaser-Kante,
-  App-Icon und kurzer, einzeiliger Überschrift.
-- Motive: 1 lebendige Stadt (wenige Anfragen), 2 Kabel ziehen mit Vorschau, 3 Überlastung im echten Spielbild mit HUD
-  (glaubwürdiges Budget, pulsierender roter Schein, Rand abgedunkelt), 4 gedrehte dichte Stadt 2030 mit
-  Zwei-Finger-Geste, 5 Funk (Abdeckung mit Signalwellen), 6 Wochen-Belohnung mit Konfetti nur am Rand, 7 fünf
-  Szenerien mit kleinem Tagesaufgaben-Abzeichen, 8 Bagger und Stromausfall.
+- Eine Vorlage für alle Bilder, je Motiv eigene Tönung: das Spiel randlos, die kurze Überschrift (Nunito Black) mit
+  einem kurzen Akzentstrich auf einem Verlauf, der in die Karte übergeht; Motive mit HUD, Dialog oder Collage hängen
+  unter einem schmalen Band in derselben Tönung. Nur Bild 1 trägt das App-Icon.
+- Motive: 1 lebendige Stadt (wenige Anfragen, ein Gerät läuft voll), 2 Kabel ziehen mit Finger und Preis, 3 Bagger
+  und Stromausfall, 4 Überlastung im echten Spielbild mit HUD (glaubwürdiges Budget, pulsierender roter Schein,
+  Alarmwelle), 5 Funk (Abdeckung mit Signalwellen, Server ganz im Bild), 6 Wochen-Belohnung im warmen Spotlight mit
+  Konfetti nur am Rand, 7 gedrehte Stadt 2030 mit kleinem Dreh-Abzeichen in der Ecke, 8 fünf Szenerien, jede auf ihr
+  Merkmal gerahmt (Türme, Meer, Berge) mit Namens-Pille am unteren Rand.
 - `screenshots/phone-portrait/<sprache>/`: 1080 × 1920 für das Hochformat-Karussell von Play, alle Motive außer 6
   (die zwei Belohnungskarten brauchen Breite).
 - Trailer: `trailer.md`.

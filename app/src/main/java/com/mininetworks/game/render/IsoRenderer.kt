@@ -242,9 +242,9 @@ class IsoRenderer : Renderer {
             if (n.kind != NodeKind.CLIENT || n.overload <= 0f) continue
             val cx = sx(n.center.x, n.center.y); val cy = sy(n.center.x, n.center.y)
             val beat = 0.5f + 0.5f * sin(time * (4f + 6f * n.overload))
-            val reach = 0.75f + 0.25f * n.overload + 0.1f * beat
+            val reach = 0.8f + 0.4f * n.overload + 0.12f * beat
             oval.set(cx - tw * reach, cy - th * reach, cx + tw * reach, cy + th * reach)
-            fillP.color = (((n.overload * (0.3f + 0.25f * beat)).coerceIn(0f, 0.6f) * 255).toInt() shl 24) or (alarm and 0xFFFFFF)
+            fillP.color = (((n.overload * (0.4f + 0.3f * beat)).coerceIn(0f, 0.7f) * 255).toInt() shl 24) or (alarm and 0xFFFFFF)
             canvas.drawOval(oval, fillP)
         }
 
@@ -275,9 +275,22 @@ class IsoRenderer : Renderer {
             if (n.kind != NodeKind.CLIENT || n.overload <= 0f) continue
             val cx = sx(n.center.x, n.center.y); val cy = sy(n.center.x, n.center.y)
             oval.set(cx - tw * 0.55f, cy - th * 0.55f, cx + tw * 0.55f, cy + th * 0.55f)
-            val ring = maxOf(tw * 0.06f, RING_MIN_DP * 1.2f * density)
-            // The track the ring runs on, so it reads as a timer running out.
-            strokeP.color = 0x8CFFFFFF.toInt(); strokeP.strokeWidth = ring * 1.2f
+            val ring = maxOf(tw * 0.075f, RING_MIN_DP * 1.4f * density)
+            // Past half way an alarm wave runs outwards from the device, faster the fuller the ring (judge panel:
+            // the fail state read as mild among the bubbles).
+            if (n.overload > 0.5f) {
+                val phase = (time * (0.8f + 1.2f * n.overload)) % 1f
+                val r = 0.6f + 0.55f * phase
+                oval.set(cx - tw * r, cy - th * r, cx + tw * r, cy + th * r)
+                strokeP.color = (((1f - phase) * 0.8f * n.overload * 255).toInt() shl 24) or (alarm and 0xFFFFFF)
+                strokeP.strokeWidth = ring * 0.7f
+                canvas.drawOval(oval, strokeP)
+                oval.set(cx - tw * 0.55f, cy - th * 0.55f, cx + tw * 0.55f, cy + th * 0.55f)
+            }
+            // The track the ring runs on, so it reads as a timer running out; a dark edge holds it on the red glow.
+            strokeP.color = 0x662A1418; strokeP.strokeWidth = ring * 1.75f
+            canvas.drawOval(oval, strokeP)
+            strokeP.color = 0xD9FFFFFF.toInt(); strokeP.strokeWidth = ring * 1.2f
             canvas.drawOval(oval, strokeP)
             strokeP.color = alarm; strokeP.strokeWidth = ring
             canvas.drawArc(oval, -90f, 360f * n.overload, false, strokeP)

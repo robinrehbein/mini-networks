@@ -48,12 +48,12 @@ Netzwerk, Kabel verlegen, Strategiespiel, Puzzle, Aufbauspiel, Stadt, Router, WL
 
 1. Verkabel deine Stadt
 2. Ein Wisch, ein Kabel
-3. Stopp die Überlastung
-4. Dreh die Karte
+3. Achtung, Bagger!
+4. Stopp die Überlastung
 5. WLAN, 4G und 5G
 6. Jede Woche eine Wahl
-7. Fünf Szenerien
-8. Achtung, Bagger!
+7. Dreh die Karte
+8. Fünf Szenerien
 
 Bilder: `docs/store/screenshots/{phone,phone-portrait,tablet-7,tablet-10}/de/01…08-*.png`
 Feature-Grafik: `docs/store/feature-graphic/de.png` (mit Tagline dieser Sprache); ohne Worte außer dem Namen: `docs/store/feature-graphic.png`

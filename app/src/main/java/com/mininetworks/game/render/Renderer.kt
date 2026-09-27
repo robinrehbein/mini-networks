@@ -490,11 +490,11 @@ object CableStyles {
     )
 
     /**
-     * The default skin gives every technology its own hue, not just another grey (light grey ISDN, teal DSL,
+     * The default skin gives every technology its own hue, not just another grey (slate-grey ISDN, dark enough to hold on pale ground, teal DSL,
      * wine-red coax, orange fiber), so the HUD chips and the map read apart at a glance. DSL and coax stay dark so
      * packets show on them; a dark outline and a white halo ([IsoRenderer]) lift them off the green grass.
      */
-    private val CLASSIC = skin(0xFFB4BCC6.toInt(), 0xFF134E48.toInt(), null, 0xFF6A1F3F.toInt(), 0xFFF2B8CE.toInt(), 0xFFF28C28.toInt(), 0xFFFFE2B8.toInt())
+    private val CLASSIC = skin(0xFF8F9CAE.toInt(), 0xFF134E48.toInt(), null, 0xFF6A1F3F.toInt(), 0xFFF2B8CE.toInt(), 0xFFF28C28.toInt(), 0xFFFFE2B8.toInt())
     private val COPPER = skin(0xFFC4A07E.toInt(), 0xFF5E3620.toInt(), null, 0xFF3A2519.toInt(), 0xFFD08A52.toInt(), 0xFFD9A441.toInt(), 0xFFFFF0C2.toInt())
     private val NEON = skin(0xFF7ED3E6.toInt(), 0xFF262A50.toInt(), 0xFF8F6BFF.toInt(), 0xFF16181F.toInt(), 0xFFFF4FA3.toInt(), 0xFF3EE68A.toInt(), 0xFFE8FFF1.toInt())
     private val PASTEL = skin(0xFFB9C3D3.toInt(), 0xFF4A4C48.toInt(), 0xFFC9B8E8.toInt(), 0xFF1C191E.toInt(), 0xFFE9C6D6.toInt(), 0xFFF3A6B8.toInt(), 0xFFFFE6EE.toInt())

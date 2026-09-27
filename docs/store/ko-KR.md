@@ -48,12 +48,12 @@ Mini Networks는 무료입니다. 판과 판 사이에 가끔 광고가 나오�
 
 1. 도시를 케이블로 연결하세요
 2. 한 번 밀면 케이블 하나
-3. 과부하를 막으세요
-4. 지도를 회전
+3. 굴착기 주의!
+4. 과부하를 막으세요
 5. Wi-Fi, 4G, 5G
 6. 매주 고르는 보상
-7. 다섯 가지 배경
-8. 굴착기 주의!
+7. 지도를 회전
+8. 다섯 가지 배경
 
 Bilder: nicht eingecheckt; erzeugen mit `ROBOLECTRIC_DEPS_DIR=/opt/robolectric ./gradlew testDebugUnitTest --tests '*StoreScreenshotTest*' -Pstore.locales=ko` (landet in `docs/store/screenshots/<gerät>/ko/`). Bis dahin zeigt Play die englischen bzw. deutschen Bilder.
 Feature-Grafik: `docs/store/feature-graphic/ko.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=ko`); bis dahin die wortlose `docs/store/feature-graphic.png`

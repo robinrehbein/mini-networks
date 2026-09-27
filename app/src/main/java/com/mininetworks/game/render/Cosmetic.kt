@@ -102,12 +102,12 @@ object Cosmetic {
         flatLand = 0xFFF1F3EA.toInt(), flatWater = 0xFFB9D9E8.toInt(), flatBackdrop = 0xFFD2D8CB.toInt(),
     )
 
-    /** Großstadt: cool asphalt greys, deep river blue, park greens. */
+    /** Großstadt: warm sandstone paving (judge panel: the cool grey read as the drabbest scenery), deep river blue, park greens. */
     private val METROPOLIS = palette(
-        landA = 0xFFDCDDD5.toInt(), landB = 0xFFD1D3CA.toInt(), waterA = 0xFF4E95CC.toInt(), waterB = 0xFF6AA9D8.toInt(),
-        boardLit = 0xFFA3A89F.toInt(), boardShade = 0xFF8C9189.toInt(), background = 0xFFE6E8E3.toInt(),
-        grass = 0xFFA9BF9A.toInt(), leaf = 0xFF7DB47A.toInt(), leafDark = 0xFF5B9160.toInt(), pine = 0xFF5B9270.toInt(), pineDark = 0xFF417456.toInt(),
-        flatLand = 0xFFECEFF1.toInt(), flatWater = 0xFFB6CFE2.toInt(), flatBackdrop = 0xFFC7CED4.toInt(),
+        landA = 0xFFE6DDC8.toInt(), landB = 0xFFDCD2BB.toInt(), waterA = 0xFF3F8FD0.toInt(), waterB = 0xFF5CA5DC.toInt(),
+        boardLit = 0xFFB9A98A.toInt(), boardShade = 0xFFA08F72.toInt(), background = 0xFFF1EBDD.toInt(),
+        grass = 0xFFB4C28E.toInt(), leaf = 0xFF6FB865.toInt(), leafDark = 0xFF4E9450.toInt(), pine = 0xFF4E9468.toInt(), pineDark = 0xFF36724E.toInt(),
+        flatLand = 0xFFF2EEE4.toInt(), flatWater = 0xFFB6CFE2.toInt(), flatBackdrop = 0xFFD6CDBB.toInt(),
     )
 
     /** Insel & Hafen: sandy ground, deep turquoise sea, lush palms. */
@@ -126,11 +126,11 @@ object Cosmetic {
         flatLand = 0xFFEEF1E6.toInt(), flatWater = 0xFFB6D6E6.toInt(), flatBackdrop = 0xFFCDC6B5.toInt(),
     )
 
-    /** Zukunft 2030: dusk violet ground, electric blue water, teal trees. */
+    /** Zukunft 2030: dusk violet ground (a little deeper, so it does not wash out), electric blue water, teal trees. */
     private val FUTURE = palette(
-        landA = 0xFFD7D0EB.toInt(), landB = 0xFFCDC5E4.toInt(), waterA = 0xFF4F86E0.toInt(), waterB = 0xFF6A9BE8.toInt(),
-        boardLit = 0xFF9C8FC8.toInt(), boardShade = 0xFF8778B6.toInt(), background = 0xFFE4DFF2.toInt(),
-        grass = 0xFFB5ABD8.toInt(), leaf = 0xFF62C4B3.toInt(), leafDark = 0xFF41A291.toInt(), pine = 0xFF4A9C99.toInt(), pineDark = 0xFF327D7A.toInt(),
+        landA = 0xFFD3C8EE.toInt(), landB = 0xFFC8BCE8.toInt(), waterA = 0xFF437EE0.toInt(), waterB = 0xFF6093EA.toInt(),
+        boardLit = 0xFF9383C8.toInt(), boardShade = 0xFF7C6BB4.toInt(), background = 0xFFE2DBF3.toInt(),
+        grass = 0xFFAFA2DA.toInt(), leaf = 0xFF4FC4B0.toInt(), leafDark = 0xFF33A08D.toInt(), pine = 0xFF3E9C97.toInt(), pineDark = 0xFF2A7D78.toInt(),
         flatLand = 0xFFF0EDF7.toInt(), flatWater = 0xFFC0CAEE.toInt(), flatBackdrop = 0xFFCDC6E0.toInt(),
     )
 

@@ -48,12 +48,12 @@ netwerk, kabels, strategie, puzzel, stad bouwen, router, wifi, glasvezel, intern
 
 1. Verbind je stad
 2. Eén veeg, één kabel
-3. Voorkom overbelasting
-4. Draai de kaart
+3. Pas op voor de graafmachine!
+4. Voorkom overbelasting
 5. Wifi, 4G en 5G
 6. Elke week een keuze
-7. Vijf landschappen
-8. Pas op voor de graafmachine!
+7. Draai de kaart
+8. Vijf landschappen
 
 Bilder: nicht eingecheckt; erzeugen mit `ROBOLECTRIC_DEPS_DIR=/opt/robolectric ./gradlew testDebugUnitTest --tests '*StoreScreenshotTest*' -Pstore.locales=nl` (landet in `docs/store/screenshots/<gerät>/nl/`). Bis dahin zeigt Play die englischen bzw. deutschen Bilder.
 Feature-Grafik: `docs/store/feature-graphic/nl.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=nl`); bis dahin die wortlose `docs/store/feature-graphic.png`

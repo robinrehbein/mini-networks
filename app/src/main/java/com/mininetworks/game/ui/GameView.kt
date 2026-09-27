@@ -974,10 +974,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
      */
     internal var hudHidden = false
 
-    /** The HUD shows under the in-game menus, not under the main menu. */
+    /**
+     * The HUD shows under the in-game menus, not under the main menu, and not under the game-over card: the round is
+     * over, and its pills peeking out at the card's edges read as clutter (judge panel).
+     */
     private val hudVisible
         get() = when (screen) {
-            Screen.MAIN_MENU, Screen.SCENERIES, Screen.DAILY, Screen.ACHIEVEMENTS -> false
+            Screen.MAIN_MENU, Screen.SCENERIES, Screen.DAILY, Screen.ACHIEVEMENTS, Screen.GAME_OVER -> false
             Screen.SETTINGS, Screen.APPEARANCE -> settingsReturn != Screen.MAIN_MENU
             else -> true
         }
@@ -3032,6 +3035,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             ViewInsets(tutorialOverlay.reservedRight(surfaceWidth) - safeInsets.left + 8 * density, hudTopReserve, 8 * density, hudBottomReserve)
         } else if (hudHidden) {
             ViewInsets(8 * density, 8 * density, 8 * density, 8 * density)
+        } else if (surfaceWidth > surfaceHeight) {
+            // Landscape: the top HUD holds only two corner pills over the iso board's empty corners, so the map may
+            // reach up between them (judge panel: the board filled only half of a phone's screen).
+            ViewInsets(8 * density, hudTopReserve * LANDSCAPE_TOP_SHARE, 8 * density, hudBottomReserve)
         } else {
             ViewInsets(8 * density, hudTopReserve, 8 * density, hudBottomReserve)
         }
@@ -3045,6 +3052,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     }
 
     internal companion object {
+        /** Share of the top HUD rows a landscape map keeps free (the pills sit in the corners). */
+        const val LANDSCAPE_TOP_SHARE = 0.4f
         /** The part of [insets] the HUD must keep clear of: the display cutout, in pixels. */
         fun safeInsetsOf(insets: WindowInsets): ViewInsets = when {
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> insets.getInsets(WindowInsets.Type.displayCutout())

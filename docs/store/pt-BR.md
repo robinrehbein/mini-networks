@@ -48,12 +48,12 @@ rede, cabos, estratégia, quebra-cabeça, construção, cidade, roteador, Wi-Fi,
 
 1. Conecte sua cidade
 2. Um gesto, um cabo
-3. Evite a sobrecarga
-4. Gire o mapa
+3. Cuidado com a escavadeira!
+4. Evite a sobrecarga
 5. Wi-Fi, 4G e 5G
 6. Uma escolha por semana
-7. Cinco cenários
-8. Cuidado com a escavadeira!
+7. Gire o mapa
+8. Cinco cenários
 
 Bilder: nicht eingecheckt; erzeugen mit `ROBOLECTRIC_DEPS_DIR=/opt/robolectric ./gradlew testDebugUnitTest --tests '*StoreScreenshotTest*' -Pstore.locales=pt-rBR` (landet in `docs/store/screenshots/<gerät>/pt-rBR/`). Bis dahin zeigt Play die englischen bzw. deutschen Bilder.
 Feature-Grafik: `docs/store/feature-graphic/pt-rBR.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=pt-rBR`); bis dahin die wortlose `docs/store/feature-graphic.png`

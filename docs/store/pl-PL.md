@@ -48,12 +48,12 @@ sieć, kable, strategia, łamigłówka, budowanie miasta, router, Wi-Fi, świat�
 
 1. Okabluj swoje miasto
 2. Jeden ruch, jeden kabel
-3. Unikaj przeciążenia
-4. Obracaj mapę
+3. Uwaga, koparka!
+4. Unikaj przeciążenia
 5. Wi-Fi, 4G i 5G
 6. Co tydzień wybór
-7. Pięć scenerii
-8. Uwaga, koparka!
+7. Obracaj mapę
+8. Pięć scenerii
 
 Bilder: nicht eingecheckt; erzeugen mit `ROBOLECTRIC_DEPS_DIR=/opt/robolectric ./gradlew testDebugUnitTest --tests '*StoreScreenshotTest*' -Pstore.locales=pl` (landet in `docs/store/screenshots/<gerät>/pl/`). Bis dahin zeigt Play die englischen bzw. deutschen Bilder.
 Feature-Grafik: `docs/store/feature-graphic/pl.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=pl`); bis dahin die wortlose `docs/store/feature-graphic.png`

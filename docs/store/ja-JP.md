@@ -48,12 +48,12 @@ Mini Networksは基本無料です。ゲームとゲームの間にときどき�
 
 1. 町をケーブルでつなごう
 2. なぞるだけでケーブル
-3. 過負荷を防ごう
-4. 地図を回転
+3. ショベルカーに注意！
+4. 過負荷を防ごう
 5. Wi-Fi、4G、5G
 6. 毎週選べるボーナス
-7. 5つのステージ
-8. ショベルカーに注意！
+7. 地図を回転
+8. 5つのステージ
 
 Bilder: nicht eingecheckt; erzeugen mit `ROBOLECTRIC_DEPS_DIR=/opt/robolectric ./gradlew testDebugUnitTest --tests '*StoreScreenshotTest*' -Pstore.locales=ja` (landet in `docs/store/screenshots/<gerät>/ja/`). Bis dahin zeigt Play die englischen bzw. deutschen Bilder.
 Feature-Grafik: `docs/store/feature-graphic/ja.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=ja`); bis dahin die wortlose `docs/store/feature-graphic.png`

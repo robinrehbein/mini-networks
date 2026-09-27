@@ -48,12 +48,12 @@ red, cables, estrategia, puzle, construcción, ciudad, pueblo, router, Wi-Fi, fi
 
 1. Conecta tu pueblo
 2. Un gesto, un cable
-3. Evita la saturación
-4. Gira el mapa
+3. ¡Cuidado con la excavadora!
+4. Evita la saturación
 5. Wi-Fi, 4G y 5G
 6. Una elección cada semana
-7. Cinco escenarios
-8. ¡Cuidado con la excavadora!
+7. Gira el mapa
+8. Cinco escenarios
 
 Bilder: nicht eingecheckt; erzeugen mit `ROBOLECTRIC_DEPS_DIR=/opt/robolectric ./gradlew testDebugUnitTest --tests '*StoreScreenshotTest*' -Pstore.locales=es` (landet in `docs/store/screenshots/<gerät>/es/`). Bis dahin zeigt Play die englischen bzw. deutschen Bilder.
 Feature-Grafik: `docs/store/feature-graphic/es.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=es`); bis dahin die wortlose `docs/store/feature-graphic.png`

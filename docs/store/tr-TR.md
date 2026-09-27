@@ -48,12 +48,12 @@ ağ, kablo, strateji, bulmaca, şehir kurma, router, Wi-Fi, fiber, internet, çe
 
 1. Şehrini kabloyla bağla
 2. Bir kaydırma, bir kablo
-3. Aşırı yükü önle
-4. Haritayı döndür
+3. Dikkat, kepçe!
+4. Aşırı yükü önle
 5. Wi-Fi, 4G ve 5G
 6. Her hafta bir seçim
-7. Beş manzara
-8. Dikkat, kepçe!
+7. Haritayı döndür
+8. Beş manzara
 
 Bilder: nicht eingecheckt; erzeugen mit `ROBOLECTRIC_DEPS_DIR=/opt/robolectric ./gradlew testDebugUnitTest --tests '*StoreScreenshotTest*' -Pstore.locales=tr` (landet in `docs/store/screenshots/<gerät>/tr/`). Bis dahin zeigt Play die englischen bzw. deutschen Bilder.
 Feature-Grafik: `docs/store/feature-graphic/tr.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=tr`); bis dahin die wortlose `docs/store/feature-graphic.png`

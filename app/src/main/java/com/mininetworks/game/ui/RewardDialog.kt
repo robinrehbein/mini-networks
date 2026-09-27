@@ -37,8 +37,17 @@ class RewardDialog(private val context: Context) {
     private val fillP = fill(0)
     private val icons = DeviceIcons()
     private val texts = Texts(context)
-    /** A warm dusk scrim: the map stays visible behind the cards, but dark enough that the light cards and texts pop. */
-    private val dim = fill(0x8C33243A.toInt())
+    /**
+     * A light dusk-blue scrim (judge panel: the old purple-grey dim read as muddy): the map stays visible at the edges,
+     * and a warm spotlight with slowly turning rays lifts the cards in the middle, so the week's reward feels like a
+     * celebration rather than a settings dialog.
+     */
+    private val dim = fill(0x730E2A38)
+    private val glowP = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val rayP = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val haloP = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val pillP = fill(0xCC0E2A38.toInt())
+    private val display = Fonts.display(context)
     private val ink = 0xFF262B33.toInt()
     private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; color = ink }
 
@@ -79,15 +88,24 @@ class RewardDialog(private val context: Context) {
         val newsSize = baseW * 0.065f * textK
         val news = world.lastNews?.takeIf { world.lastNewsTime == world.time }?.let { texts.news(it, withYear = false) }
         val headH = dateSize * 1.25f + (if (news != null) newsSize * 1.5f else 0f) + newsSize * 0.2f + 8f * density
-        val promptSize = newsSize
-        text.typeface = Typeface.DEFAULT
+        // The weekly pay line is part of the reward: large enough to read at phone size, on its own dark pill.
+        // (With large system text the line is already large: it keeps its size so the cards keep their room.)
+        val large = textK > 1.15f
+        val promptSize = if (large) newsSize else newsSize * 1.2f
+        // The pill's side padding; slimmer with large text, so the line keeps to as few rows as before.
+        val pillPad = promptSize * (if (large) 0.5f else 1.6f)
+        val promptFace = if (large) Typeface.DEFAULT else Typeface.DEFAULT_BOLD
+        text.typeface = promptFace
         text.textSize = promptSize
         val prompt = context.getString(R.string.reward_prompt, World.Tuning.WEEK_BUDGET)
-        // At most two lines; whatever does not fit ends the second one with an ellipsis.
-        val promptLines = TextWrap.wrap(prompt, width - 2 * side, maxLines = 2) { text.measureText(it) }
+        // At most two lines inside the pill; whatever does not fit ends the second one with an ellipsis.
+        val promptLines = TextWrap.wrap(prompt, width - 2 * side - (if (large) 0f else pillPad), maxLines = 2) { text.measureText(it) }
         val bonusH = bonusHeight()
         // With the bonus pill the cards move up, so prompt and pill fit below them.
-        val below = promptSize * (1.0f + 1.3f * promptLines.size) + (if (bonus != null) bonusH + 16f * density else 0f) + cardW * 0.1f
+        // Room under the cards: their slab and shadow (2.4 × depth), the pill with the prompt, and the bonus pill.
+        // Large text keeps every dp for the cards: the pill may then reach a little past the line's own margin.
+        val below = promptSize * ((if (large) 1.0f else 1.1f) + 1.3f * promptLines.size) + (if (bonus != null) bonusH + 16f * density else 0f) +
+            (if (large) cardW * 0.1f else cardW * 0.12f + 4f * density)
         val gap = cardW * 0.14f
         val depth = cardW * 0.05f
         // The card grows with its texts (large font sizes) up to the room between heading and prompt; only when even
@@ -103,8 +121,9 @@ class RewardDialog(private val context: Context) {
         }
         val top = minOf(height * 0.28f, height - cardH - below - 8f * density).coerceAtLeast(headH + 8f * density)
         val left = (width - 2 * cardW - gap) / 2f
+        spotlight(canvas, width / 2f, top + cardH * 0.45f, (2 * cardW + gap) * 0.78f, time)
 
-        text.typeface = Typeface.DEFAULT_BOLD
+        text.typeface = display
         text.textSize = dateSize
         val date = context.getString(R.string.hud_date, world.year, offer.week)
         // Clear of the cards: the subtitle keeps most of a line's height from their top edge.
@@ -112,25 +131,36 @@ class RewardDialog(private val context: Context) {
         val dateBaseline = if (news != null) newsBaseline - newsSize * 1.5f else newsBaseline
         // Light text on the dark scrim, like a title card over the paused game.
         text.color = 0xFFFFFFFF.toInt()
+        text.setShadowLayer(4f * density, 0f, 1.5f * density, 0x80000000.toInt())
         canvas.drawText(date, width / 2f, dateBaseline, text)
-        text.typeface = Typeface.DEFAULT
+        text.clearShadowLayer()
+        text.typeface = Typeface.DEFAULT_BOLD
         text.textSize = newsSize
         text.color = 0xFFFFD58A.toInt()
+        // Warm text in the warm spotlight: a dark shadow keeps it apart from the glow.
+        text.setShadowLayer(3f * density, 0f, 1f * density, 0xB30E2A38.toInt())
         // This week's unlock message, without the year the heading already shows.
         news?.let { canvas.drawText(fit(it, width - 2 * side), width / 2f, newsBaseline, text) }
+        text.clearShadowLayer()
         drawnNodes += UiNode("reward:title", RectF(left, dateBaseline - dateSize, width - left, newsBaseline + newsSize * 0.3f), listOfNotNull(date, news).joinToString(". "), UiNode.Kind.HEADING)
-        // White with a soft shadow: the hint must read on the scrim at phone size (judge panel).
+        // Bold white on a dark pill: the hint must read over the map at phone size (judge panel).
         text.color = 0xFFFFFFFF.toInt()
-        text.setShadowLayer(3f * density, 0f, 1f * density, 0x99000000.toInt())
+        text.typeface = promptFace
         text.textSize = promptSize
         // Below the cards' slabs and their soft shadow, so the line never touches them.
-        val promptTop = top + cardH + depth * 3f + promptSize * 0.6f
+        val promptTop = top + cardH + depth * 2.4f + promptSize * 0.5f
+        val shown = promptLines.map { fit(it, width - 2 * side - (if (large) 0f else pillPad)) }
+        val pillW = (shown.maxOfOrNull { text.measureText(it) } ?: 0f) + pillPad
+        val pillBottom = promptTop + promptLines.size * promptSize * 1.3f + promptSize * 0.45f
+        canvas.drawRoundRect(
+            width / 2f - pillW / 2f, promptTop + promptSize * 0.15f, width / 2f + pillW / 2f, pillBottom,
+            promptSize, promptSize, pillP,
+        )
         var promptY = promptTop
-        for (line in promptLines) {
+        for (line in shown) {
             promptY += promptSize * 1.3f
-            canvas.drawText(fit(line, width - 2 * side), width / 2f, promptY - promptSize * 0.3f, text)
+            canvas.drawText(line, width / 2f, promptY - promptSize * 0.2f, text)
         }
-        text.clearShadowLayer()
         drawnNodes += UiNode("reward:prompt", RectF(side, promptTop, width - side, promptY), prompt, UiNode.Kind.TEXT)
         text.color = ink
         bonusShown = bonus != null
@@ -226,11 +256,62 @@ class RewardDialog(private val context: Context) {
         return blur!!
     }
 
+    private var spotX = Float.NaN
+    private var spotY = Float.NaN
+    private var spotR = Float.NaN
+    private var haloRadius = 0f
+    private var halo: android.graphics.BlurMaskFilter? = null
+
+    private fun haloFor(radius: Float): android.graphics.BlurMaskFilter {
+        val r = radius.coerceAtLeast(1f)
+        if (halo == null || r != haloRadius) {
+            haloRadius = r
+            halo = android.graphics.BlurMaskFilter(r, android.graphics.BlurMaskFilter.Blur.NORMAL)
+        }
+        return halo!!
+    }
+
+    /**
+     * The warm spotlight behind the cards at ([cx], [cy]) with radius [r]: a golden glow and soft rays that turn
+     * slowly with [time].
+     */
+    private fun spotlight(canvas: Canvas, cx: Float, cy: Float, r: Float, time: Float) {
+        // The gradients depend only on the layout; rebuilt when it changes, not every frame.
+        if (cx != spotX || cy != spotY || r != spotR) {
+            spotX = cx; spotY = cy; spotR = r
+            glowP.shader = android.graphics.RadialGradient(
+                cx, cy, r, intArrayOf(0x99FFE6A8.toInt(), 0x4DFFC46B, 0x00FFC46B), floatArrayOf(0f, 0.55f, 1f),
+                android.graphics.Shader.TileMode.CLAMP,
+            )
+            rayP.shader = android.graphics.RadialGradient(
+                cx, cy, r * 1.25f, intArrayOf(0x40FFF3D6, 0x1AFFF3D6, 0x00FFF3D6), floatArrayOf(0f, 0.6f, 1f),
+                android.graphics.Shader.TileMode.CLAMP,
+            )
+        }
+        canvas.drawCircle(cx, cy, r, glowP)
+        path.reset()
+        val n = RAYS
+        val spin = time * 0.12f
+        for (k in 0 until n) {
+            val a0 = spin + k * (2f * Math.PI.toFloat() / n)
+            val a1 = a0 + Math.PI.toFloat() / n * 0.55f
+            path.moveTo(cx, cy)
+            path.lineTo(cx + kotlin.math.cos(a0) * r * 1.3f, cy + kotlin.math.sin(a0) * r * 1.3f)
+            path.lineTo(cx + kotlin.math.cos(a1) * r * 1.3f, cy + kotlin.math.sin(a1) * r * 1.3f)
+            path.close()
+        }
+        canvas.drawPath(path, rayP)
+    }
+
     /** Card [slot] on its slab of thickness [depth]; a pressed card's face sinks by [sink] onto the slab. */
     private fun drawCard(canvas: Canvas, slot: RectF, depth: Float, sink: Float, reward: Reward, time: Float) {
         val r = drawn.apply { set(slot); offset(0f, sink) }
         val accent = accentOf(reward)
         val radius = r.width() * 0.07f
+        // A warm halo around the card: the prize glows in the spotlight.
+        haloP.color = 0x8CFFD27A.toInt()
+        haloP.maskFilter = haloFor(depth * 3.2f)
+        canvas.drawRoundRect(slot.left - depth, slot.top - depth, slot.right + depth, slot.bottom + depth * 2f, radius * 1.3f, radius * 1.3f, haloP)
         // One soft drop shadow straight below the card (a hard offset copy read as a misprinted second card).
         shadowP.maskFilter = blurFor(depth * 1.6f)
         canvas.drawRoundRect(slot.left + depth * 0.4f, slot.top + depth * 2f, slot.right - depth * 0.4f, slot.bottom + depth * 2f, radius, radius, shadowP)
@@ -279,7 +360,7 @@ class RewardDialog(private val context: Context) {
 
         val cx = r.centerX()
         var y = textTop + amountSize * 0.85f
-        text.typeface = Typeface.DEFAULT_BOLD
+        text.typeface = display
         text.color = accent.shade(-0.25f)
         text.textSize = amountSize
         canvas.drawText(amountOf(reward), cx, y, text)
@@ -428,6 +509,8 @@ class RewardDialog(private val context: Context) {
     companion object {
         /** [hit] result for the extra-router pill. */
         const val BONUS = -1
+        /** Rays of the spotlight behind the cards. */
+        private const val RAYS = 14
         /** Android's minimum touch target. */
         private const val TOUCH_DP = 48f
         /** Smallest shrink of the card texts when the tallest card is still too low for them. */

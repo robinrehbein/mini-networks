@@ -107,6 +107,7 @@ class MenuPanel(context: Context) {
     private val targets = ArrayList<Pair<RectF, MenuAction>>()
     private val drawnNodes = ArrayList<UiNode>()
     private val logo = LogoMark(context)
+    private val display = com.mininetworks.game.ui.Fonts.display(context)
 
     /** The enabled item under ([x], [y]), or null. */
     fun hit(x: Float, y: Float): MenuAction? = targets.firstOrNull { it.first.contains(x, y) }?.second
@@ -287,7 +288,7 @@ class MenuPanel(context: Context) {
             y += l.logoSize + 8f * u
         }
         text.textAlign = Paint.Align.CENTER
-        text.typeface = Typeface.DEFAULT_BOLD
+        text.typeface = display
         text.color = if (page.hero) BRAND else ink
         text.textSize = l.titleSize
         // A title shrinks further than other texts before it is cut: the game's name on a narrow portrait window.
@@ -297,7 +298,7 @@ class MenuPanel(context: Context) {
         y += l.titleSize * 1.25f + l.titleGap
         page.score?.let {
             text.color = BRAND
-            text.typeface = Typeface.DEFAULT_BOLD
+            text.typeface = display
             fitShrinking(it, inner, l.scoreSize, l.scoreSize * 0.6f)
             canvas.drawText(fit(it, inner), cx, y + l.scoreSize * 1.0f, text)
             drawnNodes += UiNode("menu:score", textBounds(cx, y, inner, l.scoreH), it, UiNode.Kind.TEXT)
@@ -450,11 +451,17 @@ class MenuPanel(context: Context) {
         // Play, the daily challenge and the achievements carry a small icon before the label (judge panel: the menu
         // read as generic pills); it gives way first when the label needs the room.
         val glyph = b.action in ICON_ACTIONS && b.enabled
-        var iconSize = if (glyph) size * 0.95f else 0f
-        var room = r.width() - 24f * u - (if (glyph) iconSize * 1.5f else 0f)
+        var iconSize = if (glyph) size * 0.85f else 0f
+        // Next to an icon the pill's side padding shrinks a little, so a landscape phone's narrow pills keep theirs.
+        var room = r.width() - (if (glyph) 16f else 24f) * u - (if (glyph) iconSize * 1.4f else 0f)
         text.textSize = size
-        // The icon stays only while the label keeps at least 85 % of its size (and never gets cut) next to it.
-        val keep = maxOf(0.85f, maxOf(size * 0.62f, MIN_LABEL_SP * u) / size)
+        // The icon stays only while the label keeps at least 80 % of its size (and never gets cut) next to it.
+        val keep = maxOf(0.8f, maxOf(size * 0.62f, MIN_LABEL_SP * u) / size)
+        // A narrow pill (a landscape phone's row of three) tries a smaller icon before it gives the icon up.
+        if (glyph && text.measureText(b.label) * keep * 1.03f > room) {
+            iconSize = size * 0.62f
+            room = r.width() - 12f * u - iconSize * 1.4f
+        }
         if (glyph && text.measureText(b.label) * keep * 1.03f > room) { iconSize = 0f; room = r.width() - 24f * u }
         var label = fitShrinking(b.label, room, size, maxOf(size * 0.62f, MIN_LABEL_SP * u))
         if (iconSize > 0f && label != b.label) {
@@ -465,9 +472,9 @@ class MenuPanel(context: Context) {
         val baseline = r.centerY() + sink + text.textSize * 0.35f
         if (iconSize > 0f) {
             val lw = text.measureText(label)
-            val start = r.centerX() - (lw + iconSize * 1.5f) / 2f
+            val start = r.centerX() - (lw + iconSize * 1.4f) / 2f
             icon(canvas, b.action, start + iconSize / 2f, r.centerY() + sink, iconSize, text.color)
-            canvas.drawText(label, start + iconSize * 1.5f + lw / 2f, baseline, text)
+            canvas.drawText(label, start + iconSize * 1.4f + lw / 2f, baseline, text)
         } else {
             canvas.drawText(label, r.centerX(), baseline, text)
         }

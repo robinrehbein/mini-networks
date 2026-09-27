@@ -48,12 +48,12 @@ réseau, câbles, stratégie, puzzle, jeu de construction, ville, routeur, Wi-Fi
 
 1. Câble ta ville
 2. Un geste, un câble
-3. Évite la surcharge
-4. Tourne la carte
+3. Attention, pelleteuse !
+4. Évite la surcharge
 5. Wi-Fi, 4G et 5G
 6. Un choix chaque semaine
-7. Cinq décors
-8. Attention, pelleteuse !
+7. Tourne la carte
+8. Cinq décors
 
 Bilder: nicht eingecheckt; erzeugen mit `ROBOLECTRIC_DEPS_DIR=/opt/robolectric ./gradlew testDebugUnitTest --tests '*StoreScreenshotTest*' -Pstore.locales=fr` (landet in `docs/store/screenshots/<gerät>/fr/`). Bis dahin zeigt Play die englischen bzw. deutschen Bilder.
 Feature-Grafik: `docs/store/feature-graphic/fr.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=fr`); bis dahin die wortlose `docs/store/feature-graphic.png`

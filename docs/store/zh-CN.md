@@ -48,12 +48,12 @@ Mini Networks 可免费游玩。两局之间偶尔会出现广告，游戏过程
 
 1. 为你的城镇铺设网络
 2. 一划即是一条电缆
-3. 别让网络过载
-4. 旋转地图
+3. 小心挖掘机！
+4. 别让网络过载
 5. Wi-Fi、4G 和 5G
 6. 每周一次选择
-7. 五个场景
-8. 小心挖掘机！
+7. 旋转地图
+8. 五个场景
 
 Bilder: nicht eingecheckt; erzeugen mit `ROBOLECTRIC_DEPS_DIR=/opt/robolectric ./gradlew testDebugUnitTest --tests '*StoreScreenshotTest*' -Pstore.locales=zh-rCN` (landet in `docs/store/screenshots/<gerät>/zh-rCN/`). Bis dahin zeigt Play die englischen bzw. deutschen Bilder.
 Feature-Grafik: `docs/store/feature-graphic/zh-rCN.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=zh-rCN`); bis dahin die wortlose `docs/store/feature-graphic.png`

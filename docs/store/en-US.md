@@ -48,12 +48,12 @@ network, cables, strategy, puzzle, city builder, town, router, Wi-Fi, fiber, int
 
 1. Wire up your town
 2. One swipe, one cable
-3. Don't let it overload
-4. Spin the map
+3. Mind the excavator!
+4. Don't let it overload
 5. Wi-Fi, 4G and 5G
 6. A choice every week
-7. Five sceneries
-8. Mind the excavator!
+7. Spin the map
+8. Five sceneries
 
 Bilder: `docs/store/screenshots/{phone,phone-portrait,tablet-7,tablet-10}/en/01…08-*.png`
 Feature-Grafik: `docs/store/feature-graphic/en.png` (mit Tagline dieser Sprache); ohne Worte außer dem Namen: `docs/store/feature-graphic.png`
