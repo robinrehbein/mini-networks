@@ -3,6 +3,7 @@ package com.mininetworks.game.ui
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.view.MotionEvent
+import com.mininetworks.game.data.GameIo
 import com.mininetworks.game.data.SaveStore
 import com.mininetworks.game.data.SettingsStore
 import com.mininetworks.game.game.CableType
@@ -38,6 +39,12 @@ class TutorialFlowTest {
         view.drawSnapshot(Canvas(bmp), view.currentWorld, bmp.width, bmp.height, time = 0f, screen = null)
 
     private fun newView() = GameView(app).also(::draw)
+
+    /** True if the autosave file exists once the I/O thread has written everything queued so far. */
+    private fun saveExists(): Boolean {
+        GameIo.awaitIdle()
+        return SaveStore(app.filesDir).exists
+    }
 
     private fun tapAt(view: GameView, x: Float, y: Float) {
         view.injectTouch(MotionEvent.ACTION_DOWN, x, y)
@@ -98,7 +105,7 @@ class TutorialFlowTest {
         play(view, 2f)
         view.pause()
         assertEquals(Screen.PAUSED, view.currentScreen)
-        assertFalse(SaveStore(app.filesDir).exists)
+        assertFalse(saveExists())
         draw(view)
         tap(view, MenuAction.MAIN_MENU)
         assertEquals(Screen.MAIN_MENU, view.currentScreen)
@@ -123,7 +130,7 @@ class TutorialFlowTest {
         tap(view, MenuAction.TUTORIAL)
         assertEquals(Screen.PLAYING, view.currentScreen)
         assertEquals(TutorialStep.LAY_CABLE, view.currentTutorial!!.step)
-        assertTrue("the game was saved before", SaveStore(app.filesDir).exists)
+        assertTrue("the game was saved before", saveExists())
 
         view.back()
         view.advance(0f)

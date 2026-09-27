@@ -1487,8 +1487,8 @@ class World(
         /**
          * Rebuilds a world from [s]. The restored world continues exactly like the saved one would have, random draws
          * included. Throws [IllegalArgumentException] if the snapshot is inconsistent: anything the simulation or the
-         * renderers would trip over later (a cell off the grid, a client without a device, a packet on a route whose
-         * nodes are not linked …) is rejected here, so a damaged save never loads.
+         * renderers would trip over later (a cell off the grid, a client without a device, a packet on a link that does
+         * not exist …) is rejected here, so a damaged save never loads.
          */
         @OptIn(DebugApi::class)
         fun restore(s: WorldSnapshot): World {
@@ -1565,7 +1565,10 @@ class World(
                 require(p.route.size >= 2 && p.hop in 0 until p.route.size - 1) { "bad packet route" }
                 require(p.progress == -1f || p.progress in 0f..1f) { "bad packet progress" }
                 val route = p.route.map(::node)
-                require(route.zipWithNext().all { (a, b) -> w.linkBetween(a, b) != null }) { "packet route is not linked" }
+                // Only the hop the packet is on must exist: cables further along (or already passed) may have been
+                // removed since it set off, which the running game handles when the packet gets there (it goes back
+                // into its client's queue), so such a save is valid and must load.
+                require(w.linkBetween(route[p.hop], route[p.hop + 1]) != null) { "packet is on a link that does not exist" }
                 val origin = node(p.origin)
                 require(origin.kind == NodeKind.CLIENT && origin === (if (p.isResponse) route.last() else route.first())) { "bad packet origin" }
                 w.packets += Packet(p.service, origin, route, p.isResponse).apply {

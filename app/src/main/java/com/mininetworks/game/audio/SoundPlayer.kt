@@ -4,6 +4,7 @@ import android.content.Context
 import android.media.AudioAttributes
 import android.media.SoundPool
 import com.mininetworks.game.R
+import com.mininetworks.game.data.GameIo
 import com.mininetworks.game.game.Service
 import com.mininetworks.game.game.SoundCue
 import kotlin.math.pow
@@ -42,30 +43,55 @@ object ServicePitch {
  * Plays [Sound]s through a [SoundPool] that lives from [open] to [close] (the activity's resume to pause). Nothing plays
  * while [enabled] is false. Plucks of one service closer together than [MIN_PLUCK_GAP_MS] are dropped, so a burst of
  * deliveries stays a soft patter; different services at once make a chord.
+ *
+ * Creating the pool and loading the files is audio and disk work: [open] leaves it to the [GameIo] thread and returns
+ * at once (docs/TOP100.md A3); sounds asked for before the pool is ready are skipped. [open] and [close] are called on
+ * the UI thread, [play] on the game thread.
  */
 class SoundPlayer(private val context: Context) {
     @Volatile var enabled = true
-    private var pool: SoundPool? = null
-    private val ids = IntArray(Sound.entries.size)
+
+    /** A ready pool with the stream ids of its loaded [Sound]s, by ordinal. */
+    private class Loaded(val pool: SoundPool, val ids: IntArray)
+
+    private val lock = Any()
+    /** True between [open] and [close]; a pool that finishes loading after [close] is released at once. */
+    private var wanted = false // guarded by lock
+    @Volatile private var loaded: Loaded? = null
     private val lastPluck = LongArray(Service.entries.size) { Long.MIN_VALUE / 2 }
 
     /** The last sounds played (at most [HISTORY]), with their rate, oldest first; for tests. */
     internal val played = ArrayDeque<Pair<Sound, Float>>()
 
+    /** True once the pool is loaded and sounds are heard; for tests. */
+    internal val ready get() = loaded != null
+
     fun open() {
-        if (pool != null) return
-        val attrs = AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_GAME)
-            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-            .build()
-        pool = SoundPool.Builder().setMaxStreams(MAX_STREAMS).setAudioAttributes(attrs).build().also { p ->
-            Sound.entries.forEach { ids[it.ordinal] = p.load(context, it.res, 1) }
+        synchronized(lock) {
+            if (wanted) return
+            wanted = true
+        }
+        GameIo.execute {
+            val attrs = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_GAME)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build()
+            val pool = SoundPool.Builder().setMaxStreams(MAX_STREAMS).setAudioAttributes(attrs).build()
+            val ids = IntArray(Sound.entries.size)
+            Sound.entries.forEach { ids[it.ordinal] = pool.load(context, it.res, 1) }
+            val keep = synchronized(lock) {
+                (wanted && loaded == null).also { if (it) loaded = Loaded(pool, ids) }
+            }
+            if (!keep) pool.release()
         }
     }
 
     fun close() {
-        pool?.release()
-        pool = null
+        val old = synchronized(lock) {
+            wanted = false
+            loaded.also { loaded = null }
+        }
+        old?.pool?.release()
     }
 
     /** Plays the sound for a cue from the world; [nowMs] is a monotonic clock for the pluck gap. */
@@ -86,7 +112,7 @@ class SoundPlayer(private val context: Context) {
         if (!enabled) return false
         played.addLast(sound to rate)
         if (played.size > HISTORY) played.removeFirst()
-        pool?.play(ids[sound.ordinal], sound.volume, sound.volume, if (sound == Sound.PLUCK) 0 else 1, 0, rate)
+        loaded?.let { it.pool.play(it.ids[sound.ordinal], sound.volume, sound.volume, if (sound == Sound.PLUCK) 0 else 1, 0, rate) }
         return true
     }
 

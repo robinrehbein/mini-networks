@@ -17,7 +17,10 @@ object Save {
         encodeDefaults = true
     }
 
-    fun encode(world: World): String = json.encodeToString(WorldSnapshot.serializer(), world.snapshot())
+    fun encode(world: World): String = encode(world.snapshot())
+
+    /** Encodes a [World.snapshot] taken earlier; the snapshot is plain immutable data, so any thread may do this. */
+    fun encode(snapshot: WorldSnapshot): String = json.encodeToString(WorldSnapshot.serializer(), snapshot)
 
     fun decode(text: String): World? = try {
         json.decodeFromString(WorldSnapshot.serializer(), text).takeIf { it.version == VERSION }?.let(World::restore)

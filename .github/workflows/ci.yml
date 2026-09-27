@@ -1,0 +1,50 @@
+# CI (docs/TOP100.md A9): build, unit tests (JVM + Robolectric), lint and a debug APK on every pull request and on
+# every push to main. Robolectric downloads its android-all jars from Maven Central here (no ROBOLECTRIC_DEPS_DIR).
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: SDK packages (compileSdk 36)
+        run: sdkmanager "platforms;android-36" "build-tools;35.0.0" "platform-tools"
+
+      - name: Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Tests, lint, debug APK
+        run: ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug
+
+      - name: Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports
+          path: |
+            app/build/reports/
+            core/build/reports/
+          retention-days: 14

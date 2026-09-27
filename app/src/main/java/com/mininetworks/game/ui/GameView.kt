@@ -6,6 +6,7 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.view.HapticFeedbackConstants
@@ -13,12 +14,13 @@ import android.view.MotionEvent
 import android.view.SoundEffectConstants
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import android.view.WindowInsets
 import com.mininetworks.game.R
 import com.mininetworks.game.audio.Sound
 import com.mininetworks.game.audio.SoundPlayer
 import com.mininetworks.game.data.GameSettings
 import com.mininetworks.game.data.HighscoreStore
-import com.mininetworks.game.data.SaveStore
+import com.mininetworks.game.data.SaveSlot
 import com.mininetworks.game.data.SettingsStore
 import com.mininetworks.game.game.Bend
 import com.mininetworks.game.game.Cable
@@ -95,7 +97,7 @@ import kotlin.math.roundToInt
  * tutorial runs as a game on [Screen.PLAYING] with [TutorialOverlay] on top; it is never saved and records no score.
  * "Play" opens the scenery picker ([SceneryPicker]): a scenery is playable once the packet goal of the one before it
  * is reached or it is bought ([monetization]). The simulation only runs while [Screen.PLAYING]. The game is saved
- * ([SaveStore]) when the pause menu opens, when the player leaves to the main menu and when the activity pauses;
+ * ([SaveSlot], written on the I/O thread) when the pause menu opens, when the player leaves to the main menu and when the activity pauses;
  * game over records the best score of its scenery ([HighscoreStore]) and deletes the save, then the camera glides to
  * the failed device before the result card shows.
  *
@@ -144,6 +146,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         data object Back : Input
         /** A full-screen ad for [placement] closed; [earned] is true if its reward was earned. */
         data class AdResult(val placement: AdPlacement, val earned: Boolean) : Input
+        /** The activity was recreated, see [restoreState]. */
+        data class Restore(val inGame: Boolean, val inTutorial: Boolean) : Input
+        /** New safe-area insets from the window, see [onApplyWindowInsets]. */
+        data class Safe(val insets: ViewInsets) : Input
     }
 
     // ---------------------------------------------------------------- shared between UI and game thread
@@ -158,21 +164,37 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     // ---------------------------------------------------------------- game thread only (or UI thread while stopped)
 
     private val texts = Texts(context)
-    private val saveStore = SaveStore(context.filesDir)
-    private val settingsStore = SettingsStore(context)
-    private val highscores = HighscoreStore(context)
+    // Stores are created and first read on the game thread ([ensureLoaded]), never on the UI thread (docs/TOP100.md A3).
+    private val saves = SaveSlot { context.filesDir }
+    private val settingsStore by lazy { SettingsStore(context) }
+    private val highscores by lazy { HighscoreStore(context) }
     private var settings = GameSettings()
     private val sounds = SoundPlayer(context)
     private val soundCues = SoundCues()
-    private var hasSave = saveStore.exists
+    private var hasSave = false
+    /** True once [ensureLoaded] read the settings and looked for a save. */
+    private var loaded = false
 
     /** Called on the UI thread when back is pressed on the main menu. */
     var onExit: (() -> Unit)? = null
 
+    /**
+     * Called on the UI thread whenever it changes whether the game has a use for the back gesture: true in a game and
+     * every menu below the main menu, false on the main menu, where back leaves the app. The activity registers its
+     * back callback only while true, so the system shows its predictive back-to-home animation on the main menu
+     * (docs/TOP100.md A5).
+     */
+    var onBackHandlingChanged: ((Boolean) -> Unit)? = null
+    /** The value last handed to [onBackHandlingChanged]; game thread only. */
+    private var publishedBackHandling: Boolean? = null
+
+    /** Display cutout (and similar) the HUD keeps clear of, in pixels; game thread only (docs/TOP100.md A5). */
+    private var safeInsets = ViewInsets.NONE
+
     /** Ads and purchases; [NoOpMonetization] unless the activity sets the Play implementation. Read on the game thread. */
     @Volatile var monetization: Monetization = NoOpMonetization
-    private val monetizationStore = MonetizationStore(context)
-    private val adPolicy = monetizationStore.loadPolicy()
+    private val monetizationStore by lazy { MonetizationStore(context) }
+    private val adPolicy by lazy { monetizationStore.loadPolicy() }
     /** The full-screen ad that is open right now; its [Input.AdResult] is awaited. */
     private var pendingAd: AdPlacement? = null
     /** What leaving the game-over card does once the interstitial closed. */
@@ -308,7 +330,18 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     init {
         holder.addCallback(this)
         renderers.forEach { it.density = density }
+    }
+
+    /**
+     * Reads the settings and looks for an autosave, once, before the first frame; on the game thread (or a test's thread
+     * while the game thread is not running), so the UI thread never waits for the disk. The first start opens in the
+     * tutorial.
+     */
+    private fun ensureLoaded() {
+        if (loaded) return
+        loaded = true
         applySettings(settingsStore.load())
+        hasSave = saves.exists()
         if (!settingsStore.tutorialSeen && !hasSave) startTutorial()
     }
 
@@ -360,13 +393,27 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
      */
     fun restoreState(saved: android.os.Bundle) {
         check(loop == null) { "game loop is running" }
+        // Loading the save is disk work: the game thread does it before its first frame.
+        inputs.add(Input.Restore(saved.getBoolean(STATE_IN_GAME), saved.getBoolean(STATE_IN_TUTORIAL)))
+    }
+
+    private fun restore(r: Input.Restore) {
         when {
-            saved.getBoolean(STATE_IN_GAME) && hasSave -> {
+            r.inGame && hasSave -> {
                 continueGame()
                 if (gameInProgress) screen = Screen.PAUSED
             }
-            saved.getBoolean(STATE_IN_TUTORIAL) -> startTutorial()
+            r.inTutorial -> startTutorial()
         }
+    }
+
+    /**
+     * The window runs edge to edge: the HUD keeps clear of a display cutout (notch, punch hole) on any side. System bars
+     * are hidden while playing, so they take no room; when they peek in they overlay the game for a moment.
+     */
+    override fun onApplyWindowInsets(insets: WindowInsets): WindowInsets {
+        inputs.add(Input.Safe(safeInsetsOf(insets)))
+        return super.onApplyWindowInsets(insets)
     }
 
     /** Handles the back key; on the main menu it calls [onExit]. */
@@ -446,7 +493,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     /** One loop iteration: apply queued input, then advance the simulation in fixed steps. */
     private fun tick(frameSeconds: Float) {
+        ensureLoaded()
         while (true) handle(inputs.poll() ?: break)
+        publishBackHandling()
         val animStep = frameSeconds.coerceAtMost(MAX_ANIM_STEP)
         animTime += animStep
         checkHold()
@@ -603,6 +652,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         screen: Screen? = Screen.PLAYING,
     ) {
         check(loop == null) { "game loop is running" }
+        ensureLoaded()
         val changed = world !== snapshotWorld || width != surfaceWidth || height != surfaceHeight
         if (world !== snapshotWorld) {
             world = snapshotWorld
@@ -623,6 +673,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     /** Draws the current state as it is (no resize, no screen change), for tests. */
     internal fun drawCurrent(canvas: Canvas) {
         check(loop == null) { "game loop is running" }
+        ensureLoaded()
         drawFrame(canvas)
     }
 
@@ -636,13 +687,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     internal val activeRenderer: Renderer get() = renderer
 
     /** The screen on top, for tests. */
-    internal val currentScreen: Screen get() = screen
+    internal val currentScreen: Screen get() = run { ensureLoaded(); screen }
 
     /** The world shown right now, for tests. */
-    internal val currentWorld: World get() = world
+    internal val currentWorld: World get() = run { ensureLoaded(); world }
 
     /** The running tutorial, for tests. */
-    internal val currentTutorial: Tutorial? get() = tutorial
+    internal val currentTutorial: Tutorial? get() = run { ensureLoaded(); tutorial }
 
     /** Screen rectangle of a tutorial bubble button ([TutorialOverlay.SKIP] ...) in the last drawn frame, for tests. */
     internal fun tutorialTarget(id: String): RectF? = if (tutorial != null) tutorialOverlay.targetOf(id) else null
@@ -676,6 +727,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     /** The text lines of the menu card on top (game over, pause …), empty without one, for tests. */
     internal val menuLines: List<String> get() = menuPage()?.lines ?: emptyList()
 
+    /** Why the last tapped scenery is locked (under the picker's cards), or null, for tests. */
+    internal val shownSceneryHint: String? get() = sceneryHint
+
     /** The hint line above the bottom bar right now, or null, for tests. */
     internal val shownHint: String? get() = hint?.takeIf { animTime < hintUntil }
 
@@ -692,6 +746,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
      */
     internal fun injectTouch(action: Int, x: Float, y: Float, pointers: FloatArray = floatArrayOf(x, y), time: Long = 0L) {
         check(loop == null) { "game loop is running" }
+        ensureLoaded()
         handle(Input.Touch(action, x, y, pointers, time))
     }
 
@@ -765,27 +820,31 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     }
 
     private fun drawHud(canvas: Canvas) {
+        // Everything stays inside the safe area (display cutout), with a margin of [pad] (docs/TOP100.md A5).
         val pad = 16 * density
-        canvas.drawText(context.getString(R.string.hud_date, world.year, world.week), pad, pad + hudText.textSize, hudText)
-        val barY = pad + hudText.textSize + 8 * density
+        val left = safeInsets.left + pad
+        val top = safeInsets.top + pad
+        val right = surfaceWidth - safeInsets.right - pad
+        val bottom = surfaceHeight - safeInsets.bottom - pad
+        canvas.drawText(context.getString(R.string.hud_date, world.year, world.week), left, top + hudText.textSize, hudText)
+        val barY = top + hudText.textSize + 8 * density
         val barW = 110 * density
-        canvas.drawRoundRect(pad, barY, pad + barW, barY + 4 * density, 2 * density, 2 * density, barBg)
-        canvas.drawRoundRect(pad, barY, pad + barW * world.weekProgress, barY + 4 * density, 2 * density, 2 * density, barFg)
-        clockLabel()?.let { canvas.drawText(it, pad, barY + 4 * density + 6 * density + hudSub.textSize, hudSub) }
+        canvas.drawRoundRect(left, barY, left + barW, barY + 4 * density, 2 * density, 2 * density, barBg)
+        canvas.drawRoundRect(left, barY, left + barW * world.weekProgress, barY + 4 * density, 2 * density, 2 * density, barFg)
+        clockLabel()?.let { canvas.drawText(it, left, barY + 4 * density + 6 * density + hudSub.textSize, hudSub) }
 
-        val right = surfaceWidth - pad
         hudText.textAlign = Paint.Align.RIGHT
-        canvas.drawText(resources.getQuantityString(R.plurals.hud_delivered, world.delivered, world.delivered), right, pad + hudText.textSize, hudText)
+        canvas.drawText(resources.getQuantityString(R.plurals.hud_delivered, world.delivered, world.delivered), right, top + hudText.textSize, hudText)
         hudText.textAlign = Paint.Align.LEFT
         hudSub.textAlign = Paint.Align.RIGHT
         canvas.drawText(
             context.getString(R.string.hud_resources, world.budget, world.routersAvailable),
-            right, pad + hudText.textSize + 20 * density, hudSub,
+            right, top + hudText.textSize + 20 * density, hudSub,
         )
         if (world.serverVouchers > 0) {
             canvas.drawText(
                 resources.getQuantityString(R.plurals.hud_vouchers, world.serverVouchers, world.serverVouchers),
-                right, pad + hudText.textSize + 40 * density, hudSub,
+                right, top + hudText.textSize + 40 * density, hudSub,
             )
         }
         hudSub.textAlign = Paint.Align.LEFT
@@ -793,18 +852,18 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         world.lastNews?.let {
             if (world.rewardOffer == null && tutorial == null && world.time - world.lastNewsTime < 3.5f) {
                 bigText.textSize = 15 * density
-                canvas.drawText(texts.news(it, withYear = true), surfaceWidth / 2f, pad + hudText.textSize, bigText)
+                canvas.drawText(texts.news(it, withYear = true), (left + right) / 2f, top + hudText.textSize, bigText)
             }
         }
 
-        if (world.rewardOffer == null) drawIncidentLine(canvas, pad + hudText.textSize + 24 * density)
-        if (userPaused && world.rewardOffer == null) drawPausedBanner(canvas, pad + hudText.textSize + 50 * density)
+        if (world.rewardOffer == null) drawIncidentLine(canvas, top + hudText.textSize + 24 * density)
+        if (userPaused && world.rewardOffer == null) drawPausedBanner(canvas, top + hudText.textSize + 50 * density)
 
         buttons.clear()
         val bh = 44 * density
         val gap = 10 * density
-        var x = surfaceWidth - pad
-        val y = surfaceHeight - pad - bh
+        var x = right
+        val y = bottom - bh
         // Menu and pause as round icon buttons at the right edge, then the router stock.
         for (id in listOf("menu", "pause")) {
             val r = RectF(x - bh, y, x, y + bh)
@@ -830,14 +889,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             cables.sumOf { widthOf(it, named(it)).toDouble() }.toFloat() + gap * (cables.size - 1)
         val all = { _: CableType -> true }
         val selectedOnly = { t: CableType -> t == cableType }
-        val ownRow = pad + rowWidth(all) > rightEdge - gap
+        val ownRow = left + rowWidth(all) > rightEdge - gap
         val named = when {
-            !ownRow || pad + rowWidth(all) <= surfaceWidth - pad -> all
-            pad + rowWidth(selectedOnly) <= surfaceWidth - pad -> selectedOnly
+            !ownRow || left + rowWidth(all) <= right -> all
+            left + rowWidth(selectedOnly) <= right -> selectedOnly
             else -> { _: CableType -> false }
         }
         val cableY = if (ownRow) y - bh - gap else y
-        var cx = pad
+        var cx = left
         for (t in cables) {
             val w = widthOf(t, named(t))
             val r = RectF(cx, cableY, cx + w, cableY + bh)
@@ -860,7 +919,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         // Radios in a row above the right buttons (above the cables too when those have their own row), only while
         // some are in stock (they come as week rewards).
         var rows = if (ownRow) 1 else 0
-        x = surfaceWidth - pad
+        x = right
         var radioRow = false
         for (type in RadioType.entries.reversed()) {
             val stock = world.radiosAvailable(type)
@@ -883,7 +942,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             animTime < hintUntil -> hint
             else -> null
         }
-        hintText?.let { canvas.drawText(it, pad, hintY, hudSub) }
+        hintText?.let { canvas.drawText(it, left, hintY, hudSub) }
     }
 
     /** A round HUD button with a drawn icon: three lines for the menu, two bars (or a play triangle while paused) for pause. */
@@ -973,6 +1032,16 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         }
     }
 
+    /** True while back does something inside the game; false on the main menu, where it leaves the app. */
+    internal val handlesBack: Boolean get() = screen != Screen.MAIN_MENU
+
+    private fun publishBackHandling() {
+        val now = handlesBack
+        if (now == publishedBackHandling) return
+        publishedBackHandling = now
+        mainThread.post { onBackHandlingChanged?.invoke(now) }
+    }
+
     // ---------------------------------------------------------------- input (game thread)
 
     private fun handle(input: Input) {
@@ -987,6 +1056,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             is Input.Touch -> if (pendingAd == null) onTouch(input)
             Input.Back -> if (pendingAd == null) onBack()
             is Input.AdResult -> onAdResult(input)
+            is Input.Restore -> restore(input)
+            is Input.Safe -> if (input.insets != safeInsets) {
+                safeInsets = input.insets
+                layoutRenderers()
+            }
         }
     }
 
@@ -1781,9 +1855,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             screen = Screen.PLAYING
             return
         }
-        val saved = saveStore.load()
+        val saved = saves.load()
         if (saved == null || saved.gameOver) {
-            saveStore.clear()
+            saves.clearLater()
             hasSave = false
             return
         }
@@ -1834,7 +1908,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         if (screen != Screen.PLAYING || !world.gameOver || !gameInProgress) return
         gameInProgress = false
         newBest = highscores.submit(world.delivered, world.scenario.id)
-        saveStore.clear()
+        saves.clearLater()
         hasSave = false
         endDrag()
         placing = null
@@ -1858,9 +1932,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         screen = Screen.GAME_OVER
     }
 
-    /** Saves the running game, if there is one. */
+    /**
+     * Saves the running game, if there is one: a snapshot now, the writing on the I/O thread. A write that fails (disk
+     * full) shows up as a save that does not load, which "Continue" then drops.
+     */
     private fun autosave() {
-        if (gameInProgress && !world.gameOver && saveStore.save(world)) hasSave = true
+        if (!gameInProgress || world.gameOver) return
+        saves.saveLater(world)
+        hasSave = true
     }
 
     private fun updateSettings(s: GameSettings) {
@@ -1899,14 +1978,26 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         } else {
             ViewInsets(8 * density, 56 * density, 8 * density, 68 * density)
         }
-        renderers.forEach { it.layout(surfaceWidth, surfaceHeight, world, insets) }
+        val safe = safeInsets
+        val inside = ViewInsets(insets.left + safe.left, insets.top + safe.top, insets.right + safe.right, insets.bottom + safe.bottom)
+        renderers.forEach { it.layout(surfaceWidth, surfaceHeight, world, inside) }
         framedArea = world.unlocked
         framedNodes = world.nodes.size
         framedCables = world.cables.size
         growthHintPending = false
     }
 
-    private companion object {
+    internal companion object {
+        /** The part of [insets] the HUD must keep clear of: the display cutout, in pixels. */
+        fun safeInsetsOf(insets: WindowInsets): ViewInsets = when {
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> insets.getInsets(WindowInsets.Type.displayCutout())
+                .let { ViewInsets(it.left.toFloat(), it.top.toFloat(), it.right.toFloat(), it.bottom.toFloat()) }
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.P -> insets.displayCutout?.let {
+                ViewInsets(it.safeInsetLeft.toFloat(), it.safeInsetTop.toFloat(), it.safeInsetRight.toFloat(), it.safeInsetBottom.toFloat())
+            } ?: ViewInsets.NONE
+            else -> ViewInsets.NONE
+        }
+
         /** Lower bound per loop iteration, in case posting a frame does not block on vsync. */
         const val MIN_FRAME_NANOS = 8_000_000L
         /** Longest animation step per frame, so animations do not jump after a stall. */
