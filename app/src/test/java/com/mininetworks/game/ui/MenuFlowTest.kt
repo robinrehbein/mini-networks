@@ -7,6 +7,7 @@ import com.mininetworks.game.R
 import com.mininetworks.game.audio.ServicePitch
 import com.mininetworks.game.audio.Sound
 import com.mininetworks.game.data.HighscoreStore
+import com.mininetworks.game.data.GameIo
 import com.mininetworks.game.data.SaveStore
 import com.mininetworks.game.data.SettingsStore
 import com.mininetworks.game.game.CableType
@@ -89,6 +90,12 @@ class MenuFlowTest {
 
     private fun newView() = GameView(app).also(::draw)
 
+    /** True if the autosave file exists once the I/O thread has written everything queued so far. */
+    private fun saveExists(): Boolean {
+        GameIo.awaitIdle()
+        return SaveStore(app.filesDir).exists
+    }
+
     @Test
     fun opensOnMainMenuOverDemoTown() {
         val view = newView()
@@ -113,7 +120,7 @@ class MenuFlowTest {
         view.back()
         view.advance(0f)
         assertEquals(Screen.PAUSED, view.currentScreen)
-        assertTrue("opening the pause menu saves", SaveStore(app.filesDir).exists)
+        assertTrue("opening the pause menu saves", saveExists())
         val time = view.currentWorld.time
         play(view, 1f)
         assertEquals("paused", time, view.currentWorld.time)
@@ -178,13 +185,13 @@ class MenuFlowTest {
         val first = doomedGame(3)
         view.drawSnapshot(Canvas(bmp), first, bmp.width, bmp.height, time = 0f)
         view.pause()
-        assertTrue(SaveStore(app.filesDir).exists)
+        assertTrue(saveExists())
         draw(view)
         tap(view, MenuAction.RESUME)
         play(view, LOSE_SECONDS)
         assertEquals(Screen.GAME_OVER, view.currentScreen)
         assertEquals(3, HighscoreStore(app).best())
-        assertFalse("a lost game cannot be continued", SaveStore(app.filesDir).exists)
+        assertFalse("a lost game cannot be continued", saveExists())
 
         view.drawSnapshot(Canvas(bmp), doomedGame(1), bmp.width, bmp.height, time = 0f)
         play(view, LOSE_SECONDS)
@@ -211,7 +218,7 @@ class MenuFlowTest {
         view.advance(1f / 60f)
         assertEquals("the map stays visible while the camera moves", Screen.PLAYING, view.currentScreen)
         assertTrue(camera.isAnimating)
-        assertTrue("save is dropped right away", !SaveStore(app.filesDir).exists)
+        assertTrue("save is dropped right away", !saveExists())
         play(view, 1f)
         assertEquals(Screen.PLAYING, view.currentScreen)
         assertTrue("zooms in", camera.scale > fitted * 1.3f)

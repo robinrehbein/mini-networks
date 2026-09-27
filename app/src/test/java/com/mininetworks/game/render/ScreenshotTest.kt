@@ -211,6 +211,32 @@ class ScreenshotTest {
     }
 
     /**
+     * Edge to edge (docs/TOP100.md A5): the same frame on a phone with a notch on the left long edge (landscape). The map
+     * runs under the notch, the HUD keeps clear of it; the notch itself is painted black as the display would hide it.
+     */
+    @Test
+    @Config(qualifiers = "de-xxhdpi")
+    fun renderGameFrameWithCutout() {
+        val view = GameView(RuntimeEnvironment.getApplication())
+        val bmp = xxhdpiPhone()
+        val notch = 100
+        view.drawSnapshot(Canvas(bmp), scene(), bmp.width, bmp.height, time = 1.3f)
+        view.dispatchApplyWindowInsets(
+            android.view.WindowInsets.Builder()
+                .setInsets(android.view.WindowInsets.Type.displayCutout(), android.graphics.Insets.of(notch, 0, 0, 0)).build(),
+        )
+        view.advance(0f)
+        val canvas = Canvas(bmp)
+        view.drawCurrent(canvas)
+        val black = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF000000.toInt() }
+        canvas.drawRoundRect(0f, bmp.height / 2f - 160f, notch - 20f, bmp.height / 2f + 160f, 40f, 40f, black)
+        canvas.drawRect(0f, bmp.height / 2f - 160f, 40f, bmp.height / 2f + 160f, black)
+        save(bmp, File(shots, "game-hud-cutout.png"))
+        val cable = view.hudTarget("cable:${CableType.ISDN.name}")!!
+        check(cable.left >= notch) { "the cable picker sits under the notch: $cable" }
+    }
+
+    /**
      * Requests that cannot leave, on a phone: a smart TV on ISDN (too narrow for streaming, squeeze badge) and a
      * console on long DSL cables over a router (ping too high, clock badge); both styles, then the HUD with a drag whose label shows
      * the ping the console would get over fiber, and the hint after tapping the TV.

@@ -123,6 +123,9 @@ dependencies {
     implementation("com.google.android.gms:play-services-ads:25.2.0")
     implementation("com.google.android.ump:user-messaging-platform:4.0.0")
     implementation("com.android.billingclient:billing:9.1.0")
+    // Baseline Profile (docs/TOP100.md A4): installs src/main/baseline-prof.txt at install time on devices where Play
+    // does not ship cloud profiles yet (sideloads, early installs), so startup and the game loop run AOT-compiled.
+    implementation("androidx.profileinstaller:profileinstaller:1.4.1")
     testImplementation(testFixtures(project(":core")))
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.14.1")

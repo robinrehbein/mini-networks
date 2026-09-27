@@ -205,6 +205,9 @@ Berechtigungen im Release-Manifest (aus den SDKs): `INTERNET`, `ACCESS_NETWORK_S
 - [ ] Echte AdMob-IDs gesetzt: ein Release-Build warnt bei Google-Test-IDs und bricht ab, sobald der Upload-Schlüssel gesetzt ist
 - [ ] `lintRelease` ohne Warnungen; bewusst ignorierte Prüfungen stehen mit Grund in `app/lint.xml`
 - [ ] `./gradlew testDebugUnitTest assembleDebug lintDebug lintRelease bundleRelease` grün
+- [ ] Baseline Profile im Bundle (`app/src/main/baseline-prof.txt`, docs/TOP100.md A4): `unzip -l app/build/outputs/bundle/release/app-release.aab | grep baseline.prof`;
+      Inhalt prüfen mit `profgen dumpProfile -p <entpacktes assets/dexopt/baseline.prof> -a app/build/outputs/apk/release/app-release.apk -o dump.txt`
+      (profgen liegt in `cmdline-tools/latest/bin`)
 - [ ] Datenschutzerklärung veröffentlicht, URL in Play Console und UMP-Nachricht
 - [ ] In-App-Produkte angelegt und aktiv, Lizenztester eingetragen
 - [ ] Store-Eintrag DE + EN, Icon 512 px (`docs/screenshots/store-icon-512.png`), Feature-Grafik, Screenshots

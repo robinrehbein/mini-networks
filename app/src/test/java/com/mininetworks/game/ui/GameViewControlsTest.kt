@@ -279,6 +279,8 @@ class GameViewControlsTest {
         val state = Bundle().also(view::saveState)
         val fresh = GameView(app)
         fresh.restoreState(state)
+        // The save is read on the game thread before its first frame.
+        fresh.advance(0f)
         assertEquals(Screen.PAUSED, fresh.currentScreen)
         assertEquals(game.seed, fresh.currentWorld.seed)
         assertEquals(game.nodes.size, fresh.currentWorld.nodes.size)

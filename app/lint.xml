@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Lint settings (docs/RELEASE.md 10). Every ignore says why, so new warnings stand out. -->
 <lint>
-    <!-- The app has no AndroidX dependency on purpose (plain Activity, SurfaceView and Canvas); the KTX helpers only
-         reach it transitively through the ads SDK, and the platform calls they would wrap are used as intended. -->
+    <!-- The app uses no AndroidX UI libraries on purpose (plain Activity, SurfaceView and Canvas; only profileinstaller
+         for the Baseline Profile); the KTX helpers only reach it transitively through the ads SDK, and the platform
+         calls they would wrap are used as intended. -->
     <issue id="UseKtx" severity="ignore" />
     <!-- play-services-ads 25.3 and later ship Kotlin 2.3 metadata; the project stays on 25.2 until Kotlin is upgraded. -->
     <issue id="GradleDependency">

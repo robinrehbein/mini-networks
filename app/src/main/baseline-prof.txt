@@ -1,0 +1,39 @@
+# Baseline Profile for Mini Networks (docs/TOP100.md A4).
+#
+# ART compiles these classes and methods ahead of time at install (androidx.profileinstaller, or the Play cloud profile),
+# so the cold start and the first minutes of play do not run in the interpreter while the JIT warms up. The build merges
+# this file into the APK/AAB (assets/dexopt/baseline.prof, rewritten for R8); check it with
+#   profgen dumpProfile --profile <apk>!assets/dexopt/baseline.prof (docs/RELEASE.md).
+#
+# Flags: H = hot, S = run at startup, P = run after startup. Wildcards: * one path segment or name, ** any.
+
+# ---- Startup: activity, game view and its menus, stores, sound, monetization interface
+HSPLcom/mininetworks/game/MainActivity;->**(**)**
+Lcom/mininetworks/game/MainActivity;
+HSPLcom/mininetworks/game/DebugChecks;->**(**)**
+HSPLcom/mininetworks/game/ui/**;->**(**)**
+Lcom/mininetworks/game/ui/**;
+HSPLcom/mininetworks/game/ui/menu/**;->**(**)**
+Lcom/mininetworks/game/ui/menu/**;
+HSPLcom/mininetworks/game/data/**;->**(**)**
+Lcom/mininetworks/game/data/**;
+HSPLcom/mininetworks/game/audio/**;->**(**)**
+Lcom/mininetworks/game/audio/**;
+HSPLcom/mininetworks/game/monetization/**;->**(**)**
+Lcom/mininetworks/game/monetization/**;
+
+# ---- Every frame: renderers, camera, depth sorting
+HSPLcom/mininetworks/game/render/**;->**(**)**
+Lcom/mininetworks/game/render/**;
+
+# ---- Game loop: the simulation in :core (World.update, routing, packets, radios, incidents, fixed step, saves)
+HSPLcom/mininetworks/game/game/**;->**(**)**
+Lcom/mininetworks/game/game/**;
+
+# ---- Kotlin runtime the loop leans on
+HSPLkotlin/collections/**;->**(**)**
+Lkotlin/collections/**;
+HSPLkotlin/jvm/internal/**;->**(**)**
+Lkotlin/jvm/internal/**;
+HSPLkotlin/ranges/**;->**(**)**
+Lkotlin/ranges/**;
