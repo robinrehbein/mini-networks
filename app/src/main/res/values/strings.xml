@@ -163,7 +163,7 @@
     <string name="tutorial_type_text">1998: DSL ist erfunden. Es trägt doppelt so viele Pakete wie ISDN und ist doppelt so schnell. Wähle unten DSL.</string>
     <string name="tutorial_type_upgrade_text">Tippe jetzt auf ein ISDN-Kabel, um es auf DSL aufzurüsten. Du zahlst nur den Unterschied.</string>
     <string name="tutorial_ping_title">Ping</string>
-    <string name="tutorial_ping_text">2007: Der PC will online spielen. Gaming braucht kurzen Ping, hin und zurück höchstens %1$d ms. Verbinde den PC mit dem Game-Server.</string>
+    <string name="tutorial_ping_text">2010: Der PC will online spielen. Gaming braucht kurzen Ping, hin und zurück höchstens %1$d ms. Verbinde den PC mit dem Game-Server.</string>
     <string name="tutorial_ping_slow_text">Ping %1$d ms: zu langsam für Gaming (höchstens %2$d ms). Nur Glasfaser ist schnell genug. Wähle Glasfaser und tippe auf das Kabel.</string>
     <string name="tutorial_overload_title">Überlast</string>
     <plurals name="tutorial_overload_text">

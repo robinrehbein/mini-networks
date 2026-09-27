@@ -162,7 +162,7 @@ class FlatRenderer : Renderer {
                 } else {
                     icons.accessPoint(canvas, nx, ny, cell * 0.28f, RadioStyles.color(n), time)
                     val interfering = world.interferers(n).isNotEmpty()
-                    val bx = nx + cell * 0.36f; val by = ny - cell * 0.3f; val r = cell * 0.15f
+                    val bx = nx + cell * 0.36f; val by = ny - cell * 0.3f; val r = maxOf(cell * 0.15f, CHANNEL_BADGE_MIN_DP * density)
                     fillP.color = land; canvas.drawCircle(bx, by, r, fillP)
                     strokeP.color = if (interfering) alarm else RadioStyles.color(n); strokeP.strokeWidth = cell * 0.035f
                     canvas.drawCircle(bx, by, r, strokeP)
@@ -407,6 +407,8 @@ class FlatRenderer : Renderer {
         const val REQUEST_MIN_DP = 3.2f
         const val RING_MIN_DP = 2.5f
         const val LABEL_MIN_DP = 13f
+        /** Radius of an access point's channel badge never shrinks below this, so the number stays readable. */
+        const val CHANNEL_BADGE_MIN_DP = 7f
         const val MOUNTAIN = 0xFFB9B2A4.toInt()
         const val MOUNTAIN_SHADE = 0xFF9E9687.toInt()
         const val TOWER = 0xFFB4BAC2.toInt()

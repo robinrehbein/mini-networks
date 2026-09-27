@@ -11,7 +11,7 @@ enum class TutorialStep {
     /** 1998, DSL is invented: pick it and upgrade a cable. */
     CABLE_TYPE,
 
-    /** 2007: the PC wants to play online, across the river; its short ping takes fiber. */
+    /** 2010: the PC wants to play online, across the river; its short ping takes fiber. */
     PING,
 
     /** A new PC without a cable piles up requests and its overload ring fills: connect it. */
@@ -173,9 +173,9 @@ class Tutorial private constructor(val world: World) {
         const val SEED = 7L
         /** Enough for every step with room for a detour. */
         const val BUDGET = 80
-        /** Weeks the tutorial jumps to: DSL (1998) for the cable types, fiber (2007) for the ping. */
-        const val DSL_WEEK = 2
-        const val FIBER_WEEK = 5
+        /** Weeks the tutorial jumps to: DSL (1998) for the cable types, fiber (2010) for the ping. */
+        val DSL_WEEK = CableType.DSL.unlockWeek
+        val FIBER_WEEK = CableType.FIBER.unlockWeek
 
         /** A fresh tutorial at its first step, on the river town map. */
         fun start(): Tutorial =

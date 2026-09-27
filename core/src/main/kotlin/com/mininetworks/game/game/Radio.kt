@@ -19,7 +19,7 @@ enum class RadioType(
     val unlockWeek: Int,
     private val mobileOnly: Boolean,
 ) {
-    WLAN(NodeKind.ACCESS_POINT, 1.5f, 4, 4, 5f, 2.6f, 6, mobileOnly = false),
+    WLAN(NodeKind.ACCESS_POINT, 1.5f, 4, 4, 5f, 2.6f, 5, mobileOnly = false),
     CELL(NodeKind.CELL_TOWER, 3f, 8, null, 15f, 3.2f, 7, mobileOnly = true),
     ;
 

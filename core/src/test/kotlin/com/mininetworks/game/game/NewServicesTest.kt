@@ -55,9 +55,11 @@ class NewServicesTest {
     }
 
     @Test
-    fun cameraAndSmartHomeArriveInWeekSeven() {
-        assertEquals(7, Device.CAMERA.unlockWeek)
-        assertEquals(7, Device.SMART_HOME.unlockWeek)
+    fun cameraAndSmartHomeArriveLate() {
+        assertEquals(9, Device.CAMERA.unlockWeek)
+        assertEquals(Service.CAMERA_UPLOAD.serverWeek, Device.CAMERA.unlockWeek)
+        assertEquals(11, Device.SMART_HOME.unlockWeek)
+        assertTrue("backups run before the hub comes", Service.CLOUD_BACKUP.serverWeek < Device.SMART_HOME.unlockWeek)
         assertEquals(listOf(Service.CAMERA_UPLOAD), Device.CAMERA.services)
         assertEquals(Service.CAMERA_UPLOAD, Device.CAMERA.stream)
         assertTrue(Device.entries.filter { it != Device.CAMERA }.all { it.stream == null })
@@ -69,7 +71,7 @@ class NewServicesTest {
     @Test
     fun serversOfNewServicesFollowTheSchedule() {
         val w = dryWorld()
-        w.jumpToWeek(5)
+        w.jumpToWeek(6)
         fun next(): WeekNews? {
             w.rewardOffer?.let { w.chooseReward(0) }
             val before = w.lastNews
@@ -80,17 +82,21 @@ class NewServicesTest {
 
         assertEquals(listOf(Service.VIDEO_CALL), next()!!.servers)
         assertEquals(1, servers(Service.VIDEO_CALL))
-        val week7 = next()!!
-        assertEquals(listOf(Service.CAMERA_UPLOAD), week7.servers)
-        assertEquals(listOf(Device.CAMERA, Device.SMART_HOME), week7.devices)
+        assertEquals("week 8 brings no server", emptyList<Service>(), next()!!.servers)
+        val week9 = next()!!
+        assertEquals(listOf(Service.CAMERA_UPLOAD), week9.servers)
+        assertEquals(listOf(Device.CAMERA), week9.devices)
         assertEquals(1, servers(Service.CAMERA_UPLOAD))
         assertEquals(listOf(Service.CLOUD_BACKUP), next()!!.servers)
         assertEquals(1, servers(Service.CLOUD_BACKUP))
         val count = w.nodes.size
-        assertNull("week 9 brings no server", next())
+        val week11 = next()!!
+        assertEquals("week 11 brings the smart home, but no server", listOf(Device.SMART_HOME), week11.devices)
+        assertEquals(emptyList<Service>(), week11.servers)
         assertEquals(count, w.nodes.size)
-        assertEquals("week 10 brings a random one", 1, next()!!.servers.size)
+        assertEquals("week 12 brings a random one", 1, next()!!.servers.size)
         assertEquals(count + 1, w.nodes.size)
+        assertEquals("week 13 brings nothing", null, next())
     }
 
     // ---------------------------------------------------------------- video call
@@ -152,7 +158,7 @@ class NewServicesTest {
 
     @Test
     fun cameraStreamsInAFixedRhythm() {
-        val early = cameraIntervals(week = 7, seconds = 18f)
+        val early = cameraIntervals(week = Device.CAMERA.unlockWeek, seconds = 18f)
         assertTrue(early.size >= 4)
         for (gap in early) assertEquals(World.Tuning.STREAM_SECONDS, gap, 2 * dt)
         val late = cameraIntervals(week = 14, seconds = 18f)

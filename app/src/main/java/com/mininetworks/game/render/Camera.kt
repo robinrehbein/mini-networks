@@ -82,6 +82,17 @@ class Camera {
     }
 
     /**
+     * In a view taller than wide: the scale at which [r] fills the height, but at most [maxOverflow] times [fitScale]
+     * (so [r] overflows the sides by at most that much); in a landscape view just [fitScale].
+     */
+    fun fillScale(r: MapRect, maxOverflow: Float): Float {
+        val w = (viewWidth - insets.left - insets.right).coerceAtLeast(1f)
+        val h = (viewHeight - insets.top - insets.bottom).coerceAtLeast(1f)
+        val fit = fitScale(r)
+        return if (h > w) minOf(h / r.height, fit * maxOverflow).coerceAtLeast(fit) else fit
+    }
+
+    /**
      * Shows all of [r], centred, but zoomed in at least to [atLeast] (then [r] may overflow the view); with [animate],
      * glides there over the next [step]s. Sets [followsArea].
      */

@@ -40,9 +40,9 @@ enum class Service(
     CALL(Shape.DIAMOND, 1, 300, 1),
     GAMING(Shape.TRIANGLE, 1, 140, 3),
     STREAMING(Shape.CIRCLE, 3, null, 4),
-    VIDEO_CALL(Shape.PENTAGON, 2, 240, 6),
-    CAMERA_UPLOAD(Shape.HEXAGON, 2, null, 7, Demand.STREAM, upload = true),
-    CLOUD_BACKUP(Shape.PLUS, 4, null, 8, Demand.NIGHTLY, upload = true),
+    VIDEO_CALL(Shape.PENTAGON, 2, 240, 7),
+    CAMERA_UPLOAD(Shape.HEXAGON, 2, null, 9, Demand.STREAM, upload = true),
+    CLOUD_BACKUP(Shape.PLUS, 4, null, 10, Demand.NIGHTLY, upload = true),
     ;
 
     /** Size of the response in capacity units: the full [bandwidth], or [ACK_SIZE] for an [upload]. */
@@ -62,16 +62,16 @@ enum class Device(val services: List<Service>, val unlockWeek: Int, val mobile: 
     PHONE(listOf(Service.CALL), 1),
     LAPTOP(listOf(Service.MAIL, Service.STREAMING, Service.CALL, Service.VIDEO_CALL, Service.CLOUD_BACKUP), 2),
     CONSOLE(listOf(Service.GAMING), 3),
-    SMARTPHONE(listOf(Service.CALL, Service.STREAMING, Service.MAIL, Service.VIDEO_CALL), 4, mobile = true),
+    SMARTPHONE(listOf(Service.CALL, Service.STREAMING, Service.MAIL, Service.VIDEO_CALL), 5, mobile = true),
     TV(listOf(Service.STREAMING), 4),
-    TABLET(listOf(Service.STREAMING, Service.MAIL, Service.VIDEO_CALL), 5, mobile = true),
-    WATCH(listOf(Service.CALL), 6, mobile = true),
+    TABLET(listOf(Service.STREAMING, Service.MAIL, Service.VIDEO_CALL), 6, mobile = true),
+    WATCH(listOf(Service.CALL), 8, mobile = true),
 
     /** Security camera: streams its picture upward all the time. */
-    CAMERA(listOf(Service.CAMERA_UPLOAD), 7),
+    CAMERA(listOf(Service.CAMERA_UPLOAD), 9),
 
     /** Smart-home hub: small messages by day, a backup at night. */
-    SMART_HOME(listOf(Service.MAIL, Service.CLOUD_BACKUP), 7),
+    SMART_HOME(listOf(Service.MAIL, Service.CLOUD_BACKUP), 11),
     ;
 
     /** The service this device streams without pause, if any; such a device asks for nothing else. */
@@ -92,7 +92,7 @@ enum class CableType(
     ISDN(2, 14f, 1.4f, 1, 1),
     DSL(4, 7f, 2.0f, 1, 2),
     COAX(6, 5f, 2.4f, 2, 3),
-    FIBER(12, 2.5f, 3.6f, 3, 5),
+    FIBER(12, 2.5f, 3.6f, 3, 6),
 }
 
 /**

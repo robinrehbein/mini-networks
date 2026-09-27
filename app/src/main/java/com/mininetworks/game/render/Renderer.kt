@@ -83,16 +83,21 @@ interface Renderer {
         fitArea(world, animate = false)
     }
 
-    /** Zooms so the unlocked area fills the view (not below [readableScale]), e.g. on a double tap. */
+    /**
+     * Zooms so the unlocked area fills the view (not below [readableScale]), e.g. on a double tap. In a portrait view
+     * the wide map would fill only a band in the middle, so it zooms in towards the height ([Camera.fillScale]).
+     */
     fun fitArea(world: World, animate: Boolean) {
         updateLimits(world)
-        camera.fit(mapBounds(world.unlocked), animate, atLeast = readableScale)
+        camera.fit(mapBounds(world.unlocked), animate, atLeast = framingScale(world))
     }
+
+    private fun framingScale(world: World) = maxOf(readableScale, camera.fillScale(mapBounds(world.unlocked), PORTRAIT_OVERFLOW))
 
     /** Call when the unlocked area grew: widens the limits and, unless the player moved the view, follows the area. */
     fun onAreaChanged(world: World) {
         updateLimits(world)
-        if (camera.followsArea) camera.fit(mapBounds(world.unlocked), animate = true, atLeast = readableScale)
+        if (camera.followsArea) camera.fit(mapBounds(world.unlocked), animate = true, atLeast = framingScale(world))
     }
 
     /**
@@ -147,6 +152,8 @@ interface Renderer {
         const val ZOOM_IN_ROWS = 4
         /** Zoom factor of [focusOn]. */
         const val FOCUS_ZOOM = 1.6f
+        /** In a portrait view the automatic framing may show the map this much wider than the view (the player pans). */
+        const val PORTRAIT_OVERFLOW = 1.5f
     }
 }
 

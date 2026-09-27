@@ -223,6 +223,23 @@ class GameViewControlsTest {
     }
 
     @Test
+    fun gameOverDropsTheHints() {
+        world.setTerrain(cell(3, 3).x, cell(3, 3).y, Terrain.WATER)
+        val phone = world.addClient(Device.PHONE, cell(10, 8).x, cell(10, 8).y)
+        world.addServer(Service.CALL, cell(14, 8).x, cell(14, 8).y)
+        repeat(World.Tuning.MAX_PENDING) { phone.pending.addLast(Service.CALL) }
+        phone.overload = 0.99f
+        draw()
+        tapHud("router")
+        tapCell(cell(3, 3))
+        assertNotNull(view.shownHint)
+        var s = 0
+        while (view.currentScreen != Screen.GAME_OVER && s++ < 60 * 60) view.advance(1f / 60f)
+        assertEquals(Screen.GAME_OVER, view.currentScreen)
+        assertNull("no hint peeks out under the result card", view.shownHint)
+    }
+
+    @Test
     fun holdingAnAccessPointIntoGameOverDoesNothing() {
         world.jumpToWeek(RadioType.WLAN.unlockWeek)
         val ap = world.addRadio(RadioType.WLAN, cell(4, 4).x, cell(4, 4).y)

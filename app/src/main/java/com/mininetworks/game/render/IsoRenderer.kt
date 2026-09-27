@@ -929,7 +929,7 @@ class IsoRenderer : Renderer {
 
     /** Channel number in a disc: channel color, red rim while the access point suffers interference. */
     private fun channelBadge(canvas: Canvas, n: Node, bx: Float, by: Float, interfering: Boolean) {
-        val r = tw * 0.1f
+        val r = maxOf(tw * 0.1f, CHANNEL_BADGE_MIN_DP * density)
         fillP.color = 0xFFFFFFFF.toInt(); canvas.drawCircle(bx, by, r, fillP)
         strokeP.color = if (interfering) RadioStyles.INTERFERENCE else RadioStyles.color(n)
         strokeP.strokeWidth = tw * (if (interfering) 0.03f else 0.02f)
@@ -1061,6 +1061,8 @@ class IsoRenderer : Renderer {
         const val REQUEST_MIN_DP = 3.2f
         const val RING_MIN_DP = 2.5f
         const val LABEL_MIN_DP = 13f
+        /** Radius of an access point's channel badge never shrinks below this, so the number stays readable. */
+        const val CHANNEL_BADGE_MIN_DP = 7f
 
         /** Kinds of [depth] and [plan] items; decorations are [DECOR] plus their [Decor.ordinal]. */
         const val NODE = 0

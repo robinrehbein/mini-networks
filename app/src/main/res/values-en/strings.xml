@@ -160,7 +160,7 @@
     <string name="tutorial_type_text">1998: DSL is invented. It carries twice as many packets as ISDN and is twice as fast. Pick DSL below.</string>
     <string name="tutorial_type_upgrade_text">Now tap an ISDN cable to upgrade it to DSL. You only pay the difference.</string>
     <string name="tutorial_ping_title">Ping</string>
-    <string name="tutorial_ping_text">2007: The PC wants to play online. Gaming needs a short ping, at most %1$d ms there and back. Connect the PC to the game server.</string>
+    <string name="tutorial_ping_text">2010: The PC wants to play online. Gaming needs a short ping, at most %1$d ms there and back. Connect the PC to the game server.</string>
     <string name="tutorial_ping_slow_text">Ping %1$d ms: too slow for gaming (at most %2$d ms). Only fiber is fast enough. Pick fiber and tap the cable.</string>
     <string name="tutorial_overload_title">Overload</string>
     <plurals name="tutorial_overload_text">

@@ -463,7 +463,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         failFocusUntil?.let { if (animTime >= it) showGameOverCard() }
         followArea()
         if (selection != null && animTime >= selectionUntil) selection = null
-        if (animTime >= hintUntil && world.rewardOffer == null) hintQueue.removeFirstOrNull()?.let { showHint(it, LONG_HINT_SECONDS) }
+        if (screen == Screen.PLAYING && animTime >= hintUntil && world.rewardOffer == null) hintQueue.removeFirstOrNull()?.let { showHint(it, LONG_HINT_SECONDS) }
         renderer.camera.step(animStep)
     }
 
@@ -807,24 +807,33 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         buttons += Button("router", routerRect)
         val rightEdge = routerRect.left
         // Cable technology picker, bottom left: invented technologies, each with its price per cell on a coin. In a
-        // narrow (portrait) window it moves to its own row above, and without room even there it drops the names.
+        // narrow (portrait) window it moves to its own row above; without room for every name even there, only the
+        // selected technology keeps its name (the colour dots alone are hard to tell apart), and without room for
+        // that either, none does.
         val coinR = 9 * density
         val cables = world.unlockedCables
         fun widthOf(t: CableType, named: Boolean) =
             24 * density + (if (named) btnText.measureText(texts.cable(t)) + 8 * density else 0f) + 2 * coinR + 10 * density
-        val rowWidth = { named: Boolean -> cables.sumOf { widthOf(it, named).toDouble() }.toFloat() + gap * (cables.size - 1) }
-        val ownRow = pad + rowWidth(true) > rightEdge - gap
-        val named = !ownRow || pad + rowWidth(true) <= surfaceWidth - pad
+        fun rowWidth(named: (CableType) -> Boolean) =
+            cables.sumOf { widthOf(it, named(it)).toDouble() }.toFloat() + gap * (cables.size - 1)
+        val all = { _: CableType -> true }
+        val selectedOnly = { t: CableType -> t == cableType }
+        val ownRow = pad + rowWidth(all) > rightEdge - gap
+        val named = when {
+            !ownRow || pad + rowWidth(all) <= surfaceWidth - pad -> all
+            pad + rowWidth(selectedOnly) <= surfaceWidth - pad -> selectedOnly
+            else -> { _: CableType -> false }
+        }
         val cableY = if (ownRow) y - bh - gap else y
         var cx = pad
         for (t in cables) {
-            val w = widthOf(t, named)
+            val w = widthOf(t, named(t))
             val r = RectF(cx, cableY, cx + w, cableY + bh)
             val active = t == cableType
             canvas.drawRoundRect(r, bh / 2, bh / 2, if (active) btnActive else btnFill)
             swatch.color = CableStyles.of(t).color
             canvas.drawCircle(r.left + 14 * density, r.centerY(), 5 * density, swatch)
-            if (named) {
+            if (named(t)) {
                 btnText.color = if (active) 0xFFFFFFFF.toInt() else 0xFF262B33.toInt()
                 btnText.textAlign = Paint.Align.LEFT
                 canvas.drawText(texts.cable(t), r.left + 24 * density, r.centerY() + btnText.textSize * 0.35f, btnText)
@@ -855,11 +864,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         }
         if (radioRow) rows++
         val hintY = y - 10 * density - rows * (bh + gap)
-        if (placing != null) {
-            canvas.drawText(context.getString(R.string.hint_place_router), pad, hintY, hudSub)
-        } else if (animTime < hintUntil) {
-            hint?.let { canvas.drawText(it, pad, hintY, hudSub) }
+        // No hint under a menu card: the game-over card and the pause menu cover that spot.
+        val hintText = when {
+            screen != Screen.PLAYING -> null
+            placing != null -> context.getString(R.string.hint_place_router)
+            animTime < hintUntil -> hint
+            else -> null
         }
+        hintText?.let { canvas.drawText(it, pad, hintY, hudSub) }
     }
 
     /** A round HUD button with a drawn icon: three lines for the menu, two bars (or a play triangle while paused) for pause. */
@@ -1816,6 +1828,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         placing = null
         selection = null
         userPaused = false
+        // The game is over: pending hints (e.g. what the week's news need) would only peek out under the result card.
+        hint = null
+        hintQueue.clear()
         val failed = world.failedNode
         if (failed == null) {
             screen = Screen.GAME_OVER

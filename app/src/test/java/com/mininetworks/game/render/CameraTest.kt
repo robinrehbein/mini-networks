@@ -33,6 +33,17 @@ class CameraTest {
     }
 
     @Test
+    fun portraitFillsTowardsTheHeight() {
+        val c = camera()
+        val r = MapRect(0f, 0f, 20f, 10f)
+        assertEquals("landscape: plain fit", c.fitScale(r), c.fillScale(r, 1.5f), 1e-4f)
+        c.setViewport(600, 1200)
+        assertEquals("portrait fit is width-bound", 30f, c.fitScale(r), 1e-4f)
+        assertEquals("zooms in, but overflows the sides by at most 1.5×", 45f, c.fillScale(r, 1.5f), 1e-4f)
+        assertEquals("a tall area just fills the height", 60f, c.fillScale(MapRect(0f, 0f, 10f, 20f), 1.5f), 1e-4f)
+    }
+
+    @Test
     fun screenAndMapRoundTripAtAnyZoomAndPan() {
         val c = camera()
         c.fit(MapRect(-3f, 2f, 17f, 12f))

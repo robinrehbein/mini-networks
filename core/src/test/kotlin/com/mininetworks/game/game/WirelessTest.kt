@@ -329,21 +329,25 @@ class WirelessTest {
     @Test
     fun radioRewardsJoinThePoolWhenInvented() {
         val w = World(cols = 16, rows = 10, seed = 1L, spawnInitialNodes = false)
-        w.jumpToWeek(5)
+        w.jumpToWeek(4)
         assertFalse(Reward.ACCESS_POINT in w.eligibleRewards())
-        w.jumpToWeek(6)
+        w.jumpToWeek(5)
         assertTrue(Reward.ACCESS_POINT in w.eligibleRewards())
+        w.jumpToWeek(6)
         assertFalse(Reward.CELL_TOWER in w.eligibleRewards())
         w.jumpToWeek(7)
         assertTrue(Reward.CELL_TOWER in w.eligibleRewards())
     }
 
     @Test
-    fun weekSixAnnouncesWlanAndWeekSevenTheCellTower() {
+    fun weekFiveAnnouncesWlanAndWeekSevenTheCellTower() {
         val w = World(cols = 16, rows = 10, seed = 1L, spawnInitialNodes = false)
-        w.jumpToWeek(5)
+        w.jumpToWeek(4)
         w.advanceToNextWeek()
         assertEquals(listOf(RadioType.WLAN), w.lastNews!!.radios)
+        w.chooseReward(0)
+        w.advanceToNextWeek()
+        assertEquals(emptyList<RadioType>(), w.lastNews!!.radios)
         w.chooseReward(0)
         w.advanceToNextWeek()
         assertEquals(listOf(RadioType.CELL), w.lastNews!!.radios)

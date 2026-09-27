@@ -30,10 +30,12 @@ class World(
         const val WEEK_SECONDS = 45f
         const val FIRST_YEAR = 1995
         /**
-         * Calendar year of era weeks 1, 2, 3 … (docs/PLAN.md 3.2): three years per week while new technology arrives,
+         * Calendar year of era weeks 1, 2, 3 … (docs/PLAN.md 3.2): three years per week at first,
          * then slower until the calendar reaches today, where it stays.
          */
         val ERA_YEARS = intArrayOf(FIRST_YEAR, 1998, 2001, 2004, 2007, 2010, 2013, 2016, 2019, 2022, 2024, 2026)
+        /** A scenery starting after today counts its years like the era table from this week: +3, +3, +2, +2, then stops. */
+        const val FUTURE_PACE_WEEK = 8
         const val ROUTER_MS = 4f
         const val MAX_PENDING = 6
         const val OVERLOAD_SECONDS = 18f
@@ -86,6 +88,11 @@ class World(
         const val SERVER_AREA = 0.3f
         /** From this week on, every second week brings a server of a random service (earlier ones follow [Service.serverWeek]). */
         const val RANDOM_SERVERS_FROM = 10
+        /**
+         * A new client picks a device weighted by 1 + its unlock week, so newer devices show up more often; weeks past
+         * this count no more, so the late inventions do not crowd out everything else in the long era thread.
+         */
+        const val DEVICE_WEIGHT_WEEKS = 8
         /** A [Demand.STREAM] service sends one request this often, in every week. */
         const val STREAM_SECONDS = 2.5f
         /** Length of one in-game day; the clock shows [DAWN_HOUR] at time 0. */
@@ -206,10 +213,16 @@ class World(
     val isNight get() = hourOfDay.let { it >= Tuning.DUSK_HOUR || it < Tuning.DAWN_HOUR }
 
     /**
-     * The calendar: [Tuning.ERA_YEARS] of the current week, shifted so the scenario starts in its [Scenario.startYear]
-     * (only the future scenery starts after its era week). It stops once the era table ends.
+     * The calendar: [Tuning.ERA_YEARS] of the current week, shifted so the scenario starts in its [Scenario.startYear].
+     * It stops once the era table ends. A scenery that starts after today (the future one, whose start week already
+     * ends the table) moves on at the pace of the table from [Tuning.FUTURE_PACE_WEEK] on instead.
      */
-    val year get() = scenario.startYear + eraYear(week) - eraYear(scenario.startWeek)
+    val year: Int
+        get() = if (scenario.startYear > Tuning.ERA_YEARS.last()) {
+            scenario.startYear + eraYear(Tuning.FUTURE_PACE_WEEK + weeksPlayed - 1) - eraYear(Tuning.FUTURE_PACE_WEEK)
+        } else {
+            scenario.startYear + eraYear(week) - eraYear(scenario.startWeek)
+        }
 
     /** Weeks played in this game, 1 in the scenario's start week: pacing, growth and incidents follow this. */
     val weeksPlayed get() = week - scenario.startWeek + 1
@@ -354,7 +367,7 @@ class World(
         val served = availableServices
         val candidates = unlockedDevices.filter { d -> d.services.any { it in served } }
         if (candidates.isEmpty()) return
-        val weighted = candidates.flatMap { d -> List(1 + d.unlockWeek) { d } }
+        val weighted = candidates.flatMap { d -> List(1 + d.unlockWeek.coerceAtMost(Tuning.DEVICE_WEIGHT_WEEKS)) { d } }
         val device = weighted[rng.nextInt(weighted.size)]
         if (weeksPlayed <= Tuning.EARLY_WEEKS) {
             for (d in listOf(device) + (candidates - device)) {

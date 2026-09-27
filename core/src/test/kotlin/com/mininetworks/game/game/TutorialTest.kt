@@ -135,7 +135,7 @@ class TutorialTest {
         val t = playTo(TutorialStep.PING)
         val w = t.world
         assertEquals(Tutorial.FIBER_WEEK, w.week)
-        assertEquals(2007, w.year)
+        assertEquals(2010, w.year)
         assertTrue(CableType.FIBER in w.unlockedCables)
         val server = t.gameServer!!
         assertEquals(Service.GAMING, server.service)

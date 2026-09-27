@@ -179,7 +179,7 @@ object Scenarios {
         id = "future_2030",
         cols = 36, rows = 22,
         startCols = 20, startRows = 12,
-        startWeek = 8, startYear = 2030,
+        startWeek = 12, startYear = 2030,
         terrain = listOf(
             TerrainFeature.River(vertical = true, at = 0.64f, amplitude = 1.6f, frequency = 0.4f),
             TerrainFeature.Lake(cx = 0.24f, cy = 0.3f, rx = 0.07f, ry = 0.12f),

@@ -152,7 +152,7 @@ class ScreenshotTest {
         val out = File(System.getProperty("screenshots.dir") ?: "build/screenshots").apply { mkdirs() }
         val w = World(cols = 8, rows = 5, seed = 3L, spawnInitialNodes = false)
         for (row in w.water) row.fill(false)
-        w.jumpToWeek(5)
+        w.jumpToWeek(CableType.FIBER.unlockWeek)
         w.grant(200)
         val dc = w.addServer(Service.MAIL, 5, 1)
         val router = w.addRouter(3, 3)
@@ -221,7 +221,7 @@ class ScreenshotTest {
         val w = World(cols = 16, rows = 10, seed = 3L, spawnInitialNodes = false)
         for (row in w.water) row.fill(false)
         w.incidentsEnabled = false
-        w.jumpToWeek(5)
+        w.jumpToWeek(CableType.FIBER.unlockWeek)
         w.grant(400)
         val cdn = w.addServer(Service.STREAMING, 2, 2)
         val game = w.addServer(Service.GAMING, 14, 1)
@@ -372,8 +372,15 @@ class ScreenshotTest {
             r.draw(Canvas(bmp), world, drag = null, time = 1.3f)
             save(bmp, File(shots, "wireless-${r.name.lowercase()}.png"))
         }
+    }
+
+    /** The wireless scene with the HUD (WLAN and mast buttons) on a phone, and the hold ring on an access point. */
+    @Test
+    @Config(qualifiers = "de-xxhdpi")
+    fun renderWirelessHud() {
+        val world = wirelessScene()
         val view = GameView(RuntimeEnvironment.getApplication())
-        val bmp = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)
+        val bmp = xxhdpiPhone()
         view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 1.3f, style = "Iso")
         save(bmp, File(shots, "wireless-hud.png"))
 
@@ -387,14 +394,14 @@ class ScreenshotTest {
     }
 
     /**
-     * Week 8 at night, shortly after the backup burst: video calls (pentagon), two security cameras streaming uploads
+     * Week 10 at night, shortly after the backup burst: video calls (pentagon), two security cameras streaming uploads
      * (hexagon) and cloud backups (plus) from PCs, laptops and smart-home hubs; upload answers are small acks.
      */
     private fun newServicesScene(): World {
         val w = World(cols = 16, rows = 10, seed = 3L, spawnInitialNodes = false)
         for (row in w.water) row.fill(false)
         w.incidentsEnabled = false
-        w.jumpToWeek(8)
+        w.jumpToWeek(Service.CLOUD_BACKUP.serverWeek)
         w.grant(400)
         val video = w.addServer(Service.VIDEO_CALL, 13, 1)
         val upload = w.addServer(Service.CAMERA_UPLOAD, 13, 8)
@@ -893,17 +900,21 @@ class ScreenshotTest {
         return w
     }
 
-    /** Every scenery at its start: the game frame in the isometric style and the whole map in the flat overview. */
+    /**
+     * Every scenery at its start: the game frame in the isometric style with its HUD on a phone, and the whole map in
+     * the flat overview.
+     */
     @Test
+    @Config(qualifiers = "de-xxhdpi")
     fun renderSceneries() {
         for (s in Scenarios.all) {
             val world = wiredStart(s)
             val view = GameView(RuntimeEnvironment.getApplication())
+            val phone = xxhdpiPhone()
+            view.drawSnapshot(Canvas(phone), world, phone.width, phone.height, time = 1.3f, style = "Iso")
+            save(phone, File(shots, "scenery-${s.id}.png"))
             val bmp = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)
-            view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 1.3f, style = "Iso")
-            save(bmp, File(shots, "scenery-${s.id}.png"))
             val flat = FlatRenderer()
-            bmp.eraseColor(0)
             flat.layout(bmp.width, bmp.height, world)
             flat.camera.zoomBy(0.1f, bmp.width / 2f, bmp.height / 2f)
             flat.draw(Canvas(bmp), world, drag = null, time = 1.3f)
@@ -920,7 +931,7 @@ class ScreenshotTest {
     fun renderSceneryPicker() {
         val scores = HighscoreStore(RuntimeEnvironment.getApplication())
         scores.submit(1834, Scenarios.RIVER_TOWN.id)
-        scores.submit(1210, Scenarios.METROPOLIS.id)
+        scores.submit(Scenarios.ISLAND_TARGET * 3 / 4, Scenarios.METROPOLIS.id)
         val view = GameView(RuntimeEnvironment.getApplication())
         val bmp = phoneBitmap()
         view.drawSnapshot(Canvas(bmp), view.currentWorld, bmp.width, bmp.height, time = 1.3f, screen = null)
