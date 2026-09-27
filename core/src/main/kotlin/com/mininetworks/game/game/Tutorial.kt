@@ -8,8 +8,11 @@ enum class TutorialStep {
     /** Place a router and cable the phones and the telephony server to it. */
     PLACE_ROUTER,
 
-    /** 1998, DSL is invented: pick it and upgrade a cable. */
-    CABLE_TYPE,
+    /**
+     * 1998: a TV wants to stream from a new streaming server. Streaming needs bandwidth 3, ISDN carries only 2: a TV on
+     * ISDN gets a "too narrow" badge, so the player picks DSL (capacity 4) and lays or upgrades the cable.
+     */
+    BANDWIDTH,
 
     /** 2010: the PC wants to play online, across the river; its short ping takes fiber. */
     PING,
@@ -42,8 +45,13 @@ sealed interface TutorialFocus {
 }
 
 /**
- * The five-step tutorial on the "Kleinstadt am Fluss" map (docs/PLAN.md P3.3): lay a cable, place a router, upgrade to
- * a better cable type, fix a ping that is too high for gaming, and rescue a device whose overload ring fills.
+ * The five-step tutorial on the "Kleinstadt am Fluss" map (docs/PLAN.md P3.3, docs/TOP100.md B2): lay a cable, place a
+ * router, give a streaming TV enough bandwidth, fix a ping that is too high for gaming, and rescue a device whose
+ * overload ring fills. Bandwidth and ping are taught by playing: the player may first build what does not work (ISDN
+ * for the TV, DSL across the river), sees why on the map (a "too narrow" or "ping" badge) and then fixes it.
+ *
+ * The first packet is delivered within seconds of the first launch (B1): the PC already has a mail waiting, so it
+ * leaves the moment the first cable is laid.
  *
  * It plays in its own [guided] world with a fixed seed: nothing spawns on its own, the calendar only moves when a step
  * needs a newer era, and the game cannot be lost. Each step sets its scene when it begins; [update], called after the
@@ -72,6 +80,10 @@ class Tutorial private constructor(val world: World) {
     var phones: List<Node> = emptyList(); private set
     var callServer: Node? = null; private set
 
+    /** Step 3: the TV that wants to stream, and the streaming server. */
+    var tv: Node? = null; private set
+    var streamServer: Node? = null; private set
+
     /** Step 4: the game server across the river. */
     var gameServer: Node? = null; private set
 
@@ -80,7 +92,9 @@ class Tutorial private constructor(val world: World) {
 
     init {
         mailServer = addServer(Service.MAIL, 1, 1)
-        pc = addClient(Device.PC, 5, 3)
+        pc = addClient(Device.PC, 4, 2)
+        // A mail is already waiting, so the first cable delivers at once (docs/TOP100.md B1).
+        pc.pending.addLast(Service.MAIL)
     }
 
     /**
@@ -102,7 +116,7 @@ class Tutorial private constructor(val world: World) {
     private fun goalReached(): Boolean = when (step) {
         TutorialStep.LAY_CABLE -> world.routeFor(pc, Service.MAIL) != null
         TutorialStep.PLACE_ROUTER -> world.nodes.any { it.kind == NodeKind.ROUTER && world.ports(it) >= 2 }
-        TutorialStep.CABLE_TYPE -> world.cables.any { it.type > CableType.ISDN }
+        TutorialStep.BANDWIDTH -> world.routeFor(tv!!, Service.STREAMING) != null
         TutorialStep.PING -> world.routeFor(pc, Service.GAMING) != null
         TutorialStep.OVERLOAD -> newPc!!.let { world.routeFor(it, Service.MAIL) != null && it.pending.size < World.Tuning.MAX_PENDING }
         TutorialStep.DONE -> false
@@ -115,7 +129,11 @@ class Tutorial private constructor(val world: World) {
                 callServer = addServer(Service.CALL, 1, 8)
                 phones = listOf(addClient(Device.PHONE, 4, 6), addClient(Device.PHONE, 5, 8))
             }
-            TutorialStep.CABLE_TYPE -> world.advanceEra(DSL_WEEK)
+            TutorialStep.BANDWIDTH -> {
+                world.advanceEra(DSL_WEEK)
+                streamServer = addServer(Service.STREAMING, 6, 0)
+                tv = addClient(Device.TV, 6, 2)
+            }
             TutorialStep.PING -> {
                 world.advanceEra(FIBER_WEEK)
                 gameServer = addServer(Service.GAMING, 15, 8)
@@ -134,9 +152,14 @@ class Tutorial private constructor(val world: World) {
             val routers = world.nodes.filter { it.kind == NodeKind.ROUTER }
             if (routers.isEmpty()) TutorialFocus.RouterButton else TutorialFocus.Nodes(routers + phones + listOfNotNull(callServer))
         }
-        TutorialStep.CABLE_TYPE ->
-            if (selected == CableType.ISDN) TutorialFocus.CableButton(CableType.DSL)
-            else TutorialFocus.Cables(world.cables.filter { it.type < selected })
+        TutorialStep.BANDWIDTH -> {
+            val tv = tv!!
+            when {
+                world.routeProblem(tv, Service.STREAMING) != RouteProblem.TOO_NARROW -> TutorialFocus.Drag(tv, streamServer!!)
+                selected.capacity < Service.STREAMING.bandwidth -> TutorialFocus.CableButton(CableType.DSL)
+                else -> TutorialFocus.Cables(narrowCables())
+            }
+        }
         TutorialStep.PING -> {
             val route = world.bestRoute(pc, Service.GAMING)
             when {
@@ -148,6 +171,13 @@ class Tutorial private constructor(val world: World) {
         TutorialStep.OVERLOAD -> TutorialFocus.Drag(newPc!!, mailServer)
         TutorialStep.DONE -> TutorialFocus.None
     }
+
+    /** True in step 3 while the TV is cabled but a link on the way is too narrow for streaming. */
+    fun tooNarrow(): Boolean = step == TutorialStep.BANDWIDTH && world.routeProblem(tv!!, Service.STREAMING) == RouteProblem.TOO_NARROW
+
+    /** Cables too narrow for streaming at the TV or the streaming server, the ones to upgrade in step 3. */
+    private fun narrowCables(): List<Cable> =
+        world.cables.filter { it.capacity < Service.STREAMING.bandwidth && (it.a === tv || it.b === tv || it.a === streamServer || it.b === streamServer) }
 
     /**
      * Round-trip ping of the PC's best route to the game server while it is too slow for gaming, in whole milliseconds;
@@ -173,7 +203,7 @@ class Tutorial private constructor(val world: World) {
         const val SEED = 7L
         /** Enough for every step with room for a detour. */
         const val BUDGET = 80
-        /** Weeks the tutorial jumps to: DSL (1998) for the cable types, fiber (2010) for the ping. */
+        /** Weeks the tutorial jumps to: DSL (1998) for the bandwidth, fiber (2010) for the ping. */
         val DSL_WEEK = CableType.DSL.unlockWeek
         val FIBER_WEEK = CableType.FIBER.unlockWeek
 

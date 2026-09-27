@@ -105,6 +105,7 @@
     <string name="settings_sound">Sound</string>
     <string name="settings_haptics">Haptics</string>
     <string name="settings_overview">Overview mode (flat)</string>
+    <string name="settings_free_rotation">Free rotation</string>
     <string name="settings_colorblind">Colorblind palette</string>
     <string name="settings_language">The language follows your system language</string>
 
@@ -152,13 +153,14 @@
     <string name="tutorial_pause">Tutorial · step %1$d/%2$d</string>
     <string name="settings_tutorial">Play tutorial</string>
     <string name="tutorial_cable_title">Lay a cable</string>
-    <string name="tutorial_cable_text">The PC wants to send mail. Drag from the PC to the mail server: cables run along the grid like streets.</string>
+    <string name="tutorial_cable_text">The PC wants to send a mail. Drag with your finger from the PC to the mail server.</string>
     <string name="tutorial_router_title">Place a router</string>
     <string name="tutorial_router_text">A device has only 2 ports, a router has 6. Tap “Router” below, then a free cell near the phones.</string>
     <string name="tutorial_router_connect_text">Now connect both phones and the telephony server to the router. It shares out the calls.</string>
-    <string name="tutorial_type_title">Cable types</string>
-    <string name="tutorial_type_text">1998: DSL is invented. It carries twice as many packets as ISDN and is twice as fast. Pick DSL below.</string>
-    <string name="tutorial_type_upgrade_text">Now tap an ISDN cable to upgrade it to DSL. You only pay the difference.</string>
+    <string name="tutorial_bandwidth_title">Bandwidth</string>
+    <string name="tutorial_bandwidth_text">1998: The TV wants to stream. Connect it to the streaming server.</string>
+    <string name="tutorial_bandwidth_narrow_text">Too narrow! Streaming needs bandwidth %1$d, ISDN carries only %2$d. Pick DSL below, it carries %3$d.</string>
+    <string name="tutorial_bandwidth_upgrade_text">Now tap the ISDN cable to upgrade it to DSL. You only pay the difference.</string>
     <string name="tutorial_ping_title">Ping</string>
     <string name="tutorial_ping_text">2010: The PC wants to play online. Gaming needs a short ping, at most %1$d ms there and back. Connect the PC to the game server.</string>
     <string name="tutorial_ping_slow_text">Ping %1$d ms: too slow for gaming (at most %2$d ms). Only fiber is fast enough. Pick fiber and tap the cable.</string>
@@ -214,6 +216,8 @@
     <!-- Accessibility (TalkBack) descriptions of the canvas-drawn HUD, docs/TOP100.md A7 -->
     <string name="a11y_menu">Menu</string>
     <string name="a11y_pause">Pause the clock</string>
+    <string name="a11y_compass">Turn the map back to north</string>
+    <string name="a11y_recap">Time-lapse: your network from week %1$d to week %2$d</string>
     <string name="a11y_router">Place router (in stock: %1$d)</string>
     <string name="a11y_access_point">Place Wi-Fi access point (in stock: %1$d)</string>
     <string name="a11y_cell_tower">Place cell tower (in stock: %1$d)</string>

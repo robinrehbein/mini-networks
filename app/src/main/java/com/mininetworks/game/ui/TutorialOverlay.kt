@@ -8,6 +8,7 @@ import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
 import com.mininetworks.game.R
+import com.mininetworks.game.game.CableType
 import com.mininetworks.game.game.Service
 import com.mininetworks.game.game.Tutorial
 import com.mininetworks.game.game.TutorialFocus
@@ -272,12 +273,15 @@ class TutorialOverlay(private val context: Context) {
         when (step) {
             TutorialStep.LAY_CABLE -> R.string.tutorial_cable_title
             TutorialStep.PLACE_ROUTER -> R.string.tutorial_router_title
-            TutorialStep.CABLE_TYPE -> R.string.tutorial_type_title
+            TutorialStep.BANDWIDTH -> R.string.tutorial_bandwidth_title
             TutorialStep.PING -> R.string.tutorial_ping_title
             TutorialStep.OVERLOAD -> R.string.tutorial_overload_title
             TutorialStep.DONE -> R.string.tutorial_done_title
         },
     )
+
+    /** Title and text of the bubble as a reader sees them, for tests (the tutorial bot's reading time). */
+    internal fun text(t: Tutorial, focus: TutorialFocus): String = title(t.step) + " " + body(t, focus)
 
     /** The step's text; some steps say something else once the player did the first half. */
     internal fun body(t: Tutorial, focus: TutorialFocus): String {
@@ -287,9 +291,13 @@ class TutorialOverlay(private val context: Context) {
             TutorialStep.PLACE_ROUTER -> context.getString(
                 if (focus == TutorialFocus.RouterButton) R.string.tutorial_router_text else R.string.tutorial_router_connect_text,
             )
-            TutorialStep.CABLE_TYPE -> context.getString(
-                if (focus is TutorialFocus.CableButton) R.string.tutorial_type_text else R.string.tutorial_type_upgrade_text,
-            )
+            TutorialStep.BANDWIDTH -> when (focus) {
+                is TutorialFocus.Drag -> context.getString(R.string.tutorial_bandwidth_text)
+                is TutorialFocus.CableButton -> context.getString(
+                    R.string.tutorial_bandwidth_narrow_text, Service.STREAMING.bandwidth, CableType.ISDN.capacity, CableType.DSL.capacity,
+                )
+                else -> context.getString(R.string.tutorial_bandwidth_upgrade_text)
+            }
             TutorialStep.PING -> t.tooSlowPingMs()?.let { context.getString(R.string.tutorial_ping_slow_text, it, gamingLimit) }
                 ?: context.getString(R.string.tutorial_ping_text, gamingLimit)
             TutorialStep.OVERLOAD -> World.Tuning.MAX_PENDING.let { context.resources.getQuantityString(R.plurals.tutorial_overload_text, it, it) }

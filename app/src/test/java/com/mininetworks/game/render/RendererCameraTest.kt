@@ -156,4 +156,62 @@ class RendererCameraTest {
             assertSame(cable, r.cableAtScreen(w, mid.x, mid.y + 20f * density, cableRadius))
         }
     }
+
+    /**
+     * docs/TOP100.md B5: after turning the map (0°, 37°, 90°, 180°, 270°, with zoom and pan), screen and world still map
+     * onto each other, every cell's centre on screen leads back to the same cell, and a tap on a node or cable finds it.
+     */
+    @Test
+    fun turnedMapsRoundTripAndHitTheSameCells() {
+        val w = World(seed = 2L, spawnInitialNodes = false)
+        for (row in w.water) row.fill(false)
+        w.grant(100)
+        val pc = w.addClient(Device.PC, 12, 8)
+        val server = w.addServer(Service.MAIL, 18, 11)
+        check(w.connect(pc, server, CableType.ISDN))
+        val points = listOf(Vec2(0f, 0f), Vec2(8.5f, 5.5f), Vec2(31.9f, 19.9f), Vec2(16.25f, 3.75f))
+        for (angle in listOf(0f, 37f, 90f, 180f, 270f)) for (r in renderers(w)) {
+            for ((zoom, pan) in listOf(1f to Vec2(0f, 0f), 2.2f to Vec2(-150f, 80f), 0.7f to Vec2(60f, -40f))) {
+                r.fitArea(w, animate = false)
+                r.rotateBy(angle, 700f, 420f, w)
+                assertEquals(angle, r.camera.angle, 1e-3f)
+                r.camera.zoomBy(zoom, 900f, 400f)
+                r.camera.panBy(pan.x, pan.y)
+                val tag = "${r.name} at $angle° zoom $zoom"
+                for (p in points) {
+                    val s = r.toScreen(p)
+                    assertNear("$tag world->screen->world", p, r.toWorld(s.x, s.y), 2e-3f)
+                    val back = r.toWorld(p.x * 50f, p.y * 40f)
+                    assertNear("$tag screen->world->screen", Vec2(p.x * 50f, p.y * 40f), r.toScreen(back), 0.05f)
+                }
+                for (y in 0 until w.rows) for (x in 0 until w.cols) {
+                    val s = r.toScreen(Vec2(x + 0.5f, y + 0.5f))
+                    val back = r.toWorld(s.x, s.y)
+                    assertEquals("$tag cell ($x, $y)", x, kotlin.math.floor(back.x).toInt())
+                    assertEquals("$tag cell ($x, $y)", y, kotlin.math.floor(back.y).toInt())
+                }
+                val radius = TouchTargets.nodeRadiusPx(r, 2f)
+                val c = r.toScreen(pc.center)
+                assertSame(tag, pc, r.nodeAtScreen(w, c.x + radius * 0.5f, c.y - radius * 0.5f, radius))
+                val mid = r.toScreen(w.cables.single().layout.pointAt(0.5f))
+                assertSame(tag, w.cables.single(), r.cableAtScreen(w, mid.x + 3f, mid.y, TouchTargets.cableRadiusPx(r, 2f)))
+                r.rotateBy(-angle, 700f, 420f, w)
+            }
+        }
+    }
+
+    @Test
+    fun zoomRangeDoesNotDependOnTheAngle() {
+        val w = World(seed = 2L, spawnInitialNodes = false)
+        for (r in renderers(w)) {
+            val min = r.camera.minScale; val max = r.camera.maxScale
+            for (a in listOf(37f, 45f, 90f, 133f)) {
+                r.rotateBy(a - r.camera.angle, 800f, 450f, w)
+                assertEquals("${r.name} at $a°", min, r.camera.minScale, 1e-4f)
+                assertEquals("${r.name} at $a°", max, r.camera.maxScale, 1e-4f)
+                val centre = r.toWorld(r.camera.centerX, r.camera.centerY)
+                assertTrue("${r.name}: the view centre stays over the grid at $a°", centre.x in -0.5f..w.cols + 0.5f && centre.y in -0.5f..w.rows + 0.5f)
+            }
+        }
+    }
 }

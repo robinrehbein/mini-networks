@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name" translatable="false">Mini Networks</string>
 
     <!-- HUD -->
@@ -108,6 +108,7 @@
     <string name="settings_sound">Ton</string>
     <string name="settings_haptics">Haptik</string>
     <string name="settings_overview">Übersichtsmodus (flach)</string>
+    <string name="settings_free_rotation">Frei drehen</string>
     <string name="settings_colorblind">Farbenblind-Palette</string>
     <string name="settings_language">Die Sprache folgt der Systemsprache</string>
 
@@ -155,13 +156,14 @@
     <string name="tutorial_pause">Tutorial · Schritt %1$d/%2$d</string>
     <string name="settings_tutorial">Tutorial ansehen</string>
     <string name="tutorial_cable_title">Kabel legen</string>
-    <string name="tutorial_cable_text">Der PC will Mails verschicken. Zieh mit dem Finger vom PC zum Mail-Server: Das Kabel läuft wie eine Straße über das Raster.</string>
+    <string name="tutorial_cable_text">Der PC will eine Mail senden. Zieh mit dem Finger vom PC zum Mail-Server.</string>
     <string name="tutorial_router_title">Router setzen</string>
     <string name="tutorial_router_text">Ein Gerät hat nur 2 Anschlüsse, ein Router 6. Tippe unten auf „Router“ und dann auf ein freies Feld bei den Telefonen.</string>
     <string name="tutorial_router_connect_text">Verbinde jetzt die Telefone und den Telefonie-Server mit dem Router. Er verteilt die Anrufe.</string>
-    <string name="tutorial_type_title">Kabeltypen</string>
-    <string name="tutorial_type_text">1998: DSL ist erfunden. Es trägt doppelt so viele Pakete wie ISDN und ist doppelt so schnell. Wähle unten DSL.</string>
-    <string name="tutorial_type_upgrade_text">Tippe jetzt auf ein ISDN-Kabel, um es auf DSL aufzurüsten. Du zahlst nur den Unterschied.</string>
+    <string name="tutorial_bandwidth_title">Bandbreite</string>
+    <string name="tutorial_bandwidth_text">1998: Der Fernseher will streamen. Verbinde ihn mit dem Streaming-Server.</string>
+    <string name="tutorial_bandwidth_narrow_text">Zu schmal! Streaming braucht Bandbreite %1$d, ISDN trägt nur %2$d. Wähle unten DSL, es trägt %3$d.</string>
+    <string name="tutorial_bandwidth_upgrade_text">Tippe jetzt auf das ISDN-Kabel, um es auf DSL aufzurüsten. Du zahlst nur den Unterschied.</string>
     <string name="tutorial_ping_title">Ping</string>
     <string name="tutorial_ping_text">2010: Der PC will online spielen. Gaming braucht kurzen Ping, hin und zurück höchstens %1$d ms. Verbinde den PC mit dem Game-Server.</string>
     <string name="tutorial_ping_slow_text">Ping %1$d ms: zu langsam für Gaming (höchstens %2$d ms). Nur Glasfaser ist schnell genug. Wähle Glasfaser und tippe auf das Kabel.</string>
@@ -219,6 +221,8 @@
     <!-- Accessibility (TalkBack) descriptions of the canvas-drawn HUD, docs/TOP100.md A7 -->
     <string name="a11y_menu">Menü</string>
     <string name="a11y_pause">Uhr anhalten</string>
+    <string name="a11y_compass">Karte nach Norden drehen</string>
+    <string name="a11y_recap" tools:ignore="PluralsCandidate">Zeitraffer: dein Netz von Woche %1$d bis Woche %2$d</string>
     <string name="a11y_router">Router setzen (vorrätig: %1$d)</string>
     <string name="a11y_access_point">WLAN-Zugangspunkt setzen (vorrätig: %1$d)</string>
     <string name="a11y_cell_tower">Funkmast setzen (vorrätig: %1$d)</string>

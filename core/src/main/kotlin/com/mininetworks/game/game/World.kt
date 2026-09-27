@@ -490,6 +490,7 @@ class World(
         budget -= newCost - c.cost
         c.cost = newCost
         c.type = type
+        c.upgradedAt = time
         forgetRoutes()
         return true
     }
@@ -632,6 +633,7 @@ class World(
         if (serverVouchers > 0) serverVouchers-- else budget -= Tuning.SERVER_UPGRADE_COST[n.level - 1]
         if (n.level + 1 == Tuning.DATA_CENTER_LEVEL) n.footprint = dataCenterFootprint(n)!!
         n.level++
+        n.upgradedAt = time
         return true
     }
 
@@ -801,6 +803,7 @@ class World(
         budget -= Wifi.UPGRADE_5_GHZ_COST
         ap.fiveGhz = true
         ap.channel = Wifi.CHANNELS_5_GHZ.first()
+        ap.upgradedAt = time
         networkChanged()
         return true
     }

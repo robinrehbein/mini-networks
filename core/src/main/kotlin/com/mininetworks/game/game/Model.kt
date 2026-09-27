@@ -179,6 +179,13 @@ class Node(
             footprintCenter = Vec2(value.map { it.x }.average().toFloat() + 0.5f, value.map { it.y }.average().toFloat() + 0.5f)
         }
 
+    /**
+     * [World.time] of the last upgrade (a server tier, an access point switched to 5 GHz), for the upgrade effect;
+     * minus infinity if none. Not saved: effects only play for what happens on screen.
+     */
+    var upgradedAt = Float.NEGATIVE_INFINITY
+        internal set
+
     /** Visual center of the [footprint]; equals [center] for one-cell nodes. */
     var footprintCenter = center
         private set
@@ -274,6 +281,10 @@ class Cable(
 
     /** [World.time] when the cable was laid, for the laying animation; minus infinity for loaded cables. */
     var builtAt = Float.NEGATIVE_INFINITY
+        internal set
+
+    /** [World.time] of the last upgrade to a better technology, for the upgrade effect; minus infinity if none. */
+    var upgradedAt = Float.NEGATIVE_INFINITY
         internal set
 
     override fun pointFrom(from: Node, f: Float, out: FloatArray) = layout.pointAt(if (from === a) f else 1f - f, out)

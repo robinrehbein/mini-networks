@@ -948,7 +948,7 @@ class ScreenshotTest {
 
     /**
      * The tutorial on a landscape phone, one shot per step as the player gets there: the dragged cable, the router
-     * button, the DSL pick, a DSL cable too slow for gaming, the overload ring, and the finish.
+     * button, the TV on ISDN too narrow for streaming, a DSL cable too slow for gaming, the overload ring, and the finish.
      */
     @Test
     @Config(qualifiers = "de-xhdpi")
@@ -991,9 +991,12 @@ class ScreenshotTest {
         val router = w.nearestFree(Cell(t.phones[0].cellX - 2, t.phones[0].cellY + 1))!!.let { w.placeRouter(it.x, it.y)!! }
         for (n in t.phones + t.callServer!!) w.connect(n, router, CableType.ISDN)
         play(0.6f)
-        shot("3-cable-type")
+        shot("3-bandwidth")
+        w.connect(t.tv!!, t.streamServer!!, CableType.ISDN)
+        play(3f)
+        shot("3-bandwidth-narrow")
         tapHud("cable:DSL")
-        w.upgrade(w.cableBetween(t.pc, t.mailServer)!!, CableType.DSL)
+        w.upgrade(w.cableBetween(t.tv!!, t.streamServer!!)!!, CableType.DSL)
         play(0.2f)
         w.connect(t.pc, t.gameServer!!, CableType.DSL)
         play(3f)

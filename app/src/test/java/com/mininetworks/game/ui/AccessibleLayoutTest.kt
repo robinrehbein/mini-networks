@@ -61,6 +61,19 @@ class AccessibleLayoutTest {
         check(size, "hud", nodes, expectedActions = 9)
     }
 
+    /** docs/TOP100.md B5: with the map turned, the compass joins the HUD below the counters without overlapping. */
+    @Test
+    fun hudWithCompassStaysApartInEveryFormat() = everywhere { size, view, bmp ->
+        val world = FormFactorScreenshotTest.busyHud()
+        view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 1.3f, style = "Iso")
+        val r = view.activeRenderer
+        r.rotateBy(37f, r.camera.centerX, r.camera.centerY, world)
+        view.drawCurrent(Canvas(bmp))
+        val nodes = view.accessibilityLayer.nodes.filter { it.key != "hud:map" }
+        assertTrue("${size}: compass shown", nodes.any { it.key == "hud:compass" })
+        check(size, "hud-compass", nodes, expectedActions = 10)
+    }
+
     @Test
     fun hudWithPausedBannerAndLongHintStaysApart() = everywhere { size, view, bmp ->
         val world = FormFactorScreenshotTest.busyHud()
@@ -82,7 +95,7 @@ class AccessibleLayoutTest {
         view.drawSnapshot(Canvas(bmp), view.currentWorld, bmp.width, bmp.height, time = 1.3f, screen = null)
         check(size, "main menu", view.accessibilityLayer.nodes, expectedActions = 3)
         val game = FormFactorScreenshotTest.busyHud()
-        for ((screen, actions) in listOf(Screen.PAUSED to 4, Screen.SETTINGS to 7, Screen.GAME_OVER to 2)) {
+        for ((screen, actions) in listOf(Screen.PAUSED to 4, Screen.SETTINGS to 8, Screen.GAME_OVER to 2)) {
             bmp.eraseColor(0)
             view.drawSnapshot(Canvas(bmp), game, bmp.width, bmp.height, time = 1.3f, style = "Iso", screen = screen)
             check(size, screen.name, view.accessibilityLayer.nodes, expectedActions = actions)

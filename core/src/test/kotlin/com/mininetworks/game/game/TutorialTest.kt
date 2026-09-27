@@ -39,7 +39,7 @@ class TutorialTest {
             run(t, 0.1f)
         }
         if (t.step < target) {
-            assertTrue(w.upgrade(w.cableBetween(t.pc, t.mailServer)!!, CableType.DSL))
+            assertTrue(w.connect(t.tv!!, t.streamServer!!, CableType.DSL))
             run(t, 0.1f)
         }
         if (t.step < target) {
@@ -107,25 +107,45 @@ class TutorialTest {
         assertFalse("a router with one cable distributes nothing yet", t.update())
         assertTrue(w.connect(r, t.callServer!!, CableType.ISDN))
         assertTrue(t.update())
-        assertEquals(TutorialStep.CABLE_TYPE, t.step)
+        assertEquals(TutorialStep.BANDWIDTH, t.step)
     }
 
     @Test
-    fun cableTypeStepJumpsTo1998AndWaitsForAnUpgrade() {
-        val t = playTo(TutorialStep.CABLE_TYPE)
+    fun bandwidthStepJumpsTo1998AndIsLearnedByTryingIsdnFirst() {
+        val t = playTo(TutorialStep.BANDWIDTH)
         val w = t.world
         assertEquals(Tutorial.DSL_WEEK, w.week)
         assertEquals(1998, w.year)
         assertEquals(listOf(CableType.ISDN, CableType.DSL), w.unlockedCables)
         assertEquals(listOf(CableType.DSL), w.lastNews!!.cables)
-        assertEquals(listOf(Device.LAPTOP), w.lastNews!!.devices)
-        assertNull("no server, no reward, no growth", w.rewardOffer)
+        assertNull("no reward, no growth", w.rewardOffer)
         assertEquals(w.unlockedArea(1), w.unlocked)
-        assertEquals(TutorialFocus.CableButton(CableType.DSL), t.focus(CableType.ISDN))
-        assertEquals(TutorialFocus.Cables(w.cables.toList()), t.focus(CableType.DSL))
-        run(t, 5f)
-        assertEquals(TutorialStep.CABLE_TYPE, t.step)
-        assertTrue(w.upgrade(w.cables.first(), CableType.DSL))
+        val tv = t.tv!!
+        val server = t.streamServer!!
+        assertEquals(Device.TV, tv.device)
+        assertEquals(Service.STREAMING, server.service)
+        assertTrue("streaming needs more than ISDN carries", Service.STREAMING.bandwidth > CableType.ISDN.capacity)
+        assertEquals(TutorialFocus.Drag(tv, server), t.focus(CableType.ISDN))
+        assertFalse(t.tooNarrow())
+
+        // The player tries ISDN: the TV is cabled, but its streams do not fit.
+        assertTrue(w.connect(tv, server, CableType.ISDN))
+        run(t, 3f)
+        assertEquals(TutorialStep.BANDWIDTH, t.step)
+        assertTrue(t.tooNarrow())
+        assertEquals(RouteProblem.TOO_NARROW, w.routeProblem(tv, Service.STREAMING))
+        assertEquals("pick a wider cable", TutorialFocus.CableButton(CableType.DSL), t.focus(CableType.ISDN))
+        val cable = w.cableBetween(tv, server)!!
+        assertEquals("then tap the narrow cable", TutorialFocus.Cables(listOf(cable)), t.focus(CableType.DSL))
+        assertTrue(w.upgrade(cable, CableType.DSL))
+        assertTrue(t.update())
+        assertEquals(TutorialStep.PING, t.step)
+    }
+
+    @Test
+    fun layingDslStraightAwayAlsoPasses() {
+        val t = playTo(TutorialStep.BANDWIDTH)
+        assertTrue(t.world.connect(t.tv!!, t.streamServer!!, CableType.DSL))
         assertTrue(t.update())
         assertEquals(TutorialStep.PING, t.step)
     }

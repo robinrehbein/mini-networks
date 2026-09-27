@@ -32,6 +32,7 @@ import com.mininetworks.game.game.Demand
 import com.mininetworks.game.game.IncidentKind
 import com.mininetworks.game.game.Incidents
 import com.mininetworks.game.game.FixedStep
+import com.mininetworks.game.game.GrowthRecorder
 import com.mininetworks.game.game.Node
 import com.mininetworks.game.game.NodeKind
 import com.mininetworks.game.game.PlaceError
@@ -57,6 +58,7 @@ import com.mininetworks.game.monetization.Monetization
 import com.mininetworks.game.monetization.MonetizationStore
 import com.mininetworks.game.monetization.NoOpMonetization
 import com.mininetworks.game.render.CableStyles
+import com.mininetworks.game.render.Camera
 import com.mininetworks.game.render.DragPreview
 import com.mininetworks.game.render.FlatRenderer
 import com.mininetworks.game.render.IncidentStyles
@@ -73,6 +75,7 @@ import com.mininetworks.game.ui.menu.MenuAction
 import com.mininetworks.game.ui.menu.MenuItem
 import com.mininetworks.game.ui.menu.MenuPage
 import com.mininetworks.game.ui.menu.MenuPanel
+import com.mininetworks.game.ui.menu.MenuPicture
 import com.mininetworks.game.ui.menu.SceneryCard
 import com.mininetworks.game.ui.menu.SceneryPicker
 import com.mininetworks.game.ui.menu.Screen
@@ -112,7 +115,10 @@ import kotlin.math.roundToInt
  * Controls:
  *  - drag from a node to another node: lay a cable along the grid (L-shaped; the drag path picks which way it bends);
  *    the label shows the price and, for a device, the ping it would get or that the cable is too narrow
- *  - drag on empty ground or with two fingers: pan; pinch: zoom; double tap on empty ground: fit the playable area
+ *  - drag on empty ground or with two fingers: pan; pinch: zoom; turn two fingers: rotate the map around their midpoint
+ *    (all at once); on release it eases to the nearest multiple of 90° unless "free rotation" is on in the settings;
+ *    the compass button (only while the map is turned) turns it back to north; double tap on empty ground: fit the
+ *    playable area
  *  - pick a cable technology in the bottom-left bar (ISDN, DSL, TV-Kabel, Glasfaser; the coin is the price per cell);
  *    picking one names its bandwidth, speed and price
  *  - tap a server: preview its next hardware tier and price; tap again to upgrade (tier 4 is a data center on 2×2 cells)
@@ -292,6 +298,15 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private var gestureConsumed = false
     private var pressedCard: Int? = null
     private val rewardDialog = RewardDialog(context)
+    /** The network's growth during the running game, replayed as a time-lapse on the game-over card (B3). */
+    private val growth = GrowthRecorder()
+    private val recap by lazy { GrowthRecap(density) { f -> context.getString(R.string.hud_date, f.year, f.week) } }
+    /** [animTime] when the game-over card appeared; the time-lapse runs from there. */
+    private var gameOverAt = 0f
+    private val confetti by lazy { Confetti(density) }
+    /** [animTime] when the last week change was celebrated with confetti, and that week; null for none. */
+    private var celebrateAt: Float? = null
+    private var celebratedWeek = -1
 
     /** True from a second finger touching down (or a double tap) until all fingers are up: only the camera moves. */
     private var cameraGesture = false
@@ -333,6 +348,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private val pinText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; textSize = textScale.px(12f); color = 0xFFFFFFFF.toInt() }
     private val selectionPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
     private val selectionPath = android.graphics.Path()
+    private val compassPaint = fill(0)
 
     private data class Button(val id: String, val rect: RectF)
     private val buttons = mutableListOf<Button>()
@@ -458,7 +474,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         pressedCard = null
         gestureConsumed = false
         cameraGesture = false
-        pinch.stop()
+        stopPinch()
         // A full-screen ad pauses the activity; the game stays where it was (the world waits for the ad's result).
         if (screen == Screen.PLAYING && pendingAd == null) screen = Screen.PAUSED
         autosave()
@@ -586,6 +602,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         if (screen == Screen.PLAYING) {
             if (userPaused) clock.reset() else clock.advance(frameSeconds) { world.update(it) }
             tutorial?.update()
+            if (tutorial == null && gameInProgress) growth.sample(world)
+            world.rewardOffer?.let {
+                if (tutorial == null && it.week != celebratedWeek) {
+                    celebratedWeek = it.week
+                    celebrateAt = animTime
+                }
+            }
             val now = (animTime * 1000).toLong()
             for (cue in soundCues.poll(world)) sounds.play(cue, now)
             if (tutorial == null) {
@@ -600,7 +623,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         followArea()
         if (selection != null && animTime >= selectionUntil) selection = null
         if (screen == Screen.PLAYING && animTime >= hintUntil && world.rewardOffer == null) hintQueue.removeFirstOrNull()?.let { showHint(it, LONG_HINT_SECONDS) }
-        renderer.camera.step(animStep)
+        renderer.stepCamera(animStep, world)
     }
 
     /**
@@ -696,6 +719,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         if (playing) world.rewardOffer?.let {
             val side = safeInsets.right + 16 * density + buttonHeight + 8 * density
             rewardDialog.draw(canvas, world, it, surfaceWidth, surfaceHeight, animTime, pressedCard, bonusLabel(), video = !monetization.adsRemoved, side = side)
+            celebrateAt?.let { at -> confetti.draw(canvas, surfaceWidth, surfaceHeight, animTime - at, celebratedWeek) }
             // The menu stays reachable during the reward choice, so its button is drawn above the dimmed map.
             buttons.firstOrNull { b -> b.id == "menu" }?.let { b -> drawIconButton(canvas, b.rect, b.id, active = false) }
         }
@@ -783,6 +807,15 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     /** Screen rectangle of a tutorial bubble button ([TutorialOverlay.SKIP] ...) in the last drawn frame, for tests. */
     internal fun tutorialTarget(id: String): RectF? = if (tutorial != null) tutorialOverlay.targetOf(id) else null
+
+    /** Title and text of the tutorial bubble right now, or null outside the tutorial, for tests. */
+    internal fun tutorialText(): String? = tutorial?.let { tutorialOverlay.text(it, tutorialFocus(it)) }
+
+    /** The recorded growth of the running game, for tests (a screenshot records a scripted game with it). */
+    internal val growthRecorder: GrowthRecorder get() = growth
+
+    /** True while week-change confetti is falling, for tests. */
+    internal val celebrating: Boolean get() = celebrateAt?.let { confetti.running(animTime - it) } == true
 
     /** The cable technology picked in the HUD, for tests. */
     internal val pickedCable: CableType get() = cableType
@@ -923,7 +956,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
      * counters too where the panel reaches under them.
      */
     private fun tutorialTop(): Float {
-        val m = HudTop(surfaceWidth - safeInsets.left - safeInsets.right - 32 * density)
+        val m = HudTop(surfaceWidth - safeInsets.left - safeInsets.right - 32 * density, compassShown)
         val panelRight = tutorialOverlay.reservedRight(surfaceWidth)
         val underCounters = m.stacked || panelRight > surfaceWidth - safeInsets.right - 16 * density - m.rightW - 8 * density
         val block = if (underCounters) m.bottom else m.leftBottom
@@ -933,9 +966,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     /**
      * The HUD's top rows, measured for a row [width] px wide: the date with its week bar (and clock) at the left, the
      * packets, budget and vouchers at the right. Offsets are from the top of the HUD area. When both blocks do not fit
-     * side by side (a narrow window with large text), the counters move below the date.
+     * side by side (a narrow window with large text), the counters move below the date. With [compass], the compass
+     * button sits right-aligned below the counters.
      */
-    private inner class HudTop(width: Float) {
+    private inner class HudTop(width: Float, compass: Boolean = false) {
         val date: String = context.getString(R.string.hud_date, world.year, world.week)
         val clock: String? = clockLabel()
         val delivered: String = resources.getQuantityString(R.plurals.hud_delivered, world.delivered, world.delivered)
@@ -954,8 +988,45 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         val deliveredBaseline = rightTop + hudText.textSize
         val stockBaseline = deliveredBaseline + hudSub.textSize * 1.5f
         val voucherBaseline = stockBaseline + hudSub.textSize * 1.5f
-        val rightBottom = (if (vouchers != null) voucherBaseline else stockBaseline) + hudSub.descent()
+        val countersBottom = (if (vouchers != null) voucherBaseline else stockBaseline) + hudSub.descent()
+        val compassTop = countersBottom + 8 * density
+        val rightBottom = if (compass) compassTop + buttonHeight else countersBottom
         val bottom = maxOf(leftBottom, rightBottom)
+    }
+
+    /** The compass shows while the map is turned away from north or still easing back (docs/TOP100.md B5). */
+    private val compassShown get() = renderer.camera.angle != 0f
+
+    /**
+     * The compass button: a needle whose red tip points to where the top of the unturned map lies now; a tap turns the
+     * map back to north.
+     */
+    private fun drawCompass(canvas: Canvas, r: RectF) {
+        val h = r.height()
+        canvas.drawRoundRect(r, h / 2, h / 2, btnFill)
+        val cam = renderer.camera
+        // The world direction that points up on the unturned map, as it points on screen now.
+        val proj = cam.projection
+        val up = cam.worldToMap(proj.unprojectX(0f, -1f), proj.unprojectY(0f, -1f))
+        val len = hypot(up.x, up.y).coerceAtLeast(1e-6f)
+        val dx = up.x / len; val dy = up.y / len
+        val cx = r.centerX(); val cy = r.centerY(); val k = h * 0.3f; val w = h * 0.1f
+        selectionPath.reset()
+        selectionPath.moveTo(cx + dx * k, cy + dy * k)
+        selectionPath.lineTo(cx - dy * w, cy + dx * w)
+        selectionPath.lineTo(cx + dy * w, cy - dx * w)
+        selectionPath.close()
+        compassPaint.color = COMPASS_NORTH
+        canvas.drawPath(selectionPath, compassPaint)
+        selectionPath.reset()
+        selectionPath.moveTo(cx - dx * k, cy - dy * k)
+        selectionPath.lineTo(cx - dy * w, cy + dx * w)
+        selectionPath.lineTo(cx + dy * w, cy - dx * w)
+        selectionPath.close()
+        compassPaint.color = 0xFF9AA3AD.toInt()
+        canvas.drawPath(selectionPath, compassPaint)
+        compassPaint.color = 0xFF262B33.toInt()
+        canvas.drawCircle(cx, cy, h * 0.05f, compassPaint)
     }
 
     /** Lowest edge of the tutorial panel: above the cable buttons at the bottom left (and their slab). */
@@ -982,7 +1053,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             hudNodes += UiNode("hud:menu", RectF(r), context.getString(R.string.a11y_menu), UiNode.Kind.BUTTON)
             return
         }
-        val m = HudTop(right - left)
+        val compass = compassShown
+        val m = HudTop(right - left, compass)
         canvas.drawText(m.date, left, top + m.dateBaseline, hudText)
         val barY = top + m.barY
         canvas.drawRoundRect(left, barY, left + m.barW, barY + 4 * density, 2 * density, 2 * density, barBg)
@@ -1000,12 +1072,18 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         m.vouchers?.let { canvas.drawText(it, right, top + m.voucherBaseline, hudSub) }
         hudSub.textAlign = Paint.Align.LEFT
         // When both blocks do not fit side by side (a narrow window with large text), the counters sit below the date.
-        val rightW = if (m.stacked) right - left else m.rightW
+        val rightW = if (m.stacked) right - left else maxOf(m.rightW, if (compass) buttonHeight else 0f)
         val rightBottom = top + m.rightBottom
         hudNodes += UiNode(
-            "hud:status", RectF(right - m.rightW, top + m.rightTop, right, rightBottom),
+            "hud:status", RectF(right - m.rightW, top + m.rightTop, right, top + m.countersBottom),
             listOfNotNull(m.delivered, m.stock, m.vouchers).joinToString(". "), UiNode.Kind.TEXT,
         )
+        if (compass) {
+            val r = RectF(right - buttonHeight, top + m.compassTop, right, top + m.compassTop + buttonHeight)
+            drawCompass(canvas, r)
+            buttons += Button("compass", r)
+            hudNodes += UiNode("hud:compass", RectF(r), context.getString(R.string.a11y_compass), UiNode.Kind.BUTTON)
+        }
 
         // Centered lines (week news, incidents, the paused pill) stack from the top; one that would run into the date
         // or the counters moves below them.
@@ -1352,11 +1430,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 holdAp = null
                 endDrag()
                 cameraGesture = true
+                renderer.camera.stopRotation()
                 startPinch(e)
             }
             MotionEvent.ACTION_MOVE -> when {
                 cameraGesture -> if (e.pointers.size >= 4) {
+                    val before = renderer.camera.angle
                     pinch.move(e.pointers[0], e.pointers[1], e.pointers[2], e.pointers[3], renderer.camera)
+                    if (renderer.camera.angle != before) renderer.updateLimits(world)
                 }
                 dragFrom != null -> {
                     if (hypot(e.x - downX, e.y - downY) >= TAP_SLOP_DP * density) holdAp = null
@@ -1374,7 +1455,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 }
                 if (cameraGesture || world.rewardOffer != null) {
                     cameraGesture = false
-                    pinch.stop()
+                    stopPinch()
                     endDrag()
                     return
                 }
@@ -1415,7 +1496,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 holdAp = null
                 holdFired = false
                 cameraGesture = false
-                pinch.stop()
+                stopPinch()
                 endDrag()
             }
         }
@@ -1424,7 +1505,17 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     /** (Re)starts the two-finger gesture from the fingers still down, or stops it if fewer than two remain. */
     private fun startPinch(e: Input.Touch) {
         val p = e.pointers
-        if (p.size >= 4) pinch.start(p[0], p[1], p[2], p[3]) else pinch.stop()
+        if (p.size >= 4) pinch.start(p[0], p[1], p[2], p[3]) else stopPinch()
+    }
+
+    /**
+     * Ends the two-finger gesture: unless "free rotation" is on, the map eases to the nearest multiple of 90° around
+     * the point where the fingers were (docs/TOP100.md B5).
+     */
+    private fun stopPinch() {
+        if (!pinch.isActive) return
+        pinch.stop()
+        renderer.camera.settleRotation(snap = !settings.freeRotation, pinch.lastMidX, pinch.lastMidY)
     }
 
     /** A drag that started on empty ground moves the map once it leaves the tap slop. */
@@ -1754,6 +1845,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         when {
             id == "menu" -> openPauseMenu()
             id == "pause" -> userPaused = !userPaused
+            id == "compass" -> renderer.camera.rotateTo(0f)
             id == "router" -> togglePlacing(NodeKind.ROUTER, world.routersAvailable)
             id.startsWith("radio:") -> RadioType.valueOf(id.removePrefix("radio:")).let { togglePlacing(it.kind, world.radiosAvailable(it)) }
             id.startsWith("cable:") -> pickCable(CableType.valueOf(id.removePrefix("cable:")))
@@ -1817,6 +1909,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 MenuItem.Toggle(MenuAction.TOGGLE_SOUND, context.getString(R.string.settings_sound), settings.sound),
                 MenuItem.Toggle(MenuAction.TOGGLE_HAPTICS, context.getString(R.string.settings_haptics), settings.haptics),
                 MenuItem.Toggle(MenuAction.TOGGLE_OVERVIEW, context.getString(R.string.settings_overview), settings.overviewMode),
+                MenuItem.Toggle(MenuAction.TOGGLE_FREE_ROTATION, context.getString(R.string.settings_free_rotation), settings.freeRotation),
                 MenuItem.Toggle(MenuAction.TOGGLE_COLORBLIND, context.getString(R.string.settings_colorblind), settings.colorblind),
                 MenuItem.Button(MenuAction.TUTORIAL, context.getString(R.string.settings_tutorial)),
             ) + listOfNotNull(
@@ -1833,12 +1926,23 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 resources.getQuantityString(R.plurals.game_over_stats, world.delivered, world.delivered, world.week),
                 if (newBest) null else context.getString(R.string.game_over_best, highscores.best(world.scenario.id)),
             ),
+            picture = recapPicture(),
             items = listOfNotNull(
                 MenuItem.Button(MenuAction.PLAY_AGAIN, context.getString(R.string.game_over_again), primary = true),
                 secondChanceLabel()?.let { MenuItem.Button(MenuAction.SECOND_CHANCE, it) },
                 MenuItem.Button(MenuAction.MAIN_MENU, context.getString(R.string.menu_main)),
             ),
         )
+    }
+
+    /** The time-lapse of the network that just ended, once there is growth to show. */
+    private fun recapPicture(): MenuPicture? {
+        val frames = growth.frames
+        if (frames.size < 2 || tutorial != null) return null
+        val w = world
+        return MenuPicture(context.getString(R.string.a11y_recap, frames.first().week, frames.last().week), recap.aspect(frames)) { c, r ->
+            recap.draw(c, r, frames, animTime - gameOverAt) { x, y -> y in 0 until w.rows && x in 0 until w.cols && w.water[y][x] }
+        }
     }
 
     /** A menu entry is chosen when the finger goes down and up on the same entry. */
@@ -1892,6 +1996,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             MenuAction.TOGGLE_SOUND -> updateSettings(settings.copy(sound = !settings.sound))
             MenuAction.TOGGLE_HAPTICS -> updateSettings(settings.copy(haptics = !settings.haptics))
             MenuAction.TOGGLE_OVERVIEW -> updateSettings(settings.copy(overviewMode = !settings.overviewMode))
+            MenuAction.TOGGLE_FREE_ROTATION -> updateSettings(settings.copy(freeRotation = !settings.freeRotation))
             MenuAction.TOGGLE_COLORBLIND -> updateSettings(settings.copy(colorblind = !settings.colorblind))
             MenuAction.SECOND_CHANCE -> askSecondChance()
             MenuAction.REMOVE_ADS -> monetization.purchase(Entitlements.REMOVE_ADS)
@@ -2142,6 +2247,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     private fun showWorld(w: World, withTutorial: Tutorial? = null) {
         world = w
+        // A new map starts facing north.
+        renderers.forEach { it.camera.resetRotation() }
+        growth.clear()
+        celebrateAt = null
+        celebratedWeek = w.rewardOffer?.week ?: -1
         tutorial = withTutorial
         tutorialGesture = false
         tutorialPressed = null
@@ -2167,6 +2277,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
      */
     private fun checkGameOver() {
         if (screen != Screen.PLAYING || !world.gameOver || !gameInProgress) return
+        growth.sample(world)
         gameInProgress = false
         newBest = highscores.submit(world.delivered, world.scenario.id)
         saves.clearLater()
@@ -2180,7 +2291,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         hintQueue.clear()
         val failed = world.failedNode
         if (failed == null) {
-            screen = Screen.GAME_OVER
+            showGameOverCard()
             return
         }
         renderer.focusOn(failed)
@@ -2190,6 +2301,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     private fun showGameOverCard() {
         failFocusUntil = null
+        gameOverAt = animTime
         screen = Screen.GAME_OVER
     }
 
@@ -2212,7 +2324,15 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         settings = s
         sounds.enabled = s.sound
         ServiceColors.colorblind = s.colorblind
-        renderer = if (s.overviewMode) flat else iso
+        val next = if (s.overviewMode) flat else iso
+        if (next !== renderer) {
+            // The other style takes over the angle, so switching styles never turns the map.
+            val turn = Camera.shortestTurn(next.camera.angle, renderer.camera.angle)
+            next.rotateBy(turn, next.camera.centerX, next.camera.centerY, world)
+            renderer = next
+        }
+        // Free rotation switched on keeps a turned map as it is; switched off, it snaps to the nearest right angle.
+        if (!s.freeRotation) renderers.forEach { it.camera.settleRotation(snap = true) }
     }
 
     private fun haptic(kind: Int) {
@@ -2282,6 +2402,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         const val AD_TIMEOUT_SECONDS = 6f
         const val COIN_COLOR = 0xFFF5C542.toInt()
         const val SELECTION_COLOR = 0xFFFFC21A.toInt()
+        const val COMPASS_NORTH = 0xFFD7263D.toInt()
         const val STATE_IN_GAME = "mininetworks.inGame"
         const val STATE_IN_TUTORIAL = "mininetworks.inTutorial"
         /** A finger that moves less than this is a tap. */

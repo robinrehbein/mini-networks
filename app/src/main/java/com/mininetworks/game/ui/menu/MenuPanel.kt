@@ -15,6 +15,8 @@ import com.mininetworks.game.ui.UiNode
 enum class MenuAction {
     PLAY, CONTINUE, SETTINGS, RESUME, RESTART, MAIN_MENU, BACK, PLAY_AGAIN, TUTORIAL,
     TOGGLE_SOUND, TOGGLE_HAPTICS, TOGGLE_OVERVIEW, TOGGLE_COLORBLIND,
+    /** Settings: two-finger rotation stays at any angle instead of snapping to right angles. */
+    TOGGLE_FREE_ROTATION,
     /** Game over: go on once (after a rewarded video unless ads are removed). */
     SECOND_CHANCE,
     /** Main menu: buy "remove ads". */
@@ -36,6 +38,12 @@ sealed interface MenuItem {
 }
 
 /**
+ * An animated picture in a menu card, e.g. the time-lapse of the player's network on the game-over card. [draw] paints
+ * into the given rectangle (about [aspect] times as wide as high); [description] is what TalkBack reads.
+ */
+class MenuPicture(val description: String, val aspect: Float, val draw: (Canvas, RectF) -> Unit)
+
+/**
  * Content of one menu card: a [title], an optional accent [highlight] line (e.g. a new best score), plain [lines],
  * the [items] and a small [footer]. A [hero] page is the main menu: big title, card on the left so the city shows.
  */
@@ -46,6 +54,8 @@ data class MenuPage(
     val highlight: String? = null,
     val footer: String? = null,
     val hero: Boolean = false,
+    /** Drawn between the text lines and the entries. */
+    val picture: MenuPicture? = null,
 )
 
 /**
@@ -107,7 +117,10 @@ class MenuPanel(context: Context) {
         val linesH = lines.size * lineH + if (lines.isNotEmpty() || page.highlight != null) 8f * u else 0f
         val itemsH = rows * itemH + rows * gap
         val footerH = if (page.footer != null) footerSize * 2f else 0f
-        val height = 2 * pad + titleH + 10f * u + highlightH + linesH + itemsH + footerH
+        val pictureW = page.picture?.let { minOf(inner, PICTURE_MAX_H_DP * u * it.aspect) } ?: 0f
+        val pictureH = page.picture?.let { pictureW / it.aspect } ?: 0f
+        val pictureBlock = if (page.picture != null) pictureH + 12f * u else 0f
+        val height = 2 * pad + titleH + 10f * u + highlightH + linesH + pictureBlock + itemsH + footerH
     }
 
     fun draw(canvas: Canvas, page: MenuPage, width: Int, height: Int, pressed: MenuAction? = null, safe: ViewInsets = ViewInsets.NONE) {
@@ -154,6 +167,15 @@ class MenuPanel(context: Context) {
         }
         if (l.lines.isNotEmpty()) drawnNodes += UiNode("menu:lines", textBounds(cx, linesTop, inner, y - linesTop), page.lines.joinToString("\n"), UiNode.Kind.TEXT)
         if (l.lines.isNotEmpty() || page.highlight != null) y += 8f * u
+        page.picture?.let { pic ->
+            val pr = RectF(cx - l.pictureW / 2f, y, cx + l.pictureW / 2f, y + l.pictureH)
+            canvas.save()
+            canvas.clipRect(pr)
+            pic.draw(canvas, pr)
+            canvas.restore()
+            drawnNodes += UiNode("menu:picture", RectF(pr), pic.description, UiNode.Kind.TEXT)
+            y += l.pictureBlock
+        }
 
         val colW = (inner - (l.cols - 1) * l.gap) / l.cols
         for ((i, item) in page.items.withIndex()) {
@@ -315,6 +337,8 @@ class MenuPanel(context: Context) {
 
     private companion object {
         const val CARD_W_DP = 360f
+        /** Highest a card's picture gets at full scale. */
+        const val PICTURE_MAX_H_DP = 150f
         const val PAD_DP = 22f
         const val GAP_DP = 10f
         const val SLAB_DP = 8f

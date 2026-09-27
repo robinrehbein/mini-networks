@@ -10,6 +10,8 @@ data class GameSettings(
     val overviewMode: Boolean = false,
     /** Alternative service colors that stay apart with red-green color blindness. */
     val colorblind: Boolean = false,
+    /** Two-finger rotation stays at any angle; off, the map snaps to the nearest multiple of 90° on release. */
+    val freeRotation: Boolean = false,
 )
 
 /** [GameSettings] and whether the tutorial was seen, in SharedPreferences. */
@@ -21,6 +23,7 @@ class SettingsStore(context: Context) {
         haptics = prefs.getBoolean(KEY_HAPTICS, true),
         overviewMode = prefs.getBoolean(KEY_OVERVIEW, false),
         colorblind = prefs.getBoolean(KEY_COLORBLIND, false),
+        freeRotation = prefs.getBoolean(KEY_FREE_ROTATION, false),
     )
 
     /** True once the tutorial was finished, skipped or left; until then the app opens in it. */
@@ -34,6 +37,7 @@ class SettingsStore(context: Context) {
             .putBoolean(KEY_HAPTICS, s.haptics)
             .putBoolean(KEY_OVERVIEW, s.overviewMode)
             .putBoolean(KEY_COLORBLIND, s.colorblind)
+            .putBoolean(KEY_FREE_ROTATION, s.freeRotation)
             .apply()
     }
 
@@ -43,6 +47,7 @@ class SettingsStore(context: Context) {
         const val KEY_HAPTICS = "haptics"
         const val KEY_OVERVIEW = "overview_mode"
         const val KEY_COLORBLIND = "colorblind"
+        const val KEY_FREE_ROTATION = "free_rotation"
         const val KEY_TUTORIAL_SEEN = "tutorial_seen"
     }
 }

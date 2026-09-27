@@ -27,7 +27,23 @@ import kotlin.math.floor
 import kotlin.math.hypot
 import kotlin.math.sin
 
-/** Style B from docs/style-explorations.html: isometric tiles, extruded buildings, grid-aligned cables. */
+/** The iso squash: one map unit per tile width, a tile half as high as it is wide. */
+object IsoProjection : MapProjection {
+    override fun projectX(x: Float, y: Float) = (x - y) / 2f
+    override fun projectY(x: Float, y: Float) = (x + y) / 4f
+    override fun unprojectX(mx: Float, my: Float) = mx + 2f * my
+    override fun unprojectY(mx: Float, my: Float) = 2f * my - mx
+}
+
+/**
+ * Style B from docs/style-explorations.html: isometric tiles, extruded buildings, grid-aligned cables.
+ *
+ * The map can be turned to any angle ([Camera.angle]): every world point is first turned around the world origin and
+ * then squashed ([IsoProjection]), so tiles, cables, packets, radio circles and shadows all follow. What stands up from
+ * the ground is built from its faces: a wall is drawn only while it faces the viewer, and its shade comes from the
+ * direction it faces on screen, so the light stays at the upper left however the map is turned. Things with height
+ * are painted back to front by their depth in the turned map ([depthOf]).
+ */
 class IsoRenderer : Renderer {
     override val name = "Iso"
 
@@ -44,7 +60,7 @@ class IsoRenderer : Renderer {
     private val lockedWaterB = 0xFFCDDEE6.toInt()
     private val edge = 0x8C2F3A34.toInt()
 
-    override val camera = Camera()
+    override val camera = Camera().apply { projection = IsoProjection }
     override var density = 1f
     /** A tile at least [READABLE_TILE_DP] wide: device icons about 14 dp, requests about 6 dp. */
     override val readableScale get() = READABLE_TILE_DP * density
@@ -77,18 +93,21 @@ class IsoRenderer : Renderer {
         var scale = Float.NaN
         var focusX = 0f
         var focusY = 0f
+        var angle = 0f
         var width = 0
         var height = 0
 
-        fun matches(c: Camera, w: Int, h: Int) = scale == c.scale && focusX == c.focusX && focusY == c.focusY && width == w && height == h
+        fun matches(c: Camera, w: Int, h: Int) =
+            scale == c.scale && focusX == c.focusX && focusY == c.focusY && angle == c.angle && width == w && height == h
 
         fun set(c: Camera, w: Int, h: Int) {
-            scale = c.scale; focusX = c.focusX; focusY = c.focusY; width = w; height = h
+            scale = c.scale; focusX = c.focusX; focusY = c.focusY; angle = c.angle; width = w; height = h
         }
     }
 
     /** Layout of the ground for the map signature [planMap]: relief and decorations back to front, grass cells. */
     private var planMap = 0L
+    private var planAngle = 0f
     private var planReady = false
     private val plan = DepthQueue()
     private val grassCells = ArrayList<Cell>()
@@ -109,25 +128,43 @@ class IsoRenderer : Renderer {
     private val cutDash = DashCache()
     private val airDash = DashCache()
 
-    /** Isometric map space: one unit per tile width; a tile is half as high as it is wide. */
-    override fun toMap(p: Vec2) = Vec2((p.x - p.y) / 2f, (p.x + p.y) / 4f)
+    /** The (turned) diamond of [area] plus room for tall buildings above and the board edge below. */
+    override fun mapBounds(area: CellRect, angle: Float) = turnedBounds(area, angle, IsoProjection, 0.3f, 1.1f, 0.4f, 0.4f)
 
-    override fun fromMap(mx: Float, my: Float): Vec2 {
-        val a = 2f * mx // x - y
-        val b = 4f * my // x + y
-        return Vec2((a + b) / 2f, (b - a) / 2f)
+    /** Screen x of world point ([x], [y]) on the ground: turned by the camera's angle, then squashed. */
+    private fun sx(x: Float, y: Float): Float {
+        val c = camera.cosA; val s = camera.sinA
+        return camera.toScreenX(((c - s) * x - (s + c) * y) / 2f)
     }
 
-    /** The diamond of [area] plus room for tall buildings above and the board edge below. */
-    override fun mapBounds(area: CellRect) = MapRect(
-        (area.left - area.bottom) / 2f - 0.3f,
-        (area.left + area.top) / 4f - 1.1f,
-        (area.right - area.top) / 2f + 0.4f,
-        (area.right + area.bottom) / 4f + 0.4f,
-    )
+    /** Screen y of world point ([x], [y]) at height [z] (in tile widths). */
+    private fun sy(x: Float, y: Float, z: Float = 0f): Float {
+        val c = camera.cosA; val s = camera.sinA
+        return camera.toScreenY(((c + s) * x + (c - s) * y) / 4f - z / 2f)
+    }
 
-    private fun sx(x: Float, y: Float) = camera.toScreenX((x - y) / 2f)
-    private fun sy(x: Float, y: Float, z: Float = 0f) = camera.toScreenY((x + y) / 4f - z / 2f)
+    /** Depth of world point ([x], [y]) in the turned map: larger is nearer the viewer (x + y when not turned). */
+    private fun depthOf(x: Float, y: Float): Float {
+        val c = camera.cosA; val s = camera.sinA
+        return (c + s) * x + (c - s) * y
+    }
+
+    /** True if a wall whose outward normal in the world is ([nx], [ny]) faces the viewer at the current angle. */
+    private fun facing(nx: Float, ny: Float) = depthOf(nx, ny) > FACING_EPS
+
+    /**
+     * Brightness change of a wall with world normal ([nx], [ny]): the wall facing screen lower left is lit (-0.12),
+     * the one facing lower right is in shade (-0.25), in between it blends; so the light stays put on screen.
+     */
+    private fun wallShade(nx: Float, ny: Float): Float {
+        val c = camera.cosA; val s = camera.sinA
+        val tx = c * nx - s * ny; val ty = s * nx + c * ny
+        return -0.185f + 0.065f * (ty - tx)
+    }
+
+    /** World x and y offsets of a screen-fixed offset ([dx], [dy]) given in the unturned map (e.g. a shadow's cast). */
+    private fun unturnX(dx: Float, dy: Float) = camera.cosA * dx + camera.sinA * dy
+    private fun unturnY(dx: Float, dy: Float) = -camera.sinA * dx + camera.cosA * dy
 
     override fun draw(canvas: Canvas, world: World, drag: DragPreview?, time: Float) {
         drawGroundLayer(canvas, world)
@@ -146,6 +183,7 @@ class IsoRenderer : Renderer {
                 canvas.drawPath(path, cutP)
             }
             if (grow < 1f) drawCableTip(canvas, c, grow)
+            drawCableJuice(canvas, world, c)
         }
         drawRadioCoverage(canvas, world, time)
         for (i in world.incidents) drawIncidentGround(canvas, i, time)
@@ -170,18 +208,18 @@ class IsoRenderer : Renderer {
         drawArrivalRings(canvas, world)
         world.failedNode?.let { drawFailedPulse(canvas, it, time) }
 
-        // Painter's algorithm: everything with height is drawn back-to-front by x + y.
+        // Painter's algorithm: everything with height is drawn back-to-front by its depth in the turned map.
         depth.clear()
         val nodes = world.nodes
         for (k in nodes.indices) {
             val c = nodes[k].footprintCenter
-            depth.add(c.x + c.y, NODE, nodes[k])
+            depth.add(depthOf(c.x, c.y), NODE, nodes[k])
         }
-        for (k in standFor.indices) depth.add(standAt[k].x + standAt[k].y, EXCAVATOR, k)
+        for (k in standFor.indices) depth.add(depthOf(standAt[k].x, standAt[k].y), EXCAVATOR, k)
         val packets = world.packets
         for (k in packets.indices) {
             world.packetPosition(packets[k], pos)
-            depth.add(pos[0] + pos[1] + 0.01f, PACKET, packets[k], pos[0], pos[1])
+            depth.add(depthOf(pos[0], pos[1]) + 0.01f, PACKET, packets[k], pos[0], pos[1])
         }
         depth.sort()
         for (k in 0 until depth.size) {
@@ -200,6 +238,7 @@ class IsoRenderer : Renderer {
             strokeP.color = alarm; strokeP.strokeWidth = maxOf(tw * 0.05f, RING_MIN_DP * density)
             canvas.drawArc(oval, -90f, 360f * n.overload, false, strokeP)
         }
+        for (n in nodes) if (n.upgradedAt > Float.NEGATIVE_INFINITY) drawUpgradeJuice(canvas, world, n)
         drawDeliveryPops(canvas, world)
     }
 
@@ -334,10 +373,15 @@ class IsoRenderer : Renderer {
             fillP.color = base.shade(Scenery.tileVariation(seed, x, y) * TILE_VARIATION)
             c.drawPath(path, fillP)
         }
-        // Board edges give the "toy on a table" look.
+        // Board edges give the "toy on a table" look: the ones facing the viewer at the current angle.
         val w = world.cols.toFloat(); val h = world.rows.toFloat()
-        side(0f, h, w, h); fillP.color = 0xFFB9C9AF.toInt(); c.drawPath(path, fillP)
-        side(w, 0f, w, h); fillP.color = 0xFFA7BA9C.toInt(); c.drawPath(path, fillP)
+        for (e in BOARD_EDGES.indices step 6) {
+            val nx = BOARD_EDGES[e + 4]; val ny = BOARD_EDGES[e + 5]
+            if (!facing(nx, ny)) continue
+            side(BOARD_EDGES[e] * w, BOARD_EDGES[e + 1] * h, BOARD_EDGES[e + 2] * w, BOARD_EDGES[e + 3] * h)
+            val tx = camera.cosA * nx - camera.sinA * ny; val ty = camera.sinA * nx + camera.cosA * ny
+            fillP.color = blend(BOARD_LIT, BOARD_SHADE, ((tx - ty + 1f) / 2f).coerceIn(0f, 1f)); c.drawPath(path, fillP)
+        }
         if (open != world.bounds) {
             quad(open.left.toFloat(), open.top.toFloat(), open.width.toFloat(), open.height.toFloat(), 0f)
             strokeP.color = edge; strokeP.strokeWidth = tw * 0.03f; c.drawPath(path, strokeP)
@@ -369,9 +413,10 @@ class IsoRenderer : Renderer {
      * order; while the camera moves the ground is drawn every frame and only replays this plan.
      */
     private fun updatePlan(world: World, map: Long) {
-        if (planReady && map == planMap) return
+        if (planReady && map == planMap && planAngle == camera.angle) return
         planReady = true
         planMap = map
+        planAngle = camera.angle
         plan.clear()
         grassCells.clear()
         reliefCells.clear()
@@ -384,13 +429,13 @@ class IsoRenderer : Renderer {
         // Relief first, then decorations; equal depths keep that order, as before.
         for (y in 0 until world.rows) for (x in 0 until world.cols) {
             when (world.terrainAt(x, y)) {
-                Terrain.MOUNTAIN -> plan.add((x + y).toFloat(), MOUNTAIN, Cell(x, y))
-                Terrain.HIGH_RISE -> plan.add((x + y).toFloat(), TOWER, Cell(x, y))
+                Terrain.MOUNTAIN -> plan.add(depthOf(x + 0.5f, y + 0.5f), MOUNTAIN, Cell(x, y))
+                Terrain.HIGH_RISE -> plan.add(depthOf(x + 0.5f, y + 0.5f), TOWER, Cell(x, y))
                 else -> continue
             }
             reliefCells += Cell(x, y)
         }
-        for ((cell, d) in Scenery.decorations(world, taken)) plan.add((cell.x + cell.y).toFloat(), DECOR + d.ordinal, cell)
+        for ((cell, d) in Scenery.decorations(world, taken)) plan.add(depthOf(cell.x + 0.5f, cell.y + 0.5f), DECOR + d.ordinal, cell)
         plan.sort()
     }
 
@@ -405,25 +450,67 @@ class IsoRenderer : Renderer {
         val x0 = cell.x + 0.02f; val y0 = cell.y + 0.02f; val x1 = cell.x + 0.98f; val y1 = cell.y + 0.98f
         val ax = cell.x + 0.5f + (Scenery.unit(seed, cell.x, cell.y, 32) - 0.5f) * 0.24f
         val ay = cell.y + 0.5f + (Scenery.unit(seed, cell.x, cell.y, 33) - 0.5f) * 0.24f
-        val faces = listOf(
-            floatArrayOf(x0, y0, x1, y0) to ROCK_LIT,
-            floatArrayOf(x0, y1, x0, y0) to ROCK_LIT.shade(-0.06f),
-            floatArrayOf(x1, y0, x1, y1) to ROCK_DARK,
-            floatArrayOf(x1, y1, x0, y1) to ROCK_MID,
-        )
-        for ((e, color) in faces) {
-            poly(e[0], e[1], 0f, e[2], e[3], 0f, ax, ay, h)
-            fillP.color = col(color); c.drawPath(path, fillP)
+        // Four faces from the base edges up to the peak, back to front; each is shaded by where it faces on screen.
+        val e = mountainEdges
+        e[0] = x0; e[1] = y0; e[2] = x1; e[3] = y0
+        e[4] = x0; e[5] = y1; e[6] = x0; e[7] = y0
+        e[8] = x1; e[9] = y0; e[10] = x1; e[11] = y1
+        e[12] = x1; e[13] = y1; e[14] = x0; e[15] = y1
+        sortFacesBackToFront()
+        for (i in 0 until 4) {
+            val f = faceOrder[i]
+            poly(e[4 * f], e[4 * f + 1], 0f, e[4 * f + 2], e[4 * f + 3], 0f, ax, ay, h)
+            fillP.color = col(rockColor(MOUNTAIN_NORMALS[2 * f], MOUNTAIN_NORMALS[2 * f + 1])); c.drawPath(path, fillP)
         }
         if (h < SNOW_FROM) return
         val k = 0.3f
-        for ((e, color) in faces) {
-            fun at(px: Float, py: Float) = floatArrayOf(ax + (px - ax) * k, ay + (py - ay) * k, h * (1f - k))
-            val a = at(e[0], e[1]); val b = at(e[2], e[3])
-            poly(a[0], a[1], a[2], b[0], b[1], b[2], ax, ay, h)
-            fillP.color = col(if (color == ROCK_DARK) SNOW_SHADE else if (color == ROCK_MID) SNOW_SHADE.shade(0.08f) else SNOW)
+        for (i in 0 until 4) {
+            val f = faceOrder[i]
+            val ax0 = ax + (e[4 * f] - ax) * k; val ay0 = ay + (e[4 * f + 1] - ay) * k
+            val ax1 = ax + (e[4 * f + 2] - ax) * k; val ay1 = ay + (e[4 * f + 3] - ay) * k
+            poly(ax0, ay0, h * (1f - k), ax1, ay1, h * (1f - k), ax, ay, h)
+            fillP.color = col(snowColor(MOUNTAIN_NORMALS[2 * f], MOUNTAIN_NORMALS[2 * f + 1]))
             c.drawPath(path, fillP)
         }
+    }
+
+    /** Base edges of the mountain being drawn, as x0, y0, x1, y1 per face (north, west, east, south). */
+    private val mountainEdges = FloatArray(16)
+    /** Faces 0..3 ordered back to front at the current angle, by [sortFacesBackToFront]. */
+    private val faceOrder = IntArray(4)
+
+    /** Orders the four faces with normals [MOUNTAIN_NORMALS] back to front into [faceOrder] (insertion sort, no allocation). */
+    private fun sortFacesBackToFront() {
+        for (i in 0 until 4) {
+            var j = i
+            val d = depthOf(MOUNTAIN_NORMALS[2 * i], MOUNTAIN_NORMALS[2 * i + 1])
+            while (j > 0 && depthOf(MOUNTAIN_NORMALS[2 * faceOrder[j - 1]], MOUNTAIN_NORMALS[2 * faceOrder[j - 1] + 1]) > d) {
+                faceOrder[j] = faceOrder[j - 1]
+                j--
+            }
+            faceOrder[j] = i
+        }
+    }
+
+    /**
+     * Rock color of a face with world normal ([nx], [ny]), by the direction it faces on screen: lit towards the upper
+     * left, dark towards the right, blended in between (unturned: north lit, west a bit less, east dark, south mid).
+     */
+    private fun rockColor(nx: Float, ny: Float) = screenBlend(nx, ny, ROCK_LIT, ROCK_LIT.shade(-0.06f), ROCK_DARK, ROCK_MID)
+
+    private fun snowColor(nx: Float, ny: Float) = screenBlend(nx, ny, SNOW, SNOW, SNOW_SHADE, SNOW_SHADE.shade(0.08f))
+
+    /**
+     * Blends [up], [left], [right] and [down] (the colors of a face whose turned normal points to the unturned north,
+     * west, east and south) by the direction the face with world normal ([nx], [ny]) points to after turning.
+     */
+    private fun screenBlend(nx: Float, ny: Float, up: Int, left: Int, right: Int, down: Int): Int {
+        val c = camera.cosA; val s = camera.sinA
+        val tx = c * nx - s * ny; val ty = s * nx + c * ny
+        val horizontal = if (tx >= 0f) right else left
+        val vertical = if (ty >= 0f) down else up
+        val wx = abs(tx); val wy = abs(ty)
+        return blend(vertical, horizontal, if (wx + wy > 0f) wx / (wx + wy) else 0f)
     }
 
     /** A downtown tower on a paved cell: glass walls with rows of windows, a few of them lit, and a roof box. */
@@ -442,8 +529,7 @@ class IsoRenderer : Renderer {
                 val u = -half + 0.05f + i * 0.18f
                 val lit = Scenery.unit(seed, cell.x * 7 + i, cell.y * 7 + r, 35) < 0.18f
                 fillP.color = col(if (lit) WINDOW_LIT else WINDOW)
-                faceY(cy + half, cx + u, cx + u + 0.12f, z, z + 0.07f); c.drawPath(path, fillP)
-                faceX(cx + half, cy + u, cy + u + 0.12f, z, z + 0.07f); c.drawPath(path, fillP)
+                for (f in 0 until 4) if (wallPatch(cx, cy, half, half, f, u, u + 0.12f, z, z + 0.07f)) c.drawPath(path, fillP)
             }
         }
         boxRect(c, cx - 0.12f, cy - 0.14f, cx + 0.08f, cy + 0.04f, h, 0.07f, col(0xFFCBD2D9.toInt()), col(0xFF9AA3AD.toInt()))
@@ -490,19 +576,30 @@ class IsoRenderer : Renderer {
      * drawn in a few widening, faint passes so the edge is soft (works on hardware canvases without blur filters).
      */
     private fun groundShadow(c: Canvas, cx: Float, cy: Float, s: Float, h: Float) {
-        val dx = minOf(h * 0.6f, 1.4f); val dy = minOf(h * 0.22f, 0.5f)
+        // The cast is fixed on screen (light from the upper left), so in the world it turns against the map.
+        val sdx = minOf(h * 0.6f, 1.4f); val sdy = minOf(h * 0.22f, 0.5f)
+        val dx = unturnX(sdx, sdy); val dy = unturnY(sdx, sdy)
         for (pass in SHADOW_SPREAD.indices) {
             val e = SHADOW_SPREAD[pass] * (0.6f + 0.4f * minOf(h, 1.5f))
             val x0 = cx - s / 2 - e; val x1 = cx + s / 2 + e
             val y0 = cy - s / 2 - e; val y1 = cy + s / 2 + e
+            // The footprint and the footprint moved by the cast, and the hull around both.
+            val q = hullIn
+            q[0] = x0; q[1] = y0; q[2] = x1; q[3] = y0; q[4] = x1; q[5] = y1; q[6] = x0; q[7] = y1
+            for (k in 0 until 4) { q[8 + 2 * k] = q[2 * k] + dx; q[9 + 2 * k] = q[2 * k + 1] + dy }
+            for (k in 0 until 8) { val wx = q[2 * k]; val wy = q[2 * k + 1]; q[2 * k] = sx(wx, wy); q[2 * k + 1] = sy(wx, wy) }
+            val n = hull.convex(q, 8, hullOut)
             path.reset()
-            path.moveTo(sx(x0, y0), sy(x0, y0)); path.lineTo(sx(x1, y0), sy(x1, y0))
-            path.lineTo(sx(x1 + dx, y0 + dy), sy(x1 + dx, y0 + dy)); path.lineTo(sx(x1 + dx, y1 + dy), sy(x1 + dx, y1 + dy))
-            path.lineTo(sx(x0 + dx, y1 + dy), sy(x0 + dx, y1 + dy)); path.lineTo(sx(x0, y1), sy(x0, y1)); path.close()
+            for (k in 0 until n) if (k == 0) path.moveTo(hullOut[0], hullOut[1]) else path.lineTo(hullOut[2 * k], hullOut[2 * k + 1])
+            path.close()
             fillP.color = SHADOW_ALPHA[pass] shl 24
             c.drawPath(path, fillP)
         }
     }
+
+    private val hullIn = FloatArray(16)
+    private val hullOut = FloatArray(18)
+    private val hull = Hull()
 
     /** A small tree, pine, bush or house, jittered inside its cell; washed out outside the unlocked area. */
     private fun drawDecor(c: Canvas, seed: Long, cell: Cell, d: Decor, open: Boolean) {
@@ -511,7 +608,7 @@ class IsoRenderer : Renderer {
         val k = 0.85f + 0.3f * Scenery.unit(seed, cell.x, cell.y, 13)
         fun col(v: Int) = if (open) v else wash(v)
         if (d != Decor.HOUSE) {
-            groundEllipse(Vec2(x + 0.13f * k, y + 0.05f * k), 0.17f * k)
+            groundEllipse(Vec2(x + unturnX(0.13f, 0.05f) * k, y + unturnY(0.13f, 0.05f) * k), 0.17f * k)
             fillP.color = 0x22000000; c.drawOval(oval, fillP)
         }
         val gx = sx(x, y)
@@ -552,19 +649,35 @@ class IsoRenderer : Renderer {
         val z1 = 0.17f * k; val zr = z1 + 0.14f * k; val ym = y
         val wall = col(HOUSE_WALL)
         boxRect(c, x0, y0, x1, y1, 0f, z1, wall, wall)
+        // A door on the south wall, windows on the others; only the walls facing the viewer show them.
         fillP.color = col(HOUSE_DOOR)
-        faceY(y1, x - 0.04f * k, x + 0.03f * k, 0f, 0.11f * k); c.drawPath(path, fillP)
+        if (wallPatch(x, y, hx, hy, FACE_SOUTH, -0.04f * k, 0.03f * k, 0f, 0.11f * k)) c.drawPath(path, fillP)
         fillP.color = col(HOUSE_WINDOW)
-        faceX(x1, y - 0.06f * k, y + 0.04f * k, 0.06f * k, 0.12f * k); c.drawPath(path, fillP)
+        for (f in 1 until 4) if (wallPatch(x, y, hx, hy, f, -0.06f * k, 0.04f * k, 0.06f * k, 0.12f * k)) c.drawPath(path, fillP)
         val o = 0.03f * k
         val roof = col(HOUSE_ROOF)
-        poly(x0 - o, y0 - o, z1, x1 + o, y0 - o, z1, x1 + o, ym, zr, x0 - o, ym, zr)
+        // Gable roof with the ridge along x: the slope facing away first, then the gable ends that face the viewer,
+        // then the near slope.
+        val northBack = !facing(0f, -1f)
+        if (northBack) roofNorth(x0, x1, y0, ym, z1, zr, o) else roofSouth(x0, x1, y1, ym, z1, zr, o)
         fillP.color = roof.shade(0.12f); c.drawPath(path, fillP)
-        poly(x1, y0, z1, x1, y1, z1, x1, ym, zr)
-        fillP.color = wall.shade(-0.25f); c.drawPath(path, fillP)
-        poly(x0 - o, y1 + o, z1, x1 + o, y1 + o, z1, x1 + o, ym, zr, x0 - o, ym, zr)
+        if (facing(1f, 0f)) {
+            poly(x1, y0, z1, x1, y1, z1, x1, ym, zr)
+            fillP.color = wall.shade(wallShade(1f, 0f)); c.drawPath(path, fillP)
+        }
+        if (facing(-1f, 0f)) {
+            poly(x0, y0, z1, x0, y1, z1, x0, ym, zr)
+            fillP.color = wall.shade(wallShade(-1f, 0f)); c.drawPath(path, fillP)
+        }
+        if (northBack) roofSouth(x0, x1, y1, ym, z1, zr, o) else roofNorth(x0, x1, y0, ym, z1, zr, o)
         fillP.color = roof; c.drawPath(path, fillP)
     }
+
+    private fun roofNorth(x0: Float, x1: Float, y0: Float, ym: Float, z1: Float, zr: Float, o: Float) =
+        poly(x0 - o, y0 - o, z1, x1 + o, y0 - o, z1, x1 + o, ym, zr, x0 - o, ym, zr)
+
+    private fun roofSouth(x0: Float, x1: Float, y1: Float, ym: Float, z1: Float, zr: Float, o: Float) =
+        poly(x0 - o, y1 + o, z1, x1 + o, y1 + o, z1, x1 + o, ym, zr, x0 - o, ym, zr)
 
     private fun groundShadowRect(c: Canvas, x0: Float, y0: Float, x1: Float, y1: Float, h: Float) =
         groundShadow(c, (x0 + x1) / 2, (y0 + y1) / 2, maxOf(x1 - x0, y1 - y0), h)
@@ -603,13 +716,56 @@ class IsoRenderer : Renderer {
         }
     }
 
-    /** 0..1: how much of [c] is laid, easing out over [layDuration] after it was built. */
-    private fun growth(world: World, c: Cable): Float {
-        val t = ((world.time - c.builtAt) / layDuration(c)).coerceIn(0f, 1f)
-        return 1f - (1f - t) * (1f - t)
+    /** 0..1: how much of [c] is laid, easing out after it was built ([Juice.growth]). */
+    private fun growth(world: World, c: Cable): Float = Juice.growth(world.time, c.builtAt, c.layout.length)
+
+    /**
+     * After a cable has grown, a ring clicks in on the ground at both of its ends; after an upgrade, a glint runs
+     * along it in the new technology's colour and a spark rides its front.
+     */
+    private fun drawCableJuice(canvas: Canvas, world: World, c: Cable) {
+        val land = Juice.landing(world.time, c.builtAt, c.layout.length)
+        if (land in 0f..1f) {
+            strokeP.color = CableStyles.of(c.type).color and 0xFFFFFF or (Juice.fade(land) shl 24)
+            strokeP.strokeWidth = tw * 0.03f * (1f - 0.5f * land)
+            for (end in END_POINTS) {
+                groundEllipse(if (end == 0) c.a.center else c.b.center, 0.2f + 0.35f * land)
+                canvas.drawOval(oval, strokeP)
+            }
+        }
+        val g = Juice.upgrade(world.time, c.upgradedAt, Juice.CABLE_GLINT_SECONDS)
+        if (g in 0f..1f) {
+            polyline(cablePath(c))
+            strokeP.color = 0xFFFFFF or ((Juice.fade(g) * 0.55f).toInt() shl 24)
+            strokeP.strokeWidth = tw * (CableStyles.of(c.type).width * 0.75f + 0.1f)
+            canvas.drawPath(path, strokeP)
+            val p = c.layout.pointAt(g)
+            val x = sx(p.x, p.y); val y = sy(p.x, p.y)
+            fillP.color = 0xFFFFFFFF.toInt()
+            Juice.sparkle(canvas, path, x, y, tw * 0.12f, fillP)
+            fillP.color = CableStyles.of(c.type).color
+            canvas.drawCircle(x, y, tw * 0.035f, fillP)
+        }
     }
 
-    private fun layDuration(c: Cable) = (0.15f + c.layout.length * 0.06f).coerceAtMost(0.6f)
+    /** Rings on the ground and sparkles rising above a server or access point that was just upgraded. */
+    private fun drawUpgradeJuice(canvas: Canvas, world: World, n: Node) {
+        val t = Juice.upgrade(world.time, n.upgradedAt)
+        if (t !in 0f..1f) return
+        val c = n.footprintCenter
+        val base = if (n.isDataCenter) 1.1f else 0.45f
+        strokeP.strokeWidth = tw * 0.035f * (1f - 0.5f * t)
+        val col = n.service?.let(ServiceColors::of) ?: RadioStyles.color(n)
+        for (k in 0 until 2) {
+            val u = (t * 1.3f - k * 0.3f).coerceIn(0f, 1f)
+            if (u <= 0f) continue
+            groundEllipse(c, base * (1f + 0.9f * u))
+            strokeP.color = col and 0xFFFFFF or (Juice.fade(u) shl 24)
+            canvas.drawOval(oval, strokeP)
+        }
+        val top = if (n.kind == NodeKind.SERVER) (if (n.isDataCenter) 1.2f else n.level * 0.72f) else 0.4f
+        Juice.sparkles(canvas, path, sx(c.x, c.y), sy(c.x, c.y, top), t, tw * base * 0.8f, tw * 0.5f, tw * 0.07f, 0xFFFFD34D.toInt(), fillP)
+    }
 
     /** The first [f] of the polyline through [pts], into [path]. */
     private fun partialPolyline(pts: List<Vec2>, f: Float) {
@@ -670,6 +826,9 @@ class IsoRenderer : Renderer {
             Shapes.draw(canvas, a.service.shape, x, y, r, fillP)
             strokeP.color = 0xFFFFFF or alpha; strokeP.strokeWidth = tw * 0.015f
             Shapes.draw(canvas, a.service.shape, x, y, r, strokeP)
+            // A little burst the moment it lands.
+            val b = t / 0.45f
+            if (b <= 1f) Juice.sparkles(canvas, path, x, y, b, tw * 0.2f, 0f, tw * 0.035f, ServiceColors.of(a.service), fillP, n = 5)
         }
     }
 
@@ -758,7 +917,10 @@ class IsoRenderer : Renderer {
                             on -> col
                             else -> 0xFF9AA3AD.toInt()
                         }
-                        val lx = sx(x + 0.39f, y - 0.2f); val ly = sy(x + 0.39f, y - 0.2f, lv * unit + 0.2f + i * 0.25f)
+                        val f = rightFace()
+                        val px = x + FACES[4 * f] * 0.39f - FACES[4 * f + 2] * 0.2f
+                        val py = y + FACES[4 * f + 1] * 0.39f - FACES[4 * f + 3] * 0.2f
+                        val lx = sx(px, py); val ly = sy(px, py, lv * unit + 0.2f + i * 0.25f)
                         canvas.drawRect(lx - tw * 0.04f, ly - th * 0.08f, lx + tw * 0.06f, ly + th * 0.04f, fillP)
                     }
                 }
@@ -876,7 +1038,7 @@ class IsoRenderer : Renderer {
         val alongX = d.y != 0f
         // Boom and window share the cab wall facing the viewer, side by side along the cable, so the boom never covers
         // the window: the boom takes the half it swings across.
-        val u = if (d.x + d.y > 0f) -1f else 1f
+        val u = if (depthOf(d.x, d.y) > 0f) -1f else 1f
         val side = if (alongX) Vec2(0.09f * u, 0f) else Vec2(0f, 0.09f * u)
         val lx = if (alongX) 0.28f else 0.2f
         val ly = if (alongX) 0.2f else 0.28f
@@ -890,8 +1052,9 @@ class IsoRenderer : Renderer {
         fillP.color = 0xFFBFD6E6.toInt()
         val w0 = if (u < 0f) 0.02f else -cab + 0.03f
         val w1 = if (u < 0f) cab - 0.03f else -0.02f
-        if (alongX) faceY(cy + cab, cx + w0, cx + w1, 0.2f, 0.4f) else faceX(cx + cab, cy + w0, cy + w1, 0.2f, 0.4f)
-        canvas.drawPath(path, fillP)
+        // The window sits on whichever long side of the cab faces the viewer.
+        val face = if (alongX) (if (facing(0f, 1f)) FACE_SOUTH else FACE_NORTH) else (if (facing(1f, 0f)) FACE_EAST else FACE_WEST)
+        if (wallPatch(cx, cy, cab, cab, face, w0, w1, 0.2f, 0.4f)) canvas.drawPath(path, fillP)
         if (!i.struck) {
             fillP.color = if (sin(time * 12f) > 0f) IncidentStyles.WARNING else IncidentStyles.WARNING.shade(-0.45f)
             canvas.drawCircle(sx(cx, cy), sy(cx, cy, cabTop + 0.04f), tw * 0.035f, fillP)
@@ -968,9 +1131,12 @@ class IsoRenderer : Renderer {
             }
         }
         val panelZ = top - 0.55f
-        box(canvas, x - 0.12f, y + 0.02f, 0.1f, 0.4f, 0xFFF5F7F9.toInt(), 0xFFE3E6E1.toInt(), z0 = panelZ)
-        box(canvas, x + 0.02f, y - 0.12f, 0.1f, 0.4f, 0xFFF5F7F9.toInt(), 0xFFE3E6E1.toInt(), z0 = panelZ)
-        box(canvas, x + 0.08f, y + 0.08f, 0.1f, 0.4f, 0xFFF5F7F9.toInt(), 0xFFE3E6E1.toInt(), z0 = panelZ)
+        // Three antenna panels around the mast, back to front.
+        val order = sortedByDepth(TOWER_PANELS, x, y)
+        for (k in 0 until 3) {
+            val p = order[k]
+            box(canvas, x + TOWER_PANELS[2 * p], y + TOWER_PANELS[2 * p + 1], 0.1f, 0.4f, 0xFFF5F7F9.toInt(), 0xFFE3E6E1.toInt(), z0 = panelZ)
+        }
         fillP.color = if (sin(time * 2.5f) > 0f) 0xFFE4572E.toInt() else 0xFF8A3A2A.toInt()
         canvas.drawCircle(sx(x, y), sy(x, y, top + 0.05f), tw * 0.04f, fillP)
     }
@@ -985,7 +1151,6 @@ class IsoRenderer : Renderer {
         val s = 1.62f
         val h = 1.05f
         box(canvas, c.x, c.y, s, h, col.shade(0.15f), 0xFFE9ECEF.toInt(), z0 = base)
-        val front = c.y + s / 2; val right = c.x + s / 2
         val first = -s / 2 + 0.16f
         for (i in 0 until 5) for (row in 0 until 3) {
             val u = first + i * 0.29f
@@ -995,12 +1160,15 @@ class IsoRenderer : Renderer {
                 sin(time * 3f + i * 1.3f + row * 2.1f + n.id) > 0f -> col
                 else -> 0xFF9AA3AD.toInt()
             }
-            faceY(front, c.x + u, c.x + u + 0.17f, z, z + 0.1f); canvas.drawPath(path, fillP)
-            faceX(right, c.y + u, c.y + u + 0.17f, z, z + 0.1f); canvas.drawPath(path, fillP)
+            // Rack LEDs on every wall; only those facing the viewer show.
+            for (f in 0 until 4) if (wallPatch(c.x, c.y, s / 2, s / 2, f, u, u + 0.17f, z, z + 0.1f)) canvas.drawPath(path, fillP)
         }
         val roof = base + h
-        box(canvas, c.x - 0.38f, c.y - 0.38f, 0.42f, 0.16f, 0xFF5B6674.toInt(), 0xFFB9C2CC.toInt(), z0 = roof)
-        box(canvas, c.x + 0.12f, c.y - 0.38f, 0.42f, 0.16f, 0xFF5B6674.toInt(), 0xFFB9C2CC.toInt(), z0 = roof)
+        val order = sortedByDepth(ROOF_UNITS, c.x, c.y)
+        for (k in 0 until 2) {
+            val p = order[k]
+            box(canvas, c.x + ROOF_UNITS[2 * p], c.y + ROOF_UNITS[2 * p + 1], 0.42f, 0.16f, 0xFF5B6674.toInt(), 0xFFB9C2CC.toInt(), z0 = roof)
+        }
         val bx = sx(c.x + 0.2f, c.y + 0.25f); val by = sy(c.x + 0.2f, c.y + 0.25f, roof)
         oval.set(bx - tw * 0.2f * pop, by - th * 0.2f * pop, bx + tw * 0.2f * pop, by + th * 0.2f * pop)
         fillP.color = 0xFFFFFFFF.toInt(); canvas.drawOval(oval, fillP)
@@ -1008,34 +1176,77 @@ class IsoRenderer : Renderer {
         Shapes.draw(canvas, service.shape, bx, by - th * 0.04f, tw * 0.08f * pop, fillP)
     }
 
-    /** Wall patch on the plane y = [y], from x [xa] to [xb] and height [za] to [zb]. */
-    private fun faceY(y: Float, xa: Float, xb: Float, za: Float, zb: Float) {
+    /**
+     * A patch on wall [face] ([FACES]) of a box around ([cx], [cy]) with half sizes [hx] and [hy]: from [ua] to [ub]
+     * along the wall and from height [za] to [zb], into [path]. Returns false (and leaves [path] alone) if that wall
+     * faces away from the viewer at the current angle.
+     */
+    private fun wallPatch(cx: Float, cy: Float, hx: Float, hy: Float, face: Int, ua: Float, ub: Float, za: Float, zb: Float): Boolean {
+        val nx = FACES[4 * face]; val ny = FACES[4 * face + 1]; val tx = FACES[4 * face + 2]; val ty = FACES[4 * face + 3]
+        if (!facing(nx, ny)) return false
+        val bx = cx + nx * hx; val by = cy + ny * hy
+        val ax = bx + tx * ua; val ay = by + ty * ua
+        val ex = bx + tx * ub; val ey = by + ty * ub
         path.reset()
-        path.moveTo(sx(xa, y), sy(xa, y, za)); path.lineTo(sx(xb, y), sy(xb, y, za))
-        path.lineTo(sx(xb, y), sy(xb, y, zb)); path.lineTo(sx(xa, y), sy(xa, y, zb)); path.close()
+        path.moveTo(sx(ax, ay), sy(ax, ay, za)); path.lineTo(sx(ex, ey), sy(ex, ey, za))
+        path.lineTo(sx(ex, ey), sy(ex, ey, zb)); path.lineTo(sx(ax, ay), sy(ax, ay, zb)); path.close()
+        return true
     }
 
-    /** Wall patch on the plane x = [x], from y [ya] to [yb] and height [za] to [zb]. */
-    private fun faceX(x: Float, ya: Float, yb: Float, za: Float, zb: Float) {
-        path.reset()
-        path.moveTo(sx(x, ya), sy(x, ya, za)); path.lineTo(sx(x, yb), sy(x, yb, za))
-        path.lineTo(sx(x, yb), sy(x, yb, zb)); path.lineTo(sx(x, ya), sy(x, ya, zb)); path.close()
+    /** The wall of [FACES] that faces most to the right on screen (the east wall when not turned). */
+    private fun rightFace(): Int {
+        var best = 0
+        var bestV = -Float.MAX_VALUE
+        for (f in 0 until 4) {
+            val nx = FACES[4 * f]; val ny = FACES[4 * f + 1]
+            val v = (camera.cosA * nx - camera.sinA * ny) - (camera.sinA * nx + camera.cosA * ny)
+            if (v > bestV) { bestV = v; best = f }
+        }
+        return best
+    }
+
+    private val depthOrder = IntArray(4)
+
+    /** Indices of the ([offsets] x, y pairs around ([x], [y])) back to front, in a reused array. */
+    private fun sortedByDepth(offsets: FloatArray, x: Float, y: Float): IntArray {
+        val n = offsets.size / 2
+        for (i in 0 until n) {
+            var j = i
+            val d = depthOf(x + offsets[2 * i], y + offsets[2 * i + 1])
+            while (j > 0 && depthOf(x + offsets[2 * depthOrder[j - 1]], y + offsets[2 * depthOrder[j - 1] + 1]) > d) {
+                depthOrder[j] = depthOrder[j - 1]
+                j--
+            }
+            depthOrder[j] = i
+        }
+        return depthOrder
     }
 
     private fun box(canvas: Canvas, cx: Float, cy: Float, s: Float, h: Float, top: Int, side: Int, z0: Float = 0f) =
         boxRect(canvas, cx - s / 2, cy - s / 2, cx + s / 2, cy + s / 2, z0, h, top, side)
 
-    /** A block over the ground rectangle ([x0], [y0]) – ([x1], [y1]) from height [z0], [h] high; the two front walls are shaded. */
+    /**
+     * A block over the ground rectangle ([x0], [y0]) – ([x1], [y1]) from height [z0], [h] high: the walls that face the
+     * viewer at the current angle (two, or one when looking straight at a wall), shaded by where they face, then the top.
+     */
     private fun boxRect(canvas: Canvas, x0: Float, y0: Float, x1: Float, y1: Float, z0: Float, h: Float, top: Int, side: Int) {
         val z1 = z0 + h
-        path.reset()
-        path.moveTo(sx(x0, y1), sy(x0, y1, z0)); path.lineTo(sx(x1, y1), sy(x1, y1, z0))
-        path.lineTo(sx(x1, y1), sy(x1, y1, z1)); path.lineTo(sx(x0, y1), sy(x0, y1, z1)); path.close()
-        fillP.color = side.shade(-0.12f); canvas.drawPath(path, fillP)
-        path.reset()
-        path.moveTo(sx(x1, y0), sy(x1, y0, z0)); path.lineTo(sx(x1, y1), sy(x1, y1, z0))
-        path.lineTo(sx(x1, y1), sy(x1, y1, z1)); path.lineTo(sx(x1, y0), sy(x1, y0, z1)); path.close()
-        fillP.color = side.shade(-0.25f); canvas.drawPath(path, fillP)
+        for (f in 0 until 4) {
+            val nx = FACES[4 * f]; val ny = FACES[4 * f + 1]
+            if (!facing(nx, ny)) continue
+            // The wall's two base corners, from the corner the tangent starts at.
+            val ax: Float; val ay: Float; val bx: Float; val by: Float
+            when (f) {
+                FACE_SOUTH -> { ax = x0; ay = y1; bx = x1; by = y1 }
+                FACE_EAST -> { ax = x1; ay = y0; bx = x1; by = y1 }
+                FACE_NORTH -> { ax = x1; ay = y0; bx = x0; by = y0 }
+                else -> { ax = x0; ay = y1; bx = x0; by = y0 }
+            }
+            path.reset()
+            path.moveTo(sx(ax, ay), sy(ax, ay, z0)); path.lineTo(sx(bx, by), sy(bx, by, z0))
+            path.lineTo(sx(bx, by), sy(bx, by, z1)); path.lineTo(sx(ax, ay), sy(ax, ay, z1)); path.close()
+            fillP.color = side.shade(wallShade(nx, ny)); canvas.drawPath(path, fillP)
+        }
         quad(x0, y0, x1 - x0, y1 - y0, z1)
         fillP.color = top; canvas.drawPath(path, fillP)
     }
@@ -1074,6 +1285,31 @@ class IsoRenderer : Renderer {
 
         /** The four legs of a cell tower as x, y pairs, clockwise from the back corner. */
         val TOWER_CORNERS = floatArrayOf(-1f, -1f, 1f, -1f, 1f, 1f, -1f, 1f)
+        /** The two ends of a cable, for loops over them. */
+        val END_POINTS = intArrayOf(0, 1)
+        /** Offsets of a cell tower's antenna panels and a data center's roof units from their centre. */
+        val TOWER_PANELS = floatArrayOf(-0.12f, 0.02f, 0.02f, -0.12f, 0.08f, 0.08f)
+        val ROOF_UNITS = floatArrayOf(-0.38f, -0.38f, 0.12f, -0.38f)
+
+        /** Walls of a box as outward normal x, y and the tangent x, y along which patches are measured. */
+        val FACES = floatArrayOf(0f, 1f, 1f, 0f, 1f, 0f, 0f, 1f, 0f, -1f, -1f, 0f, -1f, 0f, 0f, -1f)
+        const val FACE_SOUTH = 0
+        const val FACE_EAST = 1
+        const val FACE_NORTH = 2
+        const val FACE_WEST = 3
+        /** A wall this close to edge-on is left out. */
+        const val FACING_EPS = 1e-4f
+        /** Outward normals of a mountain's faces in [drawMountain] order: north, west, east, south. */
+        val MOUNTAIN_NORMALS = floatArrayOf(0f, -1f, -1f, 0f, 1f, 0f, 0f, 1f)
+        /** The board's four edges as x0, y0, x1, y1 in units of the grid size, then the outward normal. */
+        val BOARD_EDGES = floatArrayOf(
+            0f, 1f, 1f, 1f, 0f, 1f,
+            1f, 0f, 1f, 1f, 1f, 0f,
+            1f, 0f, 0f, 0f, 0f, -1f,
+            0f, 1f, 0f, 0f, -1f, 0f,
+        )
+        const val BOARD_LIT = 0xFFB9C9AF.toInt()
+        const val BOARD_SHADE = 0xFFA7BA9C.toInt()
 
         /** FNV-style step of the map signatures. */
         fun mix(h: Long, v: Int) = (h xor v.toLong()) * 0x100000001B3L

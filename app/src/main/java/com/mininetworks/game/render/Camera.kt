@@ -2,8 +2,12 @@ package com.mininetworks.game.render
 
 import com.mininetworks.game.game.Vec2
 import kotlin.math.abs
+import kotlin.math.atan2
+import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.hypot
+import kotlin.math.roundToInt
+import kotlin.math.sin
 
 /** Axis-aligned rectangle in a renderer's map space. */
 data class MapRect(val left: Float, val top: Float, val right: Float, val bottom: Float) {
@@ -21,11 +25,44 @@ data class ViewInsets(val left: Float = 0f, val top: Float = 0f, val right: Floa
 }
 
 /**
- * Zoom and pan shared by every style: map units -> screen pixels as `screen = viewCenter + (map - focus) * scale`.
- * Map units are a renderer's flat projection of the world (see [Renderer.toMap]), so one camera works for any style.
- * [focus] is the map point shown at the centre of the inset viewport. Pure Kotlin, no Android types.
+ * A style's flat projection of the (already rotated) ground plane into map units. It must be linear (no offset), so
+ * that rotating the world and projecting it commute with the camera's pan and zoom.
+ */
+interface MapProjection {
+    fun projectX(x: Float, y: Float): Float
+    fun projectY(x: Float, y: Float): Float
+    fun unprojectX(mx: Float, my: Float): Float
+    fun unprojectY(mx: Float, my: Float): Float
+
+    /** Map units are world units (the flat overview). */
+    object Identity : MapProjection {
+        override fun projectX(x: Float, y: Float) = x
+        override fun projectY(x: Float, y: Float) = y
+        override fun unprojectX(mx: Float, my: Float) = mx
+        override fun unprojectY(mx: Float, my: Float) = my
+    }
+}
+
+/**
+ * Zoom, pan and rotation shared by every style.
+ *
+ * World units on the ground plane are first turned by [angle] (degrees, clockwise on screen for the flat view) around
+ * the world origin, then flattened by the style's [projection] into map units (for the iso style this is the iso
+ * squash, so the squash always comes after the turn and any angle works), and map units become screen pixels as
+ * `screen = viewCenter + (map - focus) * scale`. [focus] is the map point shown at the centre of the inset viewport.
+ * Rotating ([rotateBy]) keeps the world point under the pivot where it is, so turning around the camera focus or
+ * around the midpoint of two fingers is the same operation with a different pivot. Pure Kotlin, no Android types.
  */
 class Camera {
+    /** The style's flat projection; set once by the renderer that owns this camera. */
+    var projection: MapProjection = MapProjection.Identity
+
+    /** Rotation of the world in degrees, 0 until 360; 0 is north up (the original view). */
+    var angle = 0f; private set
+    /** Cosine and sine of [angle], kept in step with it for the renderers' hot paths. */
+    var cosA = 1f; private set
+    var sinA = 0f; private set
+
     var scale = 1f; private set
     var focusX = 0f; private set
     var focusY = 0f; private set
@@ -53,8 +90,17 @@ class Camera {
 
     val isAnimating get() = animating
 
-    private val centerX get() = insets.left + (viewWidth - insets.left - insets.right) / 2f
-    private val centerY get() = insets.top + (viewHeight - insets.top - insets.bottom) / 2f
+    /** Running rotation animation: the angle it eases to and the screen point it turns around. */
+    private var rotationTarget: Float? = null
+    private var rotPivotX = 0f
+    private var rotPivotY = 0f
+
+    /** True while the view eases to a snapped angle or back to north. */
+    val isRotating get() = rotationTarget != null
+
+    /** Screen centre of the inset viewport, where [focus] is shown. */
+    val centerX get() = insets.left + (viewWidth - insets.left - insets.right) / 2f
+    val centerY get() = insets.top + (viewHeight - insets.top - insets.bottom) / 2f
 
     fun setViewport(width: Int, height: Int, insets: ViewInsets = ViewInsets.NONE) {
         viewWidth = width
@@ -73,6 +119,87 @@ class Camera {
     fun toScreenY(my: Float) = centerY + (my - focusY) * scale
     fun toScreen(m: Vec2) = Vec2(toScreenX(m.x), toScreenY(m.y))
     fun toMap(sx: Float, sy: Float) = Vec2(focusX + (sx - centerX) / scale, focusY + (sy - centerY) / scale)
+
+    /** World x on the ground plane turned by [angle] around the origin (before the projection). */
+    fun turnX(x: Float, y: Float) = cosA * x - sinA * y
+    fun turnY(x: Float, y: Float) = sinA * x + cosA * y
+
+    /** World units -> map units: turn by [angle], then project. */
+    fun worldToMap(x: Float, y: Float): Vec2 {
+        val rx = turnX(x, y); val ry = turnY(x, y)
+        return Vec2(projection.projectX(rx, ry), projection.projectY(rx, ry))
+    }
+
+    /** Map units -> world units; the inverse of [worldToMap]. */
+    fun mapToWorld(mx: Float, my: Float): Vec2 {
+        val rx = projection.unprojectX(mx, my); val ry = projection.unprojectY(mx, my)
+        return Vec2(cosA * rx + sinA * ry, -sinA * rx + cosA * ry)
+    }
+
+    /** World units -> screen pixels. */
+    fun worldToScreen(p: Vec2): Vec2 = toScreen(worldToMap(p.x, p.y))
+
+    /** Screen pixels -> world units; the inverse of [worldToScreen]. */
+    fun screenToWorld(sx: Float, sy: Float): Vec2 = toMap(sx, sy).let { mapToWorld(it.x, it.y) }
+
+    /**
+     * Turns the world by [degrees] so that the world point under the screen point ([pivotX], [pivotY]) stays put.
+     * The pan limit is not applied here: it depends on the angle, so the renderer renews it afterwards
+     * ([Renderer.updateLimits]). A running fit or glide keeps aiming at the same world point.
+     */
+    fun rotateBy(degrees: Float, pivotX: Float, pivotY: Float) {
+        if (degrees == 0f) return
+        val pivot = screenToWorld(pivotX, pivotY)
+        val target = if (animating) mapToWorld(targetX, targetY) else null
+        setAngle(angle + degrees)
+        val m = worldToMap(pivot.x, pivot.y)
+        focusX = m.x - (pivotX - centerX) / scale
+        focusY = m.y - (pivotY - centerY) / scale
+        target?.let { t -> worldToMap(t.x, t.y).let { targetX = it.x; targetY = it.y } }
+    }
+
+    /** Sets [angle] (normalized to 0 until 360) and its cosine and sine. */
+    private fun setAngle(degrees: Float) {
+        var a = degrees % 360f
+        if (a < 0f) a += 360f
+        if (a >= 360f) a -= 360f
+        angle = a
+        val r = Math.toRadians(a.toDouble())
+        cosA = cos(r).toFloat()
+        sinA = sin(r).toFloat()
+        // Exact values at right angles, so a snapped view is pixel-identical to an unrotated projection of it.
+        if (a % 90f == 0f) {
+            cosA = cosA.roundToInt().toFloat()
+            sinA = sinA.roundToInt().toFloat()
+        }
+    }
+
+    /**
+     * After a two-finger turn ends: with [snap], eases to the nearest multiple of 90° around ([pivotX], [pivotY]);
+     * without, the angle stays as it is (free rotation).
+     */
+    fun settleRotation(snap: Boolean, pivotX: Float = centerX, pivotY: Float = centerY) {
+        if (!snap) return
+        rotateTo(nearestRightAngle(angle), pivotX, pivotY)
+    }
+
+    /** Eases the angle to [degrees] (the shorter way round), turning around ([pivotX], [pivotY]). */
+    fun rotateTo(degrees: Float, pivotX: Float = centerX, pivotY: Float = centerY) {
+        rotationTarget = ((degrees % 360f) + 360f) % 360f
+        rotPivotX = pivotX
+        rotPivotY = pivotY
+    }
+
+    /** Back to north at once, without keeping any point in place; for a new map, which is framed afterwards. */
+    fun resetRotation() {
+        rotationTarget = null
+        setAngle(0f)
+    }
+
+    /** Stops a running rotation animation where it is, e.g. when fingers touch the map again. */
+    fun stopRotation() {
+        rotationTarget = null
+    }
 
     /** The scale at which [r] just fits into the inset viewport. */
     fun fitScale(r: MapRect): Float {
@@ -146,8 +273,9 @@ class Camera {
         clampFocus()
     }
 
-    /** Advances a running [fit] animation by [dt] seconds. */
+    /** Advances a running [fit] animation and a running rotation ([rotateTo], [settleRotation]) by [dt] seconds. */
     fun step(dt: Float) {
+        stepRotation(dt)
         if (!animating) return
         val k = 1f - exp(-rate * dt)
         scale += (targetScale - scale) * k
@@ -162,6 +290,17 @@ class Camera {
         clampFocus()
     }
 
+    private fun stepRotation(dt: Float) {
+        val target = rotationTarget ?: return
+        val left = shortestTurn(angle, target)
+        val d = if (abs(left) < ROTATION_DONE_DEG) left else left * (1f - exp(-ROTATION_RATE * dt))
+        rotateBy(d, rotPivotX, rotPivotY)
+        if (abs(left) < ROTATION_DONE_DEG) {
+            setAngle(target)
+            rotationTarget = null
+        }
+    }
+
     private fun userMoved() {
         followsArea = false
         animating = false
@@ -173,48 +312,88 @@ class Camera {
         focusY = focusY.coerceIn(b.top, b.bottom)
     }
 
-    private companion object {
+    companion object {
+        /** The multiple of 90° closest to [degrees], normalized to 0 until 360. */
+        fun nearestRightAngle(degrees: Float): Float = (((degrees / 90f).roundToInt() * 90) % 360 + 360) % 360f
+
+        /** Signed turn in degrees (-180 until 180) that takes [from] to [to]. */
+        fun shortestTurn(from: Float, to: Float): Float {
+            var d = (to - from) % 360f
+            if (d > 180f) d -= 360f
+            if (d <= -180f) d += 360f
+            return d
+        }
+
+        /** Exponential approach rate of the snapping and compass rotation per second. */
+        private const val ROTATION_RATE = 11f
+        /** A rotation animation closer than this to its target lands on it. */
+        private const val ROTATION_DONE_DEG = 0.05f
         /** Exponential approach rate of [fit] animations per second. */
-        const val ANIM_RATE = 9f
+        private const val ANIM_RATE = 9f
         /** Rate of a gentle [glideTo], e.g. the game-over focus. */
-        const val GENTLE_RATE = 2.6f
+        private const val GENTLE_RATE = 2.6f
         /** Tolerance of [shows] in pixels. */
-        const val EPS = 0.5f
+        private const val EPS = 0.5f
     }
 }
 
-/** Turns two-finger movement into camera pan (midpoint movement) and zoom (finger distance ratio around the midpoint). */
+/**
+ * Turns two-finger movement into camera pan (midpoint movement), zoom (finger distance ratio around the midpoint) and,
+ * with [rotate], rotation (change of the angle of the line between the fingers, around the midpoint). All three apply
+ * together in every move, so the map point between the fingers stays between them.
+ */
 class TwoFingerGesture {
     private var active = false
     private var midX = 0f
     private var midY = 0f
     private var span = 0f
+    private var heading = 0f
 
     val isActive get() = active
+
+    /** Where the fingers' midpoint was at the last call, the pivot a snap after release turns around. */
+    val lastMidX get() = midX
+    val lastMidY get() = midY
+
+    /** Degrees the fingers turned the map since [start]. */
+    var turned = 0f; private set
 
     fun start(x0: Float, y0: Float, x1: Float, y1: Float) {
         active = true
         midX = (x0 + x1) / 2f
         midY = (y0 + y1) / 2f
         span = hypot(x1 - x0, y1 - y0)
+        heading = headingOf(x0, y0, x1, y1)
+        turned = 0f
     }
 
     /** Applies the movement since the last call to [camera]; the map point between the fingers stays between them. */
-    fun move(x0: Float, y0: Float, x1: Float, y1: Float, camera: Camera) {
+    fun move(x0: Float, y0: Float, x1: Float, y1: Float, camera: Camera, rotate: Boolean = true) {
         if (!active) return start(x0, y0, x1, y1)
         val mx = (x0 + x1) / 2f
         val my = (y0 + y1) / 2f
         val s = hypot(x1 - x0, y1 - y0)
+        val h = headingOf(x0, y0, x1, y1)
         camera.panBy(mx - midX, my - midY)
-        if (span > MIN_SPAN && s > MIN_SPAN) camera.zoomBy(s / span, mx, my)
+        if (span > MIN_SPAN && s > MIN_SPAN) {
+            camera.zoomBy(s / span, mx, my)
+            if (rotate) {
+                val d = Camera.shortestTurn(heading, h)
+                camera.rotateBy(d, mx, my)
+                turned += d
+            }
+        }
         midX = mx
         midY = my
         span = s
+        heading = h
     }
 
     fun stop() {
         active = false
     }
+
+    private fun headingOf(x0: Float, y0: Float, x1: Float, y1: Float) = Math.toDegrees(atan2((y1 - y0).toDouble(), (x1 - x0).toDouble())).toFloat()
 
     private companion object {
         /** Below this finger distance in pixels the ratio is too noisy to zoom by. */
