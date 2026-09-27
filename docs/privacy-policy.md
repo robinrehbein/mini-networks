@@ -1,17 +1,18 @@
 # Mini Networks – Datenschutzerklärung / Privacy Policy
 
-> **Entwurf, keine Rechtsberatung.** Vor der Veröffentlichung: Platzhalter in `<…>` füllen, von einer fachkundigen
-> Person prüfen lassen, öffentlich erreichbar machen (Website oder GitHub Pages) und die URL in der Play Console und
-> in der UMP-Nachricht in AdMob eintragen (siehe `docs/RELEASE.md`). Die Erklärung beschreibt den Stand der App mit
-> diesen SDKs (abgeglichen mit `app/build.gradle.kts` und dem Release-Manifest, docs/TOP100.md F5): Google Mobile Ads
-> SDK 25.2 (inkl. User Messaging Platform 4.0), Google Play Billing 9.1, Google Play Games Services v2 22.1 und
-> Google Play In-App Review 2.0.2 (dazu AndroidX Core für das Teilen und ProfileInstaller, die keine Daten senden);
-> kommt ein SDK dazu oder fällt eines weg, muss sie mitgeändert werden.
+> **Veröffentlichte Fassung:** https://robinrehbein.github.io/mini-networks/privacy/ (Quelle `docs/privacy-policy-web.md`,
+> gebaut mit `python3 tools/build_privacy_page.py` nach `docs/privacy/index.html`, Deutsch und Englisch auf einer Seite).
+> Diese URL gehört in die Play Console und in die UMP-Nachricht in AdMob (siehe `docs/RELEASE.md`). Diese Datei ist die
+> ausführliche Fassung derselben Inhalte; beide beschreiben die App mit diesen SDKs (abgeglichen mit
+> `app/build.gradle.kts` und dem Release-Manifest, docs/TOP100.md F5): Google Mobile Ads SDK 25.2 (inkl. User Messaging
+> Platform 4.0), Google Play Billing 9.1, Google Play Games Services v2 22.1 und Google Play In-App Review 2.0.2 (dazu
+> AndroidX Core für das Teilen und ProfileInstaller, die keine Daten senden); kommt ein SDK dazu oder fällt eines weg,
+> müssen beide mitgeändert werden (`StoreListingTest.thePublishedPrivacyPageCoversEverySdkInGermanAndEnglish`).
+> Keine Rechtsberatung: die rechtliche Prüfung bleibt Team-Aufgabe (docs/TOP100.md Abschnitt 2, Punkt 8).
 >
-> *Draft, not legal advice. Fill in the `<…>` placeholders, have it reviewed, publish it and enter the URL in the Play
-> Console and in the AdMob UMP message.*
+> *Published version: https://robinrehbein.github.io/mini-networks/privacy/ (German and English). Not legal advice.*
 
-Stand / Last updated: `<Datum / date>`
+Stand / Last updated: 27.09.2026
 
 ---
 
@@ -19,8 +20,8 @@ Stand / Last updated: `<Datum / date>`
 
 ### 1. Verantwortlicher
 
-`<Name bzw. Firma>`, `<Anschrift>`, E-Mail: `<datenschutz@…>`
-(Einen Datenschutzbeauftragten gibt es `<nicht / Kontakt: …>`.)
+Robin Rehbein, Stiegelstraße 26, 71701 Schwieberdingen, Deutschland, E-Mail: hello@robinrehbein.de
+(Einen Datenschutzbeauftragten gibt es nicht.)
 
 ### 2. Überblick
 
@@ -103,13 +104,13 @@ Die App richtet sich nicht an Kinder unter 13 Jahren.
 Du hast das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung, Datenübertragbarkeit,
 Widerspruch (Art. 15–21 DSGVO) und auf Widerruf erteilter Einwilligungen mit Wirkung für die Zukunft. Da wir selbst
 keine Daten über dich speichern, richten sich Anfragen zu Werbe-, Kauf- und Play-Spiele-Daten in der Regel an Google; wir helfen gern
-unter der oben genannten Adresse. Du kannst dich bei einer Datenschutz-Aufsichtsbehörde beschweren, z. B. bei
-`<zuständige Landesbehörde>`.
+unter der oben genannten Adresse. Du kannst dich bei einer Datenschutz-Aufsichtsbehörde beschweren, z. B. beim
+Landesbeauftragten für den Datenschutz und die Informationsfreiheit Baden-Württemberg.
 
 ### 10. Änderungen
 
 Wir passen diese Erklärung an, wenn sich die App oder die eingesetzten Dienste ändern. Es gilt die jeweils unter
-`<URL>` veröffentlichte Fassung.
+https://robinrehbein.github.io/mini-networks/privacy/ veröffentlichte Fassung.
 
 ---
 
@@ -117,7 +118,7 @@ Wir passen diese Erklärung an, wenn sich die App oder die eingesetzten Dienste 
 
 ### 1. Controller
 
-`<name or company>`, `<address>`, e-mail: `<privacy@…>`
+Robin Rehbein, Stiegelstraße 26, 71701 Schwieberdingen, Germany, e-mail: hello@robinrehbein.de
 
 ### 2. Overview
 
@@ -193,8 +194,8 @@ The app is not directed at children under 13.
 You have the right to access, rectification, erasure, restriction of processing, data portability and to object
 (Art. 15–21 GDPR), and to withdraw consent at any time with effect for the future. As we do not store data about you
 ourselves, requests about ad, purchase or Play Games data are usually for Google; we are happy to help at the address above.
-You may lodge a complaint with a data protection supervisory authority, e.g. `<competent authority>`.
+You may lodge a complaint with a data protection supervisory authority, e.g. the State Commissioner for Data Protection and Freedom of Information of Baden-Württemberg.
 
 ### 10. Changes
 
-We update this policy when the app or the services it uses change. The version published at `<URL>` applies.
+We update this policy when the app or the services it uses change. The version published at https://robinrehbein.github.io/mini-networks/privacy/ applies.

@@ -116,10 +116,14 @@ class MenuPanel(context: Context) {
     /** Where the card was drawn last. */
     val cardBounds: RectF get() = RectF(card)
 
+    /** Where a grid entry goes: [row], [col], and whether it [span]s the whole row. */
+    private data class Slot(val row: Int, val col: Int, val span: Boolean)
+
     /** Sizes of one arrangement of a page: [s] scales text and spacing, [cols] columns of entries. */
-    private inner class Layout(val page: MenuPage, val s: Float, val cols: Int, val width: Float) {
+    private inner class Layout(val page: MenuPage, val s: Float, val cols: Int, val width: Float, val split: Boolean = false) {
         val u = density * s
-        val pad = PAD_DP * u
+        /** A split card's text pane is tighter around its text, so the text itself can stay large on a low phone. */
+        val pad = (if (split) SPLIT_PAD_DP else PAD_DP) * u
         val titleSize = scale.px(if (page.hero) 50f else 28f) * s
         val highlightSize = scale.px(21f) * s
         val lineSize = scale.px(if (page.hero) 17f else 15f) * s
@@ -130,7 +134,7 @@ class MenuPanel(context: Context) {
         val itemH = maxOf(TOUCH_DP * density, labelSize + 24f * u)
         val linkSize = scale.px(15f) * s
         val linkH = maxOf(TOUCH_DP * density, linkSize * 2.2f)
-        val gap = GAP_DP * u
+        val gap = (if (split) SPLIT_GAP_DP else GAP_DP) * u
         val inner = width - 2 * pad
         val lines: List<String> = page.lines.flatMap { line ->
             text.textSize = lineSize
@@ -140,11 +144,46 @@ class MenuPanel(context: Context) {
         /** Pill buttons in the grid; [links] go below it as text links. */
         val grid = page.items.filter { it !is MenuItem.Button || !it.link }
         val links = page.items.filter { it is MenuItem.Button && it.link }
-        /** The main menu's primary entry (Play) spans the whole width as its own row, whatever the columns. */
-        val spanFirst = page.hero && cols > 1 && (grid.firstOrNull() as? MenuItem.Button)?.primary == true
-        val rows = if (spanFirst) 1 + (grid.size - 1 + cols - 1) / cols else (grid.size + cols - 1) / cols
+        /**
+         * The main menu's primary entry (Play) spans the whole width as its own row, whatever the columns; so does the
+         * primary entry of a split card's text pane (game over: "again" above "share" and "main menu").
+         */
+        val spanFirst = (page.hero || split) && cols > 1 && (grid.firstOrNull() as? MenuItem.Button)?.primary == true
+        val colW = (inner - (cols - 1) * gap) / cols
+        /**
+         * Row and column of each grid entry, and whether it spans the row. In a split pane an entry whose label would
+         * not fit half the pane at its size ("continue · watch a video") gets a row of its own, and so does one left
+         * alone in its row; elsewhere the entries fill the columns in order.
+         */
+        val slots: List<Slot> = if (split && cols > 1) {
+            val out = ArrayList<Slot>()
+            var row = 0
+            var col = 0
+            text.typeface = Typeface.DEFAULT_BOLD
+            text.textSize = labelSize
+            for ((k, item) in grid.withIndex()) {
+                val wide = (k == 0 && spanFirst) || text.measureText(item.label) + 24f * u > colW
+                if (wide) {
+                    if (col != 0) { row++; col = 0 }
+                    out += Slot(row, 0, true)
+                    row++
+                } else {
+                    out += Slot(row, col, false)
+                    if (++col == cols) { row++; col = 0 }
+                }
+            }
+            out.map { sl -> if (out.count { it.row == sl.row } == 1) sl.copy(col = 0, span = true) else sl }
+        } else {
+            grid.indices.map { k ->
+                // With a spanning first entry the others count from the second row.
+                val i = if (spanFirst && k > 0) k - 1 + cols else k
+                Slot(i / cols, if (spanFirst && k == 0) 0 else i % cols, spanFirst && k == 0)
+            }
+        }
+        val rows = (slots.maxOfOrNull { it.row } ?: -1) + 1
         val titleH = titleSize * 1.25f + (if (page.hero) logoSize + 8f * u else 0f)
-        val scoreSize = scale.px(44f) * s
+        val titleGap = (if (split) 4f else 10f) * u
+        val scoreSize = scale.px(if (split) SPLIT_SCORE_SP else 44f) * s
         val scoreH = if (page.score != null) scoreSize * 1.3f else 0f
         val highlightH = if (page.highlight != null) highlightSize * 1.55f else 0f
         val lineH = lineSize * 1.6f
@@ -157,7 +196,7 @@ class MenuPanel(context: Context) {
         val pictureW = page.picture?.let { minOf(inner, PICTURE_MAX_H_DP * u * it.aspect) } ?: 0f
         val pictureH = page.picture?.let { pictureW / it.aspect } ?: 0f
         val pictureBlock = if (page.picture != null) pictureH + 12f * u else 0f
-        val height = 2 * pad + titleH + 10f * u + scoreH + highlightH + linesH + pictureBlock + itemsH + footerH
+        val height = 2 * pad + titleH + titleGap + scoreH + highlightH + linesH + pictureBlock + itemsH + footerH
     }
 
     fun draw(canvas: Canvas, page: MenuPage, width: Int, height: Int, pressed: MenuAction? = null, safe: ViewInsets = ViewInsets.NONE) {
@@ -189,20 +228,37 @@ class MenuPanel(context: Context) {
      */
     private fun drawSplit(canvas: Canvas, page: MenuPage, pic: MenuPicture, areaW: Float, areaH: Float, pressed: MenuAction?, safe: ViewInsets) {
         val cw = minOf(areaW * 0.9f, SPLIT_W_DP * density)
-        val paneW = cw * 0.5f
         val rest = page.copy(picture = null)
         val maxH = areaH * 0.92f
-        var s = 1f
-        var l = Layout(rest, s, 1, paneW)
-        while (l.height > maxH && s > MIN_SCALE) { s -= 0.02f; l = Layout(rest, s, 1, paneW) }
+        // The text is what a player must read (the reason for the loss, the entries); on a low screen the picture gives
+        // way first: the entries pair up under the primary one and the text pane grows, before the text shrinks below
+        // SPLIT_MIN_SCALE. Of these arrangements the one with the largest text wins (the first on a tie).
+        fun fitted(share: Float, cols: Int, floor: Float): Layout? {
+            var s = 1f
+            while (true) {
+                val l = Layout(rest, s, cols, cw * share, split = true)
+                if (l.height <= maxH) return l
+                if (s - 0.02f < floor - 1e-4f) return null
+                s -= 0.02f
+            }
+        }
+        val options = listOf(0.5f to 1, 0.5f to 2, 0.56f to 2, 0.62f to 2).mapNotNull { (share, cols) -> fitted(share, cols, SPLIT_MIN_SCALE) }
+        val l = options.maxByOrNull { it.s } ?: run {
+            // Very large system text: shrink further, down to the common minimum (entries stay 48 dp high).
+            var s = SPLIT_MIN_SCALE
+            var l = Layout(rest, s, 2, cw * 0.62f, split = true)
+            while (l.height > maxH && s > MIN_SCALE) { s -= 0.02f; l = Layout(rest, s, 2, cw * 0.62f, split = true) }
+            l
+        }
+        val paneW = l.width
         val u = l.u
-        val ch = minOf(maxH, maxOf(l.height, (paneW - 2 * l.pad) / pic.aspect + 2 * l.pad))
+        val ch = minOf(maxH, maxOf(l.height, (cw - paneW - 2 * l.pad) / pic.aspect + 2 * l.pad))
         val left = safe.left + (areaW - cw) / 2f
         val top = safe.top + (areaH - ch) / 2f - SLAB_DP * u / 2f
         card.set(left, top, left + cw, top + ch)
         slab(canvas, card, 18f * u, SLAB_DP * u, 0xFFFAFAF7.toInt(), 0xFFE3E6E1.toInt().shade(-0.2f), shadow = true)
         // The picture, as large as the left half allows at its aspect ratio, on a rounded plate.
-        val boxW = paneW - 1.5f * l.pad
+        val boxW = cw - paneW - 1.5f * l.pad
         val boxH = ch - 2 * l.pad
         val pw = minOf(boxW, boxH * pic.aspect)
         val ph = pw / pic.aspect
@@ -236,8 +292,8 @@ class MenuPanel(context: Context) {
         // A title shrinks further than other texts before it is cut: the game's name on a narrow portrait window.
         val title = fitShrinking(page.title, inner, l.titleSize, l.titleSize * 0.5f)
         canvas.drawText(title, cx, y + l.titleSize, text)
-        drawnNodes += UiNode("menu:title", textBounds(cx, y, inner, l.titleSize * 1.25f), page.title, UiNode.Kind.HEADING, shortened = title != page.title)
-        y += l.titleSize * 1.25f + 10f * u
+        drawnNodes += UiNode("menu:title", textBounds(cx, y, inner, l.titleSize * 1.25f), page.title, UiNode.Kind.HEADING, shortened = title != page.title, textPx = text.textSize)
+        y += l.titleSize * 1.25f + l.titleGap
         page.score?.let {
             text.color = BRAND
             text.typeface = Typeface.DEFAULT_BOLD
@@ -261,7 +317,7 @@ class MenuPanel(context: Context) {
             canvas.drawText(line, cx, y + l.lineSize * 1.15f, text)
             y += l.lineH
         }
-        if (l.lines.isNotEmpty()) drawnNodes += UiNode("menu:lines", textBounds(cx, linesTop, inner, y - linesTop), page.lines.joinToString("\n"), UiNode.Kind.TEXT)
+        if (l.lines.isNotEmpty()) drawnNodes += UiNode("menu:lines", textBounds(cx, linesTop, inner, y - linesTop), page.lines.joinToString("\n"), UiNode.Kind.TEXT, textPx = l.lineSize)
         if (l.lines.isNotEmpty() || page.highlight != null) y += 8f * u
         page.picture?.let { pic ->
             val pr = RectF(cx - l.pictureW / 2f, y, cx + l.pictureW / 2f, y + l.pictureH)
@@ -273,7 +329,7 @@ class MenuPanel(context: Context) {
             y += l.pictureBlock
         }
 
-        val colW = (inner - (l.cols - 1) * l.gap) / l.cols
+        val colW = l.colW
         var extra = 0f
         val gridBottom = y + l.itemsH - l.links.size * l.linkH
         for ((k, item) in (l.grid + l.links).withIndex()) {
@@ -281,14 +337,11 @@ class MenuPanel(context: Context) {
             if (isLink) {
                 r.set(paneLeft + l.pad, gridBottom + (k - l.grid.size) * l.linkH, paneLeft + l.pad + inner, gridBottom + (k - l.grid.size + 1) * l.linkH)
             } else {
-                // With a spanning first entry the others count from the second row.
-                val i = if (l.spanFirst && k > 0) k - 1 + l.cols else k
-                val col = if (l.spanFirst && k == 0) 0 else i % l.cols
-                val row = i / l.cols
-                val x = paneLeft + l.pad + col * (colW + l.gap)
-                val itemTop = y + row * (l.itemH + l.gap) + extra
+                val slot = l.slots[k]
+                val x = paneLeft + l.pad + slot.col * (colW + l.gap)
+                val itemTop = y + slot.row * (l.itemH + l.gap) + extra
                 val big = l.primaryExtra > 0f && item is MenuItem.Button && item.primary
-                val w = if (l.spanFirst && k == 0) inner else colW
+                val w = if (slot.span) inner else colW
                 r.set(x, itemTop, x + w, itemTop + l.itemH + if (big) l.primaryExtra else 0f)
                 if (big) extra += l.primaryExtra
             }
@@ -298,12 +351,13 @@ class MenuPanel(context: Context) {
                 is MenuItem.Button -> if (item.link) link(canvas, item, down, l.linkSize, u) else button(canvas, item, down, u, if (big) l.labelSize * 1.3f else l.labelSize)
                 is MenuItem.Toggle -> toggle(canvas, item, down, u, l.labelSize * 16f / 17f)
             }
+            val drawnPx = text.textSize
             val enabled = item !is MenuItem.Button || item.enabled
             if (enabled) targets += RectF(r) to item.action
             drawnNodes += UiNode(
                 "menu:${item.action.name}", RectF(r), item.label,
                 if (item is MenuItem.Toggle) UiNode.Kind.TOGGLE else UiNode.Kind.BUTTON,
-                checked = item is MenuItem.Toggle && item.on, enabled = enabled, shortened = shortened,
+                checked = item is MenuItem.Toggle && item.on, enabled = enabled, shortened = shortened, textPx = drawnPx,
             )
         }
         y += l.itemsH
@@ -531,6 +585,12 @@ class MenuPanel(context: Context) {
         /** The main menu card leaves the rest of the screen to the demo town. */
         const val HERO_MAX_WIDTH = 0.6f
         const val ELLIPSIS = "…"
+        /** Smallest text scale of a split card's text pane before the picture has given all the room it can. */
+        const val SPLIT_MIN_SCALE = 0.86f
+        const val SPLIT_PAD_DP = 14f
+        const val SPLIT_GAP_DP = 6f
+        /** The hero number of a split card (the packets on the game-over card); smaller than on a full card. */
+        const val SPLIT_SCORE_SP = 34f
         /** A card with a picture splits into picture and text halves from this width-to-height ratio of the screen. */
         const val SPLIT_ASPECT = 1.25f
         const val SPLIT_W_DP = 760f

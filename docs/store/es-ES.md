@@ -56,4 +56,4 @@ red, cables, estrategia, puzle, construcción, ciudad, pueblo, router, Wi-Fi, fi
 8. ¡Cuidado con la excavadora!
 
 Bilder: nicht eingecheckt; erzeugen mit `ROBOLECTRIC_DEPS_DIR=/opt/robolectric ./gradlew testDebugUnitTest --tests '*StoreScreenshotTest*' -Pstore.locales=es` (landet in `docs/store/screenshots/<gerät>/es/`). Bis dahin zeigt Play die englischen bzw. deutschen Bilder.
-Feature-Grafik (sprachneutral): `docs/store/feature-graphic.png`
+Feature-Grafik: `docs/store/feature-graphic/es.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=es`); bis dahin die wortlose `docs/store/feature-graphic.png`

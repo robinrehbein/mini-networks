@@ -19,6 +19,8 @@ data class UiNode(
     val enabled: Boolean = true,
     /** True if the drawn label had to be shortened with "…" to fit (TalkBack still reads [text] in full). */
     val shortened: Boolean = false,
+    /** Size in px the text was drawn at, 0 where no single size applies; lets tests check that text stays readable. */
+    val textPx: Float = 0f,
 ) {
     enum class Kind { TEXT, HEADING, BUTTON, TOGGLE }
 

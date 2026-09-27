@@ -27,8 +27,8 @@ class ScenarioTest {
         assertEquals(listOf("river_town", "metropolis", "island_harbor", "mountain_village", "future_2030"), Scenarios.all.map { it.id })
         assertEquals(listOf(1995, 1998, 2004, 2001, 2030), Scenarios.all.map { it.startYear })
         assertEquals(Unlock.Free, Scenarios.RIVER_TOWN.unlock)
-        assertEquals(Unlock.Score("river_town", 1600), Scenarios.METROPOLIS.unlock)
-        assertEquals(Unlock.Score("metropolis", 1100), Scenarios.ISLAND.unlock)
+        assertEquals(Unlock.Score("river_town", 1000), Scenarios.METROPOLIS.unlock)
+        assertEquals(Unlock.Score("metropolis", 650), Scenarios.ISLAND.unlock)
         assertEquals(Unlock.Purchase, Scenarios.MOUNTAIN_VILLAGE.unlock)
         assertEquals(Unlock.Purchase, Scenarios.FUTURE.unlock)
         assertFalse(Scenarios.RIVER_TOWN.purchasable)
@@ -55,12 +55,12 @@ class ScenarioTest {
         fun unlocked(s: Scenario, owns: (String) -> Boolean = none) = Scenarios.isUnlocked(s, { best[it] ?: 0 }, owns)
         assertTrue(unlocked(Scenarios.RIVER_TOWN))
         assertEquals(listOf(true, false, false, false, false), Scenarios.all.map { unlocked(it) })
-        best["river_town"] = 1599
+        best["river_town"] = 999
         assertFalse(unlocked(Scenarios.METROPOLIS))
-        best["river_town"] = 1600
+        best["river_town"] = 1000
         assertTrue(unlocked(Scenarios.METROPOLIS))
         assertFalse("the island needs its target in the metropolis", unlocked(Scenarios.ISLAND))
-        best["metropolis"] = 1100
+        best["metropolis"] = 650
         assertTrue(unlocked(Scenarios.ISLAND))
         best["river_town"] = 99_999
         assertFalse("no score unlocks a purchase-only scenario", unlocked(Scenarios.MOUNTAIN_VILLAGE))

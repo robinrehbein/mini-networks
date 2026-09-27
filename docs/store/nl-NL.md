@@ -56,4 +56,4 @@ netwerk, kabels, strategie, puzzel, stad bouwen, router, wifi, glasvezel, intern
 8. Pas op voor de graafmachine!
 
 Bilder: nicht eingecheckt; erzeugen mit `ROBOLECTRIC_DEPS_DIR=/opt/robolectric ./gradlew testDebugUnitTest --tests '*StoreScreenshotTest*' -Pstore.locales=nl` (landet in `docs/store/screenshots/<gerät>/nl/`). Bis dahin zeigt Play die englischen bzw. deutschen Bilder.
-Feature-Grafik (sprachneutral): `docs/store/feature-graphic.png`
+Feature-Grafik: `docs/store/feature-graphic/nl.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=nl`); bis dahin die wortlose `docs/store/feature-graphic.png`

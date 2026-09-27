@@ -119,6 +119,7 @@
     <!-- Game over -->
     <string name="game_over_title">Red saturada</string>
     <string name="game_over_best">Récord: %1$d</string>
+    <string name="game_over_assisted">Jugada con extras, no cuenta para récord ni clasificación · Récord: %1$d</string>
     <string name="game_over_new_best">¡Nuevo récord!</string>
     <string name="game_over_again">Otra vez</string>
 

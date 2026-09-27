@@ -279,8 +279,9 @@ class StoreScreenshotTest {
         },
         // 7. Five sceneries, each in its own colours, as a collage of their maps; the daily challenge as a callout.
         Shot("sceneries") { bmp ->
-            sceneryCollage(bmp)
-            dailyCallout(bmp)
+            // The callout sits in the top corner of the last tile, over its map: it covers none of the five names.
+            val tiles = sceneryCollage(bmp)
+            dailyCallout(bmp, tiles.last())
         },
         // 8. Incidents, full bleed and close up in the desert theme: an excavator cuts a cable, a router is dark.
         Shot("incidents", bleed = true) { bmp ->
@@ -349,15 +350,20 @@ class StoreScreenshotTest {
         return w
     }
 
-    /** A small callout in the bottom right corner: a flame and "Daily challenge", instead of a whole slide of UI. */
-    private fun dailyCallout(bmp: Bitmap) {
+    /**
+     * A small callout in the top right corner of [tile]: a flame and "Daily challenge", instead of a whole slide of UI.
+     * A long label shrinks so the callout stays inside the tile, clear of the name labels at the tiles' bottoms.
+     */
+    private fun dailyCallout(bmp: Bitmap, tile: RectF) {
         val c = Canvas(bmp)
         val d = uiDensity()
         val label = app.getString(R.string.menu_daily)
         val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = Typeface.DEFAULT_BOLD; textSize = 17f * d; color = 0xFFFFFFFF.toInt() }
         val h = 46f * d
+        val room = tile.width() - 20f * d - h * 1.5f
+        if (p.measureText(label) > room) p.textSize *= room / p.measureText(label)
         val w = p.measureText(label) + h * 1.5f
-        val r = RectF(bmp.width - 18f * d - w, bmp.height - 18f * d - h, bmp.width - 18f * d, bmp.height - 18f * d)
+        val r = RectF(tile.right - 10f * d - w, tile.top + 10f * d, tile.right - 10f * d, tile.top + 10f * d + h)
         c.drawRoundRect(RectF(r).apply { offset(0f, 3f * d) }, h / 2f, h / 2f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x40000000 })
         c.drawRoundRect(r, h / 2f, h / 2f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFE4572E.toInt() })
         // The streak flame: an orange drop with a yellow core.
@@ -541,7 +547,7 @@ class StoreScreenshotTest {
      * The five sceneries as a collage: the metropolis large on the left, the others in a 2 × 2 grid, each its own map
      * in full colour a little into the game, with its name and era on a label.
      */
-    private fun sceneryCollage(bmp: Bitmap) {
+    private fun sceneryCollage(bmp: Bitmap): List<RectF> {
         val c = Canvas(bmp)
         c.drawColor(0xFFF3F1EC.toInt())
         val d = app.resources.displayMetrics.density * com.mininetworks.game.ui.TextScale.uiScale(app.resources.configuration.smallestScreenWidthDp)
@@ -588,6 +594,7 @@ class StoreScreenshotTest {
             c.drawText(title, pr.left + 12f * d, pr.top + 8f * d + name.textSize * 0.9f, name)
             c.drawText(sub, pr.left + 12f * d, pr.bottom - 9f * d, era)
         }
+        return rects
     }
 
     /** Scenery [s] a little into a game, wired and with traffic, for the collage. */
@@ -755,7 +762,7 @@ class StoreScreenshotTest {
         c.drawRect(0f, h * 0.45f, w.toFloat(), h.toFloat(), Paint().apply {
             shader = LinearGradient(0f, h * 0.45f, 0f, h.toFloat(), intArrayOf(0x00112634, 0xCC112634.toInt(), 0xF2112634.toInt()), floatArrayOf(0f, 0.45f, 1f), Shader.TileMode.CLAMP)
         })
-        // Icon, wordmark and tagline, centred as one group inside the safe area.
+        // Icon and wordmark, centred as one group inside the safe area; the name is the same in every language.
         val title = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFFFFFF.toInt(); typeface = display; textSize = 92f; setShadowLayer(8f, 0f, 3f, 0x80000000.toInt()) }
         val name = app.getString(R.string.app_name)
         val icon = 108f
@@ -763,19 +770,30 @@ class StoreScreenshotTest {
         while (icon + gap + title.measureText(name) > w * 0.78f) title.textSize -= 1f
         val groupW = icon + gap + title.measureText(name)
         val x0 = (w - groupW) / 2f
-        val baseline = 408f
-        LogoMark(app).draw(c, x0 + icon / 2f, baseline - title.textSize * 0.36f, icon)
-        c.drawText(name, x0 + icon + gap, baseline, title)
         assertTrue("name inside the safe area", x0 >= w * 0.1f && x0 + groupW <= w * 0.9f)
-        val tag = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFFD9A8.toInt(); typeface = Typeface.DEFAULT_BOLD; textAlign = Paint.Align.CENTER; textSize = 30f }
-        val line = FEATURE_TAGLINE
-        while (tag.measureText(line) > w * 0.78f) tag.textSize -= 1f
-        c.drawText(line, w / 2f, 448f, tag)
-        assertTrue("tagline on one line inside the safe area", tag.measureText(line) <= w * 0.8f)
-        for (x in 0 until w step 64) for (yy in 0 until h step 50) assertEquals("opaque at $x,$yy", 0xFF, out.getPixel(x, yy) ushr 24)
-        writeRgbPng(out, File(storeDir, "feature-graphic.png"))
-        assertEquals(w, out.width)
-        assertEquals(h, out.height)
+        fun write(tagline: String?, file: File) {
+            val shot = out.copy(Bitmap.Config.ARGB_8888, true)
+            val sc = Canvas(shot)
+            // Without a tagline the wordmark sits lower, where the tagline would be.
+            val baseline = if (tagline == null) 432f else 408f
+            LogoMark(app).draw(sc, x0 + icon / 2f, baseline - title.textSize * 0.36f, icon)
+            sc.drawText(name, x0 + icon + gap, baseline, title)
+            if (tagline != null) {
+                val tag = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFFD9A8.toInt(); typeface = Typeface.DEFAULT_BOLD; textAlign = Paint.Align.CENTER; textSize = 30f }
+                while (tag.measureText(tagline) > w * 0.78f) tag.textSize -= 1f
+                sc.drawText(tagline, w / 2f, 448f, tag)
+                assertTrue("tagline on one line inside the safe area", tag.measureText(tagline) <= w * 0.8f)
+            }
+            for (x in 0 until w step 64) for (yy in 0 until h step 50) assertEquals("opaque at $x,$yy", 0xFF, shot.getPixel(x, yy) ushr 24)
+            assertEquals(w, shot.width)
+            assertEquals(h, shot.height)
+            writeRgbPng(shot, file)
+        }
+        // The default graphic carries no words but the name, so it fits every listing; each language that has its
+        // listing's graphics rendered also gets one with its own tagline (Play takes a feature graphic per language).
+        write(null, File(storeDir, "feature-graphic.png"))
+        val dir = File(storeDir, "feature-graphic").apply { mkdirs() }
+        for (lang in languages) write(FEATURE_TAGLINES.getValue(lang), File(dir, "$lang.png"))
     }
 
     /**
@@ -820,8 +838,24 @@ class StoreScreenshotTest {
     }
 
     companion object {
-        /** The feature graphic's one-line tagline (the graphic is language neutral and in English). */
-        const val FEATURE_TAGLINE = "Wire up the town, from dial-up to 5G"
+        /**
+         * The feature graphic's one-line tagline per language: the game's own arc, from ISDN in 1995 to fiber (as in
+         * the store texts). The default graphic has none (docs/store/feature-graphic.png).
+         */
+        val FEATURE_TAGLINES = mapOf(
+            "de" to "Verkabel deine Stadt – von ISDN bis Glasfaser",
+            "en" to "Wire up your town, from ISDN to fiber",
+            "fr" to "Câble ta ville, du RNIS à la fibre",
+            "es" to "Conecta tu pueblo, de la RDSI a la fibra",
+            "it" to "Cabla la tua città, dall'ISDN alla fibra",
+            "pt-rBR" to "Conecte sua cidade, do ISDN à fibra",
+            "pl" to "Okabluj miasto – od ISDN po światłowód",
+            "nl" to "Verbind je stad, van ISDN tot glasvezel",
+            "tr" to "Şehrini bağla: ISDN'den fibere",
+            "ja" to "ISDNから光ファイバーまで、町をつなごう",
+            "ko" to "ISDN부터 광케이블까지, 도시를 연결하세요",
+            "zh-rCN" to "从 ISDN 到光纤，为城镇铺设网络",
+        )
 
         /** Height of the caption band, as a share of the frame. */
         const val BAND = 0.17f

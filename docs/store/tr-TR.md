@@ -56,4 +56,4 @@ ağ, kablo, strateji, bulmaca, şehir kurma, router, Wi-Fi, fiber, internet, çe
 8. Dikkat, kepçe!
 
 Bilder: nicht eingecheckt; erzeugen mit `ROBOLECTRIC_DEPS_DIR=/opt/robolectric ./gradlew testDebugUnitTest --tests '*StoreScreenshotTest*' -Pstore.locales=tr` (landet in `docs/store/screenshots/<gerät>/tr/`). Bis dahin zeigt Play die englischen bzw. deutschen Bilder.
-Feature-Grafik (sprachneutral): `docs/store/feature-graphic.png`
+Feature-Grafik: `docs/store/feature-graphic/tr.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=tr`); bis dahin die wortlose `docs/store/feature-graphic.png`

@@ -56,4 +56,4 @@ Mini Networks는 무료입니다. 판과 판 사이에 가끔 광고가 나오�
 8. 굴착기 주의!
 
 Bilder: nicht eingecheckt; erzeugen mit `ROBOLECTRIC_DEPS_DIR=/opt/robolectric ./gradlew testDebugUnitTest --tests '*StoreScreenshotTest*' -Pstore.locales=ko` (landet in `docs/store/screenshots/<gerät>/ko/`). Bis dahin zeigt Play die englischen bzw. deutschen Bilder.
-Feature-Grafik (sprachneutral): `docs/store/feature-graphic.png`
+Feature-Grafik: `docs/store/feature-graphic/ko.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=ko`); bis dahin die wortlose `docs/store/feature-graphic.png`

@@ -119,6 +119,7 @@
     <!-- Game over -->
     <string name="game_over_title">Netz überlastet</string>
     <string name="game_over_best">Bestwert: %1$d</string>
+    <string name="game_over_assisted">Mit Extras gespielt, zählt nicht für Bestwert und Bestenliste · Bestwert: %1$d</string>
     <string name="game_over_new_best">Neuer Bestwert!</string>
     <string name="game_over_again">Nochmal</string>
 

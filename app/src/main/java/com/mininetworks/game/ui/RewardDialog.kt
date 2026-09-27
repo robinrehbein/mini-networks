@@ -167,41 +167,47 @@ class RewardDialog(private val context: Context) {
 
     private fun bonusHeight() = maxOf(TOUCH_DP * density, scale.px(16f) * 2.4f)
 
-    /** The extra-router pill: centered under the prompt at [top], kept on screen, pressed when [down]. */
+    /**
+     * The extra-router pill: centered under the prompt at [top], kept on screen, pressed when [down]. A secondary,
+     * outlined button on purpose: the free cards above are the choice that continues the game; the optional video
+     * must not look like the way on (no saturated fill, no slab, smaller text than the card titles).
+     */
     private fun drawBonus(canvas: Canvas, label: String, video: Boolean, width: Int, height: Int, top: Float, down: Boolean) {
         val h = bonusHeight()
-        text.typeface = Typeface.DEFAULT_BOLD
-        text.textSize = scale.px(16f)
-        val icon = if (video) h * 0.5f else 0f
+        text.typeface = Typeface.DEFAULT
+        text.textSize = scale.px(15f)
+        val icon = if (video) h * 0.42f else 0f
         val w = text.measureText(label) + icon + h * 1.1f
         val y = top.coerceAtMost(height - h - 12f * density)
         bonus.set((width - w) / 2f, y, (width + w) / 2f, y + h)
-        val accent = accentOf(Reward.ROUTERS)
-        val depth = h * 0.1f
-        val sink = if (down) depth * 0.8f else 0f
-        fillP.color = accent.shade(-0.3f)
-        canvas.drawRoundRect(bonus.left, bonus.top + depth, bonus.right, bonus.bottom + depth, h / 2f, h / 2f, fillP)
-        fillP.color = accent
-        canvas.drawRoundRect(bonus.left, bonus.top + sink, bonus.right, bonus.bottom + sink, h / 2f, h / 2f, fillP)
+        val line = 0xE6FFFFFF.toInt()
+        // A faint dark fill keeps the outline readable over the dimmed map; pressed, it lightens a little.
+        fillP.color = if (down) 0x40FFFFFF else 0x26000000
+        canvas.drawRoundRect(bonus, h / 2f, h / 2f, fillP)
+        outlineP.strokeWidth = 1.5f * density
+        outlineP.color = line
+        val inset = outlineP.strokeWidth / 2f
+        canvas.drawRoundRect(bonus.left + inset, bonus.top + inset, bonus.right - inset, bonus.bottom - inset, h / 2f, h / 2f, outlineP)
         val textX = bonus.centerX() + icon / 2f
         if (video) {
-            // A play sign in a white disc, left of the label.
+            // A small outlined play sign left of the label.
             val cx = textX - text.measureText(label) / 2f - icon * 0.75f
-            val cy = bonus.centerY() + sink
-            fillP.color = 0xFFFFFFFF.toInt()
-            canvas.drawCircle(cx, cy, icon / 2f, fillP)
+            val cy = bonus.centerY()
+            canvas.drawCircle(cx, cy, icon / 2f - inset, outlineP)
             play.reset()
-            play.moveTo(cx - icon * 0.14f, cy - icon * 0.22f)
-            play.lineTo(cx + icon * 0.24f, cy)
-            play.lineTo(cx - icon * 0.14f, cy + icon * 0.22f)
+            play.moveTo(cx - icon * 0.12f, cy - icon * 0.2f)
+            play.lineTo(cx + icon * 0.22f, cy)
+            play.lineTo(cx - icon * 0.12f, cy + icon * 0.2f)
             play.close()
-            fillP.color = accent
+            fillP.color = line
             canvas.drawPath(play, fillP)
         }
         text.color = 0xFFFFFFFF.toInt()
-        canvas.drawText(label, textX, bonus.centerY() + sink + text.textSize * 0.35f, text)
+        canvas.drawText(label, textX, bonus.centerY() + text.textSize * 0.35f, text)
         text.color = ink
     }
+
+    private val outlineP = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { style = android.graphics.Paint.Style.STROKE }
 
     private val shadowP = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = 0x2E000000 }
     private var blurRadius = 0f

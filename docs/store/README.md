@@ -28,7 +28,12 @@ Play Games optional, Werbung nur zwischen Partien, „Werbefrei“ und Szenerien
   `tablet-7` (1920 × 1080, xhdpi, 960 × 540 dp) und `tablet-10` (2560 × 1440, xhdpi); 16:9 und 24-Bit-PNG ohne Alpha,
   wie Play es für Telefone und Tablets verlangt (1080–7680 px je Seite). Eingecheckt: Deutsch und Englisch; weitere
   Sprachen mit `-Pstore.locales=fr,es,it,pt-rBR,pl,nl,tr,ja,ko,zh-rCN`.
-- `feature-graphic.png`: 1024 × 500, 24-Bit-PNG, nichts Wichtiges in den äußeren 10 %.
+- `feature-graphic.png`: 1024 × 500, 24-Bit-PNG, nichts Wichtiges in den äußeren 10 %, ohne Worte außer dem Namen
+  (passt zu jedem Eintrag). `feature-graphic/<sprache>.png`: dieselbe Grafik mit der Tagline der Sprache („von ISDN bis
+  Glasfaser“, wie das Spiel 1995 mit ISDN beginnt), für jede erzeugte Sprache; in der Play Console je Sprache hochladen.
+- Vor dem Start (docs/RELEASE.md 4): die übrigen 10 Sprachen mit `-Pstore.locales=fr,es,it,pt-rBR,pl,nl,tr,ja,ko,zh-rCN`
+  erzeugen und je Eintrag hochladen; sonst zeigt Play dort die Standardbilder mit deutscher bzw. englischer
+  Beschriftung. Nicht eingecheckt, weil jeder Satz rund 8 MB PNG ist (zehn Sprachen ≈ 80 MB bei jedem Neuerzeugen).
 - Motive: 1 lebendige Stadt, 2 Kabel ziehen mit Vorschau, 3 Überlastung im echten Spielbild mit HUD, 4 gedrehte
   dichte Stadt 2030 (randlos), 5 Funk (WLAN-Kanäle, 5 GHz, Mast), 6 Wochen-Belohnung mit Konfetti, 7 fünf Szenerien
   mit Tagesaufgaben-Hinweis, 8 Bagger und Stromausfall (randlos).

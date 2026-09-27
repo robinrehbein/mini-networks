@@ -119,6 +119,7 @@
     <!-- Game over -->
     <string name="game_over_title">Réseau saturé</string>
     <string name="game_over_best">Record : %1$d</string>
+    <string name="game_over_assisted">Partie avec bonus, ne compte ni pour le record ni pour le classement · Record : %1$d</string>
     <string name="game_over_new_best">Nouveau record !</string>
     <string name="game_over_again">Rejouer</string>
 

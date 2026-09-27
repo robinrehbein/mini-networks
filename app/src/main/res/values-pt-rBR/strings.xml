@@ -119,6 +119,7 @@
     <!-- Game over -->
     <string name="game_over_title">Rede sobrecarregada</string>
     <string name="game_over_best">Recorde: %1$d</string>
+    <string name="game_over_assisted">Partida com extras, não conta para recorde nem placar · Recorde: %1$d</string>
     <string name="game_over_new_best">Novo recorde!</string>
     <string name="game_over_again">Jogar de novo</string>
 

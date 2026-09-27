@@ -172,6 +172,38 @@ class AccessibleLayoutTest {
         assertTrue("labels cut with …:\n${cuts.joinToString("\n")}", cuts.isEmpty())
     }
 
+    /**
+     * The game-over card on a 360 dp high phone (the two-part card with the time-lapse): the reason for the loss, the
+     * key learning moment of a run, stays at least [MIN_REASON_SP] sp and the entries at least [MIN_ENTRY_SP] sp in
+     * every language, also with the longest list of entries ("continue" offered). The picture gives way first.
+     */
+    @Test
+    fun gameOverCardKeepsReasonAndEntriesReadableOnLowPhones() {
+        val problems = ArrayList<String>()
+        for (size in sizes.filter { it.id.startsWith("phone-") && !it.id.endsWith("portrait") }) for (lang in LANGUAGES) {
+            RuntimeEnvironment.setQualifiers("$lang-${size.qualifiers}")
+            val view = lostGameView(app) { it.accessibilityLayer.forceActive = true }
+            view.monetization = FakeMonetization()
+            val bmp = Bitmap.createBitmap(size.width, size.height, Bitmap.Config.ARGB_8888)
+            screen = RectF(0f, 0f, size.width.toFloat(), size.height.toFloat())
+            view.drawSnapshot(Canvas(bmp), view.currentWorld, bmp.width, bmp.height, time = 1.3f, screen = null)
+            val nodes = view.accessibilityLayer.nodes
+            // Again, continue, share, main menu.
+            check("${size.id}, $lang", "game over", nodes, expectedActions = 4)
+            val density = app.resources.displayMetrics.density
+            val lines = nodes.single { it.key == "menu:lines" }
+            assertTrue("$lang: no loss reason on the card", view.currentWorld.failure != null && lines.text.isNotEmpty())
+            if (lines.textPx / density < MIN_REASON_SP) problems += "${size.id}, $lang: reason at ${lines.textPx / density} sp"
+            for (b in nodes.filter { it.key.startsWith("menu:") && it.kind == UiNode.Kind.BUTTON }) {
+                if (b.textPx / density < MIN_ENTRY_SP) problems += "${size.id}, $lang: ${b.text} at ${b.textPx / density} sp"
+                if (b.shortened) problems += "${size.id}, $lang: ${b.text} cut with …"
+            }
+            if (nodes.none { it.key == "menu:picture" }) problems += "${size.id}, $lang: no time-lapse"
+        }
+        RuntimeEnvironment.setQualifiers("de")
+        assertTrue(problems.joinToString("\n"), problems.isEmpty())
+    }
+
     @Test
     fun sceneryPickerKeepsLargeTargetsInEveryFormat() = everywhere { size, view, bmp ->
         view.monetization = FakeMonetization(prices = mapOf(Entitlements.SCENERY_PACK to "4,99 €"))
@@ -276,6 +308,10 @@ class AccessibleLayoutTest {
         val HEADER = setOf("achievement:back", "achievement:title", "achievement:count")
         /** Resource qualifiers of the 12 languages (docs/TOP100.md F1). */
         val LANGUAGES = listOf("de", "en", "fr", "es", "it", "pt-rBR", "pl", "nl", "tr", "ja", "ko", "zh-rCN")
+        /** Smallest size of the loss reason on the game-over card, in sp at font scale 1. */
+        const val MIN_REASON_SP = 12f
+        /** Smallest label size of the game-over card's entries, in sp at font scale 1. */
+        const val MIN_ENTRY_SP = 14f
     }
 
     private fun check(size: String, what: String, nodes: List<UiNode>, expectedActions: Int, offScreenOk: (String) -> Boolean = { false }) {

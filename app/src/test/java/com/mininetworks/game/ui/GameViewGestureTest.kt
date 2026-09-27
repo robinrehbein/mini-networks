@@ -13,6 +13,7 @@ import com.mininetworks.game.game.RadioType
 import com.mininetworks.game.game.Wifi
 import com.mininetworks.game.game.Service
 import com.mininetworks.game.game.World
+import com.mininetworks.game.render.TwoFingerGesture
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -207,7 +208,8 @@ class GameViewGestureTest {
         val pc = world.addClient(Device.PC, 10, 7)
         val mail = world.addServer(Service.MAIL, 14, 9)
         val under = view.activeRenderer.toWorld(800f, 450f)
-        twist(60f)
+        // 72° of finger twist: the first 12° are the dead zone of a pinch, the map follows the other 60°.
+        twist(60f + TwoFingerGesture.ROTATE_THRESHOLD)
         assertTrue("turned while the fingers move", camera.angle in 50f..70f || camera.isRotating)
         repeat(90) { view.advance(1f / 60f) }
         assertEquals("snapped to the nearest right angle", 90f, camera.angle, 0f)
@@ -241,7 +243,7 @@ class GameViewGestureTest {
         view = GameView(app)
         val bmp = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)
         view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 0f, style = "Flat")
-        twist(37f)
+        twist(37f + TwoFingerGesture.ROTATE_THRESHOLD)
         repeat(90) { view.advance(1f / 60f) }
         assertEquals(37f, camera.angle, 0.5f)
         val p = view.activeRenderer.toWorld(300f, 200f)

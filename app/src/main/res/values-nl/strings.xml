@@ -116,6 +116,7 @@
     <!-- Game over -->
     <string name="game_over_title">Netwerk overbelast</string>
     <string name="game_over_best">Record: %1$d</string>
+    <string name="game_over_assisted">Gespeeld met extraatjes, telt niet voor record en ranglijst · Record: %1$d</string>
     <string name="game_over_new_best">Nieuw record!</string>
     <string name="game_over_again">Nog een keer</string>
 

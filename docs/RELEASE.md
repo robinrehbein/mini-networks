@@ -115,8 +115,10 @@ keytool -printcert -jarfile app/build/outputs/bundle/release/app-release.aab   #
 6. **Store-Eintrag:** Texte in 12 Sprachen, Screenshots, Feature-Grafik und Trailer-Storyboard in `docs/store/`
    (Übersicht `docs/store/README.md`; ältere Planung in `docs/store-listing.md`); Kategorie **Spiele → Strategie**
    (Alternative: Puzzle), Tags z. B. „Simulation“, „Casual“. Kontakt-E-Mail und Website eintragen.
-7. **Datenschutzerklärung:** `docs/privacy-policy.md` (DE/EN) mit echtem Verantwortlichen füllen, auf einer öffentlichen
-   Seite (Website, GitHub Pages) veröffentlichen und die URL im Store-Eintrag **und** in der UMP-Nachricht eintragen.
+7. **Datenschutzerklärung:** veröffentlicht unter https://robinrehbein.github.io/mini-networks/privacy/ (Deutsch und
+   Englisch auf einer Seite; Quelle `docs/privacy-policy-web.md`, bauen mit `python3 tools/build_privacy_page.py`,
+   ausführlich in `docs/privacy-policy.md`). Diese URL im Store-Eintrag **und** in der UMP-Nachricht eintragen. Kommt
+   ein SDK dazu, beide Fassungen anpassen (`StoreListingTest.thePublishedPrivacyPageCoversEverySdkInGermanAndEnglish`).
 8. **App-Inhalte** (Richtlinie → App-Inhalte): Datenschutzerklärung, Werbung („Ja, enthält Werbung“), App-Zugriff
    („Alle Funktionen ohne Anmeldung verfügbar“), Einstufung (Abschnitt 7), Zielgruppe (Abschnitt 8),
    Datensicherheit (Abschnitt 9), Behörden-App: Nein, Finanzfunktionen: Keine, Gesundheit: Nein, Nachrichten-App: Nein.
@@ -240,7 +242,10 @@ daher mit **Ja, Werbung oder Marketing** zu beantworten.
       (profgen liegt in `cmdline-tools/latest/bin`)
 - [ ] Datenschutzerklärung veröffentlicht, URL in Play Console und UMP-Nachricht
 - [ ] In-App-Produkte angelegt und aktiv, Lizenztester eingetragen
-- [ ] Store-Eintrag in 12 Sprachen (`docs/store/<sprache>.md`), Icon 512 px (`docs/screenshots/store-icon-512.png`), Feature-Grafik (`docs/store/feature-graphic.png`), Screenshots (`docs/store/screenshots/`)
+- [ ] Store-Eintrag in 12 Sprachen (`docs/store/<sprache>.md`), Icon 512 px (`docs/screenshots/store-icon-512.png`), Feature-Grafik (`docs/store/feature-graphic.png` wortlos, je Sprache `docs/store/feature-graphic/<sprache>.png`), Screenshots (`docs/store/screenshots/`)
+- [ ] Store-Bilder und Feature-Grafiken der übrigen 10 Sprachen erzeugt und je Eintrag hochgeladen:
+      `ROBOLECTRIC_DEPS_DIR=/opt/robolectric ./gradlew testDebugUnitTest --tests '*StoreScreenshotTest*' -Pstore.locales=fr,es,it,pt-rBR,pl,nl,tr,ja,ko,zh-rCN`
+      (nicht eingecheckt, ≈ 80 MB PNG; ohne sie zeigt Play dort die deutschen bzw. englischen Bilder)
 - [ ] Geräte-Checks aus Abschnitt 4 im internen Test bestanden
 
 ## 11. Play Games Services (Erfolge, Bestenlisten, Cloud-Spielstand)

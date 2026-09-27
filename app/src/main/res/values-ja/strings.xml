@@ -113,6 +113,7 @@
     <!-- Game over -->
     <string name="game_over_title">ネットワーク過負荷</string>
     <string name="game_over_best">ベスト：%1$d</string>
+    <string name="game_over_assisted">特典を使ったため、ベストとランキングには記録されません・ベスト：%1$d</string>
     <string name="game_over_new_best">新記録！</string>
     <string name="game_over_again">もう一度</string>
 

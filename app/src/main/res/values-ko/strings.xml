@@ -113,6 +113,7 @@
     <!-- Game over -->
     <string name="game_over_title">네트워크 과부하</string>
     <string name="game_over_best">최고 기록: %1$d</string>
+    <string name="game_over_assisted">추가 혜택을 사용해 최고 기록과 순위표에 반영되지 않아요 · 최고 기록: %1$d</string>
     <string name="game_over_new_best">신기록!</string>
     <string name="game_over_again">다시 하기</string>
 

@@ -116,6 +116,7 @@
     <!-- Game over -->
     <string name="game_over_title">Ağ aşırı yüklendi</string>
     <string name="game_over_best">En iyi: %1$d</string>
+    <string name="game_over_assisted">Ekstralarla oynandı, rekora ve sıralamaya sayılmaz · En iyi: %1$d</string>
     <string name="game_over_new_best">Yeni rekor!</string>
     <string name="game_over_again">Tekrar oyna</string>
 

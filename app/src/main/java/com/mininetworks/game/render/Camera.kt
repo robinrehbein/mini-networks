@@ -7,6 +7,7 @@ import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.hypot
 import kotlin.math.roundToInt
+import kotlin.math.sign
 import kotlin.math.sin
 
 /** Axis-aligned rectangle in a renderer's map space. */
@@ -358,6 +359,15 @@ class TwoFingerGesture {
     /** Degrees the fingers turned the map since [start]. */
     var turned = 0f; private set
 
+    /** Degrees the fingers twisted since [start] while the turn had not engaged yet. */
+    private var twist = 0f
+
+    /**
+     * True once the fingers twisted by more than [ROTATE_THRESHOLD] degrees in this gesture. Before that, a pinch or a
+     * two-finger pan (fingers never move perfectly parallel) only zooms and pans; the map does not wobble.
+     */
+    var turning = false; private set
+
     fun start(x0: Float, y0: Float, x1: Float, y1: Float) {
         active = true
         midX = (x0 + x1) / 2f
@@ -365,6 +375,8 @@ class TwoFingerGesture {
         span = hypot(x1 - x0, y1 - y0)
         heading = headingOf(x0, y0, x1, y1)
         turned = 0f
+        twist = 0f
+        turning = false
     }
 
     /** Applies the movement since the last call to [camera]; the map point between the fingers stays between them. */
@@ -378,9 +390,20 @@ class TwoFingerGesture {
         if (span > MIN_SPAN && s > MIN_SPAN) {
             camera.zoomBy(s / span, mx, my)
             if (rotate) {
-                val d = Camera.shortestTurn(heading, h)
-                camera.rotateBy(d, mx, my)
-                turned += d
+                var d = Camera.shortestTurn(heading, h)
+                if (!turning) {
+                    twist += d
+                    d = 0f
+                    if (abs(twist) > ROTATE_THRESHOLD) {
+                        // Engaged: from here on the map follows the fingers smoothly, without a jump by the threshold.
+                        turning = true
+                        d = twist - sign(twist) * ROTATE_THRESHOLD
+                    }
+                }
+                if (d != 0f) {
+                    camera.rotateBy(d, mx, my)
+                    turned += d
+                }
             }
         }
         midX = mx
@@ -395,8 +418,11 @@ class TwoFingerGesture {
 
     private fun headingOf(x0: Float, y0: Float, x1: Float, y1: Float) = Math.toDegrees(atan2((y1 - y0).toDouble(), (x1 - x0).toDouble())).toFloat()
 
-    private companion object {
+    companion object {
         /** Below this finger distance in pixels the ratio is too noisy to zoom by. */
-        const val MIN_SPAN = 8f
+        private const val MIN_SPAN = 8f
+
+        /** Degrees the fingers must twist within one gesture before the map starts to turn (a dead zone for pinches). */
+        const val ROTATE_THRESHOLD = 12f
     }
 }

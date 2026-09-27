@@ -9,6 +9,7 @@ import android.graphics.Typeface
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.SoundEffectConstants
@@ -108,6 +109,7 @@ import com.mininetworks.game.review.ReviewPrompt
 import com.mininetworks.game.share.ShareCard
 import com.mininetworks.game.share.ShareSheet
 import java.io.File
+import java.io.IOException
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.thread
@@ -568,7 +570,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         }
         sounds.close()
         // Safe: the game thread has ended.
-        if (failFocusUntil != null) showGameOverCard()
+        if (failFocusUntil != null) showGameOverCard(askReview = false)
         // A gesture that started before the pause never gets its release; drop it with everything it armed.
         endDrag()
         tutorialGesture = false
@@ -726,6 +728,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         }
         checkGameOver()
         failFocusUntil?.let { if (animTime >= it) showGameOverCard() }
+        askReviewIfDue()
         followArea()
         if (selection != null && animTime >= selectionUntil) selection = null
         if (screen == Screen.PLAYING && animTime >= hintUntil && world.rewardOffer == null) hintQueue.removeFirstOrNull()?.let { showHint(it, LONG_HINT_SECONDS) }
@@ -745,7 +748,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             dailyExpiredHinted = true
             hintQueue.addFirst(context.getString(R.string.hint_daily_expired))
         }
-        if (!daily.countsFor(streak, world.delivered, now)) return
+        if (!daily.countsFor(streak, world.delivered, now, world.assisted)) return
         val next = streak.record(daily.day)
         streakCache = next
         progressStore.streak = next
@@ -2255,6 +2258,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 world.failure?.let { problemText(it.node, it.service, it.problem, it.pingMs) },
                 when {
                     newBest -> null
+                    world.assisted && world.daily == null -> context.getString(R.string.game_over_assisted, highscores.best(world.scenario.id))
                     world.daily != null -> context.getString(R.string.game_over_daily_best, progressStore.dailyBest(world.daily!!.day))
                     else -> context.getString(R.string.game_over_best, highscores.best(world.scenario.id))
                 },
@@ -2487,12 +2491,16 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         val text = shareCard.message(world)
         val cache = context.cacheDir
         GameIo.execute {
+            // A full disk or an unwritable cache only means no share sheet this time, never a crash.
             val file = try {
                 ShareSheet.write(cache, card)
+            } catch (e: IOException) {
+                Log.w("GameView", "share card not written", e)
+                null
             } finally {
                 card.recycle()
             }
-            mainThread.post { onShare?.invoke(file, text) }
+            if (file != null) mainThread.post { onShare?.invoke(file, text) }
         }
     }
 
@@ -2560,7 +2568,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private fun bonusLabel(): String? {
         val offer = world.rewardOffer ?: return null
         return when {
-            offer.bonusClaimed || tutorial != null -> null
+            offer.bonusClaimed || tutorial != null || !world.extrasAllowed -> null
             monetization.adsRemoved -> context.getString(R.string.reward_bonus_router)
             monetization.rewardedReady -> context.getString(R.string.reward_bonus_router_ad)
             else -> null
@@ -2855,13 +2863,15 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         if (screen != Screen.PLAYING || !world.gameOver || !gameInProgress) return
         growth.sample(world)
         gameInProgress = false
-        // A daily challenge keeps its own best of the day; it never counts towards unlocking sceneries.
+        // A daily challenge keeps its own best of the day; it never counts towards unlocking sceneries. An assisted run
+        // (continued, bonus router) sets no best: bests unlock sceneries and must be reached by the same rules for all.
         val daily = world.daily
         val previousBest = when {
             daily == null -> highscores.best(world.scenario.id)
             else -> progressStore.dailyBest(daily.day)
         }
         newBest = when {
+            world.assisted -> false
             daily == null -> highscores.submit(world.delivered, world.scenario.id)
             // A run finished after its UTC day no longer counts for that day's best (docs/TOP100.md C1).
             daily.isToday(wallClock()) -> progressStore.submitDaily(daily.day, world.delivered)
@@ -2888,12 +2898,21 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         focusSkipArmed = false
     }
 
-    private fun showGameOverCard() {
+    /**
+     * Switches from the camera's glide to the result card. The rating request comes with the card, not over the glide
+     * (D1), and only in the foreground: from [pause] ([askReview] false) the request stays due until the card is drawn
+     * again after the return ([askReviewIfDue] in [update]), since Play cannot show its dialog to an app going away and
+     * the policy has already counted the request.
+     */
+    private fun showGameOverCard(askReview: Boolean = true) {
         failFocusUntil = null
         gameOverAt = animTime
         screen = Screen.GAME_OVER
-        // The rating request comes with the result card, not over the camera's glide to the failed device (D1).
-        if (reviewDue) {
+        if (askReview) askReviewIfDue()
+    }
+
+    private fun askReviewIfDue() {
+        if (reviewDue && screen == Screen.GAME_OVER) {
             reviewDue = false
             reviewPrompt.request()
         }

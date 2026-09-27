@@ -122,6 +122,7 @@
     <!-- Game over -->
     <string name="game_over_title">Sieć przeciążona</string>
     <string name="game_over_best">Rekord: %1$d</string>
+    <string name="game_over_assisted">Gra z dodatkami, nie liczy się do rekordu i rankingu · Rekord: %1$d</string>
     <string name="game_over_new_best">Nowy rekord!</string>
     <string name="game_over_again">Jeszcze raz</string>
 

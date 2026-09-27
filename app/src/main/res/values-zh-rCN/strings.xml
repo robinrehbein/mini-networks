@@ -113,6 +113,7 @@
     <!-- Game over -->
     <string name="game_over_title">网络过载</string>
     <string name="game_over_best">最高分：%1$d</string>
+    <string name="game_over_assisted">使用了额外帮助，不计入最高分和排行榜 · 最高分：%1$d</string>
     <string name="game_over_new_best">新纪录！</string>
     <string name="game_over_again">再玩一次</string>
 

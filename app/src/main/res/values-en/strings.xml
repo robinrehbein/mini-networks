@@ -116,6 +116,7 @@
     <!-- Game over -->
     <string name="game_over_title">Network overloaded</string>
     <string name="game_over_best">Best: %1$d</string>
+    <string name="game_over_assisted">Played with extras, not counted for best or leaderboards · Best: %1$d</string>
     <string name="game_over_new_best">New best!</string>
     <string name="game_over_again">Play again</string>
 

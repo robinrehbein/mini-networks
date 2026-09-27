@@ -47,4 +47,34 @@ class StoreListingTest {
             assertEquals("$locale: captions of the screenshots", StoreScreenshotTest.LANGUAGES.getValue(qualifier), captions)
         }
     }
+
+    /**
+     * docs/TOP100.md F5: the privacy page at the URL for the Play Console and the UMP message covers every SDK of the
+     * release build (ads with UMP, billing, Play Games with its cloud save, in-app review) in German and in English,
+     * names the controller and holds no placeholder; so does the long form in docs/privacy-policy.md.
+     */
+    @Test
+    fun thePublishedPrivacyPageCoversEverySdkInGermanAndEnglish() {
+        val docs = store.parentFile
+        val page = File(docs, "privacy/index.html").readText()
+        val source = File(docs, "privacy-policy-web.md").readText()
+        val german = page.substringAfter("<section lang=\"de\">").substringBefore("</section>")
+        val english = page.substringAfter("<section lang=\"en\" id=\"en\">").substringBefore("</section>")
+        assertTrue("an English version", english.isNotBlank() && english != page)
+        for ((lang, text) in listOf("de" to german, "en" to english)) {
+            for (sdk in listOf("AdMob", "User Messaging Platform", "Google Play Billing", "Google Play", "Play Games", "Spiele-Dienste|Games services", "In-App Review", "Cloud|cloud")) {
+                if (sdk == "Play Games" && lang == "de") continue
+                assertTrue("$lang: privacy page mentions $sdk", Regex(sdk).containsMatchIn(text))
+            }
+            assertTrue("$lang: names the controller", text.contains("Robin Rehbein") && text.contains("hello@robinrehbein.de"))
+        }
+        // The page is built from its Markdown source; the long form carries no draft placeholders.
+        for (sdk in listOf("Spiele-Dienste", "In-App Review")) assertTrue("source mentions $sdk", source.contains(sdk))
+        val policy = File(docs, "privacy-policy.md").readText()
+        assertTrue("placeholders left in privacy-policy.md", !Regex("`<[^>]*>`").containsMatchIn(policy))
+        val gradle = File(docs.parentFile, "app/build.gradle.kts").readText()
+        for ((dependency, named) in listOf("play-services-ads" to "AdMob", "user-messaging-platform" to "User Messaging Platform", "billing" to "Billing", "play-services-games" to "Spiele-Dienste", "com.google.android.play:review" to "In-App Review")) {
+            if (gradle.contains(dependency)) assertTrue("$dependency ships, so the page names $named", german.contains(named))
+        }
+    }
 }

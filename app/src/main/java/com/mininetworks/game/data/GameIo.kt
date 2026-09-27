@@ -21,12 +21,15 @@ object GameIo {
         }
     }
 
-    /** Runs [task] later on the I/O thread. An exception is logged; it must not take the whole app down. */
+    /**
+     * Runs [task] later on the I/O thread. An exception is logged; it must not take the whole app down. That includes
+     * checked ones such as an [java.io.IOException] from a full disk, which Kotlin lets a lambda throw undeclared.
+     */
     fun execute(task: () -> Unit) {
         executor.execute {
             try {
                 task()
-            } catch (e: RuntimeException) {
+            } catch (e: Exception) {
                 Log.w(TAG, "background task failed", e)
             }
         }

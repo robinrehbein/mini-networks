@@ -45,8 +45,8 @@ Verkabel eine wachsende Stadt – vom Modem 1995 bis zur Glasfaser von heute.
 
 **Title:** Mini Networks
 
-**Short description** (60 characters):
-Wire up a growing town – from 1995 dial-up to today's fibre.
+**Short description** (57 characters):
+Wire up a growing town – from 1995 ISDN to today's fibre.
 
 **Full description:**
 

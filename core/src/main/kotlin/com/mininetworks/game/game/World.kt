@@ -225,8 +225,28 @@ class World(
     /** True once this game went on after a game over ([continueAfterGameOver]); that works only once per game. */
     var continued = false; private set
 
-    /** True while the game is over and may still go on once ([continueAfterGameOver]); never in a [guided] world. */
-    val canContinue get() = gameOver && !continued && !guided
+    /**
+     * Rewarded extras taken so far ([claimBonusRouter]): routers on top of a week's free choice. Together with
+     * [continued] they make the run [assisted].
+     */
+    var bonusRoutersClaimed = 0; private set
+
+    /**
+     * True once this run had help from outside the rules everyone plays by: it went on after a game over or took the
+     * weekly bonus router (both come from a rewarded video or "remove ads"). Such a run plays on normally but is not a
+     * fair result: it submits to no leaderboard ([Leaderboards.forGameOver]) and sets no best that unlocks a scenery
+     * (docs/TOP100.md E, fairness).
+     */
+    val assisted get() = continued || bonusRoutersClaimed > 0
+
+    /**
+     * False in a daily challenge: it promises the same game for everyone, so neither the bonus router nor going on
+     * after a game over exists there (its "few routers" rule would be undone by one video).
+     */
+    val extrasAllowed get() = daily == null && !guided
+
+    /** True while the game is over and may still go on once ([continueAfterGameOver]); never in a [guided] world or a daily challenge. */
+    val canContinue get() = gameOver && !continued && extrasAllowed
 
     /** Open week reward choice. While set, the simulation is paused until [chooseReward] is called. */
     var rewardOffer: RewardOffer? = null; private set
@@ -736,12 +756,15 @@ class World(
 
     /**
      * Adds [Rewards.BONUS_ROUTERS] routers on top of the open [rewardOffer] (the rewarded extra of the week screen),
-     * at most once per offer. False if no offer is open or its bonus was already taken.
+     * at most once per offer. False if no offer is open, its bonus was already taken, or this is a daily challenge
+     * ([extrasAllowed]). A taken bonus makes the run [assisted].
      */
     fun claimBonusRouter(): Boolean {
+        if (!extrasAllowed) return false
         val offer = rewardOffer ?: return false
         if (offer.bonusClaimed) return false
         offer.bonusClaimed = true
+        bonusRoutersClaimed++
         routersAvailable += Rewards.BONUS_ROUTERS
         return true
     }
@@ -1548,6 +1571,7 @@ class World(
         failedNodeId = failedNode?.id,
         rewardOffer = rewardOffer?.let { RewardOfferSnapshot(it.week, it.choices, it.bonusClaimed) },
         continued = continued,
+        bonusRoutersClaimed = bonusRoutersClaimed,
         serverVouchers = serverVouchers,
         lastNews = lastNews,
         lastNewsTime = lastNewsTime,
@@ -1657,6 +1681,9 @@ class World(
             w.serverVouchers = s.serverVouchers
             w.rewardOffer = s.rewardOffer?.let { RewardOffer(it.week, it.choices).apply { bonusClaimed = it.bonusClaimed } }
             w.continued = s.continued
+            require(s.bonusRoutersClaimed >= 0) { "bad bonus count" }
+            // A save from before the count still knows a bonus taken on its open week screen.
+            w.bonusRoutersClaimed = maxOf(s.bonusRoutersClaimed, if (s.rewardOffer?.bonusClaimed == true) 1 else 0)
             w.lastNews = s.lastNews
             w.lastNewsTime = s.lastNewsTime
             w.clientSpawnTimer = s.clientSpawnTimer

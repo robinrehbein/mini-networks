@@ -58,6 +58,8 @@ data class WorldSnapshot(
     val rewardOffer: RewardOfferSnapshot?,
     /** [World.continued]: the game already went on once after a game over. */
     val continued: Boolean = false,
+    /** [World.bonusRoutersClaimed]; saves from before it count as none. */
+    val bonusRoutersClaimed: Int = 0,
     val serverVouchers: Int,
     val lastNews: WeekNews?,
     val lastNewsTime: Float,

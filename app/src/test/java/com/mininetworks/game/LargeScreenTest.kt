@@ -68,6 +68,10 @@ class LargeScreenTest {
         for (change in listOf(ActivityInfo.CONFIG_SCREEN_SIZE, ActivityInfo.CONFIG_SMALLEST_SCREEN_SIZE, ActivityInfo.CONFIG_SCREEN_LAYOUT, ActivityInfo.CONFIG_ORIENTATION)) {
             assertTrue("configChanges handles $change", handled and change != 0)
         }
+        // The canvas UI fixes text sizes, touch slop and HUD sizes from the density when the view is built, so a
+        // density change (display size setting, another display) must recreate the activity; restoreState then goes on
+        // from the autosave.
+        assertTrue("a density change recreates the activity", handled and ActivityInfo.CONFIG_DENSITY == 0)
         val manifest = java.io.File("src/main/AndroidManifest.xml").readText()
         assertTrue("resizeableActivity is declared", manifest.contains("android:resizeableActivity=\"true\""))
         assertTrue("no max aspect ratio that would letterbox wide screens", !manifest.contains("maxAspectRatio"))

@@ -280,6 +280,39 @@ class CameraTest {
         assertEquals(20f, Camera.shortestTurn(350f, 10f), 1e-4f)
     }
 
+    /** A pinch never moves the fingers perfectly straight: a slight twist zooms, but the map keeps its angle. */
+    @Test
+    fun aPinchWithASlightTwistZoomsButDoesNotTurn() {
+        for (projection in listOf(MapProjection.Identity, IsoProjection)) {
+            val c = turnedCamera(projection)
+            val before = c.angle
+            val scale = c.scale
+            val g = TwoFingerGesture()
+            g.start(400f, 300f, 600f, 300f)
+            // Spread to twice the distance in 10 steps while the fingers drift up to 9° (and back to 7°).
+            val twists = listOf(1f, 2f, 4f, 5f, 7f, 8f, 9f, 9f, 8f, 7f)
+            for ((k, deg) in twists.withIndex()) {
+                val r = 100f * (1f + (k + 1) / 10f)
+                val a = Math.toRadians(deg.toDouble())
+                val dx = (r * kotlin.math.cos(a)).toFloat(); val dy = (r * kotlin.math.sin(a)).toFloat()
+                g.move(500f - dx, 300f - dy, 500f + dx, 300f + dy, c)
+            }
+            assertEquals("zoomed", scale * 2f, c.scale, 1e-2f)
+            assertEquals("the angle stays", before, c.angle, 0f)
+            assertFalse(g.turning)
+            assertEquals(0f, g.turned, 0f)
+            // A clear turn beyond the dead zone then turns the map smoothly: 20° of finger twist turn it by 8° more.
+            val r = 200f
+            for (deg in listOf(12f, 16f, 20f)) {
+                val a = Math.toRadians(deg.toDouble())
+                val dx = (r * kotlin.math.cos(a)).toFloat(); val dy = (r * kotlin.math.sin(a)).toFloat()
+                g.move(500f - dx, 300f - dy, 500f + dx, 300f + dy, c)
+            }
+            assertTrue(g.turning)
+            assertEquals(before + 20f - TwoFingerGesture.ROTATE_THRESHOLD, c.angle, 1e-2f)
+        }
+    }
+
     @Test
     fun twoFingersTurnZoomAndPanTogetherAroundTheirMidpoint() {
         for (projection in listOf(MapProjection.Identity, IsoProjection)) {
@@ -293,8 +326,11 @@ class CameraTest {
             val a = Math.toRadians(30.0)
             val dx = (r * kotlin.math.cos(a)).toFloat(); val dy = (r * kotlin.math.sin(a)).toFloat()
             g.move(540f - dx, 280f - dy, 540f + dx, 280f + dy, c)
-            assertEquals(30f, c.angle, 1e-2f)
-            assertEquals(30f, g.turned, 1e-2f)
+            // The first ROTATE_THRESHOLD degrees are the dead zone of a pinch; the map follows the rest without a jump.
+            val turn = 30f - TwoFingerGesture.ROTATE_THRESHOLD
+            assertTrue(g.turning)
+            assertEquals(turn, c.angle, 1e-2f)
+            assertEquals(turn, g.turned, 1e-2f)
             assertEquals(scale * 1.5f, c.scale, 1e-2f)
             assertNear(Vec2(540f, 280f), c.worldToScreen(between), 1e-1f)
             g.stop()

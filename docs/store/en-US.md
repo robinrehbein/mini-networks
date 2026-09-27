@@ -56,4 +56,4 @@ network, cables, strategy, puzzle, city builder, town, router, Wi-Fi, fiber, int
 8. Mind the excavator!
 
 Bilder: `docs/store/screenshots/{phone,phone-portrait,tablet-7,tablet-10}/en/01…08-*.png`
-Feature-Grafik (sprachneutral): `docs/store/feature-graphic.png`
+Feature-Grafik: `docs/store/feature-graphic/en.png` (mit Tagline dieser Sprache); ohne Worte außer dem Namen: `docs/store/feature-graphic.png`

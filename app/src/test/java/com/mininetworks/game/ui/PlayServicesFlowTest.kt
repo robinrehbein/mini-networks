@@ -304,6 +304,25 @@ class PlayServicesFlowTest {
     }
 
     @Test
+    fun aPauseDuringTheGameOverGlideKeepsTheRatingForTheReturn() {
+        val prompt = CountingPrompt()
+        val view = newView().also { it.reviewPrompt = prompt }
+        ReviewStore(app).state = ReviewState(finishedGames = 2)
+        view.drawSnapshot(Canvas(bmp), doomedGame(3), bmp.width, bmp.height, time = 0f)
+        while (!view.currentWorld.gameOver) step(view)
+        assertTrue("the camera still glides", view.currentScreen != Screen.GAME_OVER)
+        // The app goes to the background mid-glide: the card is there, but Play could not show a dialog now.
+        view.pause()
+        assertEquals(Screen.GAME_OVER, view.currentScreen)
+        assertEquals("no rating request from the background", 0, prompt.requests)
+        // Back in the foreground, the first frame of the card asks.
+        view.advance(1f / 60f)
+        assertEquals(1, prompt.requests)
+        view.advance(1f / 60f)
+        assertEquals("asked once", 1, prompt.requests)
+    }
+
+    @Test
     fun neverAfterAQuickLossNorInEndlessOrCreative() {
         val prompt = CountingPrompt()
         val view = newView().also { it.reviewPrompt = prompt }
@@ -338,6 +357,32 @@ class PlayServicesFlowTest {
         assertEquals(ShareCard.HEIGHT, card.height)
         assertEquals(app.resources.getQuantityString(R.plurals.share_text, 4, Texts(app).scenario(Scenarios.RIVER_TOWN), "4", view.currentWorld.year), text)
         assertEquals("the game-over card stays", Screen.GAME_OVER, view.currentScreen)
+    }
+
+    @Test
+    fun aShareThatCannotBeWrittenSkipsTheShareSheetInsteadOfCrashing() {
+        // The share folder is taken by a plain file, as good as a full or unwritable cache: writing throws IOException.
+        val blocked = File(app.cacheDir, ShareSheet.DIR)
+        blocked.deleteRecursively()
+        blocked.writeText("not a folder")
+        val uncaught = java.util.concurrent.atomic.AtomicReference<Throwable?>(null)
+        val before = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { _, e -> uncaught.set(e) }
+        try {
+            val view = newView()
+            var shared = false
+            view.onShare = { _, _ -> shared = true }
+            loseGame(view, doomedGame(4))
+            tap(view, MenuAction.SHARE)
+            GameIo.awaitIdle()
+            shadowOf(Looper.getMainLooper()).idle()
+            assertFalse("no share sheet without a card", shared)
+            assertNull("nothing reached the uncaught-exception handler", uncaught.get())
+            assertEquals("the game-over card stays", Screen.GAME_OVER, view.currentScreen)
+        } finally {
+            Thread.setDefaultUncaughtExceptionHandler(before)
+            blocked.delete()
+        }
     }
 
     @Test

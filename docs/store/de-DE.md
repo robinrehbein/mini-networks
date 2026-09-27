@@ -56,4 +56,4 @@ Netzwerk, Kabel verlegen, Strategiespiel, Puzzle, Aufbauspiel, Stadt, Router, WL
 8. Achtung, Bagger!
 
 Bilder: `docs/store/screenshots/{phone,phone-portrait,tablet-7,tablet-10}/de/01…08-*.png`
-Feature-Grafik (sprachneutral): `docs/store/feature-graphic.png`
+Feature-Grafik: `docs/store/feature-graphic/de.png` (mit Tagline dieser Sprache); ohne Worte außer dem Namen: `docs/store/feature-graphic.png`

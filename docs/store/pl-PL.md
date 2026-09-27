@@ -56,4 +56,4 @@ sieć, kable, strategia, łamigłówka, budowanie miasta, router, Wi-Fi, świat�
 8. Uwaga, koparka!
 
 Bilder: nicht eingecheckt; erzeugen mit `ROBOLECTRIC_DEPS_DIR=/opt/robolectric ./gradlew testDebugUnitTest --tests '*StoreScreenshotTest*' -Pstore.locales=pl` (landet in `docs/store/screenshots/<gerät>/pl/`). Bis dahin zeigt Play die englischen bzw. deutschen Bilder.
-Feature-Grafik (sprachneutral): `docs/store/feature-graphic.png`
+Feature-Grafik: `docs/store/feature-graphic/pl.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=pl`); bis dahin die wortlose `docs/store/feature-graphic.png`

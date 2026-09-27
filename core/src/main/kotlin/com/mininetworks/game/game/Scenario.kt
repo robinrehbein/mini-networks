@@ -103,11 +103,12 @@ data class Scenario(
 /** The five scenarios of docs/PLAN.md 5.2, in menu order. */
 object Scenarios {
     /**
-     * Delivered packets in [RIVER_TOWN] that unlock [METROPOLIS], and in [METROPOLIS] that unlock [ISLAND]: about
-     * 1.2–1.5 times what the balancing bot delivers there in a median game (docs/BALANCING.md), so a good run gets there.
+     * Delivered packets in [RIVER_TOWN] that unlock [METROPOLIS], and in [METROPOLIS] that unlock [ISLAND]: about 0.8
+     * times what the balancing bot delivers there in a median game (docs/BALANCING.md), so an ordinary good run gets
+     * there and the scenery sold next to it never reads as a paywall. The picker shows the progress towards it.
      */
-    const val METROPOLIS_TARGET = 1600
-    const val ISLAND_TARGET = 1100
+    const val METROPOLIS_TARGET = 1000
+    const val ISLAND_TARGET = 650
 
     /** "Kleinstadt am Fluss": the tutorial map with one river, as in the prototype. */
     val RIVER_TOWN = Scenario(

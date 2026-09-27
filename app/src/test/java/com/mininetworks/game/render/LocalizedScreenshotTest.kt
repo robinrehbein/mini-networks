@@ -9,6 +9,7 @@ import com.mininetworks.game.game.PlayerStats
 import com.mininetworks.game.monetization.Entitlements
 import com.mininetworks.game.monetization.FakeMonetization
 import com.mininetworks.game.ui.GameView
+import com.mininetworks.game.ui.lostGameView
 import com.mininetworks.game.ui.menu.Screen
 import org.junit.Before
 import org.junit.Test
@@ -65,7 +66,11 @@ class LocalizedScreenshotTest {
             view().drawSnapshot(Canvas(bmp), game, bmp.width, bmp.height, time = 1.3f, style = "Iso", screen = Screen.SETTINGS)
             save("settings")
             bmp.eraseColor(0)
-            view().drawSnapshot(Canvas(bmp), game, bmp.width, bmp.height, time = 1.3f, style = "Iso", screen = Screen.GAME_OVER)
+            // The real result card: a game played until it was lost, with the recorded time-lapse and the reason.
+            lostGameView(app) { it.monetization = FakeMonetization() }.let {
+                bmp.eraseColor(0)
+                it.drawSnapshot(Canvas(bmp), it.currentWorld, bmp.width, bmp.height, time = 1.3f, screen = null)
+            }
             save("game-over")
             bmp.eraseColor(0)
             view().drawSnapshot(Canvas(bmp), FormFactorScreenshotTest.rewardWorld(), bmp.width, bmp.height, time = 1.3f, style = "Iso")
