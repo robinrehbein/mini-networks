@@ -26,7 +26,7 @@ val gamesIdsArePlaceholders = file("src/main/res/values/games-ids.xml").readText
 
 // Version scheme (docs/RELEASE.md): versionName is MAJOR.MINOR.PATCH, versionCode = MAJOR * 10000 + MINOR * 100 + PATCH,
 // so every new name uploads with a higher code. CI may pass -Pmininetworks.versionCode=<n> to upload a rebuild of the same name.
-val appVersionName = "0.9.0"
+val appVersionName = (findProperty("mininetworks.versionName") as String?) ?: "0.9.1"
 val appVersionCode = (findProperty("mininetworks.versionCode") as String?)?.toInt()
     ?: appVersionName.split('.').map(String::toInt).let { (major, minor, patch) ->
         require(minor < 100 && patch < 100) { "versionName $appVersionName: MINOR and PATCH must stay below 100" }
@@ -50,7 +50,7 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.mininetworks.game"
+        applicationId = "de.robinrehbein.mininetworks"
         minSdk = 26
         targetSdk = 36
         versionCode = appVersionCode

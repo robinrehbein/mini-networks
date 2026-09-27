@@ -181,6 +181,7 @@
     <!-- Monetization (docs/PLAN.md 5.1) -->
     <string name="menu_remove_ads">Sem anúncios · %1$s</string>
     <string name="settings_privacy">Privacidade</string>
+    <string name="settings_privacy_policy">Política de privacidade</string>
     <string name="game_over_continue_ad">Continuar · ver um vídeo</string>
     <string name="game_over_continue">Continuar jogando</string>
     <string name="reward_bonus_router_ad">+1 roteador · ver um vídeo</string>

@@ -1,0 +1,93 @@
+name: Publish Google Play tests
+
+on:
+  push:
+    branches: [claude/mini-networks-android-prototype-9l0v8n]
+  workflow_dispatch:
+
+concurrency:
+  group: play-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: play-release
+    env:
+      MININETWORKS_UPLOAD_STORE_PASSWORD: ${{ secrets.PLAY_UPLOAD_STORE_PASSWORD }}
+      MININETWORKS_UPLOAD_KEY_ALIAS: ${{ secrets.PLAY_UPLOAD_KEY_ALIAS }}
+      MININETWORKS_UPLOAD_KEY_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEY_PASSWORD }}
+      PLAY_UPLOAD_KEYSTORE_BASE64: ${{ secrets.PLAY_UPLOAD_KEYSTORE_BASE64 }}
+      PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+      PLAY_ADMOB_APP_ID: ${{ vars.PLAY_ADMOB_APP_ID }}
+      PLAY_ADMOB_INTERSTITIAL_ID: ${{ vars.PLAY_ADMOB_INTERSTITIAL_ID }}
+      PLAY_ADMOB_REWARDED_ID: ${{ vars.PLAY_ADMOB_REWARDED_ID }}
+      PLAY_CLOSED_TRACK: ${{ vars.PLAY_CLOSED_TRACK || 'alpha' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate release configuration
+        shell: bash
+        run: |
+          for name in MININETWORKS_UPLOAD_STORE_PASSWORD MININETWORKS_UPLOAD_KEY_ALIAS MININETWORKS_UPLOAD_KEY_PASSWORD PLAY_UPLOAD_KEYSTORE_BASE64 PLAY_SERVICE_ACCOUNT_JSON PLAY_ADMOB_APP_ID PLAY_ADMOB_INTERSTITIAL_ID PLAY_ADMOB_REWARDED_ID; do
+            if [[ -z "${!name}" ]]; then
+              echo "Missing release secret or variable: $name" >&2
+              exit 1
+            fi
+          done
+
+      - name: Authenticate to Google Play
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+
+      - name: Install Android SDK
+        run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Play API client
+        run: python -m pip install 'google-api-python-client>=2,<3' 'google-auth>=2,<3'
+
+      - name: Prepare signing key and version
+        shell: bash
+        run: |
+          keyfile="$RUNNER_TEMP/mini-networks-upload.jks"
+          printf '%s' "$PLAY_UPLOAD_KEYSTORE_BASE64" | base64 --decode > "$keyfile"
+          chmod 600 "$keyfile"
+          echo "MININETWORKS_UPLOAD_STORE_FILE=$keyfile" >> "$GITHUB_ENV"
+          echo "PLAY_VERSION_CODE=$((100000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
+          echo "PLAY_VERSION_NAME=0.9.1-r${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+
+      - name: Test and build signed bundle
+        shell: bash
+        run: |
+          ./gradlew --no-daemon testDebugUnitTest lintDebug bundleRelease \
+            "-Pmininetworks.versionCode=$PLAY_VERSION_CODE" \
+            "-Pmininetworks.versionName=$PLAY_VERSION_NAME" \
+            "-Pmininetworks.admob.appId=$PLAY_ADMOB_APP_ID" \
+            "-Pmininetworks.admob.interstitialId=$PLAY_ADMOB_INTERSTITIAL_ID" \
+            "-Pmininetworks.admob.rewardedId=$PLAY_ADMOB_REWARDED_ID"
+
+      - name: Publish to internal and closed testing
+        env:
+          PLAY_BUNDLE: app/build/outputs/bundle/release/app-release.aab
+        run: python tools/publish_play.py

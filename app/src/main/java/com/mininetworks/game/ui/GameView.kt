@@ -2,6 +2,7 @@ package com.mininetworks.game.ui
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
@@ -10,6 +11,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.net.Uri
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.SoundEffectConstants
@@ -2229,6 +2231,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 MenuItem.Button(MenuAction.TUTORIAL, context.getString(R.string.settings_tutorial)),
             ) + listOfNotNull(
                 if (monetization.privacyOptionsRequired) MenuItem.Button(MenuAction.PRIVACY, context.getString(R.string.settings_privacy)) else null,
+                MenuItem.Button(MenuAction.PRIVACY_POLICY, context.getString(R.string.settings_privacy_policy)),
                 MenuItem.Button(MenuAction.BACK, context.getString(R.string.menu_back)),
             ),
             footer = context.getString(R.string.settings_language),
@@ -2401,6 +2404,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             MenuAction.SECOND_CHANCE -> askSecondChance()
             MenuAction.REMOVE_ADS -> monetization.purchase(Entitlements.REMOVE_ADS)
             MenuAction.PRIVACY -> monetization.showPrivacyOptions()
+            MenuAction.PRIVACY_POLICY -> context.startActivity(
+                Intent(Intent.ACTION_VIEW, Uri.parse("https://robinrehbein.github.io/mini-networks/privacy/"))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
             MenuAction.DAILY -> screen = Screen.DAILY
             MenuAction.DAILY_START -> startDaily(DailyChallenge.at(wallClock()))
             MenuAction.ACHIEVEMENTS -> {

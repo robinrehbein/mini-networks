@@ -175,6 +175,7 @@
     <!-- Monetization (docs/PLAN.md 5.1) -->
     <string name="menu_remove_ads">Reklamsız · %1$s</string>
     <string name="settings_privacy">Gizlilik</string>
+    <string name="settings_privacy_policy">Gizlilik politikası</string>
     <string name="game_over_continue_ad">Devam et · video izle</string>
     <string name="game_over_continue">Oynamaya devam et</string>
     <string name="reward_bonus_router_ad">+1 router · video izle</string>

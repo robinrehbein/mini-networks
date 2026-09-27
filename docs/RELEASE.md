@@ -6,7 +6,7 @@ Umgebungsvariablen (CI-Secrets). `.gitignore` schließt `*.jks`, `*.keystore` un
 
 ## 1. Versionen
 
-- `versionName` steht in `app/build.gradle.kts` (`appVersionName`) als `MAJOR.MINOR.PATCH`, zurzeit `0.9.0`
+- `versionName` steht in `app/build.gradle.kts` (`appVersionName`) als `MAJOR.MINOR.PATCH`, zurzeit `0.9.1`
   (Release-Kandidat für den internen Test).
 - `versionCode = MAJOR × 10000 + MINOR × 100 + PATCH` (0.9.0 → 900, 1.0.0 → 10000, 1.2.3 → 10203). MINOR und PATCH
   bleiben unter 100, sonst bricht der Build ab. Jede neue Version im Play Store braucht einen höheren Code, also vor
@@ -93,7 +93,7 @@ keytool -printcert -jarfile app/build/outputs/bundle/release/app-release.aab   #
 ## 5. Play Console einrichten
 
 1. **App anlegen:** Name „Mini Networks“ (bzw. der endgültige Name aus `app_name`), Standardsprache Deutsch (de-DE),
-   Typ **Spiel**, **kostenlos**. Paketname `com.mininetworks.game` (lässt sich später nicht ändern).
+   Typ **Spiel**, **kostenlos**. Paketname `de.robinrehbein.mininetworks` (lässt sich später nicht ändern).
 2. **Play App Signing** annehmen (Standard) und beim ersten Upload das mit dem Upload-Schlüssel signierte AAB hochladen.
 3. **Interner Test:** Track „Interner Test“, Testerliste (E-Mail-Adressen des Teams), AAB hochladen, Versionshinweise
    (DE + EN), veröffentlichen, Opt-in-Link an die Tester.

@@ -1,11 +1,11 @@
 # CI (docs/TOP100.md A9): build, unit tests (JVM + Robolectric), lint and a debug APK on every pull request and on
-# every push to main. Robolectric downloads its android-all jars from Maven Central here (no ROBOLECTRIC_DEPS_DIR).
+# every push to the default branch. Robolectric downloads its android-all jars from Maven Central here.
 name: CI
 
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [claude/mini-networks-android-prototype-9l0v8n]
 
 concurrency:
   group: ci-${{ github.ref }}
