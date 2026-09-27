@@ -57,6 +57,22 @@ enum class DailyRule {
  * the same map and the same start (servers, first devices); after that the game follows the player's moves.
  */
 data class DailyChallenge(val day: Long, val seed: Long, val scenario: Scenario, val rule: DailyRule) {
+    /**
+     * True while [epochMillis] lies on this challenge's UTC day. After midnight (UTC) a run of it may go on, e.g. from
+     * a save, but only as a plain game: it no longer counts for the streak or the day's best ([countsFor]).
+     */
+    fun isToday(epochMillis: Long) = dayOf(epochMillis) == day
+
+    /**
+     * True if a run of this challenge with [delivered] packets counts for [streak] at [epochMillis]: on its own day
+     * only, with at least [STREAK_PACKETS] packets, and once per day.
+     */
+    fun countsFor(streak: DailyStreak, delivered: Int, epochMillis: Long) =
+        isToday(epochMillis) && delivered >= STREAK_PACKETS && !streak.counted(day)
+
+    /** What "play again" starts at [epochMillis]: this challenge on its own day, afterwards the new day's one. */
+    fun again(epochMillis: Long) = if (isToday(epochMillis)) this else at(epochMillis)
+
     companion object {
         /** Packets to deliver in one run of the day's challenge before the day counts for the streak ([DailyStreak]). */
         const val STREAK_PACKETS = 30

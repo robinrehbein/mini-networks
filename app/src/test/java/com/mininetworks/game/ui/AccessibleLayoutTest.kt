@@ -4,10 +4,13 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.RectF
 import com.mininetworks.game.data.SettingsStore
+import com.mininetworks.game.game.CableSkin
+import com.mininetworks.game.game.ColorTheme
 import com.mininetworks.game.game.DebugApi
 import com.mininetworks.game.game.World
 import com.mininetworks.game.monetization.Entitlements
 import com.mininetworks.game.monetization.FakeMonetization
+import com.mininetworks.game.render.Cosmetic
 import com.mininetworks.game.render.FormFactor
 import com.mininetworks.game.render.FormFactorScreenshotTest
 import com.mininetworks.game.ui.menu.Screen
@@ -100,11 +103,43 @@ class AccessibleLayoutTest {
         view.drawSnapshot(Canvas(bmp), view.currentWorld, bmp.width, bmp.height, time = 1.3f, screen = Screen.DAILY)
         check(size, "daily", view.accessibilityLayer.nodes, expectedActions = 2)
         val game = FormFactorScreenshotTest.busyHud()
-        for ((screen, actions) in listOf(Screen.PAUSED to 4, Screen.SETTINGS to 10, Screen.GAME_OVER to 2)) {
+        // Settings: sound, haptics, appearance, tutorial, privacy, back; appearance: three switches, skin, theme, back.
+        for ((screen, actions) in listOf(Screen.PAUSED to 4, Screen.SETTINGS to 6, Screen.APPEARANCE to 6, Screen.GAME_OVER to 2)) {
             bmp.eraseColor(0)
             view.drawSnapshot(Canvas(bmp), game, bmp.width, bmp.height, time = 1.3f, style = "Iso", screen = screen)
             check(size, screen.name, view.accessibilityLayer.nodes, expectedActions = actions)
         }
+    }
+
+    /**
+     * docs/TOP100.md A7/C5: every label of the settings pages is drawn in full, in every format at 200 % text too, so
+     * a sighted player can read which switch is which and which cable skin and color theme are active.
+     */
+    @Test
+    fun settingsLabelsAreNeverCutInEveryFormat() = everywhere { size, german, bmp ->
+        // German and English, each with the longest cosmetic names unlocked and picked.
+        for (lang in listOf("de", "en")) {
+            RuntimeEnvironment.setQualifiers("+$lang")
+            val view = if (lang == "de") german else GameView(app).also { it.accessibilityLayer.forceActive = true }
+            view.monetization = FakeMonetization(privacyOptionsRequired = true)
+            val game = FormFactorScreenshotTest.busyHud()
+            for (screen in listOf(Screen.SETTINGS, Screen.APPEARANCE)) {
+                bmp.eraseColor(0)
+                view.drawSnapshot(Canvas(bmp), game, bmp.width, bmp.height, time = 1.3f, style = "Iso", screen = screen)
+                val cut = view.accessibilityLayer.nodes.filter { it.shortened }.map { it.text }
+                assertTrue("$size, $lang, $screen: labels cut with …: $cut", cut.isEmpty())
+            }
+            for ((skin, theme) in CableSkin.entries.zip(ColorTheme.entries + ColorTheme.entries.last())) {
+                Cosmetic.skin = skin
+                Cosmetic.theme = theme
+                bmp.eraseColor(0)
+                view.drawSnapshot(Canvas(bmp), game, bmp.width, bmp.height, time = 1.3f, style = "Iso", screen = Screen.APPEARANCE)
+                val cut = view.accessibilityLayer.nodes.filter { it.shortened }.map { it.text }
+                assertTrue("$size, $lang, $skin/$theme: labels cut with …: $cut", cut.isEmpty())
+            }
+            Cosmetic.reset()
+        }
+        RuntimeEnvironment.setQualifiers("+de")
     }
 
     @Test

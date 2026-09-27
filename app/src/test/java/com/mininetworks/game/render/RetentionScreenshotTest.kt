@@ -129,6 +129,7 @@ class RetentionScreenshotTest {
         val bmp = phone()
         v.drawSnapshot(Canvas(bmp), v.currentWorld, bmp.width, bmp.height, time = 1.3f, screen = null)
         tap(v, bmp, MenuAction.SETTINGS)
+        tap(v, bmp, MenuAction.APPEARANCE)
         tap(v, bmp, MenuAction.CABLE_SKIN)
         tap(v, bmp, MenuAction.COLOR_THEME)
         assertEquals(CableSkin.COPPER, Cosmetic.skin)

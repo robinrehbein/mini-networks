@@ -139,6 +139,66 @@ class RetentionFlowTest {
         assertEquals(1, view.achievementStats.dailyDone)
     }
 
+    /** docs/TOP100.md C1: a daily game still running after UTC midnight no longer counts, and "again" starts the new day. */
+    @Test
+    fun aDailyRunPastMidnightStopsCountingAndRestartStartsTheNewDay() {
+        val lateEvening = noon + 11 * 3_600_000L + 59 * 60_000L
+        var now = lateEvening
+        val view = GameView(app).also { it.wallClock = { now }; draw(it) }
+        tap(view, MenuAction.DAILY)
+        tap(view, MenuAction.DAILY_START)
+        val c = DailyChallenge.at(lateEvening)
+        assertEquals(c, view.currentWorld.daily)
+        // Midnight (UTC) passes while playing.
+        now = lateEvening + 2 * 60_000L
+        val expired = app.getString(R.string.hint_daily_expired)
+        var told = false
+        for (i in 0 until 240 * 60) {
+            val w = view.currentWorld
+            if (i % 120 == 0) wire(w)
+            w.rewardOffer?.let { w.chooseReward(0) }
+            view.advance(1f / 60f)
+            if (view.shownHint == expired) told = true
+            if (told && w.delivered >= DailyChallenge.STREAK_PACKETS + 5) break
+        }
+        assertTrue("the player is told the day is over", told)
+        assertTrue(view.currentWorld.delivered >= DailyChallenge.STREAK_PACKETS)
+        assertEquals("yesterday's challenge no longer fills the streak", 0, view.dailyStreak.current)
+        assertNull(view.dailyStreak.lastDay)
+        assertEquals(0, view.achievementStats.dailyDone)
+        // Restart (like "play again" on the result card) starts today's challenge, not yesterday's once more.
+        view.back()
+        view.advance(0f)
+        draw(view)
+        assertEquals(Screen.PAUSED, view.currentScreen)
+        tap(view, MenuAction.RESTART)
+        assertEquals(DailyChallenge.of(c.day + 1), view.currentWorld.daily)
+    }
+
+    /** docs/TOP100.md C4: nothing costs anything in creative mode, so the cable picker shows no price coins. */
+    @Test
+    fun creativeCablePickerShowsNoPrices() {
+        val view = newView()
+        tap(view, MenuAction.PLAY)
+        tapScenery(view, SceneryPicker.MODE)
+        tapScenery(view, SceneryPicker.MODE)
+        assertEquals(GameMode.CREATIVE, view.sceneryMode)
+        tapScenery(view, Scenarios.RIVER_TOWN.id)
+        view.accessibilityLayer.forceActive = true
+        draw(view)
+        val isdn = view.accessibilityLayer.nodes.single { it.key == "hud:cable:ISDN" }
+        assertEquals(app.getString(R.string.a11y_cable_free, "ISDN"), isdn.text)
+        val creativeWidth = view.hudTarget("cable:ISDN")!!.width()
+        // The same picker in a normal game carries the coin, so it is wider.
+        val normal = newView()
+        tap(normal, MenuAction.PLAY)
+        tapScenery(normal, Scenarios.RIVER_TOWN.id)
+        normal.accessibilityLayer.forceActive = true
+        draw(normal)
+        assertEquals(app.getString(R.string.a11y_cable, "ISDN", com.mininetworks.game.game.CableType.ISDN.costPerCell), normal.accessibilityLayer.nodes.single { it.key == "hud:cable:ISDN" }.text)
+        assertTrue(normal.hudTarget("cable:ISDN")!!.width() > creativeWidth)
+    }
+
     @Test
     fun dailyCardShowsTheStreakAndTheNextDayContinuesIt() {
         val store = ProgressStore(app)
@@ -245,6 +305,8 @@ class RetentionFlowTest {
     fun cosmeticsCycleOnlyThroughUnlockedOnesAndAreStored() {
         val view = newView()
         tap(view, MenuAction.SETTINGS)
+        tap(view, MenuAction.APPEARANCE)
+        assertEquals(Screen.APPEARANCE, view.currentScreen)
         tap(view, MenuAction.CABLE_SKIN)
         assertEquals("nothing unlocked yet", CableSkin.CLASSIC, Cosmetic.skin)
         view.setAchievementStats(PlayerStats(cablesLaid = 100, fiberLaid = 25, bestWeek = 10))
@@ -261,6 +323,11 @@ class RetentionFlowTest {
         val stored = SettingsStore(app).load()
         assertEquals(CableSkin.COPPER, stored.cableSkin)
         assertEquals(ColorTheme.AUTUMN, stored.colorTheme)
+        // Back leads to the first settings page, then to where the settings were opened from.
+        tap(view, MenuAction.BACK)
+        assertEquals(Screen.SETTINGS, view.currentScreen)
+        tap(view, MenuAction.BACK)
+        assertEquals(Screen.MAIN_MENU, view.currentScreen)
         // A fresh start picks them up again.
         Cosmetic.reset()
         newView()

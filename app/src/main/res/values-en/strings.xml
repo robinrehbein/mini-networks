@@ -104,9 +104,9 @@
     <string name="menu_back">Back</string>
     <string name="settings_sound">Sound</string>
     <string name="settings_haptics">Haptics</string>
-    <string name="settings_overview">Overview mode (flat)</string>
+    <string name="settings_overview">Flat overview</string>
     <string name="settings_free_rotation">Free rotation</string>
-    <string name="settings_colorblind">Colorblind palette</string>
+    <string name="settings_colorblind">Colorblind aid</string>
     <string name="settings_language">The language follows your system language</string>
 
     <!-- Game over -->
@@ -173,7 +173,7 @@
     <string name="tutorial_done_text">You know the basics. Tips: tap a server to upgrade it, tap a cable twice to remove it, and pause stops the clock while you keep building. Have fun!</string>
     <!-- Monetization (docs/PLAN.md 5.1) -->
     <string name="menu_remove_ads">Remove ads · %1$s</string>
-    <string name="settings_privacy">Privacy settings</string>
+    <string name="settings_privacy">Privacy</string>
     <string name="game_over_continue_ad">Continue · watch a video</string>
     <string name="game_over_continue">Continue</string>
     <string name="reward_bonus_router_ad">+1 router · watch a video</string>
@@ -245,6 +245,12 @@
         <item quantity="other">Same for everyone · new challenge in %1$d hours</item>
     </plurals>
     <string name="daily_start">Let\'s go</string>
+    <string name="a11y_cable_free">%1$s cable, free</string>
+    <string name="hint_cable_info_free">%1$s: bandwidth %2$d · %3$s ms per cell</string>
+    <string name="hint_cable_upgraded_free">Cable upgraded to %1$s</string>
+    <string name="hint_cable_remove_free">%1$s cable · tap again to remove</string>
+    <string name="hint_cable_removed_free">Cable removed</string>
+    <string name="hint_daily_expired">The day of this daily challenge is over (UTC): this run no longer counts for the streak or the day\'s best. The new challenge is waiting in the main menu.</string>
     <string name="daily_pause">Daily challenge · %1$s</string>
     <plurals name="toast_daily_counted">
         <item quantity="one">Daily challenge done · streak: %1$d day</item>
@@ -419,8 +425,10 @@
         <item quantity="other">Hold %1$,d budget at once</item>
     </plurals>
 
-    <string name="settings_cable_skin">Cable skin: %1$s (%2$d/%3$d)</string>
-    <string name="settings_color_theme">Color theme: %1$s (%2$d/%3$d)</string>
+    <string name="settings_cable_skin">Cables: %1$s</string>
+    <string name="settings_color_theme">Theme: %1$s</string>
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_cosmetics_unlocked">Unlocked: skins %1$d/%2$d · themes %3$d/%4$d</string>
     <string name="skin_classic">Classic</string>
     <string name="skin_copper">Copper</string>
     <string name="skin_neon">Neon</string>

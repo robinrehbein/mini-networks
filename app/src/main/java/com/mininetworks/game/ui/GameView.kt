@@ -203,6 +203,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     /** The wall clock the daily challenge follows (UTC days); tests set a fixed one. */
     internal var wallClock: () -> Long = System::currentTimeMillis
+    /** True once the running daily challenge said that its day is over. */
+    private var dailyExpiredHinted = false
     private var settings = GameSettings()
     private val sounds = SoundPlayer(context)
     private val soundCues = SoundCues()
@@ -687,7 +689,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private fun track() {
         unlocked(tracker.observe(world))
         val daily = world.daily ?: return
-        if (world.delivered < DailyChallenge.STREAK_PACKETS || streak.counted(daily.day)) return
+        val now = wallClock()
+        // Past UTC midnight the run goes on as a plain game; say so once (docs/TOP100.md C1).
+        if (!daily.isToday(now) && !dailyExpiredHinted) {
+            dailyExpiredHinted = true
+            hintQueue.addFirst(context.getString(R.string.hint_daily_expired))
+        }
+        if (!daily.countsFor(streak, world.delivered, now)) return
         val next = streak.record(daily.day)
         streakCache = next
         progressStore.streak = next
@@ -897,7 +905,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private val hudVisible
         get() = when (screen) {
             Screen.MAIN_MENU, Screen.SCENERIES, Screen.DAILY, Screen.ACHIEVEMENTS -> false
-            Screen.SETTINGS -> settingsReturn != Screen.MAIN_MENU
+            Screen.SETTINGS, Screen.APPEARANCE -> settingsReturn != Screen.MAIN_MENU
             else -> true
         }
 
@@ -1040,6 +1048,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         val label = when {
             target == null -> texts.cable(cableType)
             error != null -> texts.connectError(error, from, target, cableType)
+            world.unlimited -> texts.cable(cableType)
             else -> context.getString(R.string.drag_cost, texts.cable(cableType), world.cableCost(layout, cableType))
         }
         // What the cable would mean for the device at one of its ends: too narrow for a service, or the ping it gets.
@@ -1295,10 +1304,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         // narrow (portrait) window it moves to its own row above; without room for every name even there, only the
         // selected technology keeps its name (the colour dots alone are hard to tell apart), and without room for
         // that either, none does.
+        // Creative mode (docs/TOP100.md C4): nothing costs anything, so no price coins.
+        val priced = !world.unlimited
         val coinR = maxOf(9 * density, coinText.textSize * 0.8f)
         val cables = world.unlockedCables
         fun widthOf(t: CableType, named: Boolean) =
-            24 * density + (if (named) btnText.measureText(texts.cable(t)) + 8 * density else 0f) + 2 * coinR + 10 * density
+            24 * density + (if (named) btnText.measureText(texts.cable(t)) + 8 * density else 0f) + (if (priced) 2 * coinR + 10 * density else 4 * density)
         fun rowWidth(named: (CableType) -> Boolean) =
             cables.sumOf { widthOf(it, named(it)).toDouble() }.toFloat() + gap * (cables.size - 1)
         val all = { _: CableType -> true }
@@ -1330,11 +1341,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 canvas.drawText(texts.cable(t), r.left + 24 * density, r.centerY() + btnText.textSize * 0.35f, btnText)
                 btnText.textAlign = Paint.Align.CENTER
             }
-            val coinX = r.right - 10 * density - coinR
-            canvas.drawCircle(coinX, r.centerY(), coinR, coinFill)
-            canvas.drawText(t.costPerCell.toString(), coinX, r.centerY() + coinText.textSize * 0.36f, coinText)
+            if (priced) {
+                val coinX = r.right - 10 * density - coinR
+                canvas.drawCircle(coinX, r.centerY(), coinR, coinFill)
+                canvas.drawText(t.costPerCell.toString(), coinX, r.centerY() + coinText.textSize * 0.36f, coinText)
+            }
             buttons += Button("cable:${t.name}", r)
-            hudNodes += UiNode("hud:cable:${t.name}", RectF(r), context.getString(R.string.a11y_cable, texts.cable(t), t.costPerCell), UiNode.Kind.BUTTON, selected = active)
+            val a11y = if (priced) context.getString(R.string.a11y_cable, texts.cable(t), t.costPerCell) else context.getString(R.string.a11y_cable_free, texts.cable(t))
+            hudNodes += UiNode("hud:cable:${t.name}", RectF(r), a11y, UiNode.Kind.BUTTON, selected = active)
             cx += w + gap
         }
         // Radios in a row above the right buttons (above the cables too when those have their own row), only while
@@ -1846,7 +1860,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 null -> if (world.upgrade(cable, cableType)) {
                     haptic(HapticFeedbackConstants.VIRTUAL_KEY)
                     sounds.play(Sound.CABLE)
-                    showHint(context.getString(R.string.hint_cable_upgraded, texts.cable(cableType), price))
+                    showHint(
+                        if (world.unlimited) context.getString(R.string.hint_cable_upgraded_free, texts.cable(cableType))
+                        else context.getString(R.string.hint_cable_upgraded, texts.cable(cableType), price),
+                    )
                 }
                 CableUpgradeError.NO_BUDGET -> showHint(context.getString(R.string.cable_error_no_budget, price))
                 CableUpgradeError.NOT_INVENTED -> showHint(context.getString(R.string.connect_error_not_invented, texts.cable(cableType)))
@@ -1857,13 +1874,17 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         val refund = world.refundOf(cable)
         if (selection !== cable) {
             select(cable)
-            showHint(context.getString(R.string.hint_cable_remove, texts.cable(cable.type), refund), SELECT_SECONDS)
+            showHint(
+                if (world.unlimited) context.getString(R.string.hint_cable_remove_free, texts.cable(cable.type))
+                else context.getString(R.string.hint_cable_remove, texts.cable(cable.type), refund),
+                SELECT_SECONDS,
+            )
             return
         }
         selection = null
         world.removeCable(cable)
         haptic(HapticFeedbackConstants.CLOCK_TICK)
-        showHint(context.getString(R.string.hint_cable_removed, refund))
+        showHint(if (world.unlimited) context.getString(R.string.hint_cable_removed_free) else context.getString(R.string.hint_cable_removed, refund))
     }
 
     /** A router without cables goes back into stock on a second tap; one with cables does nothing. */
@@ -2037,7 +2058,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         cableType = t
         if (tutorial != null) return
         val ms = java.text.NumberFormat.getNumberInstance(resources.configuration.locales[0]).format(t.msPerCell.toDouble())
-        val info = context.getString(R.string.hint_cable_info, texts.cable(t), t.capacity, ms, t.costPerCell)
+        val info = if (world.unlimited) context.getString(R.string.hint_cable_info_free, texts.cable(t), t.capacity, ms)
+        else context.getString(R.string.hint_cable_info, texts.cable(t), t.capacity, ms, t.costPerCell)
         val narrow = world.availableServices.filter { it.bandwidth > t.capacity }.sortedBy { it.bandwidth }.firstOrNull()
         showHint(if (narrow == null) info else context.getString(R.string.hint_two_parts, info, context.getString(R.string.hint_cable_too_narrow, texts.service(narrow))))
     }
@@ -2081,17 +2103,31 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             items = listOf(
                 MenuItem.Toggle(MenuAction.TOGGLE_SOUND, context.getString(R.string.settings_sound), settings.sound),
                 MenuItem.Toggle(MenuAction.TOGGLE_HAPTICS, context.getString(R.string.settings_haptics), settings.haptics),
-                MenuItem.Toggle(MenuAction.TOGGLE_OVERVIEW, context.getString(R.string.settings_overview), settings.overviewMode),
-                MenuItem.Toggle(MenuAction.TOGGLE_FREE_ROTATION, context.getString(R.string.settings_free_rotation), settings.freeRotation),
-                MenuItem.Toggle(MenuAction.TOGGLE_COLORBLIND, context.getString(R.string.settings_colorblind), settings.colorblind),
-                MenuItem.Button(MenuAction.CABLE_SKIN, skinLabel()),
-                MenuItem.Button(MenuAction.COLOR_THEME, themeLabel()),
+                MenuItem.Button(MenuAction.APPEARANCE, context.getString(R.string.settings_appearance)),
                 MenuItem.Button(MenuAction.TUTORIAL, context.getString(R.string.settings_tutorial)),
             ) + listOfNotNull(
                 if (monetization.privacyOptionsRequired) MenuItem.Button(MenuAction.PRIVACY, context.getString(R.string.settings_privacy)) else null,
                 MenuItem.Button(MenuAction.BACK, context.getString(R.string.menu_back)),
             ),
             footer = context.getString(R.string.settings_language),
+        )
+        // The view options and the cosmetics (docs/TOP100.md C5) on a page of their own: with everything on one page
+        // the card needed three columns on a 16:9 phone at 200 % text and cut most labels (A7).
+        Screen.APPEARANCE -> MenuPage(
+            title = context.getString(R.string.settings_appearance),
+            items = listOf(
+                MenuItem.Toggle(MenuAction.TOGGLE_OVERVIEW, context.getString(R.string.settings_overview), settings.overviewMode),
+                MenuItem.Toggle(MenuAction.TOGGLE_FREE_ROTATION, context.getString(R.string.settings_free_rotation), settings.freeRotation),
+                MenuItem.Toggle(MenuAction.TOGGLE_COLORBLIND, context.getString(R.string.settings_colorblind), settings.colorblind),
+                MenuItem.Button(MenuAction.CABLE_SKIN, skinLabel()),
+                MenuItem.Button(MenuAction.COLOR_THEME, themeLabel()),
+                MenuItem.Button(MenuAction.BACK, context.getString(R.string.menu_back)),
+            ),
+            footer = context.getString(
+                R.string.settings_cosmetics_unlocked,
+                Cosmetics.skins(tracker.unlocked).size, CableSkin.entries.size,
+                Cosmetics.themes(tracker.unlocked).size, ColorTheme.entries.size,
+            ),
         )
         Screen.GAME_OVER -> MenuPage(
             title = context.getString(R.string.game_over_title),
@@ -2155,11 +2191,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     }
 
     /** "Kabel-Skin: Neon (2/5)": the active skin and how many of all are unlocked. */
-    private fun skinLabel(): String =
-        context.getString(R.string.settings_cable_skin, texts.skin(Cosmetic.skin), Cosmetics.skins(tracker.unlocked).size, CableSkin.entries.size)
+    /** "Kabel: Kupfer": short, so the active skin stays readable at 200 % text; the footer counts the unlocked ones. */
+    private fun skinLabel(): String = context.getString(R.string.settings_cable_skin, texts.skin(Cosmetic.skin))
 
-    private fun themeLabel(): String =
-        context.getString(R.string.settings_color_theme, texts.theme(Cosmetic.theme), Cosmetics.themes(tracker.unlocked).size, ColorTheme.entries.size)
+    private fun themeLabel(): String = context.getString(R.string.settings_color_theme, texts.theme(Cosmetic.theme))
 
     /** The time-lapse of the network that just ended, once there is growth to show. */
     private fun recapPicture(): MenuPicture? {
@@ -2203,7 +2238,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             }
             MenuAction.PLAY_AGAIN, MenuAction.RESTART -> when {
                 tutorial != null -> startTutorial()
-                world.daily != null -> startDaily(world.daily!!)
+                // After UTC midnight "again" means the new day's challenge, never yesterday's once more.
+                world.daily != null -> startDaily(world.daily!!.again(wallClock()))
                 else -> newGame(world.scenario, world.mode)
             }
             MenuAction.TUTORIAL -> {
@@ -2216,7 +2252,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 settingsReturn = screen
                 screen = Screen.SETTINGS
             }
-            MenuAction.BACK -> screen = if (screen == Screen.SETTINGS) settingsReturn else Screen.MAIN_MENU
+            MenuAction.APPEARANCE -> screen = Screen.APPEARANCE
+            MenuAction.BACK -> screen = when (screen) {
+                Screen.SETTINGS -> settingsReturn
+                Screen.APPEARANCE -> Screen.SETTINGS
+                else -> Screen.MAIN_MENU
+            }
             MenuAction.MAIN_MENU -> {
                 autosave()
                 if (tutorial != null) settingsStore.tutorialSeen = true
@@ -2346,6 +2387,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             }
             Screen.PAUSED -> screen = Screen.PLAYING
             Screen.SETTINGS -> screen = settingsReturn
+            Screen.APPEARANCE -> screen = Screen.SETTINGS
             Screen.SCENERIES, Screen.DAILY, Screen.ACHIEVEMENTS -> screen = Screen.MAIN_MENU
             Screen.GAME_OVER -> onMenuAction(MenuAction.MAIN_MENU)
             Screen.MAIN_MENU -> mainThread.post { onExit?.invoke() }
@@ -2541,6 +2583,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         showWorld(w)
         gameInProgress = true
         cableType = w.unlockedCables.first()
+        dailyExpiredHinted = false
         if (fresh) {
             unlocked(tracker.begin(w, fresh = true))
             w.daily?.let { hintQueue += context.getString(R.string.daily_rule, texts.rule(it.rule), texts.ruleDescription(it.rule)) }
@@ -2597,7 +2640,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         gameInProgress = false
         // A daily challenge keeps its own best of the day; it never counts towards unlocking sceneries.
         val daily = world.daily
-        newBest = if (daily != null) progressStore.submitDaily(daily.day, world.delivered) else highscores.submit(world.delivered, world.scenario.id)
+        newBest = when {
+            daily == null -> highscores.submit(world.delivered, world.scenario.id)
+            // A run finished after its UTC day no longer counts for that day's best (docs/TOP100.md C1).
+            daily.isToday(wallClock()) -> progressStore.submitDaily(daily.day, world.delivered)
+            else -> false
+        }
         unlocked(tracker.gameOver(world))
         saves.clearLater()
         hasSave = false

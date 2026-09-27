@@ -186,6 +186,9 @@ class Node(
     var upgradedAt = Float.NEGATIVE_INFINITY
         internal set
 
+    /** A router placed from stock in this game counted in [World.counters]; not saved (see [GameCounters]). */
+    internal var countedPlacement = false
+
     /** Visual center of the [footprint]; equals [center] for one-cell nodes. */
     var footprintCenter = center
         private set
@@ -286,6 +289,15 @@ class Cable(
     /** [World.time] of the last upgrade to a better technology, for the upgrade effect; minus infinity if none. */
     var upgradedAt = Float.NEGATIVE_INFINITY
         internal set
+
+    /**
+     * What this cable added to [World.counters] in this game (docs/TOP100.md C2): laid, fiber, upgrades. Removing it
+     * for a full refund hands these back as credit, so lay-remove-lay loops never farm achievements. Not saved: a
+     * loaded cable counted nothing in the running game.
+     */
+    internal var countedLaid = false
+    internal var countedFiber = false
+    internal var countedUpgrades = 0
 
     override fun pointFrom(from: Node, f: Float, out: FloatArray) = layout.pointAt(if (from === a) f else 1f - f, out)
 }

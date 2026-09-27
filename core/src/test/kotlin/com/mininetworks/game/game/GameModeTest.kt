@@ -176,4 +176,69 @@ class GameModeTest {
         assertTrue(c.delivered(Service.MAIL) >= 1)
         assertEquals(w.delivered, Service.entries.sumOf { c.delivered(it) })
     }
+
+    /** docs/TOP100.md C2: laying and removing a cable for a full refund, or picking a router up and placing it again, farms nothing. */
+    @Test
+    fun freeUndoLoopsDoNotFarmTheCounters() {
+        val w = empty(GameMode.NORMAL)
+        w.grant(500, extraRouters = 1)
+        w.jumpToWeek(CableType.FIBER.unlockWeek)
+        val pc = w.addClient(Device.PC, 1, 1)
+        val mail = w.addServer(Service.MAIL, 4, 1)
+        val budget = w.budget
+        repeat(50) {
+            assertTrue(w.connect(pc, mail, CableType.ISDN))
+            assertTrue(w.upgrade(w.cableBetween(pc, mail)!!, CableType.FIBER))
+            w.removeCable(w.cableBetween(pc, mail)!!)
+        }
+        assertEquals("every loop was refunded in full", budget, w.budget)
+        val c = w.counters
+        assertEquals("50 loops count as one cable", 1, c.cablesLaid)
+        assertEquals(1, c.fiberLaid)
+        assertEquals(1, c.cableUpgrades)
+        repeat(50) {
+            val r = w.placeRouter(1, 5)!!
+            assertTrue(w.pickUp(r))
+        }
+        assertEquals("50 pick-ups count as one router", 1, c.routersPlaced)
+        // Real building still counts: a second cable and router while the first ones stay.
+        assertTrue(w.connect(pc, mail, CableType.DSL))
+        val r = w.placeRouter(1, 5)!!
+        val r2 = w.placeRouter(3, 5)
+        assertEquals("the credit of the first undo covers the re-laid cable", 1, c.cablesLaid)
+        assertTrue(w.connect(r, mail, CableType.ISDN))
+        assertEquals(2, c.cablesLaid)
+        assertEquals("one credit used, then a new router", if (r2 != null) 2 else 1, c.routersPlaced)
+        // A cable removed without refund (excavator on it) paid for itself: re-laying it counts.
+        val dug = w.cableBetween(r, mail)!!
+        w.announceExcavator(dug)
+        assertEquals(0, w.refundOf(dug))
+        w.removeCable(dug)
+        assertTrue(w.connect(r, mail, CableType.ISDN))
+        assertEquals(3, c.cablesLaid)
+    }
+
+    /** Creative mode invents everything at the start, so a week change never announces cables, devices or radios. */
+    @Test
+    fun creativeWeeksAnnounceNoNewTechnology() {
+        val w = World(Scenarios.RIVER_TOWN, seed = 3L, mode = GameMode.CREATIVE)
+        val normal = World(Scenarios.RIVER_TOWN, seed = 3L)
+        val news = ArrayList<WeekNews>()
+        val normalNews = ArrayList<WeekNews>()
+        val target = maxOf(CableType.FIBER.unlockWeek, RadioType.entries.maxOf { it.unlockWeek }, Device.entries.maxOf { it.unlockWeek })
+        while (w.week < target) {
+            w.advanceToNextWeek()
+            w.lastNews?.let { if (it !in news) news += it }
+        }
+        normal.incidentsEnabled = false
+        while (normal.week < target) {
+            normal.rewardOffer?.let { normal.chooseReward(0) }
+            normal.advanceToNextWeek()
+            normal.lastNews?.let { if (it !in normalNews) normalNews += it }
+        }
+        assertTrue("a normal game announces new cables", normalNews.any { it.cables.isNotEmpty() })
+        assertTrue("creative: no cables in the news", news.all { it.cables.isEmpty() })
+        assertTrue("creative: no devices in the news", news.all { it.devices.isEmpty() })
+        assertTrue("creative: no radios in the news", news.all { it.radios.isEmpty() })
+    }
 }

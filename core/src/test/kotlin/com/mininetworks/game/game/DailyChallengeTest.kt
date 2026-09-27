@@ -199,4 +199,31 @@ class DailyChallengeTest {
         assertEquals(6, s.current)
         assertEquals(6, s.best)
     }
+
+    /** A daily game still running (or continued from a save) after UTC midnight no longer counts for its day. */
+    @Test
+    fun aDailyRunPastMidnightNoLongerCountsAndPlayAgainStartsTheNewDay() {
+        val c = DailyChallenge.at(sept27 + 3_600_000L)
+        val lateEvening = sept27 + 86_399_000L
+        val nextMorning = sept27 + 86_400_000L + 60_000L
+        val streak = DailyStreak(lastDay = c.day - 1, current = 4, best = 4)
+        assertTrue(c.isToday(lateEvening))
+        assertFalse(c.isToday(nextMorning))
+        assertTrue("on its day with enough packets it counts", c.countsFor(streak, DailyChallenge.STREAK_PACKETS, lateEvening))
+        assertFalse("too few packets", c.countsFor(streak, DailyChallenge.STREAK_PACKETS - 1, lateEvening))
+        assertFalse("after midnight the old day cannot fill the streak any more", c.countsFor(streak, 500, nextMorning))
+        assertFalse("counted once", c.countsFor(streak.record(c.day), 500, lateEvening))
+        // A save of that daily game, continued the next morning, is still yesterday's challenge ...
+        val w = World(c.scenario, seed = c.seed, daily = c)
+        repeat(60 * 5) { w.update(1f / 60f) }
+        val loaded = Save.decode(Save.encode(w))!!
+        assertEquals(c, loaded.daily)
+        assertFalse(loaded.daily!!.countsFor(streak, 500, nextMorning))
+        // ... and "play again" then starts the new day's challenge, not yesterday's once more.
+        assertEquals(c, c.again(lateEvening))
+        val next = c.again(nextMorning)
+        assertEquals(c.day + 1, next.day)
+        assertEquals(DailyChallenge.of(c.day + 1), next)
+        assertTrue(next.countsFor(streak.record(c.day), DailyChallenge.STREAK_PACKETS, nextMorning))
+    }
 }

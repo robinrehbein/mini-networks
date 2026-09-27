@@ -110,7 +110,7 @@ class CanvasAccessibilityTest {
 
     @Test
     fun settingsTogglesAreSwitchesWithTheirState() {
-        view.drawSnapshot(Canvas(bmp), view.currentWorld, bmp.width, bmp.height, time = 0f, screen = Screen.SETTINGS)
+        view.drawSnapshot(Canvas(bmp), view.currentWorld, bmp.width, bmp.height, time = 0f, screen = Screen.APPEARANCE)
         val toggle = info("menu:TOGGLE_COLORBLIND")
         assertEquals("android.widget.Switch", toggle.className)
         assertTrue(toggle.isCheckable)

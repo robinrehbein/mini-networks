@@ -42,7 +42,7 @@ data class PlayerStats(
     val creativeGames: Int = 0,
     /** Games continued once after a game over. */
     val secondChances: Int = 0,
-    /** Most budget held at once (not in creative mode). */
+    /** Most budget held at once in a normal or daily game (endless budget grows without limit, creative has none). */
     val richest: Int = 0,
 ) {
     fun value(m: Metric): Long = when (m) {
@@ -166,8 +166,9 @@ object Achievements {
  * a counted daily challenge, a second chance), and stores [stats] when [dirty].
  *
  * What counts: normal and daily games count for everything; endless games count for the totals and their own best
- * week, but not for the one-game records (no game over there, so they would be free); creative games (unlimited budget)
- * only count as played. The tutorial ([World.guided]) counts for nothing.
+ * week, but not for the one-game records (best game, best week, richest: no game over there and an endless budget,
+ * so they would be free); creative games (unlimited budget) only count as played. The tutorial ([World.guided])
+ * counts for nothing. The counters behind the totals ignore free undo loops (see [GameCounters]).
  */
 class AchievementTracker(stats: PlayerStats = PlayerStats()) {
     var stats = stats; private set
@@ -231,7 +232,8 @@ class AchievementTracker(stats: PlayerStats = PlayerStats()) {
         val bestGame = if (normal) maxOf(s.bestGame, world.delivered) else s.bestGame
         val bestWeek = if (normal) maxOf(s.bestWeek, world.weeksPlayed) else s.bestWeek
         val endlessWeek = if (world.mode == GameMode.ENDLESS) maxOf(s.endlessBestWeek, world.weeksPlayed) else s.endlessBestWeek
-        val richest = maxOf(s.richest, world.budget)
+        // A one-game record like the best game: endless budget grows without limit, so it would come for free there.
+        val richest = if (normal) maxOf(s.richest, world.budget) else s.richest
         val anything = delivered != 0 || weeks != 0 || streaming != 0 || d.any { it != 0 } || bestGame != s.bestGame ||
             bestWeek != s.bestWeek || endlessWeek != s.endlessBestWeek || richest != s.richest
         if (!anything) return emptyList()

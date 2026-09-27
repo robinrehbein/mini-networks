@@ -107,7 +107,7 @@
     <string name="menu_back">Zurück</string>
     <string name="settings_sound">Ton</string>
     <string name="settings_haptics">Haptik</string>
-    <string name="settings_overview">Übersichtsmodus (flach)</string>
+    <string name="settings_overview">Flache Übersicht</string>
     <string name="settings_free_rotation">Frei drehen</string>
     <string name="settings_colorblind">Farbenblind-Palette</string>
     <string name="settings_language">Die Sprache folgt der Systemsprache</string>
@@ -176,7 +176,7 @@
     <string name="tutorial_done_text">Du kennst die Grundlagen. Tipps: Server antippen rüstet sie auf, ein Kabel zweimal antippen entfernt es, Pause hält die Zeit an und du baust weiter. Viel Spaß!</string>
     <!-- Monetization (docs/PLAN.md 5.1) -->
     <string name="menu_remove_ads">Werbefrei · %1$s</string>
-    <string name="settings_privacy">Datenschutz-Einstellungen</string>
+    <string name="settings_privacy">Datenschutz</string>
     <string name="game_over_continue_ad">Weiterspielen · Video ansehen</string>
     <string name="game_over_continue">Weiterspielen</string>
     <string name="reward_bonus_router_ad">+1 Router · Video ansehen</string>
@@ -250,6 +250,12 @@
         <item quantity="other">Für alle gleich · neue Aufgabe in %1$d Stunden</item>
     </plurals>
     <string name="daily_start">Los geht\'s</string>
+    <string name="a11y_cable_free">Kabel %1$s, kostenlos</string>
+    <string name="hint_cable_info_free">%1$s: Bandbreite %2$d · %3$s ms pro Feld</string>
+    <string name="hint_cable_upgraded_free">Kabel auf %1$s aufgerüstet</string>
+    <string name="hint_cable_remove_free">%1$s-Kabel · nochmal antippen zum Entfernen</string>
+    <string name="hint_cable_removed_free">Kabel entfernt</string>
+    <string name="hint_daily_expired">Der Tag dieser Tagesaufgabe ist vorbei (UTC): Die Runde zählt nicht mehr für Serie und Tagesbestwert. Die neue Aufgabe wartet im Hauptmenü.</string>
     <string name="daily_pause">Tagesaufgabe · %1$s</string>
     <plurals name="toast_daily_counted">
         <item quantity="one">Tagesaufgabe geschafft · Serie: %1$d Tag</item>
@@ -424,8 +430,10 @@
         <item quantity="other">Habe %1$,d Budget auf einmal</item>
     </plurals>
 
-    <string name="settings_cable_skin">Kabel-Skin: %1$s (%2$d/%3$d)</string>
-    <string name="settings_color_theme">Farbthema: %1$s (%2$d/%3$d)</string>
+    <string name="settings_cable_skin">Kabel: %1$s</string>
+    <string name="settings_color_theme">Thema: %1$s</string>
+    <string name="settings_appearance">Darstellung</string>
+    <string name="settings_cosmetics_unlocked">Freigeschaltet: Skins %1$d/%2$d · Themen %3$d/%4$d</string>
     <string name="skin_classic">Klassik</string>
     <string name="skin_copper">Kupfer</string>
     <string name="skin_neon">Neon</string>

@@ -120,7 +120,7 @@ keytool -printcert -jarfile app/build/outputs/bundle/release/app-release.aab   #
 3. **Datenschutz & Mitteilungen:** eine **DSGVO-Nachricht** (EWR, UK, Schweiz) für die App erstellen und veröffentlichen,
    Datenschutz-URL eintragen, Sprachen DE + EN. Ohne veröffentlichte Nachricht zeigt UMP kein Formular und in der EU
    gibt es keine Werbung. Optional eine Nachricht für US-Bundesstaaten (Datenschutzgesetze der Staaten).
-   Den Knopf „Datenschutz-Einstellungen“ im Spiel (Einstellungen) zeigt die App nur, wenn UMP ihn verlangt.
+   Den Knopf „Datenschutz“ im Spiel (Einstellungen) zeigt die App nur, wenn UMP ihn verlangt.
 4. **app-ads.txt:** die von AdMob angezeigte Zeile in `https://<entwickler-website>/app-ads.txt` ablegen; dieselbe
    Website als Entwickler-Website im Play Store eintragen.
 5. Eigene Testgeräte in AdMob registrieren (Einstellungen → Testgeräte), damit echte Anzeigen im internen Test nicht

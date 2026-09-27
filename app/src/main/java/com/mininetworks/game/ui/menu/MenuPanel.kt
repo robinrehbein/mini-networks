@@ -29,6 +29,8 @@ enum class MenuAction {
     ACHIEVEMENTS,
     /** Settings: the next unlocked cable skin and color theme (docs/TOP100.md C5). */
     CABLE_SKIN, COLOR_THEME,
+    /** Settings: the page with the view options and cosmetics, so neither page gets crowded at large text (A7). */
+    APPEARANCE,
 }
 
 /** One tappable entry of a [MenuPage]. */
@@ -154,7 +156,7 @@ class MenuPanel(context: Context) {
         text.textSize = l.titleSize
         val title = fitShrinking(page.title, inner, l.titleSize, l.titleSize * 0.7f)
         canvas.drawText(title, cx, y + l.titleSize, text)
-        drawnNodes += UiNode("menu:title", textBounds(cx, y, inner, l.titleH), page.title, UiNode.Kind.HEADING)
+        drawnNodes += UiNode("menu:title", textBounds(cx, y, inner, l.titleH), page.title, UiNode.Kind.HEADING, shortened = title != page.title)
         y += l.titleH + 10f * u
         page.highlight?.let {
             text.color = accent.shade(-0.2f)
@@ -191,7 +193,7 @@ class MenuPanel(context: Context) {
             val itemTop = y + row * (l.itemH + l.gap)
             r.set(x, itemTop, x + colW, itemTop + l.itemH)
             val down = item.action == pressed
-            when (item) {
+            val shortened = when (item) {
                 is MenuItem.Button -> button(canvas, item, down, u, l.labelSize)
                 is MenuItem.Toggle -> toggle(canvas, item, down, u, l.labelSize * 16f / 17f)
             }
@@ -200,7 +202,7 @@ class MenuPanel(context: Context) {
             drawnNodes += UiNode(
                 "menu:${item.action.name}", RectF(r), item.label,
                 if (item is MenuItem.Toggle) UiNode.Kind.TOGGLE else UiNode.Kind.BUTTON,
-                checked = item is MenuItem.Toggle && item.on, enabled = enabled,
+                checked = item is MenuItem.Toggle && item.on, enabled = enabled, shortened = shortened,
             )
         }
         y += l.itemsH
@@ -209,8 +211,10 @@ class MenuPanel(context: Context) {
             text.typeface = Typeface.DEFAULT
             text.color = muted
             text.textSize = l.footerSize
-            canvas.drawText(fitShrinking(it, inner, l.footerSize, l.footerSize * 0.8f), cx, y + l.footerSize * 1.2f, text)
-            drawnNodes += UiNode("menu:footer", textBounds(cx, y, inner, l.footerH), it, UiNode.Kind.TEXT)
+            // With large text the small print may shrink down to its standard size (13 sp at 100 %) before it is cut.
+            val footer = fitShrinking(it, inner, l.footerSize, minOf(l.footerSize * 0.8f, 13f * density))
+            canvas.drawText(footer, cx, y + l.footerSize * 1.2f, text)
+            drawnNodes += UiNode("menu:footer", textBounds(cx, y, inner, l.footerH), it, UiNode.Kind.TEXT, shortened = footer != it)
         }
     }
 
@@ -251,7 +255,8 @@ class MenuPanel(context: Context) {
 
     private fun textBounds(cx: Float, top: Float, width: Float, height: Float) = RectF(cx - width / 2f, top, cx + width / 2f, top + height)
 
-    private fun button(canvas: Canvas, b: MenuItem.Button, down: Boolean, u: Float, size: Float) {
+    /** Draws [b] into [r]; true if its label had to be shortened. */
+    private fun button(canvas: Canvas, b: MenuItem.Button, down: Boolean, u: Float, size: Float): Boolean {
         val face = when {
             !b.enabled -> 0xFFF1F2EE.toInt()
             b.primary -> accent
@@ -269,9 +274,11 @@ class MenuPanel(context: Context) {
         }
         val label = fitShrinking(b.label, r.width() - 24f * u, size, maxOf(size * 0.7f, MIN_LABEL_SP * u))
         canvas.drawText(label, r.centerX(), r.centerY() + sink + text.textSize * 0.35f, text)
+        return label != b.label
     }
 
-    private fun toggle(canvas: Canvas, t: MenuItem.Toggle, down: Boolean, u: Float, size: Float) {
+    /** Draws [t] into [r]; true if its label had to be shortened. */
+    private fun toggle(canvas: Canvas, t: MenuItem.Toggle, down: Boolean, u: Float, size: Float): Boolean {
         fillP.color = if (down) 0xFFE6EAE3.toInt() else 0xFFF1F3EE.toInt()
         canvas.drawRoundRect(r, 14f * u, 14f * u, fillP)
         val tw = 46f * u
@@ -288,9 +295,11 @@ class MenuPanel(context: Context) {
         text.textAlign = Paint.Align.LEFT
         text.typeface = Typeface.DEFAULT_BOLD
         text.color = ink
-        val room = tx - r.left - 28f * u
+        // The label starts 16 dp in and keeps 8 dp from the switch.
+        val room = tx - r.left - 24f * u
         val label = fitShrinking(t.label, room, size, maxOf(size * 0.7f, MIN_LABEL_SP * u))
         canvas.drawText(label, r.left + 16f * u, r.centerY() + text.textSize * 0.35f, text)
+        return label != t.label
     }
 
     /** A rounded face on a darker slab of thickness [depth]; a pressed face sinks by [sink] onto the slab. */
@@ -312,7 +321,9 @@ class MenuPanel(context: Context) {
     private fun fitShrinking(s: String, maxWidth: Float, size: Float, min: Float): String {
         text.textSize = size
         val w = text.measureText(s)
-        if (w > maxWidth) text.textSize = maxOf(min, size * maxWidth / w)
+        // 2 % headroom: text width does not scale exactly with the size (hinting), and a label shrunk to fit exactly
+        // must not lose its last letter to the ellipsis.
+        if (w > maxWidth) text.textSize = maxOf(min, size * maxWidth / w * 0.98f)
         return fit(s, maxWidth)
     }
 

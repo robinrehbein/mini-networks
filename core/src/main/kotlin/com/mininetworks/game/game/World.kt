@@ -514,10 +514,12 @@ class World(
         if (gameOver || connectError(a, b, type, bend) != null) return false
         val layout = planLayout(a, b, bend)
         val cost = cableCost(layout, type)
-        cableList += Cable(a, b, type, cost, layout, waterCellsOn(layout)).also { it.builtAt = time }
+        val cable = Cable(a, b, type, cost, layout, waterCellsOn(layout)).also { it.builtAt = time }
+        cableList += cable
         pay(cost)
-        counters.cablesLaid++
-        if (type == CableType.FIBER) counters.fiberLaid++
+        cable.countedLaid = true
+        if (counters.cableCredit > 0) counters.cableCredit-- else counters.cablesLaid++
+        if (type == CableType.FIBER) countFiber(cable)
         networkChanged()
         return true
     }
@@ -540,10 +542,18 @@ class World(
         c.cost = newCost
         c.type = type
         c.upgradedAt = time
-        counters.cableUpgrades++
-        if (type == CableType.FIBER) counters.fiberLaid++
+        c.countedUpgrades++
+        if (counters.upgradeCredit > 0) counters.upgradeCredit-- else counters.cableUpgrades++
+        if (type == CableType.FIBER) countFiber(c)
         forgetRoutes()
         return true
+    }
+
+    /** Counts [c] as fiber laid, unless a fiber cable removed for a refund left a credit (see [GameCounters]). */
+    private fun countFiber(c: Cable) {
+        if (c.countedFiber) return
+        c.countedFiber = true
+        if (counters.fiberCredit > 0) counters.fiberCredit-- else counters.fiberLaid++
     }
 
     /**
@@ -557,6 +567,12 @@ class World(
         val refund = refundOf(c)
         if (!cableList.remove(c)) return
         budget += refund
+        // A full refund undoes the cable: what it counted comes back as credit, so re-laying it counts nothing new.
+        if (refund > 0 && refund >= c.cost) {
+            if (c.countedLaid) counters.cableCredit++
+            if (c.countedFiber) counters.fiberCredit++
+            counters.upgradeCredit += c.countedUpgrades
+        }
         incidentList.removeAll { it.cable === c }
         networkChanged()
     }
@@ -768,8 +784,8 @@ class World(
     fun placeRouter(cx: Int, cy: Int): Node? {
         if (gameOver || placeError(NodeKind.ROUTER, cx, cy) != null) return null
         if (!unlimited) routersAvailable--
-        counters.routersPlaced++
-        return addRouter(cx, cy)
+        if (counters.routerCredit > 0) counters.routerCredit-- else counters.routersPlaced++
+        return addRouter(cx, cy).also { it.countedPlacement = true }
     }
 
     /** Null when [n] can go back into stock ([pickUp]), otherwise the reason. */
@@ -786,6 +802,8 @@ class World(
         nodeList.remove(n)
         for (i in nodeList.indices) nodeList[i].index = i
         if (!unlimited) routersAvailable++
+        // Back in stock for free: placing it again counts nothing new (see [GameCounters]).
+        if (n.countedPlacement) counters.routerCredit++
         networkChanged()
         return true
     }
@@ -1493,12 +1511,13 @@ class World(
             budget += if (rule == DailyRule.TIGHT_BUDGET) Tuning.TIGHT_WEEK_BUDGET else Tuning.WEEK_BUDGET
             rewardOffer = RewardOffer(week, Rewards.offer(seed, week, eligibleRewards()))
         }
-        val newCables = CableType.entries.filter { it.unlockWeek == week }
-        val newDevices = Device.entries.filter { it.unlockWeek == week }
+        // Only what was not there before is news: creative mode (and a fiber day, for cables) invents it all at the start.
+        val newCables = if (unlimited || rule == DailyRule.FIBER_DAY) emptyList() else CableType.entries.filter { it.unlockWeek == week }
+        val newDevices = if (unlimited) emptyList() else Device.entries.filter { it.unlockWeek == week }
         val server = Service.entries.firstOrNull { it.serverWeek == week }
             ?: if (week >= Tuning.RANDOM_SERVERS_FROM && week % 2 == 0) Service.entries[rng.nextInt(Service.entries.size)] else null
         val newServers = if (server != null && spawnServer(server)) listOf(server) else emptyList()
-        val newRadios = RadioType.entries.filter { it.unlockWeek == week }
+        val newRadios = if (unlimited) emptyList() else RadioType.entries.filter { it.unlockWeek == week }
         if (newCables.isNotEmpty() || newDevices.isNotEmpty() || newServers.isNotEmpty() || newRadios.isNotEmpty()) {
             lastNews = WeekNews(year, newCables, newDevices, newServers, newRadios)
             lastNewsTime = time

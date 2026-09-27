@@ -17,6 +17,8 @@ data class UiNode(
     /** The picked cable technology, the armed placing button. */
     val selected: Boolean = false,
     val enabled: Boolean = true,
+    /** True if the drawn label had to be shortened with "…" to fit (TalkBack still reads [text] in full). */
+    val shortened: Boolean = false,
 ) {
     enum class Kind { TEXT, HEADING, BUTTON, TOGGLE }
 

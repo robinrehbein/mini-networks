@@ -68,6 +68,18 @@ class FormFactorScreenshotTest {
                     bmp.eraseColor(0)
                     view.drawCurrent(Canvas(bmp))
                 }
+                // The second settings page with the view options and the cosmetics (docs/TOP100.md A7, C5).
+                shoot(ff, "appearance-$suffix") { view, bmp ->
+                    view.drawSnapshot(Canvas(bmp), view.currentWorld, bmp.width, bmp.height, time = 1.3f, screen = Screen.SETTINGS)
+                    tap(view, view.menuTarget(MenuAction.APPEARANCE)!!.centerX(), view.menuTarget(MenuAction.APPEARANCE)!!.centerY())
+                    bmp.eraseColor(0)
+                    view.drawCurrent(Canvas(bmp))
+                }
+                RuntimeEnvironment.setQualifiers("+en")
+                shoot(ff, "appearance-$suffix-en") { view, bmp ->
+                    view.drawSnapshot(Canvas(bmp), view.currentWorld, bmp.width, bmp.height, time = 1.3f, screen = Screen.APPEARANCE)
+                }
+                RuntimeEnvironment.setQualifiers("+de")
                 shoot(ff, "pause-$suffix") { view, bmp ->
                     view.drawSnapshot(Canvas(bmp), busyHud(), bmp.width, bmp.height, time = 1.3f, style = "Iso", screen = Screen.PAUSED)
                 }
