@@ -20,24 +20,34 @@ object StressWorld {
     private val SLOTS = listOf(-2 to -2, 2 to -2, -2 to 2, 2 to 2, 0 to -3, -3 to 1, 3 to -1, 0 to 3)
 
     /** Every era is invented: the map starts in week 8, when all services have servers. */
-    val SCENARIO = Scenario(
+    val SCENARIO = scenario(ROUTER_COLS, ROUTER_ROWS)
+
+    /** Router grid of the large variant used for the docs/TOP100.md section 4 benchmark (at least 150 nodes). */
+    const val LARGE_ROUTER_COLS = 8
+    const val LARGE_ROUTER_ROWS = 4
+
+    private fun scenario(routerCols: Int, routerRows: Int) = Scenario(
         id = "stress",
-        cols = SPACING * ROUTER_COLS + 4, rows = SPACING * ROUTER_ROWS + 4,
-        startCols = SPACING * ROUTER_COLS + 4, startRows = SPACING * ROUTER_ROWS + 4,
+        cols = SPACING * routerCols + 4, rows = SPACING * routerRows + 4,
+        startCols = SPACING * routerCols + 4, startRows = SPACING * routerRows + 4,
         startWeek = 8, startYear = 2016,
         terrain = emptyList(),
         unlock = Unlock.Free,
     )
 
-    fun build(seed: Long = 1L): World {
-        val w = World(SCENARIO, seed = seed, spawnInitialNodes = false)
+    /** The large variant: an [LARGE_ROUTER_COLS] × [LARGE_ROUTER_ROWS] router grid, same rules as [build]. */
+    fun buildLarge(seed: Long = 1L): World = build(seed, LARGE_ROUTER_COLS, LARGE_ROUTER_ROWS)
+
+    fun build(seed: Long = 1L, routerCols: Int = ROUTER_COLS, routerRows: Int = ROUTER_ROWS): World {
+        val scenario = if (routerCols == ROUTER_COLS && routerRows == ROUTER_ROWS) SCENARIO else scenario(routerCols, routerRows)
+        val w = World(scenario, seed = seed, spawnInitialNodes = false)
         w.incidentsEnabled = false
         w.grant(100_000)
         val rnd = Random(seed)
-        val routers = List(ROUTER_ROWS) { j -> List(ROUTER_COLS) { i -> w.addRouter(4 + SPACING * i, 4 + SPACING * j) } }
+        val routers = List(routerRows) { j -> List(routerCols) { i -> w.addRouter(4 + SPACING * i, 4 + SPACING * j) } }
         for (row in routers) row.zipWithNext { a, b -> w.connect(a, b, CableType.FIBER) }
-        val middle = ROUTER_COLS / 2
-        for (j in 0 until ROUTER_ROWS - 1) w.connect(routers[j][middle], routers[j + 1][middle], CableType.FIBER)
+        val middle = routerCols / 2
+        for (j in 0 until routerRows - 1) w.connect(routers[j][middle], routers[j + 1][middle], CableType.FIBER)
         val servers = Service.entries.flatMap { s -> List(SERVERS_PER_SERVICE) { s } }.iterator()
         val devices = Device.entries
         fun attach(router: Node, make: (Int, Int) -> Node): Boolean {
