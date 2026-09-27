@@ -7,6 +7,7 @@ import android.graphics.Path
 import android.graphics.RectF
 import com.mininetworks.game.game.Cable
 import com.mininetworks.game.game.CableLayout
+import com.mininetworks.game.game.CableSkin
 import com.mininetworks.game.game.CableType
 import com.mininetworks.game.game.CellRect
 import com.mininetworks.game.game.Device
@@ -449,21 +450,44 @@ object ServiceColors {
     }
 }
 
-/** Look of each cable technology: outer color, width (in world units) and an optional inner core line. */
+/**
+ * Look of each cable technology: outer color, width (in world units) and an optional inner core line. The width grows
+ * with the capacity and stays the same in every cable skin ([Cosmetic.skin], docs/TOP100.md C5); a skin only changes
+ * colors, so the technologies stay apart by width and brightness and nothing about the rules changes.
+ */
 object CableStyles {
     class Style(val color: Int, val width: Float, val core: Int?, val coreWidth: Float)
 
-    private val ISDN = Style(0xFF9AA3AD.toInt(), 0.08f, null, 0f)
-    private val DSL = Style(0xFF39424E.toInt(), 0.13f, null, 0f)
-    private val COAX = Style(0xFF2F2A26.toInt(), 0.17f, 0xFF9C8B7A.toInt(), 0.045f)
-    private val FIBER = Style(0xFFF28C28.toInt(), 0.18f, 0xFFFFE2B8.toInt(), 0.05f)
+    private const val W_ISDN = 0.08f
+    private const val W_DSL = 0.13f
+    private const val W_COAX = 0.17f
+    private const val W_FIBER = 0.18f
+    private const val CORE_COAX = 0.045f
+    private const val CORE_FIBER = 0.05f
 
-    fun of(t: CableType) = when (t) {
-        CableType.ISDN -> ISDN
-        CableType.DSL -> DSL
-        CableType.COAX -> COAX
-        CableType.FIBER -> FIBER
-    }
+    /** ISDN, DSL, coax and fiber of one skin, in [CableType] order. */
+    private fun skin(isdn: Int, dsl: Int, dslCore: Int?, coax: Int, coaxCore: Int, fiber: Int, fiberCore: Int) = listOf(
+        Style(isdn, W_ISDN, null, 0f),
+        Style(dsl, W_DSL, dslCore, if (dslCore != null) 0.035f else 0f),
+        Style(coax, W_COAX, coaxCore, CORE_COAX),
+        Style(fiber, W_FIBER, fiberCore, CORE_FIBER),
+    )
+
+    private val CLASSIC = skin(0xFF9AA3AD.toInt(), 0xFF39424E.toInt(), null, 0xFF2F2A26.toInt(), 0xFF9C8B7A.toInt(), 0xFFF28C28.toInt(), 0xFFFFE2B8.toInt())
+    private val COPPER = skin(0xFFC4A07E.toInt(), 0xFF5E3620.toInt(), null, 0xFF3A2519.toInt(), 0xFFD08A52.toInt(), 0xFFD9A441.toInt(), 0xFFFFF0C2.toInt())
+    private val NEON = skin(0xFF7ED3E6.toInt(), 0xFF262A50.toInt(), 0xFF8F6BFF.toInt(), 0xFF16181F.toInt(), 0xFFFF4FA3.toInt(), 0xFF3EE68A.toInt(), 0xFFE8FFF1.toInt())
+    private val PASTEL = skin(0xFFB9C3D3.toInt(), 0xFF4A4C48.toInt(), 0xFFC9B8E8.toInt(), 0xFF1C191E.toInt(), 0xFFE9C6D6.toInt(), 0xFFF3A6B8.toInt(), 0xFFFFE6EE.toInt())
+    private val GOLD = skin(0xFFC9BC92.toInt(), 0xFF564B36.toInt(), null, 0xFF24211B.toInt(), 0xFFD4AF37.toInt(), 0xFFE8B923.toInt(), 0xFFFFF3C4.toInt())
+
+    fun of(t: CableType) = of(Cosmetic.skin, t)
+
+    fun of(skin: CableSkin, t: CableType): Style = when (skin) {
+        CableSkin.CLASSIC -> CLASSIC
+        CableSkin.COPPER -> COPPER
+        CableSkin.NEON -> NEON
+        CableSkin.PASTEL -> PASTEL
+        CableSkin.GOLD -> GOLD
+    }[t.ordinal]
 }
 
 /**

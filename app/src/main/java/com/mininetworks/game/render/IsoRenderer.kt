@@ -47,17 +47,19 @@ object IsoProjection : MapProjection {
 class IsoRenderer : Renderer {
     override val name = "Iso"
 
-    private val landA = 0xFFDDE9D6.toInt()
-    private val landB = 0xFFD5E3CD.toInt()
-    private val waterA = 0xFF8FC3DA.toInt()
-    private val waterB = 0xFFA4D0E3.toInt()
+    /** Ground colors of the active color theme ([Cosmetic.theme], docs/TOP100.md C5); read once per frame. */
+    private var pal = Cosmetic.palette
+    private val landA get() = pal.landA
+    private val landB get() = pal.landB
+    private val waterA get() = pal.waterA
+    private val waterB get() = pal.waterB
     private val alarm = 0xFFD7263D.toInt()
 
     /** Tiles that are not unlocked yet: washed-out versions of the land and water colors. */
-    private val lockedLandA = 0xFFE3E6E0.toInt()
-    private val lockedLandB = 0xFFDDE1DA.toInt()
-    private val lockedWaterA = 0xFFC4D8E1.toInt()
-    private val lockedWaterB = 0xFFCDDEE6.toInt()
+    private val lockedLandA get() = pal.lockedLandA
+    private val lockedLandB get() = pal.lockedLandB
+    private val lockedWaterA get() = pal.lockedWaterA
+    private val lockedWaterB get() = pal.lockedWaterB
     private val edge = 0x8C2F3A34.toInt()
 
     override val camera = Camera().apply { projection = IsoProjection }
@@ -167,6 +169,7 @@ class IsoRenderer : Renderer {
     private fun unturnY(dx: Float, dy: Float) = -camera.sinA * dx + camera.cosA * dy
 
     override fun draw(canvas: Canvas, world: World, drag: DragPreview?, time: Float) {
+        pal = Cosmetic.palette
         drawGroundLayer(canvas, world)
         drawWaterShimmer(canvas, world, time)
 
@@ -304,7 +307,7 @@ class IsoRenderer : Renderer {
      * cells excavators stand on. Runs every frame, so it only mixes numbers and allocates nothing.
      */
     private fun mapSignature(world: World): Long {
-        var h = networkSignature(world)
+        var h = mix(networkSignature(world), Cosmetic.theme.ordinal)
         val u = world.unlocked
         h = mix(mix(mix(mix(h, u.left), u.top), u.right), u.bottom)
         for (y in 0 until world.rows) for (x in 0 until world.cols) {
@@ -357,7 +360,7 @@ class IsoRenderer : Renderer {
     }
 
     private fun drawGround(c: Canvas, world: World, map: Long) {
-        c.drawColor(BACKGROUND)
+        c.drawColor(pal.background)
         val open = world.unlocked
         val seed = world.seed
         for (y in 0 until world.rows) for (x in 0 until world.cols) {
@@ -380,7 +383,7 @@ class IsoRenderer : Renderer {
             if (!facing(nx, ny)) continue
             side(BOARD_EDGES[e] * w, BOARD_EDGES[e + 1] * h, BOARD_EDGES[e + 2] * w, BOARD_EDGES[e + 3] * h)
             val tx = camera.cosA * nx - camera.sinA * ny; val ty = camera.sinA * nx + camera.cosA * ny
-            fillP.color = blend(BOARD_LIT, BOARD_SHADE, ((tx - ty + 1f) / 2f).coerceIn(0f, 1f)); c.drawPath(path, fillP)
+            fillP.color = blend(pal.boardLit, pal.boardShade, ((tx - ty + 1f) / 2f).coerceIn(0f, 1f)); c.drawPath(path, fillP)
         }
         if (open != world.bounds) {
             quad(open.left.toFloat(), open.top.toFloat(), open.width.toFloat(), open.height.toFloat(), 0f)
@@ -543,7 +546,7 @@ class IsoRenderer : Renderer {
         val py = y + 0.2f + 0.6f * Scenery.unit(seed, x, y, 6)
         val gx = sx(px, py); val gy = sy(px, py)
         val k = tw * 0.035f
-        strokeP.color = (if (open) GRASS else wash(GRASS)); strokeP.strokeWidth = tw * 0.012f
+        strokeP.color = (if (open) pal.grass else wash(pal.grass)); strokeP.strokeWidth = tw * 0.012f
         for (i in 0 until 2) {
             val ox = gx + i * k * 1.6f
             c.drawLine(ox - k * 0.6f, gy - k, ox, gy, strokeP)
@@ -617,8 +620,8 @@ class IsoRenderer : Renderer {
                 strokeP.color = col(TRUNK); strokeP.strokeWidth = tw * 0.035f
                 c.drawLine(gx, sy(x, y), gx, sy(x, y, 0.16f * k), strokeP)
                 val cy = sy(x, y, 0.3f * k); val r = tw * 0.12f * k
-                fillP.color = col(LEAF_DARK); c.drawCircle(gx, cy, r, fillP)
-                fillP.color = col(LEAF); c.drawCircle(gx - r * 0.18f, cy - r * 0.18f, r * 0.78f, fillP)
+                fillP.color = col(pal.leafDark); c.drawCircle(gx, cy, r, fillP)
+                fillP.color = col(pal.leaf); c.drawCircle(gx - r * 0.18f, cy - r * 0.18f, r * 0.78f, fillP)
             }
             Decor.PINE -> {
                 strokeP.color = col(TRUNK); strokeP.strokeWidth = tw * 0.03f
@@ -626,16 +629,16 @@ class IsoRenderer : Renderer {
                 for ((z0, z1, half) in listOf(Triple(0.08f, 0.42f, 0.12f), Triple(0.24f, 0.56f, 0.09f))) {
                     val b = sy(x, y, z0 * k); val t = sy(x, y, z1 * k); val hw = tw * half * k
                     path.reset(); path.moveTo(gx, t); path.lineTo(gx + hw, b); path.lineTo(gx - hw, b); path.close()
-                    fillP.color = col(PINE_DARK); c.drawPath(path, fillP)
+                    fillP.color = col(pal.pineDark); c.drawPath(path, fillP)
                     path.reset(); path.moveTo(gx, t); path.lineTo(gx, b); path.lineTo(gx - hw, b); path.close()
-                    fillP.color = col(PINE); c.drawPath(path, fillP)
+                    fillP.color = col(pal.pine); c.drawPath(path, fillP)
                 }
             }
             Decor.BUSH -> {
                 val cy = sy(x, y, 0.06f); val r = tw * 0.065f * k
-                fillP.color = col(LEAF_DARK)
+                fillP.color = col(pal.leafDark)
                 c.drawCircle(gx - r * 0.7f, cy, r, fillP); c.drawCircle(gx + r * 0.7f, cy, r, fillP)
-                fillP.color = col(LEAF); c.drawCircle(gx, cy - r * 0.45f, r * 1.05f, fillP)
+                fillP.color = col(pal.leaf); c.drawCircle(gx, cy - r * 0.45f, r * 1.05f, fillP)
             }
             Decor.HOUSE -> drawHouse(c, x, y, k, ::col)
         }
@@ -1308,8 +1311,6 @@ class IsoRenderer : Renderer {
             1f, 0f, 0f, 0f, 0f, -1f,
             0f, 1f, 0f, 0f, -1f, 0f,
         )
-        const val BOARD_LIT = 0xFFB9C9AF.toInt()
-        const val BOARD_SHADE = 0xFFA7BA9C.toInt()
 
         /** FNV-style step of the map signatures. */
         fun mix(h: Long, v: Int) = (h xor v.toLong()) * 0x100000001B3L
@@ -1319,20 +1320,14 @@ class IsoRenderer : Renderer {
         /** Router and access point bases without power. */
         const val DARK_TOP = 0xFF6E7781.toInt()
         const val DARK_SIDE = 0xFF59616B.toInt()
-        const val BACKGROUND = 0xFFEEF3EA.toInt()
         /** Largest brightness change of a ground tile (see [Scenery.tileVariation]). */
         const val TILE_VARIATION = 0.035f
         /** Outward spread (cells) and alpha of the soft shadow passes, outermost first. */
         val SHADOW_SPREAD = floatArrayOf(0.1f, 0.05f, 0f)
         val SHADOW_ALPHA = intArrayOf(0x10, 0x12, 0x1A)
-        const val GRASS = 0xFFB3C9A6.toInt()
         const val FLOWER_A = 0xFFFFFFFF.toInt()
         const val FLOWER_B = 0xFFF2D06B.toInt()
         const val TRUNK = 0xFF8A6A4A.toInt()
-        const val LEAF = 0xFF93C47D.toInt()
-        const val LEAF_DARK = 0xFF6FA262.toInt()
-        const val PINE = 0xFF6FA87A.toInt()
-        const val PINE_DARK = 0xFF4E8660.toInt()
         const val HOUSE_WALL = 0xFFF4EDE0.toInt()
         const val HOUSE_ROOF = 0xFFC9694F.toInt()
         const val HOUSE_DOOR = 0xFF8A6A4A.toInt()

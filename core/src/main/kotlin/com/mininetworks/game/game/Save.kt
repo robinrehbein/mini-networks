@@ -67,6 +67,10 @@ data class WorldSnapshot(
     val packets: List<PacketSnapshot>,
     val incidentsEnabled: Boolean = true,
     val incidents: List<IncidentSnapshot> = emptyList(),
+    /** [World.mode]; saves from before the modes are normal games. */
+    val mode: GameMode = GameMode.NORMAL,
+    /** [DailyChallenge.day] of a daily challenge, null for any other game; the challenge follows from it. */
+    val dailyDay: Long? = null,
 )
 
 @Serializable

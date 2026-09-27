@@ -27,12 +27,13 @@ import com.mininetworks.game.game.World
 class FlatRenderer : Renderer {
     override val name = "Flat"
 
-    private val land = 0xFFF3F1EC.toInt()
-    private val waterColor = 0xFFC3DCE8.toInt()
+    /** Ground colors of the active color theme ([Cosmetic.theme], docs/TOP100.md C5), read at the start of a frame. */
+    private var land = Cosmetic.palette.flatLand
+    private var waterColor = Cosmetic.palette.flatWater
     private val ink = 0xFF262B33.toInt()
     private val alarm = 0xFFD7263D.toInt()
 
-    private val backdrop = 0xFFD3CFC5.toInt()
+    private var backdrop = Cosmetic.palette.flatBackdrop
     /** Veil over cells that are not unlocked yet. */
     private val lockedVeil = 0x66C9C4B8
     private val edge = 0x55262B33
@@ -86,6 +87,11 @@ class FlatRenderer : Renderer {
     }
 
     override fun draw(canvas: Canvas, world: World, drag: DragPreview?, time: Float) {
+        Cosmetic.palette.let {
+            land = it.flatLand
+            waterColor = it.flatWater
+            backdrop = it.flatBackdrop
+        }
         if (cornerRadius != cell * 0.35f) {
             cornerRadius = cell * 0.35f
             cableP.pathEffect = CornerPathEffect(cornerRadius)

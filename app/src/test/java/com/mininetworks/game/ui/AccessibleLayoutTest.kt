@@ -93,9 +93,14 @@ class AccessibleLayoutTest {
     fun menusKeepLargeEntriesInEveryFormat() = everywhere { size, view, bmp ->
         view.monetization = FakeMonetization(prices = mapOf(Entitlements.REMOVE_ADS to "2,99 €"), privacyOptionsRequired = true)
         view.drawSnapshot(Canvas(bmp), view.currentWorld, bmp.width, bmp.height, time = 1.3f, screen = null)
-        check(size, "main menu", view.accessibilityLayer.nodes, expectedActions = 3)
+        // Play, daily challenge, achievements, settings, remove ads ("continue" is disabled without a save).
+        check(size, "main menu", view.accessibilityLayer.nodes, expectedActions = 5)
+        // The daily challenge's card: start and back.
+        bmp.eraseColor(0)
+        view.drawSnapshot(Canvas(bmp), view.currentWorld, bmp.width, bmp.height, time = 1.3f, screen = Screen.DAILY)
+        check(size, "daily", view.accessibilityLayer.nodes, expectedActions = 2)
         val game = FormFactorScreenshotTest.busyHud()
-        for ((screen, actions) in listOf(Screen.PAUSED to 4, Screen.SETTINGS to 8, Screen.GAME_OVER to 2)) {
+        for ((screen, actions) in listOf(Screen.PAUSED to 4, Screen.SETTINGS to 10, Screen.GAME_OVER to 2)) {
             bmp.eraseColor(0)
             view.drawSnapshot(Canvas(bmp), game, bmp.width, bmp.height, time = 1.3f, style = "Iso", screen = screen)
             check(size, screen.name, view.accessibilityLayer.nodes, expectedActions = actions)
@@ -106,8 +111,25 @@ class AccessibleLayoutTest {
     fun sceneryPickerKeepsLargeTargetsInEveryFormat() = everywhere { size, view, bmp ->
         view.monetization = FakeMonetization(prices = mapOf(Entitlements.SCENERY_PACK to "4,99 €"))
         view.drawSnapshot(Canvas(bmp), view.currentWorld, bmp.width, bmp.height, time = 1.3f, screen = Screen.SCENERIES)
-        // Back, pack and five sceneries; a row of cards wider than the screen scrolls, so cards may reach past it.
-        check(size, "sceneries", view.accessibilityLayer.nodes, expectedActions = 7, offScreenOk = { it.startsWith("scenery:") && it != "scenery:back" && it != "scenery:pack" })
+        // Back, mode, pack and five sceneries; a row of cards wider than the screen scrolls, so cards may reach past it.
+        check(
+            size, "sceneries", view.accessibilityLayer.nodes, expectedActions = 8,
+            offScreenOk = { it.startsWith("scenery:") && it != "scenery:back" && it != "scenery:pack" && it != "scenery:mode" },
+        )
+    }
+
+    /** docs/TOP100.md C2: the achievements screen; its grid scrolls, so tiles may reach past the screen, the rest may not. */
+    @Test
+    fun achievementsKeepLargeTargetsInEveryFormat() = everywhere { size, view, bmp ->
+        view.drawSnapshot(Canvas(bmp), view.currentWorld, bmp.width, bmp.height, time = 1.3f, screen = Screen.ACHIEVEMENTS)
+        val nodes = view.accessibilityLayer.nodes
+        assertTrue("$size: every achievement has a tile", nodes.count { it.key.startsWith("achievement:") && it.kind == UiNode.Kind.TEXT } >= 30 + 1)
+        check(size, "achievements", nodes, expectedActions = 1, offScreenOk = { it.startsWith("achievement:") && it !in HEADER })
+        // Tiles never cover the header, wherever the grid is scrolled to.
+        val header = nodes.filter { it.key in HEADER }
+        for (t in nodes.filter { it.key !in HEADER && it.bounds.top >= 0f && it.bounds.bottom <= bmp.height }) {
+            for (h in header) assertTrue("$size: ${t.key} under ${h.key}", !RectF.intersects(t.bounds, h.bounds))
+        }
     }
 
     @Test
@@ -149,6 +171,10 @@ class AccessibleLayoutTest {
     /** The surface of the size being checked. */
     private var screen = RectF()
 
+    private companion object {
+        val HEADER = setOf("achievement:back", "achievement:title", "achievement:count")
+    }
+
     private fun check(size: String, what: String, nodes: List<UiNode>, expectedActions: Int, offScreenOk: (String) -> Boolean = { false }) {
         val density = app.resources.displayMetrics.density
         val actions = nodes.filter { it.actionable }
@@ -162,6 +188,10 @@ class AccessibleLayoutTest {
             if (!screen.contains(n.bounds)) fail("$size, $what: ${n.key} ${n.bounds} leaves the screen $screen")
         }
         for (i in nodes.indices) for (j in i + 1 until nodes.size) {
+            // The unlock toast is a short announcement over everything (docs/TOP100.md C2); it may cover the HUD.
+            if (nodes[i].key == "toast" || nodes[j].key == "toast") continue
+            // Tiles scrolled out of the achievements grid lie outside the screen, clipped, where they cannot collide.
+            if (!RectF.intersects(nodes[i].bounds, screen) || !RectF.intersects(nodes[j].bounds, screen)) continue
             val a = nodes[i].bounds
             val b = nodes[j].bounds
             val overlap = RectF()

@@ -20,18 +20,29 @@ import com.mininetworks.game.audio.Sound
 import com.mininetworks.game.audio.SoundPlayer
 import com.mininetworks.game.data.GameSettings
 import com.mininetworks.game.data.HighscoreStore
+import com.mininetworks.game.data.ProgressStore
 import com.mininetworks.game.data.SaveSlot
 import com.mininetworks.game.data.SettingsStore
+import com.mininetworks.game.game.Achievement
+import com.mininetworks.game.game.AchievementTracker
+import com.mininetworks.game.game.Achievements
 import com.mininetworks.game.game.Bend
 import com.mininetworks.game.game.Cable
 import com.mininetworks.game.game.CableLayout
+import com.mininetworks.game.game.CableSkin
 import com.mininetworks.game.game.CableType
 import com.mininetworks.game.game.CableUpgradeError
 import com.mininetworks.game.game.Cell
+import com.mininetworks.game.game.ColorTheme
+import com.mininetworks.game.game.Cosmetics
+import com.mininetworks.game.game.DailyChallenge
+import com.mininetworks.game.game.DailyStreak
 import com.mininetworks.game.game.Demand
 import com.mininetworks.game.game.IncidentKind
 import com.mininetworks.game.game.Incidents
 import com.mininetworks.game.game.FixedStep
+import com.mininetworks.game.game.GameMode
+import com.mininetworks.game.game.PlayerStats
 import com.mininetworks.game.game.GrowthRecorder
 import com.mininetworks.game.game.Node
 import com.mininetworks.game.game.NodeKind
@@ -59,6 +70,7 @@ import com.mininetworks.game.monetization.MonetizationStore
 import com.mininetworks.game.monetization.NoOpMonetization
 import com.mininetworks.game.render.CableStyles
 import com.mininetworks.game.render.Camera
+import com.mininetworks.game.render.Cosmetic
 import com.mininetworks.game.render.DragPreview
 import com.mininetworks.game.render.FlatRenderer
 import com.mininetworks.game.render.IncidentStyles
@@ -70,6 +82,8 @@ import com.mininetworks.game.render.TwoFingerGesture
 import com.mininetworks.game.render.ViewInsets
 import com.mininetworks.game.render.fill
 import com.mininetworks.game.render.shade
+import com.mininetworks.game.ui.menu.AchievementTile
+import com.mininetworks.game.ui.menu.AchievementsPanel
 import com.mininetworks.game.ui.menu.DemoCity
 import com.mininetworks.game.ui.menu.MenuAction
 import com.mininetworks.game.ui.menu.MenuItem
@@ -177,7 +191,18 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     // Stores are created and first read on the game thread ([ensureLoaded]), never on the UI thread (docs/TOP100.md A3).
     private val saves = SaveSlot { context.filesDir }
     private val settingsStore by lazy { SettingsStore(context) }
-    private val highscores by lazy { HighscoreStore(context) }
+    private val highscoresLazy = lazy { HighscoreStore(context) }
+    private val highscores by highscoresLazy
+    private val progressStore by lazy { ProgressStore(context) }
+    /** Achievement stats, read on the game thread on first use (docs/TOP100.md C2). */
+    private val trackerLazy = lazy { AchievementTracker(progressStore.loadStats()) }
+    private val tracker by trackerLazy
+    /** The daily streak (docs/TOP100.md C1), read on first use and kept in step with the store. */
+    private var streakCache: DailyStreak? = null
+    private val streak: DailyStreak get() = streakCache ?: progressStore.streak.also { streakCache = it }
+
+    /** The wall clock the daily challenge follows (UTC days); tests set a fixed one. */
+    internal var wallClock: () -> Long = System::currentTimeMillis
     private var settings = GameSettings()
     private val sounds = SoundPlayer(context)
     private val soundCues = SoundCues()
@@ -227,6 +252,20 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private val menuPanel = MenuPanel(context)
     private var pressedAction: MenuAction? = null
     private val sceneryPicker = SceneryPicker(context)
+    /** The mode the scenery picker starts games in (docs/TOP100.md C4); its pill switches it. */
+    private var pickerMode = GameMode.NORMAL
+    private val achievementsPanel = AchievementsPanel(context)
+    /** [AchievementsPanel.BACK] under the finger on the achievements screen. */
+    private var pressedAchievement: String? = null
+    /** Vertical drag on the achievements grid. */
+    private var achievementDownY = 0f
+    private var achievementLastY = 0f
+    private var achievementScrolling = false
+    /** Tiles of the achievements screen for [tilesFor]; rebuilt when the stats change. */
+    private var tiles: List<AchievementTile> = emptyList()
+    private var tilesFor: PlayerStats? = null
+    /** Set once this game said that an overload slows its area (endless and creative mode). */
+    private var jamHintShown = false
     /** Scenery id or [SceneryPicker.BACK] under the finger on the picker. */
     private var pressedScenery: String? = null
     /** Why the last tapped scenery is locked, shown under the cards. */
@@ -330,6 +369,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private val density = resources.displayMetrics.density
     /** Text sizes that follow the system font size (docs/TOP100.md A7). */
     private val textScale = TextScale(resources.displayMetrics)
+    /** Unlock toasts of achievements and the daily streak (docs/TOP100.md C1, C2). */
+    private val toast = AchievementToast(textScale)
     private val hudText = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF262B33.toInt(); typeface = Typeface.DEFAULT_BOLD; textSize = textScale.px(16f) }
     private val hudSub = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF5B6674.toInt(); textSize = textScale.px(13f) }
     private val btnFill = fill(0xE6FFFFFF.toInt())
@@ -379,6 +420,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         when {
             page != null -> nodes += menuPanel.nodes
             screen == Screen.SCENERIES -> nodes += sceneryPicker.nodes
+            screen == Screen.ACHIEVEMENTS -> nodes += achievementsPanel.nodes
             screen == Screen.PLAYING && world.rewardOffer != null -> {
                 nodes += rewardDialog.nodes
                 nodes += hudNodes.filter { it.key == "hud:menu" }
@@ -391,6 +433,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 tutorial?.let { nodes += tutorialOverlay.nodes }
                 nodes += hudNodes
             }
+        }
+        // The unlock toast is a short announcement over everything; screen readers get it once it has slid in.
+        toast.showing?.takeIf { toast.settled }?.let { m ->
+            toast.bounds?.let { nodes += UiNode("toast", RectF(it), listOfNotNull(m.title, m.detail).joinToString(". "), UiNode.Kind.TEXT) }
         }
         accessibility.update(nodes)
     }
@@ -417,6 +463,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             }
             "reward" -> if (screen == Screen.PLAYING && world.rewardOffer != null) {
                 if (id == "bonus") takeBonusRouter() else id.toIntOrNull()?.let { world.chooseReward(it) }
+            }
+            "achievement" -> if (screen == Screen.ACHIEVEMENTS && id == AchievementsPanel.BACK) {
+                click()
+                screen = Screen.MAIN_MENU
             }
             "tutorial" -> if (screen == Screen.PLAYING && tutorial != null && tutorialOverlay.targetOf(id) != null) {
                 click()
@@ -602,7 +652,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         if (screen == Screen.PLAYING) {
             if (userPaused) clock.reset() else clock.advance(frameSeconds) { world.update(it) }
             tutorial?.update()
-            if (tutorial == null && gameInProgress) growth.sample(world)
+            if (tutorial == null && gameInProgress) {
+                growth.sample(world)
+                track()
+            }
             world.rewardOffer?.let {
                 if (tutorial == null && it.week != celebratedWeek) {
                     celebratedWeek = it.week
@@ -614,6 +667,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             if (tutorial == null) {
                 newsHints()
                 busyServerHint()
+                jamHint()
             }
         } else {
             clock.reset()
@@ -623,8 +677,97 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         followArea()
         if (selection != null && animTime >= selectionUntil) selection = null
         if (screen == Screen.PLAYING && animTime >= hintUntil && world.rewardOffer == null) hintQueue.removeFirstOrNull()?.let { showHint(it, LONG_HINT_SECONDS) }
+        toast.update(animTime)
         renderer.stepCamera(animStep, world)
     }
+
+    // ---------------------------------------------------------------- achievements and daily streak (game thread)
+
+    /** Counts the running game for achievements and the daily streak, and toasts what that unlocked (docs/TOP100.md C1, C2). */
+    private fun track() {
+        unlocked(tracker.observe(world))
+        val daily = world.daily ?: return
+        if (world.delivered < DailyChallenge.STREAK_PACKETS || streak.counted(daily.day)) return
+        val next = streak.record(daily.day)
+        streakCache = next
+        progressStore.streak = next
+        toast.add(AchievementToast.Message(resources.getQuantityString(R.plurals.toast_daily_counted, next.current, next.current), null))
+        unlocked(tracker.dailyCounted(next))
+    }
+
+    /** A toast for each achievement in [list] (naming the cosmetic it unlocks), and the stats are stored. */
+    private fun unlocked(list: List<Achievement>) {
+        for (a in list) {
+            val detail = Cosmetics.skinFor(a.id)?.let { context.getString(R.string.toast_new_skin, texts.skin(it)) }
+                ?: Cosmetics.themeFor(a.id)?.let { context.getString(R.string.toast_new_theme, texts.theme(it)) }
+            toast.add(AchievementToast.Message(context.getString(R.string.toast_achievement, texts.achievementTitle(a)), detail))
+        }
+        if (list.isNotEmpty()) saveStats()
+    }
+
+    /** Stores the stats if they changed; never the first read (so [pause] on the UI thread never loads them). */
+    private fun saveStats() {
+        if (!trackerLazy.isInitialized() || !tracker.dirty) return
+        progressStore.saveStats(tracker.stats)
+        tracker.saved()
+    }
+
+    /** In endless and creative mode the first full overload ring says that it slows its area instead of ending the game. */
+    private fun jamHint() {
+        if (jamHintShown || world.mode.endsOnOverload || world.rewardOffer != null) return
+        val jammed = world.nodes.firstOrNull { it.kind == NodeKind.CLIENT && it.overload >= 1f } ?: return
+        jamHintShown = true
+        hintQueue.addFirst(context.getString(R.string.hint_endless_jam, texts.node(jammed)))
+    }
+
+    /** The tiles of the achievements screen, rebuilt only when the stats changed. */
+    private fun achievementTiles(): List<AchievementTile> {
+        val stats = tracker.stats
+        if (stats === tilesFor) return tiles
+        tilesFor = stats
+        tiles = Achievements.all.map { a ->
+            val reached = a.reached(stats)
+            val reward = Cosmetics.skinFor(a.id)?.let { context.getString(R.string.ach_reward_skin, texts.skin(it)) }
+                ?: Cosmetics.themeFor(a.id)?.let { context.getString(R.string.ach_reward_theme, texts.theme(it)) }
+            AchievementTile(
+                id = a.id,
+                title = texts.achievementTitle(a),
+                description = texts.achievementDescription(a),
+                progressText = if (reached) context.getString(R.string.ach_reached) else context.getString(R.string.ach_progress, a.progress(stats), a.target),
+                progress = a.progress(stats).toFloat() / a.target,
+                reached = reached,
+                reward = reward,
+                stateLabel = context.getString(if (reached) R.string.ach_reached else R.string.ach_open),
+            )
+        }
+        return tiles
+    }
+
+    /** Stats of the achievements, for tests and screenshots. */
+    internal val achievementStats: PlayerStats get() = run { ensureLoaded(); tracker.stats }
+
+    /** Replaces the achievement stats (and stores them), for tests and screenshots. */
+    internal fun setAchievementStats(stats: PlayerStats) {
+        ensureLoaded()
+        progressStore.saveStats(stats)
+        tracker.replace(stats)
+        applySettings(settings)
+    }
+
+    /** The toast on screen, for tests. */
+    internal val shownToast: AchievementToast.Message? get() = toast.showing
+
+    /** The daily streak, for tests. */
+    internal val dailyStreak: DailyStreak get() = run { ensureLoaded(); streak }
+
+    /** Screen rectangle of the back pill on the achievements screen, or null, for tests. */
+    internal fun achievementTarget(id: String): RectF? = if (screen == Screen.ACHIEVEMENTS) achievementsPanel.targetOf(id) else null
+
+    /** Screen rectangle of the tile of achievement [id] in the last drawn frame, for tests. */
+    internal fun achievementTile(id: String): RectF? = if (screen == Screen.ACHIEVEMENTS) achievementsPanel.tileOf(id) else null
+
+    /** The mode the picker starts games in, for tests. */
+    internal val sceneryMode: GameMode get() = pickerMode
 
     /**
      * When the map grew: widen every style's zoom range, follow the new area, and say so once the reward is picked.
@@ -727,9 +870,19 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         if (screen == Screen.SCENERIES) {
             sceneryPicker.draw(
                 canvas, context.getString(R.string.scenery_title), context.getString(R.string.menu_back), sceneryCards(),
-                sceneryHint, surfaceWidth, surfaceHeight, pressedScenery, packLabel(), safeInsets,
+                sceneryHint ?: texts.modeDescription(pickerMode), surfaceWidth, surfaceHeight, pressedScenery, packLabel(), safeInsets,
+                mode = context.getString(R.string.mode_pill, texts.mode(pickerMode)),
             )
         }
+        if (screen == Screen.ACHIEVEMENTS) {
+            val all = Achievements.all.size
+            achievementsPanel.draw(
+                canvas, context.getString(R.string.achievements_title),
+                context.getString(R.string.achievements_count, Achievements.all.count { it.reached(tracker.stats) }, all),
+                context.getString(R.string.menu_back), achievementTiles(), surfaceWidth, surfaceHeight, pressedAchievement, safeInsets,
+            )
+        }
+        toast.draw(canvas, surfaceWidth, animTime, safeInsets)
         publishAccessibility()
     }
 
@@ -743,7 +896,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     /** The HUD shows under the in-game menus, not under the main menu. */
     private val hudVisible
         get() = when (screen) {
-            Screen.MAIN_MENU, Screen.SCENERIES -> false
+            Screen.MAIN_MENU, Screen.SCENERIES, Screen.DAILY, Screen.ACHIEVEMENTS -> false
             Screen.SETTINGS -> settingsReturn != Screen.MAIN_MENU
             else -> true
         }
@@ -845,6 +998,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     /** The last sounds played (only while sound is on) with their rate, newest last, for tests. */
     internal val playedSounds: List<Pair<Sound, Float>> get() = sounds.played
+
+    /** The accent line of the menu card on top (a new best, the daily streak), or null, for tests. */
+    internal val menuHighlight: String? get() = menuPage()?.highlight
 
     /** The text lines of the menu card on top (game over, pause …), empty without one, for tests. */
     internal val menuLines: List<String> get() = menuPage()?.lines ?: emptyList()
@@ -973,7 +1129,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         val date: String = context.getString(R.string.hud_date, world.year, world.week)
         val clock: String? = clockLabel()
         val delivered: String = resources.getQuantityString(R.plurals.hud_delivered, world.delivered, world.delivered)
-        val stock: String = context.getString(R.string.hud_resources, world.budget, world.routersAvailable)
+        val stock: String =
+            if (world.unlimited) context.getString(R.string.hud_resources_unlimited) else context.getString(R.string.hud_resources, world.budget, world.routersAvailable)
         val vouchers: String? =
             if (world.serverVouchers > 0) resources.getQuantityString(R.plurals.hud_vouchers, world.serverVouchers, world.serverVouchers) else null
         val barW = 110 * density
@@ -1126,12 +1283,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             )
             x -= bh + gap
         }
-        val routerLabel = context.getString(R.string.button_router, world.routersAvailable)
+        val routerLabel = if (world.unlimited) context.getString(R.string.button_router_unlimited) else context.getString(R.string.button_router, world.routersAvailable)
         val rw = maxOf(bh, btnText.measureText(routerLabel) + 32 * density)
         val routerRect = RectF(x - rw, y, x, y + bh)
         drawHudButton(canvas, routerRect, routerLabel, active = placing == NodeKind.ROUTER)
         buttons += Button("router", routerRect)
-        hudNodes += UiNode("hud:router", RectF(routerRect), context.getString(R.string.a11y_router, world.routersAvailable), UiNode.Kind.BUTTON, selected = placing == NodeKind.ROUTER)
+        val routerA11y = if (world.unlimited) "$routerLabel, ${context.getString(R.string.a11y_unlimited)}" else context.getString(R.string.a11y_router, world.routersAvailable)
+        hudNodes += UiNode("hud:router", RectF(routerRect), routerA11y, UiNode.Kind.BUTTON, selected = placing == NodeKind.ROUTER)
         val rightEdge = routerRect.left
         // Cable technology picker, bottom left: invented technologies, each with its price per cell on a coin. In a
         // narrow (portrait) window it moves to its own row above; without room for every name even there, only the
@@ -1186,9 +1344,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         var radioRow = false
         for (type in RadioType.entries.reversed()) {
             val stock = world.radiosAvailable(type)
-            if (stock == 0) continue
+            if (stock == 0 && !world.unlimited) continue
             radioRow = true
-            val label = context.getString(if (type == RadioType.WLAN) R.string.button_access_point else R.string.button_cell_tower, stock)
+            val label = when {
+                world.unlimited -> context.getString(if (type == RadioType.WLAN) R.string.button_access_point_unlimited else R.string.button_cell_tower_unlimited)
+                else -> context.getString(if (type == RadioType.WLAN) R.string.button_access_point else R.string.button_cell_tower, stock)
+            }
             val w = maxOf(bh, btnText.measureText(label) + 32 * density)
             val top = y - (rows + 1) * (bh + gap)
             val r = RectF(x - w, top, x, top + bh)
@@ -1196,7 +1357,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             buttons += Button("radio:${type.name}", r)
             hudNodes += UiNode(
                 "hud:radio:${type.name}", RectF(r),
-                context.getString(if (type == RadioType.WLAN) R.string.a11y_access_point else R.string.a11y_cell_tower, stock),
+                if (world.unlimited) "$label, ${context.getString(R.string.a11y_unlimited)}"
+                else context.getString(if (type == RadioType.WLAN) R.string.a11y_access_point else R.string.a11y_cell_tower, stock),
                 UiNode.Kind.BUTTON, selected = placing == type.kind,
             )
             x -= w + gap
@@ -1377,7 +1539,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 layoutRenderers()
             }
             is Input.Activate -> activate(input.key)
-            is Input.Reveal -> if (screen == Screen.SCENERIES && input.key.startsWith("scenery:")) sceneryPicker.reveal(input.key.removePrefix("scenery:"))
+            is Input.Reveal -> when {
+                screen == Screen.SCENERIES && input.key.startsWith("scenery:") -> sceneryPicker.reveal(input.key.removePrefix("scenery:"))
+                screen == Screen.ACHIEVEMENTS && input.key.startsWith("achievement:") -> achievementsPanel.reveal(input.key.removePrefix("achievement:"))
+            }
         }
     }
 
@@ -1391,6 +1556,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         }
         if (screen == Screen.SCENERIES) {
             onSceneryTouch(e)
+            return
+        }
+        if (screen == Screen.ACHIEVEMENTS) {
+            onAchievementsTouch(e)
             return
         }
         if (screen != Screen.PLAYING) {
@@ -1583,7 +1752,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             }
             TutorialOverlay.PLAY -> {
                 settingsStore.tutorialSeen = true
-                newGame(Scenarios.RIVER_TOWN)
+                newGame(Scenarios.RIVER_TOWN, GameMode.NORMAL)
             }
             TutorialOverlay.MENU -> leaveTutorial()
         }
@@ -1846,8 +2015,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             id == "menu" -> openPauseMenu()
             id == "pause" -> userPaused = !userPaused
             id == "compass" -> renderer.camera.rotateTo(0f)
-            id == "router" -> togglePlacing(NodeKind.ROUTER, world.routersAvailable)
-            id.startsWith("radio:") -> RadioType.valueOf(id.removePrefix("radio:")).let { togglePlacing(it.kind, world.radiosAvailable(it)) }
+            id == "router" -> togglePlacing(NodeKind.ROUTER, if (world.unlimited) Int.MAX_VALUE else world.routersAvailable)
+            id.startsWith("radio:") -> RadioType.valueOf(id.removePrefix("radio:")).let {
+                togglePlacing(it.kind, if (world.unlimited) Int.MAX_VALUE else world.radiosAvailable(it))
+            }
             id.startsWith("cable:") -> pickCable(CableType.valueOf(id.removePrefix("cable:")))
         }
     }
@@ -1880,7 +2051,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             lines = listOf(context.getString(R.string.menu_tagline)),
             items = listOf(
                 MenuItem.Button(MenuAction.PLAY, context.getString(R.string.menu_play), primary = true),
+                MenuItem.Button(MenuAction.DAILY, context.getString(R.string.menu_daily)),
                 MenuItem.Button(MenuAction.CONTINUE, context.getString(R.string.menu_continue), enabled = gameInProgress || hasSave),
+                MenuItem.Button(MenuAction.ACHIEVEMENTS, context.getString(R.string.menu_achievements)),
                 MenuItem.Button(MenuAction.SETTINGS, context.getString(R.string.menu_settings)),
             ) + listOfNotNull(removeAdsLabel()?.let { MenuItem.Button(MenuAction.REMOVE_ADS, it) }),
             footer = highscores.best(highscores.lastScenery).takeIf { it > 0 }?.let { context.getString(R.string.menu_best, it) },
@@ -1889,7 +2062,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         Screen.PAUSED -> MenuPage(
             title = context.getString(R.string.pause_title),
             lines = listOf(
-                tutorial?.let { context.getString(R.string.tutorial_pause, it.number, Tutorial.STEPS) } ?: texts.scenario(world.scenario),
+                tutorial?.let { context.getString(R.string.tutorial_pause, it.number, Tutorial.STEPS) } ?: gameLabel(),
                 context.getString(
                     R.string.pause_status,
                     context.getString(R.string.hud_date, world.year, world.week),
@@ -1911,6 +2084,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 MenuItem.Toggle(MenuAction.TOGGLE_OVERVIEW, context.getString(R.string.settings_overview), settings.overviewMode),
                 MenuItem.Toggle(MenuAction.TOGGLE_FREE_ROTATION, context.getString(R.string.settings_free_rotation), settings.freeRotation),
                 MenuItem.Toggle(MenuAction.TOGGLE_COLORBLIND, context.getString(R.string.settings_colorblind), settings.colorblind),
+                MenuItem.Button(MenuAction.CABLE_SKIN, skinLabel()),
+                MenuItem.Button(MenuAction.COLOR_THEME, themeLabel()),
                 MenuItem.Button(MenuAction.TUTORIAL, context.getString(R.string.settings_tutorial)),
             ) + listOfNotNull(
                 if (monetization.privacyOptionsRequired) MenuItem.Button(MenuAction.PRIVACY, context.getString(R.string.settings_privacy)) else null,
@@ -1924,7 +2099,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             lines = listOfNotNull(
                 world.failure?.let { problemText(it.node, it.service, it.problem, it.pingMs) },
                 resources.getQuantityString(R.plurals.game_over_stats, world.delivered, world.delivered, world.week),
-                if (newBest) null else context.getString(R.string.game_over_best, highscores.best(world.scenario.id)),
+                when {
+                    newBest -> null
+                    world.daily != null -> context.getString(R.string.game_over_daily_best, progressStore.dailyBest(world.daily!!.day))
+                    else -> context.getString(R.string.game_over_best, highscores.best(world.scenario.id))
+                },
             ),
             picture = recapPicture(),
             items = listOfNotNull(
@@ -1933,7 +2112,54 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 MenuItem.Button(MenuAction.MAIN_MENU, context.getString(R.string.menu_main)),
             ),
         )
+        Screen.DAILY -> dailyPage()
+        Screen.ACHIEVEMENTS -> null
     }
+
+    /** What the pause card calls the running game: its scenery, with the mode or the daily rule. */
+    private fun gameLabel(): String {
+        world.daily?.let { return context.getString(R.string.daily_pause, texts.rule(it.rule)) }
+        return if (world.mode == GameMode.NORMAL) texts.scenario(world.scenario)
+        else context.getString(R.string.pause_mode, texts.scenario(world.scenario), texts.mode(world.mode))
+    }
+
+    /**
+     * The daily challenge's card (docs/TOP100.md C1): the streak, today's date (UTC) and scenery, the rule of the day,
+     * the goal or today's best, and when the next challenge comes.
+     */
+    private fun dailyPage(): MenuPage {
+        val now = wallClock()
+        val c = DailyChallenge.at(now)
+        val s = streak
+        val current = s.currentOn(c.day)
+        val date = java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM, resources.configuration.locales[0])
+            .apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }
+            .format(java.util.Date(c.day * MILLIS_PER_DAY))
+        val hours = ceil(((c.day + 1) * MILLIS_PER_DAY - now) / 3_600_000.0).toInt().coerceIn(1, 24)
+        return MenuPage(
+            title = context.getString(R.string.daily_title),
+            highlight = if (s.best > 0) resources.getQuantityString(R.plurals.daily_streak, current, current, s.best)
+            else context.getString(R.string.daily_no_streak),
+            lines = listOf(
+                context.getString(R.string.daily_scenery, date, texts.scenario(c.scenario)),
+                context.getString(R.string.daily_rule, texts.rule(c.rule), texts.ruleDescription(c.rule)),
+                if (s.counted(c.day)) context.getString(R.string.daily_done, progressStore.dailyBest(c.day))
+                else resources.getQuantityString(R.plurals.daily_goal, DailyChallenge.STREAK_PACKETS, DailyChallenge.STREAK_PACKETS),
+            ),
+            items = listOf(
+                MenuItem.Button(MenuAction.DAILY_START, context.getString(R.string.daily_start), primary = true),
+                MenuItem.Button(MenuAction.BACK, context.getString(R.string.menu_back)),
+            ),
+            footer = resources.getQuantityString(R.plurals.daily_footer, hours, hours),
+        )
+    }
+
+    /** "Kabel-Skin: Neon (2/5)": the active skin and how many of all are unlocked. */
+    private fun skinLabel(): String =
+        context.getString(R.string.settings_cable_skin, texts.skin(Cosmetic.skin), Cosmetics.skins(tracker.unlocked).size, CableSkin.entries.size)
+
+    private fun themeLabel(): String =
+        context.getString(R.string.settings_color_theme, texts.theme(Cosmetic.theme), Cosmetics.themes(tracker.unlocked).size, ColorTheme.entries.size)
 
     /** The time-lapse of the network that just ended, once there is growth to show. */
     private fun recapPicture(): MenuPicture? {
@@ -1975,7 +2201,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 sceneryHint = null
                 screen = Screen.SCENERIES
             }
-            MenuAction.PLAY_AGAIN, MenuAction.RESTART -> if (tutorial != null) startTutorial() else newGame(world.scenario)
+            MenuAction.PLAY_AGAIN, MenuAction.RESTART -> when {
+                tutorial != null -> startTutorial()
+                world.daily != null -> startDaily(world.daily!!)
+                else -> newGame(world.scenario, world.mode)
+            }
             MenuAction.TUTORIAL -> {
                 autosave()
                 startTutorial()
@@ -1986,7 +2216,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 settingsReturn = screen
                 screen = Screen.SETTINGS
             }
-            MenuAction.BACK -> screen = settingsReturn
+            MenuAction.BACK -> screen = if (screen == Screen.SETTINGS) settingsReturn else Screen.MAIN_MENU
             MenuAction.MAIN_MENU -> {
                 autosave()
                 if (tutorial != null) settingsStore.tutorialSeen = true
@@ -2001,6 +2231,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             MenuAction.SECOND_CHANCE -> askSecondChance()
             MenuAction.REMOVE_ADS -> monetization.purchase(Entitlements.REMOVE_ADS)
             MenuAction.PRIVACY -> monetization.showPrivacyOptions()
+            MenuAction.DAILY -> screen = Screen.DAILY
+            MenuAction.DAILY_START -> startDaily(DailyChallenge.at(wallClock()))
+            MenuAction.ACHIEVEMENTS -> {
+                achievementsPanel.resetScroll()
+                screen = Screen.ACHIEVEMENTS
+            }
+            MenuAction.CABLE_SKIN -> updateSettings(settings.copy(cableSkin = Cosmetics.next(Cosmetic.skin, Cosmetics.skins(tracker.unlocked))))
+            MenuAction.COLOR_THEME -> updateSettings(settings.copy(colorTheme = Cosmetics.next(Cosmetic.theme, Cosmetics.themes(tracker.unlocked))))
         }
     }
 
@@ -2059,6 +2297,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         screen = Screen.PLAYING
         gameInProgress = true
         newBest = false
+        unlocked(tracker.secondChance())
         autosave()
         showHint(context.getString(R.string.hint_continued))
     }
@@ -2107,7 +2346,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             }
             Screen.PAUSED -> screen = Screen.PLAYING
             Screen.SETTINGS -> screen = settingsReturn
-            Screen.SCENERIES -> screen = Screen.MAIN_MENU
+            Screen.SCENERIES, Screen.DAILY, Screen.ACHIEVEMENTS -> screen = Screen.MAIN_MENU
             Screen.GAME_OVER -> onMenuAction(MenuAction.MAIN_MENU)
             Screen.MAIN_MENU -> mainThread.post { onExit?.invoke() }
         }
@@ -2120,9 +2359,16 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private fun sceneryCards(): List<SceneryCard> = Scenarios.all.map { s ->
         val unlocked = sceneryUnlocked(s)
         val unlock = s.unlock
-        val best = highscores.best(s.id)
+        val endless = pickerMode == GameMode.ENDLESS
+        val best = highscores.best(if (endless) endlessKey(s.id) else s.id)
         val status = when {
-            unlocked -> listOf(if (best > 0) context.getString(R.string.menu_best, best) else context.getString(R.string.scenery_not_played))
+            unlocked -> listOf(
+                when {
+                    best <= 0 -> context.getString(R.string.scenery_not_played)
+                    endless -> context.getString(R.string.menu_best_endless, best)
+                    else -> context.getString(R.string.menu_best, best)
+                },
+            )
             unlock is Unlock.Score -> listOf(
                 resources.getQuantityString(R.plurals.scenery_progress, unlock.packets, highscores.best(unlock.after).coerceAtMost(unlock.packets), unlock.packets),
                 context.getString(R.string.scenery_progress_in, texts.scenario(Scenarios.byId(unlock.after)!!)),
@@ -2181,6 +2427,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             screen = Screen.MAIN_MENU
             return
         }
+        if (id == SceneryPicker.MODE) {
+            pickerMode = GameMode.entries[(pickerMode.ordinal + 1) % GameMode.entries.size]
+            sceneryHint = null
+            return
+        }
         if (id == SceneryPicker.PACK) {
             sceneryHint = if (monetization.purchase(Entitlements.SCENERY_PACK)) null else context.getString(R.string.scenery_hint_no_shop)
             return
@@ -2200,9 +2451,60 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         }
     }
 
-    private fun newGame(s: Scenario) {
+    private fun newGame(s: Scenario, mode: GameMode = pickerMode) {
         highscores.lastScenery = s.id
-        startGame(World(s, seed = System.currentTimeMillis()))
+        startGame(World(s, seed = System.currentTimeMillis(), mode = mode), fresh = true)
+    }
+
+    /** Starts the daily challenge [c]: the same map for everyone that day, with the rule of the day (docs/TOP100.md C1). */
+    private fun startDaily(c: DailyChallenge) {
+        startGame(World(c.scenario, seed = c.seed, daily = c), fresh = true)
+    }
+
+    /** Best-score key of scenery [id] in endless mode, next to the normal ones in [HighscoreStore]. */
+    private fun endlessKey(id: String) = "endless_$id"
+
+    /** An endless game has no game over: its best score is kept whenever it is saved or replaced. */
+    private fun recordEndlessBest() {
+        // Never the first read of the store: [pause] runs on the UI thread (docs/TOP100.md A3). The picker or the main
+        // menu has read it before any endless game starts; a game restored after the process died records on its next save.
+        if (world.mode == GameMode.ENDLESS && gameInProgress && tutorial == null && highscoresLazy.isInitialized()) {
+            highscores.submit(world.delivered, endlessKey(world.scenario.id))
+        }
+    }
+
+    /** Achievements screen: the back pill on a tap; a vertical drag scrolls the grid. */
+    private fun onAchievementsTouch(e: Input.Touch) {
+        when (e.action) {
+            MotionEvent.ACTION_DOWN -> {
+                endDrag()
+                pressedAchievement = achievementsPanel.hit(e.x, e.y)
+                achievementDownY = e.y
+                achievementLastY = e.y
+                achievementScrolling = false
+            }
+            MotionEvent.ACTION_MOVE -> if (achievementsPanel.scrollable) {
+                if (!achievementScrolling && kotlin.math.abs(e.y - achievementDownY) >= TAP_SLOP_DP * density) {
+                    achievementScrolling = true
+                    pressedAchievement = null
+                }
+                if (achievementScrolling) achievementsPanel.scrollBy(achievementLastY - e.y)
+                achievementLastY = e.y
+            }
+            MotionEvent.ACTION_UP -> {
+                val id = pressedAchievement
+                pressedAchievement = null
+                if (achievementScrolling) {
+                    achievementScrolling = false
+                    return
+                }
+                if (id == AchievementsPanel.BACK && achievementsPanel.hit(e.x, e.y) == id) {
+                    click()
+                    screen = Screen.MAIN_MENU
+                }
+            }
+            MotionEvent.ACTION_CANCEL -> pressedAchievement = null
+        }
     }
 
     private fun openPauseMenu() {
@@ -2230,11 +2532,22 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         startGame(saved)
     }
 
-    private fun startGame(w: World) {
+    /**
+     * Shows [w] as the running game. A [fresh] game (not a save) counts for achievements from its start and says what
+     * its mode or daily rule changes.
+     */
+    private fun startGame(w: World, fresh: Boolean = false) {
         screen = Screen.PLAYING
         showWorld(w)
         gameInProgress = true
         cableType = w.unlockedCables.first()
+        if (fresh) {
+            unlocked(tracker.begin(w, fresh = true))
+            w.daily?.let { hintQueue += context.getString(R.string.daily_rule, texts.rule(it.rule), texts.ruleDescription(it.rule)) }
+            texts.modeDescription(w.mode)?.let { hintQueue += it }
+        } else {
+            tracker.begin(w, fresh = false)
+        }
     }
 
     /** Starts the tutorial from its first step; it is not a game in progress, so it is neither saved nor scored. */
@@ -2246,7 +2559,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     }
 
     private fun showWorld(w: World, withTutorial: Tutorial? = null) {
+        recordEndlessBest()
+        saveStats()
         world = w
+        jamHintShown = false
         // A new map starts facing north.
         renderers.forEach { it.camera.resetRotation() }
         growth.clear()
@@ -2279,7 +2595,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         if (screen != Screen.PLAYING || !world.gameOver || !gameInProgress) return
         growth.sample(world)
         gameInProgress = false
-        newBest = highscores.submit(world.delivered, world.scenario.id)
+        // A daily challenge keeps its own best of the day; it never counts towards unlocking sceneries.
+        val daily = world.daily
+        newBest = if (daily != null) progressStore.submitDaily(daily.day, world.delivered) else highscores.submit(world.delivered, world.scenario.id)
+        unlocked(tracker.gameOver(world))
         saves.clearLater()
         hasSave = false
         endDrag()
@@ -2310,6 +2629,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
      * full) shows up as a save that does not load, which "Continue" then drops.
      */
     private fun autosave() {
+        saveStats()
+        recordEndlessBest()
         if (!gameInProgress || world.gameOver) return
         saves.saveLater(world)
         hasSave = true
@@ -2324,6 +2645,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         settings = s
         sounds.enabled = s.sound
         ServiceColors.colorblind = s.colorblind
+        // Cosmetics (docs/TOP100.md C5): only what an achievement unlocked; anything else falls back to the default.
+        val unlocked = tracker.unlocked
+        Cosmetic.skin = s.cableSkin.takeIf { it in Cosmetics.skins(unlocked) } ?: CableSkin.CLASSIC
+        Cosmetic.theme = s.colorTheme.takeIf { it in Cosmetics.themes(unlocked) } ?: ColorTheme.MEADOW
         val next = if (s.overviewMode) flat else iso
         if (next !== renderer) {
             // The other style takes over the angle, so switching styles never turns the map.
@@ -2352,7 +2677,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
      */
     private fun layoutRenderers() {
         if (surfaceWidth <= 0 || surfaceHeight <= 0) return
-        val insets = if ((screen == Screen.MAIN_MENU || screen == Screen.SCENERIES) && !gameInProgress) {
+        val insets = if (screen in MENU_SCREENS && !gameInProgress) {
             ViewInsets(surfaceWidth * 0.55f, 24 * density, 16 * density, 24 * density)
         } else if (tutorial != null) {
             tutorialOverlay.place(safeInsets.left + 16 * density, tutorialTop(), tutorialBottom())
@@ -2380,6 +2705,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             else -> ViewInsets.NONE
         }
 
+        /** Screens of the main menu, which show the demo town beside them. */
+        val MENU_SCREENS = setOf(Screen.MAIN_MENU, Screen.SCENERIES, Screen.DAILY, Screen.ACHIEVEMENTS)
+        const val MILLIS_PER_DAY = 86_400_000L
         /** Lower bound per loop iteration, in case posting a frame does not block on vsync. */
         const val MIN_FRAME_NANOS = 8_000_000L
         /** Longest animation step per frame, so animations do not jump after a stall. */

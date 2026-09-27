@@ -23,6 +23,12 @@ enum class MenuAction {
     REMOVE_ADS,
     /** Settings: the consent form's privacy options. */
     PRIVACY,
+    /** Main menu: the daily challenge's card (docs/TOP100.md C1); on it: start today's challenge. */
+    DAILY, DAILY_START,
+    /** Main menu: the achievements and missions (docs/TOP100.md C2). */
+    ACHIEVEMENTS,
+    /** Settings: the next unlocked cable skin and color theme (docs/TOP100.md C5). */
+    CABLE_SKIN, COLOR_THEME,
 }
 
 /** One tappable entry of a [MenuPage]. */
@@ -210,7 +216,8 @@ class MenuPanel(context: Context) {
 
     /**
      * The arrangement for [page] in an area of [areaW] × [areaH] px: one column at full size if it fits, else the one
-     * (one or two columns) that needs to shrink least. Entries never get lower than 48 dp.
+     * (one or two columns) that needs to shrink least; a long page that still does not fit takes three columns.
+     * Entries never get lower than 48 dp.
      */
     private fun arrange(page: MenuPage, areaW: Float, areaH: Float): Layout {
         val maxH = areaH * 0.92f
@@ -235,7 +242,11 @@ class MenuPanel(context: Context) {
         val one = best(1)
         if (one.s >= 1f || page.items.size < 4) return one
         val two = best(2)
-        return if (two.s > one.s + 0.05f) two else one
+        val pick = if (two.s > one.s + 0.05f) two else one
+        // A long page (the settings) on a low screen with large text gets a third column before it would leave the screen.
+        if (pick.height <= maxH || page.items.size < 7) return pick
+        val three = best(3)
+        return if (three.height < pick.height) three else pick
     }
 
     private fun textBounds(cx: Float, top: Float, width: Float, height: Float) = RectF(cx - width / 2f, top, cx + width / 2f, top + height)

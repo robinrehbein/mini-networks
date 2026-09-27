@@ -11,6 +11,7 @@ import android.graphics.RectF
 import android.graphics.Typeface
 import com.mininetworks.game.game.Scenario
 import com.mininetworks.game.game.World
+import com.mininetworks.game.render.Cosmetic
 import com.mininetworks.game.render.IsoRenderer
 import com.mininetworks.game.render.ViewInsets
 import com.mininetworks.game.render.fill
@@ -103,10 +104,13 @@ class SceneryPicker(context: Context) {
             (name * 1.3f + era * 1.35f + 2 * desc * 1.3f + status * 0.8f + 2 * status * 1.3f) / density + 8f + 8f
     }
 
-    /** Draws the picker; [pack] labels the pill that buys every scenery, null hides it. It stays inside [safe]. */
+    /**
+     * Draws the picker; [pack] labels the pill that buys every scenery, null hides it; [mode] labels the pill next to the
+     * back pill that switches the game mode ([MODE], docs/TOP100.md C4), null hides it. It stays inside [safe].
+     */
     fun draw(
         canvas: Canvas, title: String, back: String, cards: List<SceneryCard>, hint: String?, width: Int, height: Int, pressed: String?,
-        pack: String? = null, safe: ViewInsets = ViewInsets.NONE,
+        pack: String? = null, safe: ViewInsets = ViewInsets.NONE, mode: String? = null,
     ) {
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), dim)
         targets.clear()
@@ -129,8 +133,13 @@ class SceneryPicker(context: Context) {
         text.textSize = scale.px(15f)
         val backDp = maxOf(TOUCH_DP, text.measureText(back) / density + 40f)
         val packDp = pack?.let { maxOf(TOUCH_DP, text.measureText(it) / density + 40f) } ?: 0f
-        val packRow = pack != null && backDp + packDp + 12f > wDp - 2 * MARGIN_DP
-        val pillsDp = if (packRow) 2 * pillH + 8f else pillH
+        val modeDp = mode?.let { maxOf(TOUCH_DP, text.measureText(it) / density + 40f) } ?: 0f
+        // The mode pill sits right of the back pill, or on its own row below it when both do not fit.
+        val modeRow = mode != null && backDp + 12f + modeDp > wDp - 2 * MARGIN_DP
+        val leftGroupDp = if (mode != null && !modeRow) backDp + 12f + modeDp else backDp
+        val packRow = pack != null && leftGroupDp + packDp + 12f > wDp - 2 * MARGIN_DP
+        val pillRows = 1 + (if (modeRow) 1 else 0) + (if (packRow) 1 else 0)
+        val pillsDp = pillRows * pillH + (pillRows - 1) * 8f
         fun widthFor(cols: Int) = (wDp - 2 * MARGIN_DP - (cols - 1) * GAP_DP) / cols
         // In a grid the title gets its own line under the pills, so it never runs into them.
         fun heightFor(cols: Int, cardW: Float): Float {
@@ -185,11 +194,22 @@ class SceneryPicker(context: Context) {
         pill(canvas, back, pressed == BACK, u)
         targets += RectF(r) to BACK
         drawnNodes += UiNode("scenery:$BACK", RectF(r), back, UiNode.Kind.BUTTON)
+        var leftGroupRight = r.right
+        if (mode != null) {
+            text.textSize = scale.px(15f) * s
+            val modeW = maxOf(TOUCH_DP * density, text.measureText(mode) + 40f * u).coerceAtMost(barW)
+            if (modeRow) r.set(barLeft, top + pillPx + 8f * u, barLeft + modeW, top + 2 * pillPx + 8f * u)
+            else r.set(leftGroupRight + 12f * u, top, leftGroupRight + 12f * u + modeW, top + pillPx)
+            if (!modeRow) leftGroupRight = r.right
+            pill(canvas, mode, pressed == MODE, u)
+            targets += RectF(r) to MODE
+            drawnNodes += UiNode("scenery:$MODE", RectF(r), mode, UiNode.Kind.BUTTON)
+        }
         var packLeft = barLeft + barW
         if (pack != null) {
             text.textSize = scale.px(15f) * s
             val packW = maxOf(TOUCH_DP * density, text.measureText(pack) + 40f * u).coerceAtMost(barW)
-            val packTop = if (packRow) top + pillPx + 8f * u else top
+            val packTop = if (packRow) top + (pillRows - 1) * (pillPx + 8f * u) else top
             r.set(barLeft + barW - packW, packTop, barLeft + barW, packTop + pillPx)
             if (!packRow) packLeft = r.left
             pill(canvas, pack, pressed == PACK, u, primary = true)
@@ -200,10 +220,10 @@ class SceneryPicker(context: Context) {
         text.textAlign = Paint.Align.CENTER
         text.typeface = Typeface.DEFAULT_BOLD
         text.color = ink
-        val pillsBottom = top + pillPx + (if (packRow) 8f * u + pillPx else 0f)
+        val pillsBottom = top + pillRows * pillPx + (pillRows - 1) * 8f * u
         val titleTop = if (wrapped) pillsBottom + 8f * u else top
         // Centered between the pills, so it never runs into them.
-        val titleLeft = if (wrapped) barLeft else barLeft + backW + 12f * u
+        val titleLeft = if (wrapped) barLeft else leftGroupRight + 12f * u
         val titleRight = if (wrapped) barLeft + barW else packLeft - 12f * u
         val titleRoom = titleRight - titleLeft
         text.textSize = titleSize * s
@@ -348,7 +368,8 @@ class SceneryPicker(context: Context) {
      * rivers and scattered terrain look like, but not exactly like, the next game.
      */
     private fun previewOf(s: Scenario, w: Int, h: Int): Bitmap {
-        val key = "${s.id}:$w:$h"
+        // The previews follow the color theme (docs/TOP100.md C5).
+        val key = "${s.id}:$w:$h:${Cosmetic.theme}"
         return previews.getOrPut(key) {
             val world = World(s, seed = PREVIEW_SEED)
             val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
@@ -395,6 +416,8 @@ class SceneryPicker(context: Context) {
         const val BACK = "back"
         /** Target id of the pill that buys the scenery pack. */
         const val PACK = "pack"
+        /** Target id of the pill that switches the game mode. */
+        const val MODE = "mode"
         private const val PREVIEW_SEED = 11L
         private const val MARGIN_DP = 16f
         private const val GAP_DP = 10f

@@ -1,5 +1,6 @@
 package com.mininetworks.game.render
 
+import com.mininetworks.game.game.CableSkin
 import com.mininetworks.game.game.CableType
 import com.mininetworks.game.game.Service
 import org.junit.After
@@ -103,6 +104,40 @@ class ServiceColorsTest {
         }
     }
 
+    /**
+     * docs/TOP100.md C5: every cable skin keeps the four technologies apart (and the widths stay the same, so a skin
+     * never makes one easier to read than in another), and packets stay visible on its darker cables like on the
+     * classic ones.
+     */
+    @Test
+    fun everyCableSkinKeepsTechnologiesApartAndPacketsVisible() {
+        for (skin in CableSkin.entries) {
+            val labs = CableType.entries.map { lab(simulate(CableStyles.of(skin, it).color, IDENTITY)) }
+            for (i in labs.indices) for (j in i + 1 until labs.size) {
+                val e = distance(labs[i], labs[j])
+                assertTrue("$skin: ${CableType.entries[i]} vs ${CableType.entries[j]}: ΔE $e", e >= MIN_CABLE_DELTA_E)
+            }
+            for (t in CableType.entries) {
+                assertEquals("$skin keeps the width of $t", CableStyles.of(CableSkin.CLASSIC, t).width, CableStyles.of(skin, t).width)
+            }
+            val dark = listOf(CableStyles.of(skin, CableType.DSL).color, CableStyles.of(skin, CableType.COAX).color)
+            for ((palette, mats) in listOf(ServiceColors::defaultOf to listOf(IDENTITY), ServiceColors::colorblindOf to listOf(IDENTITY, PROTAN, DEUTAN))) {
+                for (s in Service.entries) for (m in mats) for (d in dark) {
+                    val e = distance(lab(simulate(palette(s), m)), lab(simulate(d, m)))
+                    assertTrue("$skin: $s vs ${Integer.toHexString(d)}: ΔE $e", e >= MIN_DARK_DELTA_E)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun theActiveSkinPicksTheColors() {
+        Cosmetic.skin = CableSkin.NEON
+        assertEquals(CableStyles.of(CableSkin.NEON, CableType.FIBER).color, CableStyles.of(CableType.FIBER).color)
+        Cosmetic.reset()
+        assertEquals(CableStyles.of(CableSkin.CLASSIC, CableType.FIBER).color, CableStyles.of(CableType.FIBER).color)
+    }
+
     private fun distance(a: DoubleArray, b: DoubleArray) = hypot(hypot(a[0] - b[0], a[1] - b[1]), a[2] - b[2])
 
     private fun minDistance(palette: (Service) -> Int, m: Array<DoubleArray>): Double {
@@ -137,6 +172,8 @@ class ServiceColorsTest {
         const val MIN_DELTA_E = 25.0
         /** Packets travel over DSL and coax cables and sit next to ink-drawn icons. */
         const val MIN_DARK_DELTA_E = 30.0
+        /** The four cable technologies of one skin; the width tells them apart as well. */
+        const val MIN_CABLE_DELTA_E = 15.0
         const val INK = 0xFF262B33.toInt()
         const val MUTED = 0xFF5B6674.toInt()
         /** The off switch track in the settings (MenuPanel). */

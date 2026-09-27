@@ -229,4 +229,210 @@
     <string name="a11y_cable">Kabel %1$s, Preis pro Feld: %2$d</string>
     <string name="a11y_locked">gesperrt</string>
     <string name="a11y_map">Karte · Knoten: %1$d · Kabel: %2$d. Kabel legst du, indem du von Knoten zu Knoten ziehst.</string>
+    <!-- Retention (docs/TOP100.md C1, C2, C4, C5): daily challenge, achievements, modes, cosmetics -->
+    <string name="menu_daily">Tagesaufgabe</string>
+    <string name="menu_achievements">Erfolge</string>
+    <string name="daily_title">Tagesaufgabe</string>
+    <string name="daily_scenery">%1$s · %2$s</string>
+    <string name="daily_rule">Regel des Tages: %1$s – %2$s</string>
+    <plurals name="daily_goal">
+        <item quantity="one">Stelle %1$d Paket zu, dann zählt der Tag für deine Serie</item>
+        <item quantity="other">Stelle %1$d Pakete zu, dann zählt der Tag für deine Serie</item>
+    </plurals>
+    <string name="daily_done">Heute geschafft · Bestwert heute: %1$,d</string>
+    <plurals name="daily_streak">
+        <item quantity="one">Serie: %1$d Tag · Rekord: %2$d</item>
+        <item quantity="other">Serie: %1$d Tage · Rekord: %2$d</item>
+    </plurals>
+    <string name="daily_no_streak">Noch keine Serie · spiel heute die erste Runde</string>
+    <plurals name="daily_footer">
+        <item quantity="one">Für alle gleich · neue Aufgabe in %1$d Stunde</item>
+        <item quantity="other">Für alle gleich · neue Aufgabe in %1$d Stunden</item>
+    </plurals>
+    <string name="daily_start">Los geht\'s</string>
+    <string name="daily_pause">Tagesaufgabe · %1$s</string>
+    <plurals name="toast_daily_counted">
+        <item quantity="one">Tagesaufgabe geschafft · Serie: %1$d Tag</item>
+        <item quantity="other">Tagesaufgabe geschafft · Serie: %1$d Tage</item>
+    </plurals>
+    <string name="game_over_daily_best">Bestwert heute: %1$,d</string>
+    <string name="rule_tight_budget">Sparkurs</string>
+    <string name="rule_tight_budget_desc">weniger Startbudget, nur 40 Wochenlohn</string>
+    <string name="rule_rush_hour">Stoßzeit</string>
+    <string name="rule_rush_hour_desc">Geräte fragen öfter an</string>
+    <string name="rule_fiber_day">Glasfaser-Tag</string>
+    <string name="rule_fiber_day_desc">alle Kabel sind von Anfang an erfunden</string>
+    <string name="rule_few_routers">Knappe Router</string>
+    <string name="rule_few_routers_desc">nur ein Router zum Start</string>
+    <string name="rule_storm">Unwetter</string>
+    <string name="rule_storm_desc">Bagger und Stromausfälle kommen früher und öfter</string>
+    <string name="rule_wide_land">Weites Land</string>
+    <string name="rule_wide_land_desc">die Karte startet zwei Ringe größer</string>
+    <string name="rule_crowd">Andrang</string>
+    <string name="rule_crowd_desc">mehr neue Geräte, dafür füllt sich Überlast langsamer</string>
+
+    <string name="mode_normal">Normal</string>
+    <string name="mode_endless">Endlos</string>
+    <string name="mode_creative">Kreativ</string>
+    <string name="mode_pill">Modus: %1$s</string>
+    <string name="mode_endless_desc">Endlos: kein Game Over – Überlast bremst nur die Gegend</string>
+    <string name="mode_creative_desc">Kreativ: frei bauen, Budget ohne Ende, alles erfunden</string>
+    <string name="pause_mode">%1$s · %2$s</string>
+    <string name="hud_resources_unlimited">Budget ∞  ·  Router ∞</string>
+    <string name="button_router_unlimited">Router (∞)</string>
+    <string name="button_access_point_unlimited">WLAN (∞)</string>
+    <string name="button_cell_tower_unlimited">Mast (∞)</string>
+    <string name="a11y_unlimited">unbegrenzt</string>
+    <string name="hint_endless_jam">%1$s ist überlastet: Geräte in der Nähe fragen jetzt langsamer an</string>
+    <string name="menu_best_endless">Endlos-Bestwert: %1$,d</string>
+
+    <string name="achievements_title">Erfolge und Missionen</string>
+    <string name="achievements_count" tools:ignore="PluralsCandidate">%1$d / %2$d erreicht</string>
+    <string name="ach_progress">%1$,d / %2$,d</string>
+    <string name="ach_reached">Erreicht</string>
+    <string name="ach_open">noch offen</string>
+    <string name="ach_reward_skin">Belohnung: Kabel-Skin %1$s</string>
+    <string name="ach_reward_theme">Belohnung: Farbthema %1$s</string>
+    <string name="toast_achievement">Erfolg: %1$s</string>
+    <string name="toast_new_skin">Neu: Kabel-Skin %1$s · in den Einstellungen</string>
+    <string name="toast_new_theme">Neu: Farbthema %1$s · in den Einstellungen</string>
+    <string name="ach_delivered_1">Erstes Paket</string>
+    <string name="ach_delivered_100">Postbote</string>
+    <string name="ach_delivered_1000">Paketzentrum</string>
+    <string name="ach_delivered_10000">Backbone</string>
+    <string name="ach_game_100">Gut vernetzt</string>
+    <string name="ach_game_300">Knotenpunkt</string>
+    <string name="ach_game_600">Netzbetreiber</string>
+    <string name="ach_game_1000">Großstadt-Provider</string>
+    <string name="ach_week_5">Durchhalter</string>
+    <string name="ach_week_10">Zehn Wochen online</string>
+    <string name="ach_week_15">Dauerbetrieb</string>
+    <string name="ach_cables_10">Kabelträger</string>
+    <string name="ach_cables_100">Tiefbauer</string>
+    <string name="ach_cables_500">Kabelsalat</string>
+    <string name="ach_fiber_1">Lichtgeschwindigkeit</string>
+    <string name="ach_fiber_25">Glasfaserland</string>
+    <string name="ach_upgrades_10">Aufrüster</string>
+    <string name="ach_routers_5">Verteiler</string>
+    <string name="ach_routers_50">Router-Wald</string>
+    <string name="ach_server_1">Mehr Leistung</string>
+    <string name="ach_server_20">Serverfarm</string>
+    <string name="ach_data_center_1">Rechenzentrum</string>
+    <string name="ach_access_points_3">Funkloch gestopft</string>
+    <string name="ach_cell_towers_3">Sendemast</string>
+    <string name="ach_repairs_5">Störungsdienst</string>
+    <string name="ach_games_1">Aus Fehlern lernen</string>
+    <string name="ach_games_10">Stammgast</string>
+    <string name="ach_games_50">Netz-Veteran</string>
+    <string name="ach_weeks_50">Jahrzehnte im Netz</string>
+    <string name="ach_sceneries_3">Weltenbummler</string>
+    <string name="ach_streaming_500">Filmabend</string>
+    <string name="ach_daily_1">Tagwerk</string>
+    <string name="ach_daily_10">Tägliche Routine</string>
+    <string name="ach_streak_3">Drei am Stück</string>
+    <string name="ach_streak_7">Eine Woche am Stück</string>
+    <string name="ach_endless_12">Endlos online</string>
+    <string name="ach_creative_1">Freies Bauen</string>
+    <string name="ach_second_chance_1">Zweite Chance</string>
+    <string name="ach_budget_300">Sparfuchs</string>
+    <plurals name="ach_desc_delivered">
+        <item quantity="one">Stelle dein erstes Paket zu</item>
+        <item quantity="other">Stelle insgesamt %1$,d Pakete zu</item>
+    </plurals>
+    <plurals name="ach_desc_best_game">
+        <item quantity="one">Stelle in einer Partie %1$,d Paket zu</item>
+        <item quantity="other">Stelle in einer Partie %1$,d Pakete zu</item>
+    </plurals>
+    <plurals name="ach_desc_best_week">
+        <item quantity="one">Halte in einer Partie %1$d Woche durch</item>
+        <item quantity="other">Halte in einer Partie %1$d Wochen durch</item>
+    </plurals>
+    <plurals name="ach_desc_cables">
+        <item quantity="one">Lege %1$,d Kabel</item>
+        <item quantity="other">Lege %1$,d Kabel</item>
+    </plurals>
+    <plurals name="ach_desc_fiber">
+        <item quantity="one">Lege dein erstes Glasfaserkabel</item>
+        <item quantity="other">Lege oder rüste %1$d Glasfaserkabel</item>
+    </plurals>
+    <plurals name="ach_desc_cable_upgrades">
+        <item quantity="one">Rüste %1$d Kabel auf</item>
+        <item quantity="other">Rüste %1$d Kabel auf</item>
+    </plurals>
+    <plurals name="ach_desc_routers">
+        <item quantity="one">Setze %1$d Router</item>
+        <item quantity="other">Setze %1$d Router</item>
+    </plurals>
+    <plurals name="ach_desc_access_points">
+        <item quantity="one">Setze %1$d WLAN-Access-Point</item>
+        <item quantity="other">Setze %1$d WLAN-Access-Points</item>
+    </plurals>
+    <plurals name="ach_desc_cell_towers">
+        <item quantity="one">Setze %1$d Mobilfunkmast</item>
+        <item quantity="other">Setze %1$d Mobilfunkmasten</item>
+    </plurals>
+    <plurals name="ach_desc_server_upgrades">
+        <item quantity="one">Rüste einen Server auf</item>
+        <item quantity="other">Rüste Server %1$d-mal auf</item>
+    </plurals>
+    <plurals name="ach_desc_data_centers">
+        <item quantity="one">Baue ein Rechenzentrum</item>
+        <item quantity="other">Baue %1$d Rechenzentren</item>
+    </plurals>
+    <plurals name="ach_desc_repairs">
+        <item quantity="one">Repariere %1$d gekapptes Kabel</item>
+        <item quantity="other">Repariere %1$d gekappte Kabel</item>
+    </plurals>
+    <plurals name="ach_desc_games_finished">
+        <item quantity="one">Spiele eine Partie bis zum Ende</item>
+        <item quantity="other">Spiele %1$d Partien bis zum Ende</item>
+    </plurals>
+    <plurals name="ach_desc_weeks_total">
+        <item quantity="one">Spiele insgesamt %1$d Woche</item>
+        <item quantity="other">Spiele insgesamt %1$d Wochen</item>
+    </plurals>
+    <plurals name="ach_desc_sceneries">
+        <item quantity="one">Spiele %1$d Szenerie</item>
+        <item quantity="other">Spiele %1$d verschiedene Szenerien</item>
+    </plurals>
+    <plurals name="ach_desc_streaming">
+        <item quantity="one">Liefere %1$,d Stream aus</item>
+        <item quantity="other">Liefere %1$,d Streams aus</item>
+    </plurals>
+    <plurals name="ach_desc_daily_done">
+        <item quantity="one">Schaffe eine Tagesaufgabe</item>
+        <item quantity="other">Schaffe %1$d Tagesaufgaben</item>
+    </plurals>
+    <plurals name="ach_desc_best_streak">
+        <item quantity="one">Schaffe die Tagesaufgabe %1$d Tag in Folge</item>
+        <item quantity="other">Schaffe die Tagesaufgabe %1$d Tage in Folge</item>
+    </plurals>
+    <plurals name="ach_desc_endless_best_week">
+        <item quantity="one">Erreiche im Endlos-Modus Woche %1$d</item>
+        <item quantity="other">Erreiche im Endlos-Modus Woche %1$d</item>
+    </plurals>
+    <plurals name="ach_desc_creative_games">
+        <item quantity="one">Starte eine Partie im Kreativ-Modus</item>
+        <item quantity="other">Starte %1$d Partien im Kreativ-Modus</item>
+    </plurals>
+    <plurals name="ach_desc_second_chances">
+        <item quantity="one">Spiele nach einem Game Over weiter</item>
+        <item quantity="other">Spiele %1$d-mal nach einem Game Over weiter</item>
+    </plurals>
+    <plurals name="ach_desc_richest">
+        <item quantity="one">Habe %1$,d Budget auf einmal</item>
+        <item quantity="other">Habe %1$,d Budget auf einmal</item>
+    </plurals>
+
+    <string name="settings_cable_skin">Kabel-Skin: %1$s (%2$d/%3$d)</string>
+    <string name="settings_color_theme">Farbthema: %1$s (%2$d/%3$d)</string>
+    <string name="skin_classic">Klassik</string>
+    <string name="skin_copper">Kupfer</string>
+    <string name="skin_neon">Neon</string>
+    <string name="skin_pastel">Pastell</string>
+    <string name="skin_gold">Gold</string>
+    <string name="theme_meadow">Wiese</string>
+    <string name="theme_autumn">Herbst</string>
+    <string name="theme_winter">Winter</string>
+    <string name="theme_desert">Wüste</string>
 </resources>
