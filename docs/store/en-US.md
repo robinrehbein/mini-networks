@@ -51,7 +51,7 @@ network, cables, strategy, puzzle, city builder, town, router, Wi-Fi, fiber, int
 3. Excavators cut your cables
 4. Don't let it overload
 5. Wi-Fi, 4G and 5G
-6. Pick your upgrade
+6. Build a huge network
 7. Spin the map
 8. Five sceneries
 

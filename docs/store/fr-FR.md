@@ -51,7 +51,7 @@ réseau, câbles, stratégie, puzzle, jeu de construction, ville, routeur, Wi-Fi
 3. Les pelleteuses coupent tes câbles
 4. Évite la surcharge
 5. Wi-Fi, 4G et 5G
-6. Choisis ton bonus
+6. Bâtis un immense réseau
 7. Tourne la carte
 8. Cinq décors
 

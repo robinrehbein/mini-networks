@@ -206,6 +206,10 @@
     <string name="problem_too_narrow">%1$s：%2$s ― 帯域の足りるケーブルがありません（帯域%3$d）</string>
     <string name="problem_ping">%1$s：%2$s ― Ping %3$dミリ秒、上限%4$dミリ秒</string>
     <string name="problem_jam">%1$s：%2$s ― 渋滞中、ケーブルかサーバーが満杯</string>
+    <string name="game_over_no_route">%1$sは%2$sサーバーにつながらなかった</string>
+    <string name="game_over_too_narrow">%1$sの%2$sには、もっと太いケーブルが必要だった</string>
+    <string name="game_over_ping">%1$sの%2$sが遅延：%3$d ms（上限%4$d ms）</string>
+    <string name="game_over_jam">%1$sの%2$sが渋滞で詰まった</string>
     <string name="drag_too_narrow">%1$sには帯域%2$dが必要</string>
     <string name="drag_ping">%1$s：Ping %2$d/%3$dミリ秒</string>
     <string name="incident_more">%1$s · ほか%2$d件</string>

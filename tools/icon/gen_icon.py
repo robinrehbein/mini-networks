@@ -67,13 +67,20 @@ INK, SCREEN = "#2B3A42", "#BFE3F2"
 SHADOW = "#2F4A2A"
 
 # ---------------------------------------------------------------- scene layout (u, v in tile units)
-TOWER = (3.5, 3.5, 10.5, 7.5)          # u0, v0, width, floor height (2 floors)
+TOWER = (3.0, 3.0, 12.0, 8.0)          # u0, v0, width, floor height (2 floors): a bigger, bolder server block
 SMALL = (5.0, 18.5, 6.0, 5.5)          # gaming server: u0, v0, width, height
 DEVICE = (24.5, 24.5, 5.5, 2.2)        # plinth: u0, v0, width, height
 TU0, TV0, TW, TF = TOWER
 PORT_V = TV0 + 3.0                     # cable leaves the tower's right face here
 CABLE = [(TU0 + TW, PORT_V), (29.0, PORT_V), (29.0, 25.5)]
 PACKET = (22.5, PORT_V)                 # on the leg leaving the tower
+# Two more route lines in the game's cable colours (DSL teal, coax wine) leave the tower's front face and run off the
+# board's front-left edge: three coloured lines read as "network" at 48 dp (judge panel).
+ROUTES = [
+    ([(TU0 + TW * 0.22, TV0 + TW), (TU0 + TW * 0.22, 32.0)], "#1FA39A", "#0E6F68"),
+    ([(TU0 + TW * 0.78, TV0 + TW), (TU0 + TW * 0.78, 32.0)], "#B0305A", "#741838"),
+]
+ROUTE_W = 4.8
 TREES = []   # no props: server, fiber, packet and one device read at 48 dp (judge panel)
 PACKET_S = 6.6                          # packet cube edge: the glowing packet is the hero
 
@@ -158,6 +165,12 @@ def foreground():
         s.append(fill(rrect_d(x - 0.65, y - 3.2, 1.3, 3.4, 0.4), TRUNK))
         s.append(fill(circle_d(x, y - 3 - r * 0.8, r), TREE))
         s.append(fill(f"M{fmt(x)},{fmt(y - 3 - r * 1.8)} a{fmt(r)},{fmt(r)} 0 0,1 0,{fmt(2 * r)} Z", TREE_D, 0.55))
+    # the two route lines, under the tower and the fiber
+    for pts, col, dark in ROUTES:
+        rp = [P(*c) for c in pts]
+        s.append(stroke(line_d(rp), "#FFFFFF", ROUTE_W + 2.4, 0.55, cap="butt"))
+        s.append(stroke(line_d(rp), dark, ROUTE_W, cap="butt"))
+        s.append(stroke(line_d(rp), col, ROUTE_W - 1.6, cap="butt"))
     # mail server tower
     s += server(u0, v0, w, fl, 2, BLUE, BLUE_D)
     cx, cy = P(u0 + w / 2, v0 + w / 2, 2 * fl)
@@ -170,10 +183,10 @@ def foreground():
     s.append(fill(poly_d(inner), FIBER))
     # glass fiber: dark under-stroke, orange body, light core line (the game's fiber look)
     cp = [P(*c) for c in CABLE]
-    s.append(stroke(line_d(cp), "#FFF3DC", 14.0, 0.5))
-    s.append(stroke(line_d(cp), FIBER_D, 11.6))
-    s.append(stroke(line_d(cp), FIBER, 8.8))
-    s.append(stroke(line_d(cp), FIBER_CORE, 2.6))
+    s.append(stroke(line_d(cp), "#FFF3DC", 16.0, 0.55))
+    s.append(stroke(line_d(cp), FIBER_D, 13.4))
+    s.append(stroke(line_d(cp), FIBER, 10.4))
+    s.append(stroke(line_d(cp), FIBER_CORE, 3.0))
     # device: white plinth with a monitor (dark outline, light-blue screen) like the in-game markers
     du, dv, dw, dh = DEVICE
     f = box_faces(du, dv, dw, dw, dh)
@@ -223,7 +236,8 @@ def monochrome():
     cuts.append(sp([(cx, cy - 2.4), (cx + 4.8, cy), (cx, cy + 2.4), (cx - 4.8, cy)]))
     # cable as a solid thick L
     cp = [P(*c) for c in CABLE]
-    cable = LineString(cp).buffer(4.2, quad_segs=Q, cap_style=1, join_style=1)
+    cable = LineString(cp).buffer(4.8, quad_segs=Q, cap_style=1, join_style=1)
+    routes = unary_union([LineString([P(*c) for c in pts]).buffer(ROUTE_W / 2, cap_style=2, join_style=2) for pts, _, _ in ROUTES])
     # device: plinth + monitor with the screen cut out
     du, dv, dw, dh = DEVICE
     plinth = sp(box_faces(du, dv, dw, dw, dh)["outline"])
@@ -248,7 +262,7 @@ def monochrome():
         trees.append(unary_union([Point(x, y - 3 - r * 0.8).buffer(r, quad_segs=Q),
                                   Polygon([(x - 0.7, y - 3.5), (x + 0.7, y - 3.5), (x + 0.7, y), (x - 0.7, y)])]))
     solid = unary_union(solids).difference(unary_union(cuts))
-    solid = unary_union([solid, cable.difference(tower.buffer(0.01))])
+    solid = unary_union([solid, routes.difference(tower.buffer(0.01)).difference(cable.buffer(1.3)), cable.difference(tower.buffer(0.01))])
     # front objects get a gap so they read as separate shapes
     solid = solid.difference(device.buffer(1.3, quad_segs=Q).union(packet.buffer(1.3, quad_segs=Q)))
     solid = unary_union([solid, device, packet] + trees)

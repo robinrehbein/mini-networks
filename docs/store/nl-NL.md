@@ -51,7 +51,7 @@ netwerk, kabels, strategie, puzzel, stad bouwen, router, wifi, glasvezel, intern
 3. Graafmachines knippen kabels
 4. Voorkom overbelasting
 5. Wifi, 4G en 5G
-6. Kies je upgrade
+6. Bouw een enorm netwerk
 7. Draai de kaart
 8. Vijf landschappen
 

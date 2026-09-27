@@ -589,19 +589,52 @@ object IncidentStyles {
  */
 class DeviceIcons {
     private val ink = 0xFF262B33.toInt()
-    private val screen = 0xFFDCE6EF.toInt()
+    /** A lit screen in sky blue with a glare, so devices read as glowing gadgets rather than line icons (judge panel). */
+    private val screen = 0xFF4FA8E8.toInt()
+    private val glare = 0x66FFFFFF
+    /** The side of a device, offset down-right under its face: a little volume to match the extruded buildings. */
+    private val side = 0xFF8E9AA8.toInt()
     private val body = fill(0xFFFFFFFF.toInt())
     private val line = stroke(ink)
     private val solid = fill(ink)
     private val rect = RectF()
     private val path = Path()
+    private val shine = Path()
 
-    private fun box(l: Float, t: Float, r: Float, b: Float, radius: Float, fillColor: Int = 0xFFFFFFFF.toInt(), s: Float) {
+    private fun box(l: Float, t: Float, r: Float, b: Float, radius: Float, fillColor: Int = 0xFFFFFFFF.toInt(), s: Float, depth: Boolean = true) {
+        if (depth) {
+            rect.set(l + s * 0.12f, t + s * 0.16f, r + s * 0.12f, b + s * 0.16f)
+            body.color = side
+            canvas.drawRoundRect(rect, radius, radius, body)
+        }
         rect.set(l, t, r, b)
         body.color = fillColor
         canvas.drawRoundRect(rect, radius, radius, body)
+        if (fillColor == screen) glareOn(l, t, r, b)
         line.strokeWidth = s * 0.16f
         canvas.drawRoundRect(rect, radius, radius, line)
+    }
+
+    /** A diagonal glare over the upper left of the screen ([l], [t], [r], [b]). */
+    private fun glareOn(l: Float, t: Float, r: Float, b: Float) {
+        val w = r - l; val h = b - t
+        shine.reset()
+        shine.moveTo(l + w * 0.18f, t); shine.lineTo(l + w * 0.5f, t)
+        shine.lineTo(l + w * 0.08f, t + h); shine.lineTo(l - w * 0.24f, t + h); shine.close()
+        canvas.save()
+        canvas.clipRect(l, t, r, b)
+        body.color = glare
+        canvas.drawPath(shine, body)
+        canvas.restore()
+    }
+
+    /** [p] offset down-right in the side colour, under a shape drawn from a path. */
+    private fun pathDepth(p: Path, s: Float) {
+        canvas.save()
+        canvas.translate(s * 0.12f, s * 0.16f)
+        body.color = side
+        canvas.drawPath(p, body)
+        canvas.restore()
     }
 
     private lateinit var canvas: Canvas
@@ -621,6 +654,7 @@ class DeviceIcons {
                 path.reset()
                 path.moveTo(x - s * 0.8f, y + s * 0.8f); path.lineTo(x - s * 0.55f, y - s * 0.1f)
                 path.lineTo(x + s * 0.55f, y - s * 0.1f); path.lineTo(x + s * 0.8f, y + s * 0.8f); path.close()
+                pathDepth(path, s)
                 body.color = 0xFFFFFFFF.toInt(); canvas.drawPath(path, body)
                 line.strokeWidth = s * 0.16f; canvas.drawPath(path, line)
                 line.strokeWidth = s * 0.3f
@@ -642,6 +676,7 @@ class DeviceIcons {
             Device.SMARTPHONE -> {
                 box(x - s * 0.52f, y - s, x + s * 0.52f, y + s, s * 0.2f, 0xFFFFFFFF.toInt(), s)
                 rect.set(x - s * 0.34f, y - s * 0.72f, x + s * 0.34f, y + s * 0.6f); body.color = screen; canvas.drawRect(rect, body)
+                glareOn(x - s * 0.34f, y - s * 0.72f, x + s * 0.34f, y + s * 0.6f)
                 canvas.drawCircle(x, y + s * 0.8f, s * 0.07f, solid)
             }
             Device.TV -> {
@@ -653,11 +688,12 @@ class DeviceIcons {
             Device.TABLET -> {
                 box(x - s, y - s * 0.72f, x + s, y + s * 0.72f, s * 0.18f, 0xFFFFFFFF.toInt(), s)
                 rect.set(x - s * 0.72f, y - s * 0.5f, x + s * 0.62f, y + s * 0.5f); body.color = screen; canvas.drawRect(rect, body)
+                glareOn(x - s * 0.72f, y - s * 0.5f, x + s * 0.62f, y + s * 0.5f)
                 canvas.drawCircle(x + s * 0.82f, y, s * 0.06f, solid)
             }
             Device.WATCH -> {
                 box(x - s * 0.32f, y - s, x + s * 0.32f, y + s, s * 0.1f, 0xFFB9C2CC.toInt(), s)
-                box(x - s * 0.58f, y - s * 0.58f, x + s * 0.58f, y + s * 0.58f, s * 0.2f, screen, s)
+                box(x - s * 0.58f, y - s * 0.58f, x + s * 0.58f, y + s * 0.58f, s * 0.2f, screen, s, depth = false)
                 line.strokeWidth = s * 0.12f
                 canvas.drawLine(x, y, x, y - s * 0.3f, line)
                 canvas.drawLine(x, y, x + s * 0.22f, y, line)
@@ -670,7 +706,7 @@ class DeviceIcons {
                 canvas.save()
                 canvas.rotate(-15f, x, y - s * 0.3f)
                 box(x - s * 0.95f, y - s * 0.62f, x + s * 0.55f, y + s * 0.02f, s * 0.14f, 0xFFFFFFFF.toInt(), s)
-                box(x - s * 1.15f, y - s * 0.52f, x - s * 0.85f, y - s * 0.08f, s * 0.06f, screen, s * 0.8f)
+                box(x - s * 1.15f, y - s * 0.52f, x - s * 0.85f, y - s * 0.08f, s * 0.06f, screen, s * 0.8f, depth = false)
                 canvas.restore()
                 body.color = 0xFFE4572E.toInt()
                 canvas.drawCircle(x + s * 0.2f, y - s * 0.62f, s * 0.1f, body)
@@ -681,6 +717,7 @@ class DeviceIcons {
                 path.moveTo(x, y - s * 0.95f); path.lineTo(x + s * 0.95f, y - s * 0.1f); path.lineTo(x + s * 0.72f, y - s * 0.1f)
                 path.lineTo(x + s * 0.72f, y + s * 0.85f); path.lineTo(x - s * 0.72f, y + s * 0.85f); path.lineTo(x - s * 0.72f, y - s * 0.1f)
                 path.lineTo(x - s * 0.95f, y - s * 0.1f); path.close()
+                pathDepth(path, s)
                 body.color = 0xFFFFFFFF.toInt(); canvas.drawPath(path, body)
                 line.strokeWidth = s * 0.16f; canvas.drawPath(path, line)
                 line.strokeWidth = s * 0.12f
@@ -785,7 +822,7 @@ class DeviceIcons {
             val wn = s * 0.55f * (1.25f - f)
             canvas.drawLine(x - wn, yn, x + w, yy, line)
         }
-        for (side in listOf(-1f, 1f)) box(x + side * s * 0.32f - s * 0.12f, top + s * 0.2f, x + side * s * 0.32f + s * 0.12f, top + s * 0.62f, s * 0.05f, 0xFFFFFFFF.toInt(), s * 0.6f)
+        for (side in listOf(-1f, 1f)) box(x + side * s * 0.32f - s * 0.12f, top + s * 0.2f, x + side * s * 0.32f + s * 0.12f, top + s * 0.62f, s * 0.05f, 0xFFFFFFFF.toInt(), s * 0.6f, depth = false)
         body.color = if (sin(time * 2.5f) > 0f) 0xFFE4572E.toInt() else 0xFF8A3A2A.toInt()
         canvas.drawCircle(x, top, s * 0.13f, body)
     }
@@ -820,14 +857,14 @@ class DeviceIcons {
         canvas = c
         line.color = ink
         // Tracks: a rounded belt with three wheels.
-        box(x - s, y + s * 0.45f, x + s * 0.35f, y + s * 0.85f, s * 0.2f, IncidentStyles.EXCAVATOR_DARK, s * 0.7f)
+        box(x - s, y + s * 0.45f, x + s * 0.35f, y + s * 0.85f, s * 0.2f, IncidentStyles.EXCAVATOR_DARK, s * 0.7f, depth = false)
         for (i in 0 until 3) {
             body.color = 0xFF9AA3AD.toInt()
             canvas.drawCircle(x - s * 0.78f + i * s * 0.45f, y + s * 0.65f, s * 0.11f, body)
         }
         // Cab and engine.
-        box(x - s * 0.95f, y + s * 0.05f, x + s * 0.25f, y + s * 0.45f, s * 0.08f, IncidentStyles.EXCAVATOR, s * 0.7f)
-        box(x - s * 0.55f, y - s * 0.6f, x + s * 0.2f, y + s * 0.1f, s * 0.1f, IncidentStyles.EXCAVATOR, s * 0.7f)
+        box(x - s * 0.95f, y + s * 0.05f, x + s * 0.25f, y + s * 0.45f, s * 0.08f, IncidentStyles.EXCAVATOR, s * 0.7f, depth = false)
+        box(x - s * 0.55f, y - s * 0.6f, x + s * 0.2f, y + s * 0.1f, s * 0.1f, IncidentStyles.EXCAVATOR, s * 0.7f, depth = false)
         rect.set(x - s * 0.38f, y - s * 0.45f, x + s * 0.08f, y - s * 0.08f)
         body.color = screen
         canvas.drawRect(rect, body)

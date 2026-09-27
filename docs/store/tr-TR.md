@@ -51,7 +51,7 @@ ağ, kablo, strateji, bulmaca, şehir kurma, router, Wi-Fi, fiber, internet, çe
 3. Kepçeler kabloları keser
 4. Aşırı yükü önle
 5. Wi-Fi, 4G ve 5G
-6. Yükseltmeni seç
+6. Dev bir ağ kur
 7. Haritayı döndür
 8. Beş manzara
 

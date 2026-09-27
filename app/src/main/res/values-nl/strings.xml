@@ -212,6 +212,10 @@
     <string name="problem_too_narrow">%1$s: %2$s – geen kabel breed genoeg (bandbreedte %3$d)</string>
     <string name="problem_ping">%1$s: %2$s – ping %3$d ms, toegestaan %4$d ms</string>
     <string name="problem_jam">%1$s: %2$s – file, kabels of server te vol</string>
+    <string name="game_over_no_route">%1$s bereikte geen %2$s-server</string>
+    <string name="game_over_too_narrow">%1$s had een bredere kabel nodig voor %2$s</string>
+    <string name="game_over_ping">%2$s op %1$s haperde: %3$d ms, max %4$d ms</string>
+    <string name="game_over_jam">%1$s kwam vast te zitten in een datafile (%2$s)</string>
     <string name="drag_too_narrow">%1$s heeft bandbreedte %2$d nodig</string>
     <string name="drag_ping">%1$s: ping %2$d/%3$d ms</string>
     <string name="incident_more">%1$s · +%2$d meer</string>

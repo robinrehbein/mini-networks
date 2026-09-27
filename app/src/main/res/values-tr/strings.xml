@@ -212,6 +212,10 @@
     <string name="problem_too_narrow">%1$s: %2$s – yeterince geniş kablo yok (bant genişliği %3$d)</string>
     <string name="problem_ping">%1$s: %2$s – ping %3$d ms, izin verilen %4$d ms</string>
     <string name="problem_jam">%1$s: %2$s – tıkanıklık, kablolar ya da sunucu dolu</string>
+    <string name="game_over_no_route">%1$s hiçbir %2$s sunucusuna ulaşamadı</string>
+    <string name="game_over_too_narrow">%1$s, %2$s için daha geniş bir kablo istedi</string>
+    <string name="game_over_ping">%1$s üzerinde %2$s takıldı: %3$d ms, en fazla %4$d ms</string>
+    <string name="game_over_jam">%1$s veri trafiğinde sıkıştı (%2$s)</string>
     <string name="drag_too_narrow">%1$s için bant genişliği %2$d gerekir</string>
     <string name="drag_ping">%1$s: ping %2$d/%3$d ms</string>
     <string name="incident_more">%1$s · +%2$d daha</string>

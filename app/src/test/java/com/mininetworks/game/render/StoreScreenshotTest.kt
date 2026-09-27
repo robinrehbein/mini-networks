@@ -85,7 +85,7 @@ class StoreScreenshotTest {
         TABLET_7("tablet-7", 1920, 1080, "w1097dp-h617dp-land-280dpi", zoom = 0.88f),
         TABLET_10("tablet-10", 2560, 1440, "w1280dp-h720dp-land-xhdpi", zoom = 0.82f),
         /** Portrait is what the Play Store carousel shows first on phones. */
-        PHONE_PORTRAIT("phone-portrait", 1080, 1920, "w411dp-h731dp-port-420dpi", slides = listOf(0, 1, 2, 3, 4, 6, 7)),
+        PHONE_PORTRAIT("phone-portrait", 1080, 1920, "w411dp-h731dp-port-420dpi"),
     }
 
     /** The device being rendered; its [StoreDevice.zoom] scales every shot. */
@@ -131,7 +131,7 @@ class StoreScreenshotTest {
                     Cosmetic.reset()
                     val card = cardRect(device, shot)
                     // A full-bleed shot runs under the caption: its focus moves down into the part below the band.
-                    hiddenTop = if (shot.fullBleed) band(device) else 0f
+                    hiddenTop = 0f
                     val game = Bitmap.createBitmap(card.width().toInt(), card.height().toInt(), Bitmap.Config.ARGB_8888)
                     shot.draw(game)
                     hiddenTop = 0f
@@ -146,12 +146,13 @@ class StoreScreenshotTest {
     }
 
     /**
-     * One of the eight motifs: a name for the file and how to draw it on the game surface. A [fullBleed] shot fills
+     * One of the eight motifs: a name for the file, the [accent] of its caption's underline and how to draw it on the
+     * game surface below the brand bar. (Formerly: a full-bleed shot filled
      * the whole frame and its caption sits on a soft gradient over the map; the others (real HUD, dialog, collage)
      * start below the caption band. [tint] colours the caption's gradient and [accent] its underline, one pair per
      * motif, so the set reads as one family without every slide looking the same (judge panel).
      */
-    private class Shot(val name: String, val tint: Int, val accent: Int, val fullBleed: Boolean = true, val draw: (Bitmap) -> Unit)
+    private class Shot(val name: String, val accent: Int, val draw: (Bitmap) -> Unit)
 
     /** Height of the caption band of [d]. */
     private fun band(d: StoreDevice) = if (d.height > d.width) d.height * 0.1f else d.height * BAND
@@ -160,8 +161,8 @@ class StoreScreenshotTest {
     private var hiddenTop = 0f
 
     /** Where the game of [shot] sits in the frame of [d]: all of it, or from under the caption band to the bottom. */
-    private fun cardRect(d: StoreDevice, shot: Shot): RectF =
-        RectF(0f, if (shot.fullBleed) 0f else band(d), d.width.toFloat(), d.height.toFloat())
+    private fun cardRect(d: StoreDevice, @Suppress("UNUSED_PARAMETER") shot: Shot): RectF =
+        RectF(0f, band(d), d.width.toFloat(), d.height.toFloat())
 
     private fun view(hud: Boolean = false): GameView = GameView(app).also {
         it.wallClock = { now }
@@ -201,8 +202,9 @@ class StoreScreenshotTest {
     private fun shots(): List<Shot> = listOf(
         // 1. The hero: a busy late-game town, every cable technology, packets on every line, and one device starting
         //    to fill up (its ring runs), so the first picture already has a moment of tension.
-        Shot("town", BRAND_DARK, 0xFFF28C28.toInt()) { bmp ->
-            val world = lateTown()
+        Shot("town", 0xFFF28C28.toInt()) { bmp ->
+            // Upright, a town a little further grown, so the network fills the tall picture.
+            val world = lateTown(weeks = if (bmp.height > bmp.width) 5 else 3)
             val nodes = world.nodes
             // A little right of the network's middle, so the cables at its east edge stay in the picture.
             val middle = Vec2(nodes.map { it.center.x }.average().toFloat() + 0.2f, nodes.map { it.center.y }.average().toFloat() - 0.7f)
@@ -211,9 +213,12 @@ class StoreScreenshotTest {
             // under pressure is one with no server standing near it, and the camera centres on it.
             val servers = world.nodes.filter { it.kind == NodeKind.SERVER }
             val hero = world.nodes.filter { it.kind == NodeKind.CLIENT }
-                .filter { n -> servers.none { s -> abs(s.cellX - n.cellX) <= 3 && abs(s.cellY - n.cellY) <= 3 } }
+                .filter { n -> servers.none { s -> s.cellX - n.cellX in -1..2 && s.cellY - n.cellY in -1..2 } }
                 .minByOrNull { abs(it.center.x - middle.x) + abs(it.center.y - middle.y) }
-            val focus = hero?.center?.let { Vec2((it.x * 2f + middle.x) / 3f, (it.y * 2f + middle.y) / 3f) } ?: middle
+            // The ring sits in the middle of the picture (judge panel: it sat bottom right, with buildings cut at the edge).
+            val tall = bmp.height > bmp.width
+            // Upright, the ring itself is the middle of the picture and the network wraps around it.
+            val focus = hero?.center?.let { if (tall) it else Vec2((it.x + middle.x) / 2f, (it.y + middle.y) / 2f) } ?: middle
             // A calm moment between rushes: packets on the lines, only the hero and one neighbour waiting (judge
             // panel: a bubble on every device read as clutter).
             calm(world, keep = 2, near = hero?.center ?: middle)
@@ -222,17 +227,17 @@ class StoreScreenshotTest {
                 n.device!!.services.take(2).forEach { n.pending.addLast(it) }
                 n.overload = 0.7f
             }
-            game(bmp, world, zoom = if (bmp.height > bmp.width) 2.4f else 1.3f, focus = focus)
+            game(bmp, world, zoom = if (bmp.height > bmp.width) 3.0f else 1.35f, focus = focus)
         },
         // 2. Laying a cable, close up: fiber picked, the finger drags from the tablet to the game server; glow, touch
         //    trail and the price bubble fill the card (no empty board edge).
-        Shot("drag", 0xFF10384A.toInt(), 0xFFFFC21A.toInt()) { bmp ->
+        Shot("drag", 0xFFFFC21A.toInt()) { bmp ->
             val world = Scenes.hud()
             val from = world.nodes.first { it.device == Device.TABLET }
             val to = world.nodes.first { it.service == Service.GAMING }
             // Between the drag and the board's middle (the drag runs near the board's edge), so no empty backdrop shows.
             val tall = bmp.height > bmp.width
-            val mid = if (tall) Vec2((from.center.x + to.center.x) / 2f - 0.8f, (from.center.y + to.center.y) / 2f - 0.8f) else Vec2(
+            val mid = if (tall) Vec2((from.center.x + to.center.x) / 2f - 2.0f, (from.center.y + to.center.y) / 2f - 2.0f) else Vec2(
                 (from.center.x + to.center.x) / 2f * 0.5f + world.cols / 2f * 0.5f,
                 (from.center.y + to.center.y) / 2f * 0.5f + world.rows / 2f * 0.5f - 1f,
             )
@@ -241,7 +246,7 @@ class StoreScreenshotTest {
             val v = view(hud = true)
             var tip = Vec2(0f, 0f)
             var start = Vec2(0f, 0f)
-            game(bmp, world, zoom = if (tall) 1.9f else 2.6f, view = v, focus = mid) { gv ->
+            game(bmp, world, zoom = if (tall) 2.6f else 2.6f, view = v, focus = mid) { gv ->
                 gv.drawCurrent(Canvas(bmp))
                 tap(gv, "cable:${CableType.FIBER.name}")
                 gv.hudHidden = true
@@ -264,16 +269,18 @@ class StoreScreenshotTest {
         //    Conflict sells: it comes early in the set (judge panel).
         //    On the set's own green ground under the brand's dusk caption with a hot accent (judge panel: the sand palette
         //    and the brown header clashed), and close on the one excavator so the threat is the hero.
-        Shot("incidents", BRAND_DARK, 0xFFFF6B3D.toInt()) { bmp ->
-            val world = Scenes.incidents(single = true)
-            repeat(60 * 2) { world.update(1f / 60f) }
+        Shot("incidents", 0xFFFF6B3D.toInt()) { bmp ->
+            // A real game in the mountain village (judge panel: five River Town shots in a row): the excavator has
+            // just cut a long cable, dust and sparks fly; the camera sits close on the cut.
+            val world = mountainCut()
             val focus = world.incidents.first { it.struck && it.cable != null }.spot
             calm(world, keep = 2, near = focus)
-            game(bmp, world, zoom = if (bmp.height > bmp.width) 2.8f else 2.3f, focus = focus)
+            val lift = if (bmp.height > bmp.width) 1.8f else 0.2f
+            game(bmp, world, zoom = if (bmp.height > bmp.width) 3.0f else 2.2f, focus = Vec2(focus.x - lift, focus.y - lift))
         },
         // 4. The tension: the real play screen with its HUD (date, packet count, cable bar), two devices whose queues
         //    are full and whose red overload rings are closing, closer in so the pressure shows.
-        Shot("overload", 0xFF3E0E18.toInt(), 0xFFFF5A5F.toInt(), fullBleed = false) { bmp ->
+        Shot("overload", 0xFFFF5A5F.toInt()) { bmp ->
             // A believable budget (judge panel: four digits looked like a debug value): the town was wired on a tight purse.
             val world = lateTown(grant = 150)
             // Half a minute more of normal play, so the packet counter shows a game well under way.
@@ -286,12 +293,15 @@ class StoreScreenshotTest {
             check(!world.gameOver)
             val hot = overloaded(world)
             calm(world, keep = 1, near = hot.center, except = world.nodes.filter { it.overload > 0f }.toSet())
-            game(bmp, world, zoom = if (bmp.height > bmp.width) 2.5f else 1.9f, view = view(hud = true), focus = hot.center)
+            // Both rings above the toolbar: the camera looks a little below the pair.
+            val other = world.nodes.filter { it.overload > 0f && it !== hot }.firstOrNull()?.center ?: hot.center
+            val pair = Vec2((hot.center.x + other.x) / 2f + 0.8f, (hot.center.y + other.y) / 2f + 0.8f)
+            game(bmp, world, zoom = if (bmp.height > bmp.width) 2.5f else 1.9f, view = view(hud = true), focus = pair)
             spotlight(bmp)
         },
         // 5. Wireless, close on the radios: coverage circles and the dashed radio links are the hero, no queues; the
         //    servers stay whole inside the picture.
-        Shot("wireless", 0xFF0F2548.toInt(), 0xFF5CC8FF.toInt()) { bmp ->
+        Shot("wireless", 0xFF5CC8FF.toInt()) { bmp ->
             val world = storeWireless()
             world.nodes.forEach { it.pending.clear() }
             val radios = world.nodes.filter { it.kind == NodeKind.ACCESS_POINT || it.kind == NodeKind.CELL_TOWER }
@@ -308,35 +318,33 @@ class StoreScreenshotTest {
             )
             game(bmp, world, zoom = if (tall) 2.7f else 1.2f, focus = focus)
         },
-        // 6. The week reward at its moment: confetti around the warm spotlight and the two cards.
-        Shot("reward", 0xFF123A4C.toInt(), 0xFFFFC21A.toInt(), fullBleed = false) { bmp ->
-            view().drawSnapshot(Canvas(bmp), FormFactorScreenshotTest.rewardWorld(), bmp.width, bmp.height, time = 1.3f, style = "Iso")
-            // The confetti stays in the margins beside and above the heading and cards, never over a word or the caption.
-            val layer = Bitmap.createBitmap(bmp.width, bmp.height, Bitmap.Config.ARGB_8888)
-            // A few bursts of the game's confetti (the moment a week ends), kept to the margins beside the cards.
-            for (k in 0 until 4) com.mininetworks.game.ui.Confetti(uiDensity()).draw(Canvas(layer), bmp.width, bmp.height, 0.4f + 0.1f * k, 6 + k)
-            val tall = bmp.height > bmp.width
-            val clear = Paint().apply { xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR) }
-            Canvas(layer).drawRect(
-                bmp.width * (if (tall) 0.04f else 0.2f), if (tall) bmp.height * 0.16f else 0f,
-                bmp.width * (if (tall) 0.96f else 0.8f), bmp.height.toFloat(), clear,
-            )
-            Canvas(bmp).drawBitmap(layer, 0f, 0f, null)
+        // 6. Depth and progression: the metropolis late in a game, a dense network in every cable colour between the
+        //    towers with packets on every line (judge panel: the reward cards were the weakest picture of the set).
+        Shot("network", 0xFF7BD3FF.toInt()) { bmp ->
+            val world = lateMetropolis()
+            // A network that runs well: packets everywhere, no ring filling up (that is the story of slide 4).
+            world.nodes.forEach { it.overload = 0f }
+            val nodes = world.nodes
+            val middle = Vec2(nodes.map { it.center.x }.average().toFloat(), nodes.map { it.center.y }.average().toFloat())
+            val towers = signature(world, Scenarios.METROPOLIS) ?: middle
+            val focus = Vec2((towers.x + middle.x) / 2f, (towers.y + middle.y) / 2f)
+            calm(world, keep = 2, near = focus)
+            game(bmp, world, zoom = if (bmp.height > bmp.width) 2.3f else 1.5f, focus = focus)
         },
         // 7. The turned map, full bleed: the city of 2030 late in a game at an odd angle, the skyline the hero; the
         //    two-finger turn is a small badge in the corner instead of arrows over the city.
-        Shot("rotation", 0xFF2A1B52.toInt(), 0xFFB79CFF.toInt()) { bmp ->
+        Shot("rotation", 0xFFB79CFF.toInt()) { bmp ->
             val world = lateFuture()
             val focus = Vec2(world.nodes.map { it.center.x }.average().toFloat(), world.nodes.map { it.center.y }.average().toFloat())
             calm(world, keep = 2, near = focus)
-            game(bmp, world, zoom = if (bmp.height > bmp.width) 2.0f else 1.45f, focus = focus) { v ->
+            game(bmp, world, zoom = if (bmp.height > bmp.width) 2.6f else 1.45f, focus = focus) { v ->
                 val r = v.activeRenderer
                 r.rotateBy(Camera.shortestTurn(r.camera.angle, 34f), r.camera.centerX, r.camera.centerY, world)
             }
             rotationHint(bmp)
         },
         // 8. Five sceneries, each in its own colours, as a collage of their maps, each named on a small pill.
-        Shot("sceneries", 0xFF15392C.toInt(), 0xFF7BD389.toInt(), fullBleed = false) { bmp ->
+        Shot("sceneries", 0xFF7BD389.toInt()) { bmp ->
             sceneryCollage(bmp)
         },
     )
@@ -388,6 +396,73 @@ class StoreScreenshotTest {
         })
     }
 
+    /** The metropolis late in a game: grown, every device wired with the cable its distance calls for, servers upgraded, rush hour. */
+    private fun lateMetropolis(): World {
+        val w = World(Scenarios.METROPOLIS, seed = 4L)
+        w.incidentsEnabled = false
+        repeat(60 * 45 * 2) {
+            if (w.rewardOffer != null) w.chooseReward(0)
+            w.nodes.forEach { it.pending.clear() }
+            w.update(1f / 60f)
+        }
+        w.jumpToWeek(w.week + 4)
+        w.grant(4000)
+        repeat(60 * 30) {
+            if (w.rewardOffer != null) w.chooseReward(0)
+            w.nodes.forEach { it.pending.clear() }
+            w.update(1f / 60f)
+        }
+        wireNearest(w)
+        w.nodes.filter { it.kind == NodeKind.SERVER }.forEach { s -> repeat(2) { w.upgradeServer(s) } }
+        repeat(60 * 5) {
+            if (w.rewardOffer != null) w.chooseReward(0)
+            w.update(1f / 60f)
+        }
+        rushHour(w)
+        check(!w.gameOver) { "the metropolis must still run" }
+        return w
+    }
+
+    /** The mountain village a while into a game, wired, where an excavator has just cut the longest cable. */
+    private fun mountainCut(): World {
+        val w = World(Scenarios.MOUNTAIN_VILLAGE, seed = 4L)
+        w.incidentsEnabled = false
+        repeat(60 * 45 * 2) {
+            if (w.rewardOffer != null) w.chooseReward(0)
+            w.nodes.forEach { it.pending.clear() }
+            w.update(1f / 60f)
+        }
+        w.grant(1500)
+        wireNearest(w)
+        w.nodes.filter { it.kind == NodeKind.SERVER }.forEach { s -> w.upgradeServer(s) }
+        repeat(60 * 3) {
+            if (w.rewardOffer != null) w.chooseReward(0)
+            w.update(1f / 60f)
+        }
+        val cx = w.nodes.map { it.center.x }.average().toFloat()
+        val cy = w.nodes.map { it.center.y }.average().toFloat()
+        // A long cable near the middle of the network, so the cut sits among houses, cables and mountains.
+        // Nothing tall may stand in front of the cut (nearer the viewer), or it hides the excavator.
+        fun open(p: Vec2) = w.nodes.none { n ->
+            val reach = if (n.kind == NodeKind.CLIENT) 1.6f else 3f
+            n.center.x - p.x in -0.8f..reach && n.center.y - p.y in -0.8f..reach
+        }
+        // Away from the board's front edges too, so an upright picture shows land (not the outskirts) below the cut.
+        fun inland(p: Vec2) = p.x < w.cols - 5f && p.y < w.rows - 4f && p.x > 3f && p.y > 2f
+        val cable = w.cables.filter { it.layout.length >= 4f && open(it.layout.pointAt(0.5f)) && inland(it.layout.pointAt(0.5f)) }
+            .minByOrNull { c -> c.layout.pointAt(0.5f).let { abs(it.x - cx) + abs(it.y - cy) } }
+            ?: w.cables.filter { it.layout.length >= 4f && open(it.layout.pointAt(0.5f)) }
+                .minByOrNull { c -> c.layout.pointAt(0.5f).let { abs(it.x - cx) + abs(it.y - cy) } } ?: w.cables.maxBy { it.layout.length }
+        w.announceExcavator(cable, cutAt = 0.5f)
+        repeat((60 * (com.mininetworks.game.game.Incidents.WARNING_SECONDS + 1.5f)).toInt()) {
+            if (w.rewardOffer != null) w.chooseReward(0)
+            w.update(1f / 60f)
+        }
+        check(!w.gameOver) { "the village must still run" }
+        check(w.incidents.any { it.struck }) { "the excavator must have struck: ${w.incidents.map { it.struck to it.warning }}" }
+        return w
+    }
+
     /** The 2030 scenery late in a game: grown, every device wired, servers upgraded, rush-hour traffic. */
     private fun lateFuture(): World {
         val w = World(Scenarios.FUTURE, seed = 4L)
@@ -419,10 +494,10 @@ class StoreScreenshotTest {
      * A busy town late in a game: grown twice, every client wired to its nearest server with the cable a player would
      * pick for the distance (DSL near, coax further, fiber far), servers upgraded, and traffic running.
      */
-    private fun lateTown(grant: Int = 2000): World {
+    private fun lateTown(grant: Int = 2000, weeks: Int = 3): World {
         val w = World(seed = 4L)
         w.incidentsEnabled = false
-        repeat(60 * 45 * 3) {
+        repeat(60 * 45 * weeks) {
             if (w.rewardOffer != null) w.chooseReward(0)
             w.nodes.forEach { it.pending.clear() }
             w.update(1f / 60f)
@@ -702,6 +777,15 @@ class StoreScreenshotTest {
         colorFilter = android.graphics.ColorMatrixColorFilter(m)
     }
 
+    /** The 1995 half of the feature graphic a step more saturated still, level with the vivid 2030 half (judge panel). */
+    private val vividPast = Paint(Paint.FILTER_BITMAP_FLAG).apply {
+        val m = android.graphics.ColorMatrix().apply { setSaturation(1.6f) }
+        val k = 1.1f
+        val t = -0.06f * 255f
+        m.postConcat(android.graphics.ColorMatrix(floatArrayOf(k, 0f, 0f, 0f, t, 0f, k, 0f, 0f, t, 0f, 0f, k, 0f, t, 0f, 0f, 0f, 1f, 0f)))
+        colorFilter = android.graphics.ColorMatrixColorFilter(m)
+    }
+
     /**
      * [game] in the frame of [d] under [caption]. A full-bleed shot runs under the caption, which sits on a soft
      * gradient in the shot's [Shot.tint] that fades into the map; the others hang below a slim band in that tint. The
@@ -714,23 +798,16 @@ class StoreScreenshotTest {
         val w = d.width.toFloat()
         val h = d.height.toFloat()
         val band = band(d)
-        val tint = shot.tint and 0xFFFFFF
-        c.drawColor(shot.tint)
-        c.drawBitmap(game, 0f, if (shot.fullBleed) 0f else band, vivid)
-        if (shot.fullBleed) {
-            val reach = band * 1.5f
-            c.drawRect(0f, 0f, w, reach, Paint().apply {
-                shader = LinearGradient(
-                    0f, 0f, 0f, reach, intArrayOf(0xF2000000.toInt() or tint, 0xC8000000.toInt() or tint, 0x55000000 or tint, tint),
-                    floatArrayOf(0f, 0.5f, 0.78f, 1f), Shader.TileMode.CLAMP,
-                )
-            })
-        } else {
-            c.drawRect(0f, 0f, w, band, Paint().apply { color = shot.tint })
-            c.drawRect(0f, band, w, band * 1.2f, Paint().apply {
-                shader = LinearGradient(0f, band, 0f, band * 1.2f, 0x55000000, 0, Shader.TileMode.CLAMP)
-            })
-        }
+        // One brand bar for every slide (judge panel: a hue per slide read as unrelated templates, and the fade into the
+        // map hid ~150 px of play): solid dusk navy with a short soft shadow, the game whole below it.
+        c.drawColor(BRAND_DARK)
+        c.drawBitmap(game, 0f, band, vivid)
+        c.drawRect(0f, 0f, w, band, Paint().apply {
+            shader = LinearGradient(0f, 0f, 0f, band, BRAND_MID, BRAND_DARK, Shader.TileMode.CLAMP)
+        })
+        c.drawRect(0f, band, w, band * 1.1f, Paint().apply {
+            shader = LinearGradient(0f, band, 0f, band * 1.1f, 0x40000000, 0, Shader.TileMode.CLAMP)
+        })
         // A faint light from the top left over the tint.
         c.drawRect(0f, 0f, w, band, Paint().apply {
             shader = RadialGradient(w * 0.2f, -band * 0.6f, w * 0.6f, 0x26FFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP)
@@ -782,12 +859,10 @@ class StoreScreenshotTest {
         // The past: the town, the drama of one device whose ring is closing next to its busiest server.
         val town = lateTown()
         val hero = town.nodes.filter { it.kind == NodeKind.SERVER }.maxBy { s -> town.cables.count { it.a === s || it.b === s } }
-        town.nodes.filter { it.kind == NodeKind.CLIENT }.minBy { abs(it.center.x - hero.center.x) + abs(it.center.y - hero.center.y) }.let { n ->
-            n.pending.clear()
-            repeat(World.Tuning.MAX_PENDING) { k -> n.pending.addLast(n.device!!.services[k % n.device!!.services.size]) }
-            n.overload = 0.8f
-        }
-        calm(town, keep = 2, near = hero.center, except = town.nodes.filter { it.overload > 0f }.toSet())
+        // A calm, busy town (judge panel: a big red overload halo on this side read as an error): every ring empty,
+        // packets on every line.
+        town.nodes.forEach { it.overload = 0f }
+        calm(town, keep = 2, near = hero.center)
         val past = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         IsoRenderer().apply {
             density = 1.6f
@@ -795,7 +870,7 @@ class StoreScreenshotTest {
             val hx = w * 0.66f
             val hy = h * 0.52f
             toScreen(hero.center).let { p -> camera.panBy(hx - p.x, hy - p.y) }
-            camera.zoomBy(1.5f, hx, hy)
+            camera.zoomBy(1.75f, hx, hy)
             draw(Canvas(past), town, drag = null, time = 1.3f)
         }
         // The future: the city of 2030, framed on its towers.
@@ -809,10 +884,10 @@ class StoreScreenshotTest {
             val fx = w * 0.83f
             val fy = h * 0.5f
             toScreen(focus).let { p -> camera.panBy(fx - p.x, fy - p.y) }
-            camera.zoomBy(1.9f, fx, fy)
+            camera.zoomBy(1.6f, fx, fy)
             draw(Canvas(future), city, drag = null, time = 1.3f)
         }
-        c.drawBitmap(past, 0f, 0f, vivid)
+        c.drawBitmap(past, 0f, 0f, vividPast)
         // The city takes over right of a bold diagonal seam in glowing fiber (judge panel: the old hairline read as an
         // artifact); a soft feather keeps the cut clean.
         val top = w * 0.74f
@@ -851,15 +926,16 @@ class StoreScreenshotTest {
             c.drawRoundRect(r, 22f, 22f, Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color })
             c.drawText(text, cx - tagP.measureText(text) / 2f, r.centerY() + tagP.textSize * 0.36f, tagP)
         }
-        yearTag("1995", w * 0.585f, h * 0.84f, 0xFF2E7D46.toInt())
-        yearTag("2030", w * 0.76f, h * 0.84f, 0xFF5B3FB0.toInt())
+        // At the top of the seam, clear of the bottom edge (judge panel) and of Play's video button in the middle.
+        yearTag("1995", w * 0.63f, h * 0.06f, 0xFF2E7D46.toInt())
+        yearTag("2030", w * 0.85f, h * 0.06f, 0xFF5B3FB0.toInt())
 
         val name = app.getString(R.string.app_name)
         val left = w * 0.06f
         val room = w * 0.35f - left
         val title = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFFFFFF.toInt(); typeface = display; textSize = 96f; setShadowLayer(8f, 0f, 3f, 0x80000000.toInt()) }
         while (title.measureText(name) > room) title.textSize -= 1f
-        val icon = 96f
+        val icon = 124f
         fun write(tagline: String, file: File) {
             val shot = out.copy(Bitmap.Config.ARGB_8888, true)
             val sc = Canvas(shot)
@@ -962,18 +1038,18 @@ class StoreScreenshotTest {
 
         /** Captions of the eight screenshots in every language of the listing (docs/store/<language>.md). */
         val LANGUAGES = mapOf(
-            "de" to listOf("Verkabel deine Stadt", "Ein Wisch, ein Kabel", "Bagger kappen Kabel", "Stopp die Überlastung", "WLAN, 4G und 5G", "Wähl dein Upgrade", "Dreh die Karte", "Fünf Szenerien"),
-            "en" to listOf("Wire up your town", "One swipe, one cable", "Excavators cut your cables", "Don't let it overload", "Wi-Fi, 4G and 5G", "Pick your upgrade", "Spin the map", "Five sceneries"),
-            "fr" to listOf("Câble ta ville", "Un geste, un câble", "Les pelleteuses coupent tes câbles", "Évite la surcharge", "Wi-Fi, 4G et 5G", "Choisis ton bonus", "Tourne la carte", "Cinq décors"),
-            "es" to listOf("Conecta tu pueblo", "Un gesto, un cable", "Las excavadoras cortan cables", "Evita la saturación", "Wi-Fi, 4G y 5G", "Elige tu mejora", "Gira el mapa", "Cinco escenarios"),
-            "it" to listOf("Cabla la tua città", "Un gesto, un cavo", "Le ruspe tagliano i cavi", "Evita il sovraccarico", "Wi-Fi, 4G e 5G", "Scegli il potenziamento", "Ruota la mappa", "Cinque scenari"),
-            "pt-rBR" to listOf("Conecte sua cidade", "Um gesto, um cabo", "Escavadeiras cortam cabos", "Evite a sobrecarga", "Wi-Fi, 4G e 5G", "Escolha seu bônus", "Gire o mapa", "Cinco cenários"),
-            "pl" to listOf("Okabluj swoje miasto", "Jeden ruch, jeden kabel", "Koparki tną kable", "Unikaj przeciążenia", "Wi-Fi, 4G i 5G", "Wybierz ulepszenie", "Obracaj mapę", "Pięć scenerii"),
-            "nl" to listOf("Verbind je stad", "Eén veeg, één kabel", "Graafmachines knippen kabels", "Voorkom overbelasting", "Wifi, 4G en 5G", "Kies je upgrade", "Draai de kaart", "Vijf landschappen"),
-            "tr" to listOf("Şehrini kabloyla bağla", "Bir kaydırma, bir kablo", "Kepçeler kabloları keser", "Aşırı yükü önle", "Wi-Fi, 4G ve 5G", "Yükseltmeni seç", "Haritayı döndür", "Beş manzara"),
-            "ja" to listOf("町をケーブルでつなごう", "なぞるだけでケーブル", "ショベルカーがケーブルを切る！", "過負荷を防ごう", "Wi-Fi、4G、5G", "アップグレードを選ぼう", "地図を回転", "5つのステージ"),
-            "ko" to listOf("도시를 케이블로 연결하세요", "한 번 밀면 케이블 하나", "굴착기가 케이블을 끊어요", "과부하를 막으세요", "Wi-Fi, 4G, 5G", "업그레이드를 고르세요", "지도를 회전", "다섯 가지 배경"),
-            "zh-rCN" to listOf("为你的城镇铺设网络", "一划即是一条电缆", "挖掘机会挖断电缆", "别让网络过载", "Wi-Fi、4G 和 5G", "选择你的升级", "旋转地图", "五个场景"),
+            "de" to listOf("Verkabel deine Stadt", "Ein Wisch, ein Kabel", "Bagger kappen Kabel", "Stopp die Überlastung", "WLAN, 4G und 5G", "Bau ein riesiges Netz", "Dreh die Karte", "Fünf Szenerien"),
+            "en" to listOf("Wire up your town", "One swipe, one cable", "Excavators cut your cables", "Don't let it overload", "Wi-Fi, 4G and 5G", "Build a huge network", "Spin the map", "Five sceneries"),
+            "fr" to listOf("Câble ta ville", "Un geste, un câble", "Les pelleteuses coupent tes câbles", "Évite la surcharge", "Wi-Fi, 4G et 5G", "Bâtis un immense réseau", "Tourne la carte", "Cinq décors"),
+            "es" to listOf("Conecta tu pueblo", "Un gesto, un cable", "Las excavadoras cortan cables", "Evita la saturación", "Wi-Fi, 4G y 5G", "Crea una red enorme", "Gira el mapa", "Cinco escenarios"),
+            "it" to listOf("Cabla la tua città", "Un gesto, un cavo", "Le ruspe tagliano i cavi", "Evita il sovraccarico", "Wi-Fi, 4G e 5G", "Costruisci una rete enorme", "Ruota la mappa", "Cinque scenari"),
+            "pt-rBR" to listOf("Conecte sua cidade", "Um gesto, um cabo", "Escavadeiras cortam cabos", "Evite a sobrecarga", "Wi-Fi, 4G e 5G", "Crie uma rede enorme", "Gire o mapa", "Cinco cenários"),
+            "pl" to listOf("Okabluj swoje miasto", "Jeden ruch, jeden kabel", "Koparki tną kable", "Unikaj przeciążenia", "Wi-Fi, 4G i 5G", "Zbuduj ogromną sieć", "Obracaj mapę", "Pięć scenerii"),
+            "nl" to listOf("Verbind je stad", "Eén veeg, één kabel", "Graafmachines knippen kabels", "Voorkom overbelasting", "Wifi, 4G en 5G", "Bouw een enorm netwerk", "Draai de kaart", "Vijf landschappen"),
+            "tr" to listOf("Şehrini kabloyla bağla", "Bir kaydırma, bir kablo", "Kepçeler kabloları keser", "Aşırı yükü önle", "Wi-Fi, 4G ve 5G", "Dev bir ağ kur", "Haritayı döndür", "Beş manzara"),
+            "ja" to listOf("町をケーブルでつなごう", "なぞるだけでケーブル", "ショベルカーがケーブルを切る！", "過負荷を防ごう", "Wi-Fi、4G、5G", "巨大なネットワークを築こう", "地図を回転", "5つのステージ"),
+            "ko" to listOf("도시를 케이블로 연결하세요", "한 번 밀면 케이블 하나", "굴착기가 케이블을 끊어요", "과부하를 막으세요", "Wi-Fi, 4G, 5G", "거대한 네트워크를 만드세요", "지도를 회전", "다섯 가지 배경"),
+            "zh-rCN" to listOf("为你的城镇铺设网络", "一划即是一条电缆", "挖掘机会挖断电缆", "别让网络过载", "Wi-Fi、4G 和 5G", "打造庞大的网络", "旋转地图", "五个场景"),
         )
     }
 }

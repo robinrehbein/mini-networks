@@ -274,26 +274,28 @@ class IsoRenderer : Renderer {
         for (n in nodes) {
             if (n.kind != NodeKind.CLIENT || n.overload <= 0f) continue
             val cx = sx(n.center.x, n.center.y); val cy = sy(n.center.x, n.center.y)
-            oval.set(cx - tw * 0.55f, cy - th * 0.55f, cx + tw * 0.55f, cy + th * 0.55f)
-            val ring = maxOf(tw * 0.075f, RING_MIN_DP * 1.4f * density)
-            // Past half way an alarm wave runs outwards from the device, faster the fuller the ring (judge panel:
-            // the fail state read as mild among the bubbles).
-            if (n.overload > 0.5f) {
-                val phase = (time * (0.8f + 1.2f * n.overload)) % 1f
-                val r = 0.6f + 0.55f * phase
-                oval.set(cx - tw * r, cy - th * r, cx + tw * r, cy + th * r)
-                strokeP.color = (((1f - phase) * 0.8f * n.overload * 255).toInt() shl 24) or (alarm and 0xFFFFFF)
-                strokeP.strokeWidth = ring * 0.7f
-                canvas.drawOval(oval, strokeP)
-                oval.set(cx - tw * 0.55f, cy - th * 0.55f, cx + tw * 0.55f, cy + th * 0.55f)
-            }
-            // The track the ring runs on, so it reads as a timer running out; a dark edge holds it on the red glow.
-            strokeP.color = 0x662A1418; strokeP.strokeWidth = ring * 1.75f
+            // One bold timer ring (judge panel: an alarm wave plus a thin ring read as two stacked rings): a dark
+            // track, a white casing and the red arc that runs out, slightly bigger while it beats past half way.
+            val beat = if (n.overload > 0.5f) 0.5f + 0.5f * sin(time * (5f + 6f * n.overload)) else 0f
+            val rr = 0.58f + 0.04f * beat
+            oval.set(cx - tw * rr, cy - th * rr, cx + tw * rr, cy + th * rr)
+            val ring = maxOf(tw * 0.1f, RING_MIN_DP * 1.9f * density)
+            strokeP.color = 0x802A1418.toInt(); strokeP.strokeWidth = ring * 1.9f
             canvas.drawOval(oval, strokeP)
-            strokeP.color = 0xD9FFFFFF.toInt(); strokeP.strokeWidth = ring * 1.2f
+            strokeP.color = 0xF2FFFFFF.toInt(); strokeP.strokeWidth = ring * 1.35f
             canvas.drawOval(oval, strokeP)
             strokeP.color = alarm; strokeP.strokeWidth = ring
+            strokeP.strokeCap = Paint.Cap.ROUND
             canvas.drawArc(oval, -90f, 360f * n.overload, false, strokeP)
+            strokeP.strokeCap = Paint.Cap.BUTT
+            // A warning sign where the ring meets the front: the danger reads at thumbnail size.
+            val wr = maxOf(tw * 0.13f, 7f * density) * (1f + 0.12f * beat)
+            val wx = cx - tw * rr * 0.72f; val wy = cy + th * rr * 0.72f
+            fillP.color = 0x55000000; canvas.drawCircle(wx, wy + wr * 0.18f, wr * 1.08f, fillP)
+            fillP.color = 0xFFFFFFFF.toInt(); canvas.drawCircle(wx, wy, wr * 1.08f, fillP)
+            fillP.color = alarm; canvas.drawCircle(wx, wy, wr * 0.9f, fillP)
+            labelP.color = 0xFFFFFFFF.toInt(); labelP.textSize = wr * 1.5f
+            canvas.drawText("!", wx, wy + labelP.textSize * 0.36f, labelP)
         }
         for (n in nodes) if (n.upgradedAt > Float.NEGATIVE_INFINITY) drawUpgradeJuice(canvas, world, n)
         drawDeliveryPops(canvas, world)
@@ -1297,7 +1299,34 @@ class IsoRenderer : Renderer {
             groundEllipse(p, r)
             strokeP.color = IncidentStyles.CUT
             canvas.drawArc(oval, -90f, 360f * (1f - i.effectProgress), false, strokeP)
+            if (i.kind == IncidentKind.EXCAVATOR) drawCutSparks(canvas, p, time)
         }
+    }
+
+    /**
+     * Dust and sparks flying from a freshly cut cable at [p] (judge panel: the cut needs a clear, lively focal point):
+     * a few puffs of dirt and short bright sparks that fly out and fade, over and over.
+     */
+    private fun drawCutSparks(canvas: Canvas, p: Vec2, time: Float) {
+        val cx = sx(p.x, p.y); val cy = sy(p.x, p.y)
+        for (k in 0 until 3) {
+            val phase = (time * 0.7f + k / 3f) % 1f
+            val r = tw * (0.08f + 0.12f * phase)
+            fillP.color = (((1f - phase) * 0x70).toInt() shl 24) or (IncidentStyles.DIRT.shade(0.25f) and 0xFFFFFF)
+            canvas.drawCircle(cx + tw * (k - 1) * 0.1f, cy - th * 0.3f - tw * 0.25f * phase, r, fillP)
+        }
+        strokeP.strokeCap = Paint.Cap.ROUND
+        for (k in 0 until 7) {
+            val phase = (time * 1.6f + k * 0.37f) % 1f
+            val a = (k * 51f + 200f) * (Math.PI / 180f).toFloat()
+            val d0 = tw * (0.06f + 0.3f * phase)
+            val d1 = d0 + tw * 0.1f * (1f - phase)
+            val ux = kotlin.math.cos(a); val uy = kotlin.math.sin(a) * 0.8f - 0.55f
+            strokeP.strokeWidth = maxOf(tw * 0.022f, 1.5f * density)
+            strokeP.color = (((1f - phase) * 255).toInt() shl 24) or (if (k % 2 == 0) 0xFFD34D else 0xFFFFFF)
+            canvas.drawLine(cx + ux * d0, cy + uy * d0, cx + ux * d1, cy + uy * d1, strokeP)
+        }
+        strokeP.strokeCap = Paint.Cap.BUTT
     }
 
     /**
@@ -1571,7 +1600,7 @@ class IsoRenderer : Renderer {
          *  a device icon's half size, a request's radius, an overload ring and the drag label. */
         const val READABLE_TILE_DP = 36f
         /** Edge colour of the screen vignette over the ground. */
-        const val VIGNETTE = 0x3A14242E
+        const val VIGNETTE = 0x2414242E
         /** Thin dark rim around every cable, under its white halo. */
         const val CABLE_OUTLINE = 0x5C1C2A30
         /** Request shapes a device's queue shows before it switches to "+N". */

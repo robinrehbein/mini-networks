@@ -157,7 +157,7 @@ import kotlin.math.roundToInt
  *    (all at once); on release it eases to the nearest multiple of 90° unless "free rotation" is on in the settings;
  *    the compass button (only while the map is turned) turns it back to north; double tap on empty ground: fit the
  *    playable area
- *  - pick a cable technology in the bottom-left bar (ISDN, DSL, TV-Kabel, Glasfaser; the coin is the price per cell);
+ *  - pick a cable technology in the bottom-left bar (ISDN, DSL, Koax, Glasfaser; the coin is the price per cell);
  *    picking one names its bandwidth, speed and price
  *  - tap a server: preview its next hardware tier and price; tap again to upgrade (tier 4 is a data center on 2×2 cells)
  *  - tap a cable: upgrade it to a better picked technology; otherwise the first tap selects it and a second tap removes
@@ -447,6 +447,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private val incidentText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; textSize = textScale.px(14f) }
     private val iconInk = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeCap = Paint.Cap.ROUND; strokeWidth = 3 * density }
     private val coinFill = fill(COIN_COLOR)
+    private val chipBadgeRim = fill(0xFFFFFFFF.toInt())
+    /** The frosted tray under the bottom toolbar: the map stops visibly behind the buttons instead of running under them. */
+    private val trayFill = fill(0xA6F4F6F1.toInt())
+    private val trayEdge = fill(0x1F1C2A30)
     private val coinText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; textSize = textScale.px(11f); color = 0xFF5A4300.toInt() }
     private val pinFill = fill(0)
     private val pinText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; textSize = textScale.px(12f); color = 0xFFFFFFFF.toInt() }
@@ -1374,10 +1378,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         val gap = 10 * density
         var x = right
         val y = bottom - bh
+        // The right-hand buttons are laid out first (the cable chips need their room) but drawn over the tray.
+        val besideTray = ArrayList<() -> Unit>(3)
         // Menu and pause as round icon buttons at the right edge, then the router stock.
         for (id in listOf("menu", "pause")) {
             val r = RectF(x - bh, y, x, y + bh)
-            drawIconButton(canvas, r, id, active = id == "pause" && userPaused)
+            val on = id == "pause" && userPaused
+            besideTray += { drawIconButton(canvas, r, id, active = on) }
             buttons += Button(id, r)
             hudNodes += UiNode(
                 "hud:$id", RectF(r),
@@ -1389,23 +1396,28 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         val routerLabel = if (world.unlimited) context.getString(R.string.button_router_unlimited) else context.getString(R.string.button_router, world.routersAvailable)
         val rw = maxOf(bh, btnText.measureText(routerLabel) + 32 * density)
         val routerRect = RectF(x - rw, y, x, y + bh)
-        drawHudButton(canvas, routerRect, routerLabel, active = placing == NodeKind.ROUTER)
+        val routerOn = placing == NodeKind.ROUTER
+        besideTray += { drawHudButton(canvas, routerRect, routerLabel, active = routerOn) }
         buttons += Button("router", routerRect)
         val routerA11y = if (world.unlimited) "$routerLabel, ${context.getString(R.string.a11y_unlimited)}" else context.getString(R.string.a11y_router, world.routersAvailable)
         hudNodes += UiNode("hud:router", RectF(routerRect), routerA11y, UiNode.Kind.BUTTON, selected = placing == NodeKind.ROUTER)
         val rightEdge = routerRect.left
         // Cable technology picker, bottom left: invented technologies, each with a short piece of its cable (color,
         // thickness and core tell them apart) and its price per cell on a coin. In a narrow (portrait) window or with
-        // large text it moves to its own row above, and names shorten ("TV" for "TV-Kabel") before they disappear:
+        // large text it moves to its own row above, and names shorten ("Faser" for "Glasfaser") before they disappear:
         // colour alone is not enough to tell the technologies apart (docs/TOP100.md A7).
         // Creative mode (docs/TOP100.md C4): nothing costs anything, so no price coins.
         val priced = !world.unlimited
         var showPrice = priced
+        // In a narrow window the price moves onto a coin badge on the chip's corner instead of dropping out (judge
+        // panel: the portrait chips lost their prices).
+        var badgePrice = false
         val coinR = maxOf(9 * density, coinText.textSize * 0.8f)
         val cables = world.unlockedCables
         var chipText = btnText
         fun widthOf(t: CableType, label: String?) =
-            26 * density + (if (label != null) chipText.measureText(label) + 8 * density else 0f) + (if (showPrice) 2 * coinR + 10 * density else 4 * density)
+            26 * density + (if (label != null) chipText.measureText(label) + 8 * density else 0f) +
+                (if (showPrice && !badgePrice) 2 * coinR + 10 * density else if (badgePrice) 12 * density else 4 * density)
         fun rowWidth(label: (CableType) -> String?) =
             cables.sumOf { widthOf(it, label(it)).toDouble() }.toFloat() + gap * (cables.size - 1)
         val full = { t: CableType -> texts.cable(t) }
@@ -1421,12 +1433,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             // The full names in a slightly smaller type before they are cut, so a portrait window says "Glasfaser" as
             // landscape does instead of a clipped "Glas" (judge panel: the terms must stay the same everywhere).
             tall && run { chipText = chipLabelCompact; left + rowWidth(full) <= right } -> true to full
-            run { chipText = btnText; fitsBeside(short) } -> false to short
+            priced && tall && run { badgePrice = true; left + rowWidth(full) <= right } -> true to full
+            run { badgePrice = false; chipText = btnText; fitsBeside(short) } -> false to short
             tall && left + rowWidth(short) <= right -> true to short
             // Short names a step smaller keep their price coins, the resource count every chip shows in landscape.
             tall && run { chipText = chipLabelCompact; left + rowWidth(short) <= right } -> true to short
+            priced && tall && run { badgePrice = true; left + rowWidth(short) <= right } -> true to short
             // Still too narrow: the names matter more than the prices, which the drag bubble shows anyway.
-            priced && tall && run { chipText = btnText; left + rowWidth(short) - cables.size * (2 * coinR + 6 * density) <= right } -> {
+            priced && tall && run { badgePrice = false; chipText = btnText; left + rowWidth(short) - cables.size * (2 * coinR + 6 * density) <= right } -> {
                 showPrice = false
                 true to short
             }
@@ -1441,6 +1455,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             else -> true to none
         }
         val cableY = if (ownRow) y - bh - gap else y
+        run {
+            val radioRows = if (RadioType.entries.any { world.unlimited || world.radiosAvailable(it) > 0 }) 1 else 0
+            val rowsAbove = (if (ownRow) 1 else 0) + radioRows
+            val trayTop = y - rowsAbove * (bh + gap) - 10 * density
+            canvas.drawRect(0f, trayTop, surfaceWidth.toFloat(), surfaceHeight.toFloat(), trayFill)
+            canvas.drawRect(0f, trayTop - 1 * density, surfaceWidth.toFloat(), trayTop, trayEdge)
+        }
+        besideTray.forEach { it() }
         var cx = left
         for (t in cables) {
             val label = named(t)
@@ -1455,7 +1477,15 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 canvas.drawText(label, r.left + 27 * density, r.centerY() + chipText.textSize * 0.35f, chipText)
                 chipText.textAlign = Paint.Align.CENTER
             }
-            if (showPrice) {
+            if (showPrice && badgePrice) {
+                // The price on a coin badge over the chip's top right corner, with a white rim to lift it off the chip.
+                val br = coinR * 0.9f
+                val bx = r.right - br * 0.7f
+                val by = r.top + br * 0.35f
+                canvas.drawCircle(bx, by, br + 2 * density, chipBadgeRim)
+                canvas.drawCircle(bx, by, br, coinFill)
+                canvas.drawText(t.costPerCell.toString(), bx, by + coinText.textSize * 0.36f, coinText)
+            } else if (showPrice) {
                 val coinX = r.right - 10 * density - coinR
                 canvas.drawCircle(coinX, r.centerY(), coinR, coinFill)
                 canvas.drawText(t.costPerCell.toString(), coinX, r.centerY() + coinText.textSize * 0.36f, coinText)
@@ -2085,6 +2115,19 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         }
     }
 
+    /** Why the game ended as one short sentence for the game-over card ("Phone couldn't reach a Calls server"). */
+    private fun gameOverReason(n: Node, s: Service, problem: RouteProblem?, pingMs: Float?): String {
+        val node = texts.node(n)
+        val service = texts.service(s)
+        return when (problem) {
+            RouteProblem.NO_ROUTE -> context.getString(R.string.game_over_no_route, node, service)
+            RouteProblem.TOO_NARROW -> context.getString(R.string.game_over_too_narrow, node, service)
+            RouteProblem.PING_TOO_HIGH ->
+                context.getString(R.string.game_over_ping, node, service, (pingMs ?: 0f).roundToInt(), s.maxPingMs ?: 0)
+            null -> context.getString(R.string.game_over_jam, node, service)
+        }
+    }
+
     private fun select(target: Any) {
         selection = target
         selectionUntil = animTime + SELECT_SECONDS
@@ -2296,7 +2339,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             title = context.getString(R.string.game_over_title),
             highlight = if (newBest) context.getString(R.string.game_over_new_best) else null,
             lines = listOfNotNull(
-                world.failure?.let { problemText(it.node, it.service, it.problem, it.pingMs) },
+                world.failure?.let { gameOverReason(it.node, it.service, it.problem, it.pingMs) },
                 when {
                     newBest -> null
                     world.assisted && world.daily == null -> context.getString(R.string.game_over_assisted, highscores.best(world.scenario.id))
@@ -2718,6 +2761,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             status = status,
             progress = if (!unlocked && unlock is Unlock.Score) highscores.best(unlock.after) / unlock.packets.toFloat() else null,
             lockedLabel = if (unlocked) null else context.getString(R.string.a11y_locked),
+            buy = !unlocked && unlock !is Unlock.Score,
+            tint = com.mininetworks.game.render.Cosmetic.paletteFor(s.id).boardShade,
         )
     }
 

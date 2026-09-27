@@ -30,8 +30,11 @@ class MapPalette(
     val flatWater: Int,
     val flatBackdrop: Int,
 ) {
-    /** Translucent haze over the locked ground: the board's shade darkened towards slate, so the open board stands out. */
-    val fog: Int = (Cosmetic.blend(boardShade, 0xFF2B3B44.toInt(), 0.6f) and 0xFFFFFF) or 0x52000000
+    /**
+     * Translucent haze over the locked ground: a light veil in the scenery's own backdrop colour, so the land outside
+     * the board reads as a soft, paler version of the scenery instead of a grey wash (judge panel).
+     */
+    val fog: Int = (background and 0xFFFFFF) or 0x47000000
 }
 
 /**
@@ -67,28 +70,26 @@ object Cosmetic {
         skin = CableSkin.CLASSIC
     }
 
-    private const val LOCKED_GREY = 0xFFE4E6E2.toInt()
-
     /** Linear mix of two opaque colors, [f] = 0 gives [a]. */
     fun blend(a: Int, b: Int, f: Float): Int {
         fun ch(shift: Int) = (((a shr shift) and 0xFF) * (1f - f) + ((b shr shift) and 0xFF) * f).toInt() shl shift
         return (0xFF shl 24) or ch(16) or ch(8) or ch(0)
     }
 
-    /** A palette whose locked tiles are its own land and water washed out towards grey. */
+    /** A palette whose locked tiles are its own land and water faded towards its backdrop (tinted, never grey). */
     private fun palette(
         landA: Int, landB: Int, waterA: Int, waterB: Int, boardLit: Int, boardShade: Int, background: Int, grass: Int,
         leaf: Int, leafDark: Int, pine: Int, pineDark: Int, flatLand: Int, flatWater: Int, flatBackdrop: Int,
     ) = MapPalette(
         landA, landB, waterA, waterB,
-        blend(landA, LOCKED_GREY, 0.7f), blend(landB, LOCKED_GREY, 0.7f), blend(waterA, LOCKED_GREY, 0.55f), blend(waterB, LOCKED_GREY, 0.55f),
+        blend(landA, background, 0.5f), blend(landB, background, 0.5f), blend(waterA, background, 0.45f), blend(waterB, background, 0.45f),
         boardLit, boardShade, background, grass, leaf, leafDark, pine, pineDark, flatLand, flatWater, flatBackdrop,
     )
 
     /** The original look (docs/style-explorations.html). */
     private val MEADOW = MapPalette(
         landA = 0xFFD6E9C8.toInt(), landB = 0xFFCBE0BB.toInt(), waterA = 0xFF78B9DA.toInt(), waterB = 0xFF90C7E3.toInt(),
-        lockedLandA = 0xFFE3E6E0.toInt(), lockedLandB = 0xFFDDE1DA.toInt(), lockedWaterA = 0xFFC4D8E1.toInt(), lockedWaterB = 0xFFCDDEE6.toInt(),
+        lockedLandA = 0xFFE2EDD9.toInt(), lockedLandB = 0xFFDCE9D2.toInt(), lockedWaterA = 0xFFB3D6E6.toInt(), lockedWaterB = 0xFFBFDCEA.toInt(),
         boardLit = 0xFFABC39D.toInt(), boardShade = 0xFF93AD86.toInt(), background = 0xFFEEF3EA.toInt(),
         grass = 0xFFA9C79A.toInt(), leaf = 0xFF8CC572.toInt(), leafDark = 0xFF62A056.toInt(), pine = 0xFF6FA87A.toInt(), pineDark = 0xFF4E8660.toInt(),
         flatLand = 0xFFF3F1EC.toInt(), flatWater = 0xFFC3DCE8.toInt(), flatBackdrop = 0xFFD3CFC5.toInt(),

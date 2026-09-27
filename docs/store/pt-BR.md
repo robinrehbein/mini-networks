@@ -51,7 +51,7 @@ rede, cabos, estratégia, quebra-cabeça, construção, cidade, roteador, Wi-Fi,
 3. Escavadeiras cortam cabos
 4. Evite a sobrecarga
 5. Wi-Fi, 4G e 5G
-6. Escolha seu bônus
+6. Crie uma rede enorme
 7. Gire o mapa
 8. Cinco cenários
 

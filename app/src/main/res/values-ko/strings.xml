@@ -206,6 +206,10 @@
     <string name="problem_too_narrow">%1$s: %2$s – 충분히 넓은 케이블이 없음 (대역폭 %3$d)</string>
     <string name="problem_ping">%1$s: %2$s – 핑 %3$dms, 허용 %4$dms</string>
     <string name="problem_jam">%1$s: %2$s – 정체, 케이블이나 서버가 꽉 참</string>
+    <string name="game_over_no_route">%2$s 서버에 연결할 수 없었어요 (%1$s)</string>
+    <string name="game_over_too_narrow">%2$s에는 더 넓은 케이블이 필요했어요 (%1$s)</string>
+    <string name="game_over_ping">%2$s 지연: %3$d ms, 최대 %4$d ms (%1$s)</string>
+    <string name="game_over_jam">%2$s 트래픽이 막혔어요 (%1$s)</string>
     <string name="drag_too_narrow">%1$s: 대역폭 %2$d 필요</string>
     <string name="drag_ping">%1$s: 핑 %2$d/%3$dms</string>
     <string name="incident_more">%1$s · 외 %2$d건</string>

@@ -60,11 +60,11 @@
     <string name="device_smart_home">Smart-Home-Hub</string>
     <string name="cable_isdn">ISDN</string>
     <string name="cable_dsl">DSL</string>
-    <string name="cable_coax">TV-Kabel</string>
+    <string name="cable_coax">Koax</string>
     <string name="cable_fiber">Glasfaser</string>
     <string name="cable_short_isdn">ISDN</string>
     <string name="cable_short_dsl">DSL</string>
-    <string name="cable_short_coax">TV</string>
+    <string name="cable_short_coax">Koax</string>
     <string name="cable_short_fiber">Faser</string>
     <string name="node_router">Router</string>
     <string name="node_access_point">WLAN-Access-Point</string>
@@ -141,9 +141,9 @@
         <item quantity="one">%1$,d / %2$,d Paket</item>
         <item quantity="other">%1$,d / %2$,d Pakete</item>
     </plurals>
-    <string name="scenery_progress_in">in %1$s</string>
-    <string name="scenery_shop">Im Shop</string>
-    <string name="scenery_shop_pack">einzeln oder im Paket</string>
+    <string name="scenery_progress_in">in %1$s zum Freischalten</string>
+    <string name="scenery_shop">Im Shop freischalten</string>
+    <string name="scenery_shop_pack">Einzeln oder im Paket</string>
     <plurals name="scenery_hint_score">
         <item quantity="one">Erreiche %1$,d Paket in %2$s oder kaufe die Szenerie</item>
         <item quantity="other">Erreiche %1$,d Pakete in %2$s oder kaufe die Szenerie</item>
@@ -215,6 +215,10 @@
     <string name="problem_too_narrow">%1$s: %2$s – kein Kabel breit genug (Bandbreite %3$d)</string>
     <string name="problem_ping">%1$s: %2$s – Ping %3$d ms, erlaubt %4$d ms</string>
     <string name="problem_jam">%1$s: %2$s – Stau, Kabel oder Server zu voll</string>
+    <string name="game_over_no_route">%1$s erreichte keinen %2$s-Server</string>
+    <string name="game_over_too_narrow">%1$s brauchte ein breiteres Kabel für %2$s</string>
+    <string name="game_over_ping">%2$s auf %1$s ruckelte: %3$d ms statt höchstens %4$d ms</string>
+    <string name="game_over_jam">%1$s steckte im Datenstau fest (%2$s)</string>
     <string name="drag_too_narrow">%1$s braucht Bandbreite %2$d</string>
     <string name="drag_ping">%1$s: Ping %2$d/%3$d ms</string>
     <string name="incident_countdown" translatable="false">%1$d s</string>

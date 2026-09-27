@@ -51,7 +51,7 @@ sieć, kable, strategia, łamigłówka, budowanie miasta, router, Wi-Fi, świat�
 3. Koparki tną kable
 4. Unikaj przeciążenia
 5. Wi-Fi, 4G i 5G
-6. Wybierz ulepszenie
+6. Zbuduj ogromną sieć
 7. Obracaj mapę
 8. Pięć scenerii
 

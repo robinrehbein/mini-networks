@@ -218,6 +218,10 @@
     <string name="problem_too_narrow">%1$s : %2$s – aucun câble assez large (bande passante %3$d)</string>
     <string name="problem_ping">%1$s : %2$s – ping de %3$d ms, %4$d ms autorisés</string>
     <string name="problem_jam">%1$s : %2$s – bouchon, câbles ou serveur saturés</string>
+    <string name="game_over_no_route">%1$s n’a atteint aucun serveur %2$s</string>
+    <string name="game_over_too_narrow">%1$s avait besoin d’un câble plus large pour %2$s</string>
+    <string name="game_over_ping">%2$s sur %1$s a ramé : %3$d ms, max %4$d ms</string>
+    <string name="game_over_jam">%1$s est resté bloqué dans un bouchon (%2$s)</string>
     <string name="drag_too_narrow">%1$s demande une bande passante de %2$d</string>
     <string name="drag_ping">%1$s : ping %2$d/%3$d ms</string>
     <string name="incident_more">%1$s · +%2$d autres</string>

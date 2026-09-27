@@ -218,6 +218,10 @@
     <string name="problem_too_narrow">%1$s: %2$s – nessun cavo abbastanza largo (banda %3$d)</string>
     <string name="problem_ping">%1$s: %2$s – ping %3$d ms, consentiti %4$d ms</string>
     <string name="problem_jam">%1$s: %2$s – ingorgo, cavi o server troppo pieni</string>
+    <string name="game_over_no_route">%1$s non ha raggiunto nessun server di %2$s</string>
+    <string name="game_over_too_narrow">%1$s aveva bisogno di un cavo più largo per %2$s</string>
+    <string name="game_over_ping">%2$s su %1$s andava a scatti: %3$d ms, max %4$d ms</string>
+    <string name="game_over_jam">%1$s è rimasto bloccato nel traffico (%2$s)</string>
     <string name="drag_too_narrow">%1$s richiede banda %2$d</string>
     <string name="drag_ping">%1$s: ping %2$d/%3$d ms</string>
     <string name="incident_more">%1$s · +%2$d altri</string>

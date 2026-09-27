@@ -81,11 +81,18 @@ class GrowthRecap(private val density: Float, private val dateOf: (GrowthRecorde
         // Backdrop: the palette's sky, a touch darker at the bottom.
         bg.shader = LinearGradient(0f, out.top, 0f, out.bottom, palette.background, palette.boardShade.blendTo(palette.background, 0.55f), Shader.TileMode.CLAMP)
         canvas.drawRoundRect(out, 10 * density, 10 * density, bg)
-        val span = (a.width + a.height).toFloat()
+        // Framed on the network the player built (judge panel: the whole board made a small, pale thumbnail), with a
+        // cell of land around it; the rest of the board runs out of the picture.
+        val v = focusArea(frames.last(), a)
+        val span = (v.width + v.height).toFloat()
         val thick = 0.45f
         u = minOf(out.width() * 0.96f / span, out.height() * 0.9f / (span / 2f + thick + 1.6f))
-        ox = out.centerX() - ((a.right - a.top) + (a.left - a.bottom)) / 2f * u
-        oy = out.centerY() + u * 0.6f - ((a.left + a.top) + (a.right + a.bottom)) / 4f * u
+        ox = out.centerX() - ((v.right - v.top) + (v.left - v.bottom)) / 2f * u
+        oy = out.centerY() + u * 0.6f - ((v.left + v.top) + (v.right + v.bottom)) / 4f * u
+        canvas.save()
+        clipPath.reset()
+        clipPath.addRoundRect(out, 10 * density, 10 * density, Path.Direction.CW)
+        canvas.clipPath(clipPath)
         val depth = thick * u
         // The board's two visible sides, then every tile.
         quad(px(a.left.toFloat(), a.bottom.toFloat()), py(a.left.toFloat(), a.bottom.toFloat()), px(a.right.toFloat(), a.bottom.toFloat()), py(a.right.toFloat(), a.bottom.toFloat()),
@@ -141,7 +148,7 @@ class GrowthRecap(private val density: Float, private val dateOf: (GrowthRecorde
             path.reset()
             c.points.forEachIndexed { i, p -> if (i == 0) path.moveTo(px(p.x, p.y), py(p.x, p.y)) else path.lineTo(px(p.x, p.y), py(p.x, p.y)) }
             val st = CableStyles.of(c.type)
-            line.strokeWidth = maxOf(u * st.width * 1.6f, 2f * density)
+            line.strokeWidth = maxOf(u * st.width * 2.2f, 2.5f * density)
             casing.strokeWidth = line.strokeWidth + 2f * density
             canvas.drawPath(path, casing)
             line.color = st.color
@@ -187,6 +194,7 @@ class GrowthRecap(private val density: Float, private val dateOf: (GrowthRecorde
                 else -> box(canvas, cx, cy, 0.42f, u * 0.2f, 0xFFF5F7F9.toInt(), 0xFFD9DEE3.toInt())
             }
         }
+        canvas.restore()
         // The date of the frame in a pill, and how far the time-lapse has run.
         label.textSize = 13f * density
         val text = dateOf(f)
@@ -199,6 +207,22 @@ class GrowthRecap(private val density: Float, private val dateOf: (GrowthRecorde
     }
 
     private val bg = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val clipPath = Path()
+
+    /** The cells around everything built on [f] (one cell of margin, at least 7 × 5), inside [a]. */
+    private fun focusArea(f: GrowthRecorder.Frame, a: CellRect): CellRect {
+        if (f.nodes.isEmpty()) return a
+        var l = f.nodes.minOf { it.x }; var t = f.nodes.minOf { it.y }
+        var r = f.nodes.maxOf { it.x + it.size }; var b = f.nodes.maxOf { it.y + it.size }
+        for (c in f.cables) for (p in c.points) {
+            l = minOf(l, floor(p.x).toInt()); t = minOf(t, floor(p.y).toInt())
+            r = maxOf(r, floor(p.x).toInt() + 1); b = maxOf(b, floor(p.y).toInt() + 1)
+        }
+        l -= 1; t -= 1; r += 1; b += 1
+        while (r - l < 7) { l--; r++ }
+        while (b - t < 5) { t--; b++ }
+        return CellRect(maxOf(a.left, l), maxOf(a.top, t), minOf(a.right, r), minOf(a.bottom, b))
+    }
     private val icons = DeviceIcons()
 
     private fun key(x: Int, y: Int) = (x.toLong() shl 32) xor (y.toLong() and 0xFFFFFFFFL)

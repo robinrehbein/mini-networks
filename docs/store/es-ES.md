@@ -51,7 +51,7 @@ red, cables, estrategia, puzle, construcción, ciudad, pueblo, router, Wi-Fi, fi
 3. Las excavadoras cortan cables
 4. Evita la saturación
 5. Wi-Fi, 4G y 5G
-6. Elige tu mejora
+6. Crea una red enorme
 7. Gira el mapa
 8. Cinco escenarios
 

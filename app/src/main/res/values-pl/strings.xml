@@ -224,6 +224,10 @@
     <string name="problem_too_narrow">%1$s: %2$s – żaden kabel nie jest dość szeroki (przepustowość %3$d)</string>
     <string name="problem_ping">%1$s: %2$s – ping %3$d ms, dozwolone %4$d ms</string>
     <string name="problem_jam">%1$s: %2$s – korek, kable lub serwer przepełnione</string>
+    <string name="game_over_no_route">Brak połączenia z serwerem %2$s (%1$s)</string>
+    <string name="game_over_too_narrow">Za wąski kabel dla %2$s (%1$s)</string>
+    <string name="game_over_ping">Za duży ping dla %2$s (%1$s): %3$d ms, maks. %4$d ms</string>
+    <string name="game_over_jam">Korek w sieci zablokował %2$s (%1$s)</string>
     <string name="drag_too_narrow">%1$s: potrzeba przepustowości %2$d</string>
     <string name="drag_ping">%1$s: ping %2$d/%3$d ms</string>
     <string name="incident_more">%1$s · +%2$d kolejne</string>

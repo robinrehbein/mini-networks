@@ -11,6 +11,7 @@ import com.mininetworks.game.render.shade
 import com.mininetworks.game.ui.TextScale
 import com.mininetworks.game.ui.UiNode
 import com.mininetworks.game.ui.TextWrap
+import kotlin.math.abs
 
 /** What a menu entry does when tapped. */
 enum class MenuAction {
@@ -232,8 +233,51 @@ class MenuPanel(context: Context) {
         val top = safe.top + (areaH - ch) / 2f - SLAB_DP * u / 2f
         card.set(left, top, left + cw, top + ch)
         slab(canvas, card, 18f * u, SLAB_DP * u, 0xFFFAFAF7.toInt(), 0xFFE3E6E1.toInt().shade(-0.2f), shadow = true)
+        if (page.hero) header(canvas, card, 18f * u, l.pad + l.logoSize * 0.62f, u)
         drawContent(canvas, l, card.left, card.top, pressed)
     }
+
+    /**
+     * The main menu card's header: a band in the brand's dusk blue across the top of [card] ([h] high) with three
+     * cables in the game's colours running across it and a few packets on them, so the card carries the brand the way
+     * the map does (judge panel: a plain white panel); the logo sits on its lower edge.
+     */
+    private fun header(canvas: Canvas, card: RectF, radius: Float, h: Float, u: Float) {
+        canvas.save()
+        canvas.clipRect(card.left, card.top, card.right, card.top + h)
+        headerP.shader = android.graphics.LinearGradient(card.left, card.top, card.right, card.top + h, 0xFF1B4A5E.toInt(), 0xFF0E2A38.toInt(), android.graphics.Shader.TileMode.CLAMP)
+        canvas.drawRoundRect(card, radius, radius, headerP)
+        val w = card.width()
+        val lines = listOf(0.34f to 0xFFF28C28.toInt(), 0.58f to 0xFF1FA39A.toInt(), 0.8f to 0xFFB0305A.toInt())
+        for ((k, pair) in lines.withIndex()) {
+            val (f, col) = pair
+            val y0 = card.top + h * f
+            val step = h * 0.22f * (if (k % 2 == 0) 1f else -1f)
+            cablePath.reset()
+            cablePath.moveTo(card.left - 4f * u, y0)
+            cablePath.lineTo(card.left + w * (0.12f + 0.1f * k), y0)
+            cablePath.lineTo(card.left + w * (0.12f + 0.1f * k) + abs(step), y0 - step)
+            cablePath.lineTo(card.left + w * (0.62f - 0.08f * k), y0 - step)
+            cablePath.lineTo(card.left + w * (0.62f - 0.08f * k) + abs(step), y0)
+            cablePath.lineTo(card.right + 4f * u, y0)
+            lineStroke.strokeJoin = Paint.Join.ROUND
+            lineStroke.color = 0x33FFFFFF; lineStroke.strokeWidth = 7f * u
+            canvas.drawPath(cablePath, lineStroke)
+            lineStroke.color = col; lineStroke.strokeWidth = 4f * u
+            canvas.drawPath(cablePath, lineStroke)
+            // A packet on each cable, left and right of the logo.
+            fillP.color = 0xFFFFFFFF.toInt()
+            val px = card.left + w * (if (k % 2 == 0) 0.08f + 0.05f * k else 0.84f - 0.04f * k)
+            canvas.drawCircle(px, y0, 4.5f * u, fillP)
+            fillP.color = col
+            canvas.drawCircle(px, y0, 3f * u, fillP)
+        }
+        lineStroke.strokeJoin = Paint.Join.MITER
+        canvas.restore()
+    }
+
+    private val headerP = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val cablePath = android.graphics.Path()
 
     /**
      * A card with a picture on a wide screen: the picture fills the left half (large and in colour, the hero of e.g.
@@ -323,11 +367,40 @@ class MenuPanel(context: Context) {
         text.color = muted
         text.textSize = l.lineSize
         val linesTop = y
+        // The reason a game ended sits on a soft red pill behind a warning sign (judge panel: plain red text read like
+        // debug output); the text keeps its place and size, the sign stands in the pill's left end.
+        if (page.alertFirstLine && l.firstLineRows > 0) {
+            text.typeface = Typeface.DEFAULT_BOLD
+            val rows = l.lines.take(l.firstLineRows)
+            val tw = rows.maxOf { text.measureText(it) }
+            val iconR = l.lineSize * 0.62f
+            val padX = 8f * u
+            val groupW = 2 * iconR + 6f * u + tw
+            val pillL = maxOf(cx - groupW / 2f - padX, cx - inner / 2f - 16f * u)
+            val pillR = minOf(cx + groupW / 2f + padX, cx + inner / 2f + 16f * u)
+            val pillT = y + l.lineSize * 0.05f
+            val pillB = y + rows.size * l.lineH + l.lineSize * 0.05f
+            val rad = minOf(l.lineH * 0.6f, (pillB - pillT) / 2f)
+            fillP.color = ALERT_PILL
+            canvas.drawRoundRect(pillL, pillT, pillR, pillB, rad, rad, fillP)
+            val ix = maxOf(cx - groupW / 2f, pillL + 4f * u) + iconR
+            val iy = pillT + (pillB - pillT) / 2f
+            fillP.color = ALERT
+            canvas.drawCircle(ix, iy, iconR, fillP)
+            val bang = text.color
+            text.color = 0xFFFFFFFF.toInt()
+            val size = text.textSize
+            text.textSize = iconR * 1.5f
+            canvas.drawText("!", ix, iy + text.textSize * 0.36f, text)
+            text.textSize = size
+            text.color = bang
+        }
         for ((i, line) in l.lines.withIndex()) {
             val alert = page.alertFirstLine && i < l.firstLineRows
             text.color = if (alert) ALERT else muted
             text.typeface = if (alert) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
-            canvas.drawText(line, cx, y + l.lineSize * 1.15f, text)
+            val shift = if (alert) minOf(l.lineSize * 0.62f + 3f * u, maxOf(0f, (inner - text.measureText(line)) / 2f + 12f * u)) else 0f
+            canvas.drawText(line, cx + shift, y + l.lineSize * 1.15f, text)
             y += l.lineH
         }
         text.typeface = Typeface.DEFAULT
@@ -445,14 +518,21 @@ class MenuPanel(context: Context) {
 
     /** Draws [b] into [r]; true if its label had to be shortened. */
     private fun button(canvas: Canvas, b: MenuItem.Button, down: Boolean, u: Float, size: Float): Boolean {
+        // Secondary entries carry a soft tint of what they lead to (judge panel: default-looking white pills): the daily
+        // challenge warm orange, the achievements gold, the settings and the rest the brand's mist blue.
+        val tint = when (b.action) {
+            MenuAction.DAILY -> 0xFFFFEBD6.toInt()
+            MenuAction.ACHIEVEMENTS -> 0xFFFFF3C9.toInt()
+            else -> 0xFFE6F0F2.toInt()
+        }
         val face = when {
             !b.enabled -> 0xFFF1F2EE.toInt()
             b.primary -> accent
-            else -> 0xFFFFFFFF.toInt()
+            else -> tint
         }
         val depth = 4f * u
         val sink = if (down) depth * 0.8f else 0f
-        slab(canvas, r, r.height() / 2f, depth, face, if (b.primary) accent.shade(-0.3f) else 0xFFD5DAD2.toInt(), sink = sink)
+        slab(canvas, r, r.height() / 2f, depth, face, if (b.primary) accent.shade(-0.3f) else if (b.enabled) tint.shade(-0.2f) else 0xFFD5DAD2.toInt(), sink = sink)
         text.textAlign = Paint.Align.CENTER
         text.typeface = Typeface.DEFAULT_BOLD
         text.color = when {
@@ -664,6 +744,8 @@ class MenuPanel(context: Context) {
         const val CARD_W_DP = 360f
         /** The reason a game ended, dark alarm red. */
         const val ALERT = 0xFFC2182B.toInt()
+        /** The soft red pill behind the reason. */
+        const val ALERT_PILL = 0xFFFDE3E5.toInt()
         /** Highest a card's picture gets at full scale. */
         const val PICTURE_MAX_H_DP = 150f
         const val PAD_DP = 22f

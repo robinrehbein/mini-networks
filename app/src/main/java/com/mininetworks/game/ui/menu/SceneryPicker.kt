@@ -34,6 +34,10 @@ data class SceneryCard(
     val progress: Float?,
     /** Said by screen readers for a locked card ("locked"), null for an unlocked one. */
     val lockedLabel: String? = null,
+    /** A scenery sold in the shop: its second status line (the price) shows on a price badge. */
+    val buy: Boolean = false,
+    /** The scenery's own colour for the frame around its preview. */
+    val tint: Int = 0xFF9BB58D.toInt(),
 )
 
 /**
@@ -54,7 +58,11 @@ class SceneryPicker(context: Context) {
     private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ink }
     private val greyed = Paint(Paint.FILTER_BITMAP_FLAG).apply {
         // Locked sceneries stay in colour (they are what the player plays towards), only a touch softer.
-        colorFilter = ColorMatrixColorFilter(ColorMatrix().apply { setSaturation(0.85f) })
+        // Softer and paler than the playable ones (judge panel: every card looked equally playable), still in colour.
+        colorFilter = ColorMatrixColorFilter(ColorMatrix().apply {
+            setSaturation(0.45f)
+            postConcat(ColorMatrix(floatArrayOf(0.82f, 0f, 0f, 0f, 40f, 0f, 0.82f, 0f, 0f, 40f, 0f, 0f, 0.82f, 0f, 40f, 0f, 0f, 0f, 1f, 0f)))
+        })
     }
     private val bitmapP = Paint(Paint.FILTER_BITMAP_FLAG)
     private val clip = Path()
@@ -353,6 +361,12 @@ class SceneryPicker(context: Context) {
         val pad = 8f * u
         val inner = r.width() - 2 * pad
         val preview = RectF(r.left + pad, r.top + pad, r.right - pad, r.top + pad + inner * m.ratio)
+        // A header in the scenery's colour frames the preview (judge panel: plain white cards), muted while locked.
+        fillP.color = if (card.unlocked) card.tint else card.tint.shade(0.35f)
+        canvas.save()
+        canvas.clipRect(r.left, r.top, r.right, preview.bottom + pad * 0.5f)
+        canvas.drawRoundRect(r, radius, radius, fillP)
+        canvas.restore()
         val bmp = previewOf(card.scenario, preview.width().toInt().coerceAtLeast(1), preview.height().toInt().coerceAtLeast(1))
         canvas.save()
         clip.reset()
@@ -362,7 +376,7 @@ class SceneryPicker(context: Context) {
         canvas.restore()
         // A small lock badge in the corner instead of a big padlock over the picture.
         if (!card.unlocked) {
-            val size = maxOf(preview.height() * 0.1f, 7f * u)
+            val size = maxOf(preview.height() * 0.13f, 9f * u)
             padlock(canvas, preview.right - size * 1.35f - 5f * u, preview.top + size * 1.35f + 5f * u, size)
         }
 
@@ -393,9 +407,22 @@ class SceneryPicker(context: Context) {
         text.typeface = Typeface.DEFAULT_BOLD
         text.textSize = m.status * s
         text.color = if (card.unlocked) ink else muted
-        for (line in card.status.take(2)) {
+        for ((i, line) in card.status.take(2).withIndex()) {
             y += m.status * s * 1.3f
-            canvas.drawText(shrinkWrap(line, inner, m.status * s, 1).first(), cx, y - m.status * s * 0.3f, text)
+            val shown = shrinkWrap(line, inner - (if (card.buy && i == 1) 20f * u else 0f), m.status * s, 1).first()
+            if (card.buy && i == 1) {
+                // The price (or "alone or in the pack") on a gold badge: buying reads apart from playing towards it.
+                val w = text.measureText(shown) + 20f * u
+                val h = m.status * s * 1.35f
+                val top = y - m.status * s * 1.05f
+                fillP.color = 0xFFF2B705.toInt().shade(-0.25f)
+                canvas.drawRoundRect(cx - w / 2f, top + 2f * u, cx + w / 2f, top + h + 2f * u, h / 2f, h / 2f, fillP)
+                fillP.color = 0xFFFFC21A.toInt()
+                canvas.drawRoundRect(cx - w / 2f, top, cx + w / 2f, top + h, h / 2f, h / 2f, fillP)
+                text.color = ink
+                text.typeface = Typeface.DEFAULT_BOLD
+            }
+            canvas.drawText(shown, cx, y - m.status * s * 0.3f, text)
             text.typeface = Typeface.DEFAULT
         }
         card.progress?.let { p ->
@@ -413,7 +440,7 @@ class SceneryPicker(context: Context) {
     private fun padlock(canvas: Canvas, cx: Float, cy: Float, size: Float) {
         fillP.color = 0xFFFFFFFF.toInt()
         canvas.drawCircle(cx, cy, size * 1.55f, fillP)
-        fillP.color = 0xF2262B33.toInt()
+        fillP.color = 0xFF14303F.toInt()
         canvas.drawCircle(cx, cy, size * 1.35f, fillP)
         fillP.color = 0xFFFFFFFF.toInt()
         val w = size * 0.95f

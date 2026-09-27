@@ -206,6 +206,10 @@
     <string name="problem_too_narrow">%1$s：%2$s——没有足够宽的电缆（带宽 %3$d）</string>
     <string name="problem_ping">%1$s：%2$s——延迟 %3$d 毫秒，允许 %4$d 毫秒</string>
     <string name="problem_jam">%1$s：%2$s——拥堵，电缆或服务器已满</string>
+    <string name="game_over_no_route">%1$s 无法连到 %2$s 服务器</string>
+    <string name="game_over_too_narrow">%1$s 的 %2$s 需要更宽的电缆</string>
+    <string name="game_over_ping">%1$s 的 %2$s 延迟 %3$d 毫秒，上限 %4$d 毫秒</string>
+    <string name="game_over_jam">%1$s 的 %2$s 被网络拥堵卡住了</string>
     <string name="drag_too_narrow">%1$s需要带宽 %2$d</string>
     <string name="drag_ping">%1$s：延迟 %2$d/%3$d 毫秒</string>
     <string name="incident_more">%1$s · 另有 %2$d 个</string>

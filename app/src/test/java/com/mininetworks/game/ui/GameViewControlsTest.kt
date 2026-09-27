@@ -218,8 +218,8 @@ class GameViewControlsTest {
         while (view.currentScreen != Screen.GAME_OVER && s++ < 60 * 60) view.advance(1f / 60f)
         assertEquals(Screen.GAME_OVER, view.currentScreen)
         val line = view.menuLines.first()
-        assertTrue(line, line.startsWith("Konsole: Gaming – Ping "))
-        assertTrue(line, line.endsWith("erlaubt 140 ms"))
+        assertTrue(line, line.startsWith("Gaming auf Konsole ruckelte: "))
+        assertTrue(line, line.endsWith("höchstens 140 ms"))
     }
 
     @Test

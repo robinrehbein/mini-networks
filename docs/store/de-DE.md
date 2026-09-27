@@ -12,17 +12,17 @@ Mini Networks: Netz-Puzzle
 
 Verkabel eine wachsende Stadt – vom ISDN 1995 bis zur Glasfaser von heute.
 
-## Ausführliche Beschreibung (2171/4000 Zeichen)
+## Ausführliche Beschreibung (2173/4000 Zeichen)
 
 ```text
 Eine kleine Stadt, ein paar Computer, ein Mail-Server – und 1995 ist ISDN gerade neu. Mit einem Wisch legst du ein Kabel. Jedes Gerät schickt kleine Datenpakete zu seinem Server und wartet auf die Antwort. Stauen sich die Pakete, füllt sich ein roter Ring: Bleibt dein Netz zu lange überlastet, ist die Partie vorbei.
 
-Woche für Woche wächst die Stadt und die Technik mit ihr. Aus ISDN wird DSL, TV-Kabel und Glasfaser. Smartphones, Spielkonsolen, Smart-TVs, Überwachungskameras und Smart-Home-Hubs ziehen ein, dazu Gaming, Streaming, Videocalls und nächtliche Cloud-Backups. Jeder Dienst braucht seine Bandbreite und hat sein eigenes Ping-Limit: Ein Telefonat verzeiht mehr als ein Online-Spiel.
+Woche für Woche wächst die Stadt und die Technik mit ihr. Aus ISDN wird DSL, Koaxkabel und Glasfaser. Smartphones, Spielkonsolen, Smart-TVs, Überwachungskameras und Smart-Home-Hubs ziehen ein, dazu Gaming, Streaming, Videocalls und nächtliche Cloud-Backups. Jeder Dienst braucht seine Bandbreite und hat sein eigenes Ping-Limit: Ein Telefonat verzeiht mehr als ein Online-Spiel.
 
 Plane Router als Verteiler, stell WLAN-Access-Points und Mobilfunkmasten auf, wähle Funkkanäle ohne Störungen und rüste Server bis zum Rechenzentrum auf. Und pass auf den Bagger auf – der kappt gern mal ein Kabel.
 
 • Ruhiges, klares Strategie- und Puzzlespiel in isometrischer Grafik
-• Zeitreise durch 30 Jahre Netztechnik: ISDN, DSL, TV-Kabel, Glasfaser, WLAN, 4G und 5G
+• Zeitreise durch 30 Jahre Netztechnik: ISDN, DSL, Koaxkabel, Glasfaser, WLAN, 4G und 5G
 • Sieben Dienste mit eigener Farbe und Form, zehn Gerätetypen
 • Fünf Szenerien: Kleinstadt am Fluss, Großstadt, Insel & Hafen, Bergdorf, Zukunft 2030
 • Tagesaufgabe: jeden Tag dieselbe Karte und eine eigene Regel für alle, mit Serie
@@ -51,7 +51,7 @@ Netzwerk, Kabel verlegen, Strategiespiel, Puzzle, Aufbauspiel, Stadt, Router, WL
 3. Bagger kappen Kabel
 4. Stopp die Überlastung
 5. WLAN, 4G und 5G
-6. Wähl dein Upgrade
+6. Bau ein riesiges Netz
 7. Dreh die Karte
 8. Fünf Szenerien
 
