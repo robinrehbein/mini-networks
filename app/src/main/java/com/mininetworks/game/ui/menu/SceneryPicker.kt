@@ -19,6 +19,7 @@ import com.mininetworks.game.render.shade
 import com.mininetworks.game.render.stroke
 import com.mininetworks.game.ui.TextScale
 import com.mininetworks.game.ui.UiNode
+import com.mininetworks.game.ui.TextWrap
 
 /** One card of the [SceneryPicker]; all texts are ready to show. */
 data class SceneryCard(
@@ -305,8 +306,8 @@ class SceneryPicker(context: Context) {
         y += m.era * s * 0.25f
         text.typeface = Typeface.DEFAULT
         text.color = muted
-        text.textSize = m.desc * s
-        for (line in wrap(card.description, inner, 2)) {
+        // Long descriptions and status lines (longer languages, narrow cards) shrink a little before they are cut.
+        for (line in shrinkWrap(card.description, inner, m.desc * s, 2)) {
             y += m.desc * s * 1.3f
             canvas.drawText(line, cx, y - m.desc * s * 0.25f, text)
         }
@@ -317,7 +318,7 @@ class SceneryPicker(context: Context) {
         text.color = if (card.unlocked) ink else muted
         for (line in card.status.take(2)) {
             y += m.status * s * 1.3f
-            canvas.drawText(fit(line, inner), cx, y - m.status * s * 0.3f, text)
+            canvas.drawText(shrinkWrap(line, inner, m.status * s, 1).first(), cx, y - m.status * s * 0.3f, text)
             text.typeface = Typeface.DEFAULT
         }
         card.progress?.let { p ->
@@ -381,6 +382,20 @@ class SceneryPicker(context: Context) {
         }
     }
 
+    /**
+     * [s] in at most [maxLines] lines of [maxWidth]: at text size [size], or smaller down to [MIN_SHRINK] of it until
+     * nothing has to be cut; only then the last line ends with an ellipsis. Leaves the text paint at the size used.
+     */
+    private fun shrinkWrap(s: String, maxWidth: Float, size: Float, maxLines: Int): List<String> {
+        var t = size
+        while (true) {
+            text.textSize = t
+            val lines = wrap(s, maxWidth, maxLines)
+            if (lines.none { it.endsWith(ELLIPSIS) } || t <= size * MIN_SHRINK) return lines
+            t = maxOf(size * MIN_SHRINK, t * 0.95f)
+        }
+    }
+
     /** [s], shortened with an ellipsis if it is wider than [maxWidth] in the current text paint. */
     private fun fit(s: String, maxWidth: Float): String {
         if (text.measureText(s) <= maxWidth) return s
@@ -389,27 +404,8 @@ class SceneryPicker(context: Context) {
         return s.substring(0, end).trimEnd() + ELLIPSIS
     }
 
-    /** [s] broken at spaces into at most [maxLines] lines of [maxWidth]; the last one is shortened if needed. */
-    private fun wrap(s: String, maxWidth: Float, maxLines: Int): List<String> {
-        val lines = ArrayList<String>()
-        var line = ""
-        val words = s.split(' ')
-        for ((i, word) in words.withIndex()) {
-            val candidate = if (line.isEmpty()) word else "$line $word"
-            if (text.measureText(candidate) <= maxWidth || line.isEmpty()) {
-                line = candidate
-                continue
-            }
-            if (lines.size == maxLines - 1) {
-                lines += fit((listOf(line) + words.subList(i, words.size)).joinToString(" "), maxWidth)
-                return lines
-            }
-            lines += line
-            line = word
-        }
-        if (line.isNotEmpty()) lines += fit(line, maxWidth)
-        return lines
-    }
+    /** [s] broken into at most [maxLines] lines of [maxWidth] (at spaces, and between CJK characters); the last one is shortened if needed. */
+    private fun wrap(s: String, maxWidth: Float, maxLines: Int): List<String> = TextWrap.wrap(s, maxWidth, maxLines) { text.measureText(it) }
 
     companion object {
         /** Target id of the back pill. */
@@ -419,6 +415,8 @@ class SceneryPicker(context: Context) {
         /** Target id of the pill that switches the game mode. */
         const val MODE = "mode"
         private const val PREVIEW_SEED = 11L
+        /** Smallest share of their size that card texts shrink to before they are cut with an ellipsis. */
+        private const val MIN_SHRINK = 0.8f
         private const val MARGIN_DP = 16f
         private const val GAP_DP = 10f
         private const val MAX_CARD_W_DP = 180f

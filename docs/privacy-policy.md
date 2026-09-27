@@ -3,8 +3,10 @@
 > **Entwurf, keine Rechtsberatung.** Vor der Veröffentlichung: Platzhalter in `<…>` füllen, von einer fachkundigen
 > Person prüfen lassen, öffentlich erreichbar machen (Website oder GitHub Pages) und die URL in der Play Console und
 > in der UMP-Nachricht in AdMob eintragen (siehe `docs/RELEASE.md`). Die Erklärung beschreibt den Stand der App mit
-> Google Mobile Ads SDK (inkl. User Messaging Platform) und Google Play Billing; kommt ein SDK dazu oder fällt eines
-> weg, muss sie mitgeändert werden.
+> diesen SDKs (abgeglichen mit `app/build.gradle.kts` und dem Release-Manifest, docs/TOP100.md F5): Google Mobile Ads
+> SDK 25.2 (inkl. User Messaging Platform 4.0), Google Play Billing 9.1, Google Play Games Services v2 22.1 und
+> Google Play In-App Review 2.0.2 (dazu AndroidX Core für das Teilen und ProfileInstaller, die keine Daten senden);
+> kommt ein SDK dazu oder fällt eines weg, muss sie mitgeändert werden.
 >
 > *Draft, not legal advice. Fill in the `<…>` placeholders, have it reviewed, publish it and enter the URL in the Play
 > Console and in the AdMob UMP message.*
@@ -24,13 +26,19 @@ Stand / Last updated: `<Datum / date>`
 
 Mini Networks ist ein Offline-Spiel. Wir betreiben **keine eigenen Server**, haben **keine Benutzerkonten** und
 nutzen **keine eigene Analyse oder Absturzmeldung**. Personenbezogene Daten verarbeiten nur die unten genannten
-Dienste von Google, die für Werbung und In-App-Käufe nötig sind.
+Dienste von Google: Werbung (Abschnitt 4), In-App-Käufe (5), die optionalen Google Play Spiele-Dienste für Erfolge,
+Bestenlisten und Cloud-Speicherstand (6) und die Bewertungsanfrage von Google Play (7). Das Spiel ist ohne Konto und
+ohne Internet vollständig spielbar.
 
 ### 3. Daten auf deinem Gerät
 
-Die App speichert auf deinem Gerät: den Spielstand, deine Bestwerte je Szenerie, deine Einstellungen (Ton, Haptik,
-Darstellung, Tutorial gesehen), welche Produkte du gekauft hast und einen Zähler der beendeten Partien (damit Werbung
-höchstens jede dritte Partie erscheint). Diese Daten verlassen das Gerät nicht in Richtung des Anbieters.
+Die App speichert auf deinem Gerät: den Spielstand, deine Bestwerte je Szenerie und Modus, deine Einstellungen (Ton,
+Haptik, Darstellung, Kabel-Skin, Farbthema, Tutorial gesehen), Spielstatistiken für Erfolge (z. B. zugestellte Pakete,
+gelegte Kabel), die Serie und den Tagesbestwert der Tagesaufgabe, welche Produkte du gekauft hast, einen Zähler der
+beendeten Partien (damit Werbung höchstens jede dritte Partie erscheint) und wann zuletzt um eine Bewertung gebeten
+wurde. Diese Daten verlassen das Gerät nicht in Richtung des Anbieters (zum Cloud-Speicherstand siehe Abschnitt 6).
+Teilst du dein Netz als Bild, legt die App das Bild im App-Cache ab und gibt es nur an die App weiter, die du im
+Android-Teilen-Menü auswählst.
 Wenn du die Android-Datensicherung aktiviert hast, kann Android diese App-Daten in deinem Google-Konto sichern
 (Auto Backup); das steuerst du in den Android-Einstellungen. Löschen: „App-Daten löschen“ oder Deinstallation.
 
@@ -67,19 +75,38 @@ ein; wir erhalten sie nicht. Die App erhält von Google Play nur, welche Produkt
 Bestätigen des Kaufs, und speichert die Produkt-IDs lokal. Rechtsgrundlage: Vertragserfüllung (Art. 6 Abs. 1 lit. b DSGVO).
 Es gilt zusätzlich die Datenschutzerklärung von Google Play: https://policies.google.com/privacy
 
-### 6. Kinder
+### 6. Google Play Spiele-Dienste (optional)
+
+Erfolge, Bestenlisten und der Cloud-Speicherstand laufen über die Google Play Spiele-Dienste (Google Ireland Limited).
+Wenn du auf deinem Gerät ein Play-Spiele-Profil hast, meldet dich Android automatisch an; ohne Profil oder Internet
+funktioniert das Spiel ohne diese Funktionen. Dabei verarbeitet Google: deine Spieler-ID und dein Play-Spiele-Profil
+(Gamertag, Avatar; die Sichtbarkeit legst du in Play Spiele fest), freigeschaltete Erfolge, Punktzahlen für die
+Bestenlisten der Szenerien und der Tagesaufgabe, sowie den Cloud-Speicherstand „progress“ mit deinen Spielstatistiken,
+Bestwerten, der Tagesserie und dem Tagesbestwert (nicht die laufende Partie). Die App erhält von Google nur diese
+Spieldaten deines Profils für dieses Spiel. Zweck: die Funktionen Erfolge, Bestenlisten und geräteübergreifender
+Spielfortschritt. Rechtsgrundlage: Vertragserfüllung bzw. die Nutzung der von dir gewünschten Funktion (Art. 6 Abs. 1
+lit. b DSGVO). Löschen: Play-Spiele-Profil (https://play.google.com/games/profile) bzw. Google-Konto. Es gilt die
+Datenschutzerklärung von Google: https://policies.google.com/privacy
+
+### 7. Bewertungsanfrage (Google Play In-App Review)
+
+Nach einem guten Moment (z. B. neuer Bestwert) kann die App höchstens alle 30 Tage Google Plays Bewertungsdialog
+anzeigen. Ob er erscheint, entscheidet Google Play. Bewertung und Rezension gibst du direkt bei Google Play ab; die
+App erfährt nicht, ob und wie du bewertet hast. Es gilt die Datenschutzerklärung von Google Play.
+
+### 8. Kinder
 
 Die App richtet sich nicht an Kinder unter 13 Jahren.
 
-### 7. Deine Rechte
+### 9. Deine Rechte
 
 Du hast das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung, Datenübertragbarkeit,
 Widerspruch (Art. 15–21 DSGVO) und auf Widerruf erteilter Einwilligungen mit Wirkung für die Zukunft. Da wir selbst
-keine Daten über dich speichern, richten sich Anfragen zu Werbe- und Kaufdaten in der Regel an Google; wir helfen gern
+keine Daten über dich speichern, richten sich Anfragen zu Werbe-, Kauf- und Play-Spiele-Daten in der Regel an Google; wir helfen gern
 unter der oben genannten Adresse. Du kannst dich bei einer Datenschutz-Aufsichtsbehörde beschweren, z. B. bei
 `<zuständige Landesbehörde>`.
 
-### 8. Änderungen
+### 10. Änderungen
 
 Wir passen diese Erklärung an, wenn sich die App oder die eingesetzten Dienste ändern. Es gilt die jeweils unter
 `<URL>` veröffentlichte Fassung.
@@ -95,14 +122,18 @@ Wir passen diese Erklärung an, wenn sich die App oder die eingesetzten Dienste 
 ### 2. Overview
 
 Mini Networks is an offline game. We run **no servers of our own**, have **no user accounts** and use **no analytics
-or crash reporting of our own**. Personal data is processed only by the Google services listed below, which are needed
-for ads and in-app purchases.
+or crash reporting of our own**. Personal data is processed only by the Google services listed below: ads (section 4),
+in-app purchases (5), the optional Google Play Games services for achievements, leaderboards and cloud save (6), and
+Google Play's rating prompt (7). The game is fully playable without an account and without internet.
 
 ### 3. Data on your device
 
-The app stores on your device: your saved game, your best score per scenery, your settings (sound, haptics, display,
-tutorial seen), which products you bought, and a count of finished games (so ads appear at most every third game).
-This data is not sent to us. If Android backup is turned on, Android may back up this app data to your Google account
+The app stores on your device: your saved game, your best scores per scenery and mode, your settings (sound, haptics,
+display, cable skin, color theme, tutorial seen), game statistics for achievements (e.g. packets delivered, cables
+laid), the daily challenge streak and best score of the day, which products you bought, a count of finished games (so
+ads appear at most every third game) and when the app last asked for a rating. This data is not sent to us (for the
+cloud save see section 6). If you share your network as a picture, the app puts the picture in its cache and hands it
+only to the app you pick in the Android share menu. If Android backup is turned on, Android may back up this app data to your Google account
 (Auto Backup); you control this in the Android settings. To delete it: "Clear app data" or uninstall the app.
 
 ### 4. Advertising: Google AdMob (Google Mobile Ads SDK)
@@ -135,17 +166,35 @@ with Google; we never receive them. The app only learns from Google Play which p
 used to acknowledge the purchase, and stores the product IDs on the device. Legal basis: performance of a contract
 (Art. 6(1)(b) GDPR). Google Play's privacy policy also applies: https://policies.google.com/privacy
 
-### 6. Children
+### 6. Google Play Games services (optional)
+
+Achievements, leaderboards and the cloud save use Google Play Games services (Google Ireland Limited). If you have a
+Play Games profile on your device, Android signs you in automatically; without a profile or internet the game works
+without these features. Google then processes: your player ID and Play Games profile (gamertag, avatar; you choose its
+visibility in Play Games), unlocked achievements, scores for the leaderboards of the sceneries and the daily challenge,
+and the cloud save "progress" with your game statistics, best scores, daily streak and best score of the day (not the
+running game). The app only receives this game data of your profile for this game. Purpose: the achievements,
+leaderboards and progress across devices. Legal basis: performance of a contract / the feature you use (Art. 6(1)(b)
+GDPR). Deletion: your Play Games profile (https://play.google.com/games/profile) or Google account. Google's privacy
+policy applies: https://policies.google.com/privacy
+
+### 7. Rating prompt (Google Play In-App Review)
+
+After a good moment (e.g. a new best score) the app may show Google Play's rating dialog, at most every 30 days.
+Google Play decides whether it appears. You rate and review directly with Google Play; the app does not learn whether
+or how you rated. Google Play's privacy policy applies.
+
+### 8. Children
 
 The app is not directed at children under 13.
 
-### 7. Your rights
+### 9. Your rights
 
 You have the right to access, rectification, erasure, restriction of processing, data portability and to object
 (Art. 15–21 GDPR), and to withdraw consent at any time with effect for the future. As we do not store data about you
-ourselves, requests about ad or purchase data are usually for Google; we are happy to help at the address above.
+ourselves, requests about ad, purchase or Play Games data are usually for Google; we are happy to help at the address above.
 You may lodge a complaint with a data protection supervisory authority, e.g. `<competent authority>`.
 
-### 8. Changes
+### 10. Changes
 
 We update this policy when the app or the services it uses change. The version published at `<URL>` applies.

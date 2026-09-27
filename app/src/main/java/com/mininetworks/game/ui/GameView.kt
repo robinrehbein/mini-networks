@@ -1321,7 +1321,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             }
         }
         if (world.rewardOffer == null) drawIncidentLine(canvas, center, right - left, ::place)
-        if (userPaused && world.rewardOffer == null) drawPausedBanner(canvas, center, right - left, ::place)
+        // The paused pill is drawn after the hint: where both do not fit (large text, long words), the hint wins.
+        val cursorWithoutBanner = cursor
+        var banner = if (userPaused && world.rewardOffer == null) placePausedBanner(center, right - left, ::place) else null
 
         val bh = buttonHeight
         val gap = 10 * density
@@ -1436,13 +1438,20 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         // A long hint (or large text) wraps into up to three lines that grow upwards from above the buttons.
         hintText?.let {
             val lineH = hudSub.textSize * 1.3f
-            // As many lines as fit between the top rows (and the centered lines) and the buttons.
-            val room = ((hintY - hudSub.textSize - maxOf(cursor, blocksBottom)) / lineH).toInt() + 1
+            // As many lines as fit between the top rows (and the centered lines) and the buttons (floor: a line that
+            // would reach into the rows above does not count).
+            var room = floor((hintY - hudSub.textSize - maxOf(cursor, blocksBottom)) / lineH).toInt() + 1
+            if (room < 1 && banner != null) {
+                // Not even one line below the paused pill: the pause button shows the stopped clock anyway.
+                banner = null
+                room = floor((hintY - hudSub.textSize - maxOf(cursorWithoutBanner, blocksBottom)) / lineH).toInt() + 1
+            }
             val lines = wrapText(it, right - left, hudSub, room.coerceIn(1, MAX_HINT_LINES))
             lines.forEachIndexed { i, line -> canvas.drawText(line, left, hintY - (lines.size - 1 - i) * lineH, hudSub) }
             val w = lines.maxOf { l -> hudSub.measureText(l) }
             hudNodes += UiNode("hud:hint", RectF(left, hintY - (lines.size - 1) * lineH - hudSub.textSize, left + w, hintY + hudSub.descent()), it, UiNode.Kind.TEXT)
         }
+        banner?.let { drawPausedBanner(canvas, it) }
     }
 
     /** [s], shortened with an ellipsis if it is wider than [maxWidth] in [paint]. */
@@ -1453,27 +1462,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         return s.substring(0, end).trimEnd() + "…"
     }
 
-    /** [s] broken at spaces into at most [maxLines] lines of [maxWidth] in [paint]; the last one is shortened if needed. */
-    private fun wrapText(s: String, maxWidth: Float, paint: Paint, maxLines: Int): List<String> {
-        val lines = ArrayList<String>()
-        var line = ""
-        val words = s.split(' ')
-        for ((i, word) in words.withIndex()) {
-            val candidate = if (line.isEmpty()) word else "$line $word"
-            if (paint.measureText(candidate) <= maxWidth || line.isEmpty()) {
-                line = candidate
-                continue
-            }
-            if (lines.size == maxLines - 1) {
-                lines += fitText((listOf(line) + words.subList(i, words.size)).joinToString(" "), maxWidth, paint)
-                return lines
-            }
-            lines += line
-            line = word
-        }
-        if (line.isNotEmpty()) lines += fitText(line, maxWidth, paint)
-        return lines
-    }
+    /** [s] broken into at most [maxLines] lines of [maxWidth] in [paint] (at spaces, and between CJK characters); the last one is shortened if needed. */
+    private fun wrapText(s: String, maxWidth: Float, paint: Paint, maxLines: Int): List<String> =
+        TextWrap.wrap(s, maxWidth, maxLines) { paint.measureText(it) }
 
     /** A round HUD button with a drawn icon: three lines for the menu, two bars (or a play triangle while paused) for pause. */
     private fun drawIconButton(canvas: Canvas, r: RectF, id: String, active: Boolean) {
@@ -1497,18 +1488,30 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         }
     }
 
-    /** "Paused, keep building" in a dark pill at the top centre while the clock is stopped in place. */
-    private fun drawPausedBanner(canvas: Canvas, center: Float, maxWidth: Float, place: (Float, Float) -> Float) {
+    /** The paused pill: where it goes ([rect]), the drawn [text] and the [full] text for TalkBack. */
+    private class PausedBanner(val rect: RectF, val text: String, val full: String, val textSize: Float, val align: Paint.Align, val typeface: Typeface?)
+
+    /** Places "Paused, keep building" at the top centre (see [drawPausedBanner]) while the clock is stopped in place. */
+    private fun placePausedBanner(center: Float, maxWidth: Float, place: (Float, Float) -> Float): PausedBanner {
         val full = context.getString(R.string.hud_paused)
         val text = fitText(full, maxWidth - 28 * density, btnText)
         val w = btnText.measureText(text) + 28 * density
         val h = maxOf(30 * density, btnText.textSize * 2f)
         val top = place(w, h)
-        val r = RectF(center - w / 2f, top, center + w / 2f, top + h)
-        canvas.drawRoundRect(r, h / 2, h / 2, btnActive)
+        return PausedBanner(RectF(center - w / 2f, top, center + w / 2f, top + h), text, full, btnText.textSize, btnText.textAlign, btnText.typeface)
+    }
+
+    /** [b] in a dark pill. */
+    private fun drawPausedBanner(canvas: Canvas, b: PausedBanner) {
+        val r = b.rect
+        canvas.drawRoundRect(r, r.height() / 2, r.height() / 2, btnActive)
+        // The buttons drawn since it was placed may have changed the paint: draw with the placed style, then restore.
+        val size = btnText.textSize; val align = btnText.textAlign; val face = btnText.typeface
+        btnText.textSize = b.textSize; btnText.textAlign = b.align; btnText.typeface = b.typeface
         btnText.color = 0xFFFFFFFF.toInt()
-        canvas.drawText(text, r.centerX(), r.centerY() + btnText.textSize * 0.35f, btnText)
-        hudNodes += UiNode("hud:paused", r, full, UiNode.Kind.TEXT)
+        canvas.drawText(b.text, r.centerX(), r.centerY() + btnText.textSize * 0.35f, btnText)
+        btnText.textSize = size; btnText.textAlign = align; btnText.typeface = face
+        hudNodes += UiNode("hud:paused", r, b.full, UiNode.Kind.TEXT)
     }
 
     /**

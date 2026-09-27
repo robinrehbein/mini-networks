@@ -11,6 +11,7 @@ import com.mininetworks.game.render.shade
 import com.mininetworks.game.render.stroke
 import com.mininetworks.game.ui.TextScale
 import com.mininetworks.game.ui.UiNode
+import com.mininetworks.game.ui.TextWrap
 
 /** One tile of the [AchievementsPanel]; all texts are ready to show. */
 data class AchievementTile(
@@ -292,27 +293,8 @@ class AchievementsPanel(context: Context) {
         return s.substring(0, end).trimEnd() + ELLIPSIS
     }
 
-    /** [s] broken at spaces into at most [maxLines] lines of [maxWidth]; the last one is shortened if needed. */
-    private fun wrap(s: String, maxWidth: Float, maxLines: Int): List<String> {
-        val lines = ArrayList<String>()
-        var line = ""
-        val words = s.split(' ')
-        for ((i, word) in words.withIndex()) {
-            val candidate = if (line.isEmpty()) word else "$line $word"
-            if (text.measureText(candidate) <= maxWidth || line.isEmpty()) {
-                line = candidate
-                continue
-            }
-            if (lines.size == maxLines - 1) {
-                lines += fit((listOf(line) + words.subList(i, words.size)).joinToString(" "), maxWidth)
-                return lines
-            }
-            lines += line
-            line = word
-        }
-        if (line.isNotEmpty()) lines += fit(line, maxWidth)
-        return lines
-    }
+    /** [s] broken into at most [maxLines] lines of [maxWidth] (at spaces, and between CJK characters); the last one is shortened if needed. */
+    private fun wrap(s: String, maxWidth: Float, maxLines: Int): List<String> = TextWrap.wrap(s, maxWidth, maxLines) { text.measureText(it) }
 
     companion object {
         /** Target id of the back pill. */

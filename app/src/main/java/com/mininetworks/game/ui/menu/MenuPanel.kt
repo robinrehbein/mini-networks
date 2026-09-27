@@ -10,6 +10,7 @@ import com.mininetworks.game.render.fill
 import com.mininetworks.game.render.shade
 import com.mininetworks.game.ui.TextScale
 import com.mininetworks.game.ui.UiNode
+import com.mininetworks.game.ui.TextWrap
 
 /** What a menu entry does when tapped. */
 enum class MenuAction {
@@ -158,7 +159,8 @@ class MenuPanel(context: Context) {
         text.typeface = Typeface.DEFAULT_BOLD
         text.color = ink
         text.textSize = l.titleSize
-        val title = fitShrinking(page.title, inner, l.titleSize, l.titleSize * 0.7f)
+        // A title shrinks further than other texts before it is cut: the game's name on a narrow portrait window.
+        val title = fitShrinking(page.title, inner, l.titleSize, l.titleSize * 0.5f)
         canvas.drawText(title, cx, y + l.titleSize, text)
         drawnNodes += UiNode("menu:title", textBounds(cx, y, inner, l.titleH), page.title, UiNode.Kind.HEADING, shortened = title != page.title)
         y += l.titleH + 10f * u
@@ -339,27 +341,8 @@ class MenuPanel(context: Context) {
         return s.substring(0, end).trimEnd() + ELLIPSIS
     }
 
-    /** [s] broken at spaces into at most [maxLines] lines of [maxWidth]; the last one is shortened if needed. */
-    private fun wrap(s: String, maxWidth: Float, maxLines: Int): List<String> {
-        val lines = ArrayList<String>()
-        var line = ""
-        val words = s.split(' ')
-        for ((i, word) in words.withIndex()) {
-            val candidate = if (line.isEmpty()) word else "$line $word"
-            if (text.measureText(candidate) <= maxWidth || line.isEmpty()) {
-                line = candidate
-                continue
-            }
-            if (lines.size == maxLines - 1) {
-                lines += fit((listOf(line) + words.subList(i, words.size)).joinToString(" "), maxWidth)
-                return lines
-            }
-            lines += line
-            line = word
-        }
-        if (line.isNotEmpty()) lines += fit(line, maxWidth)
-        return lines
-    }
+    /** [s] broken into at most [maxLines] lines of [maxWidth] (at spaces, and between CJK characters); the last one is shortened if needed. */
+    private fun wrap(s: String, maxWidth: Float, maxLines: Int): List<String> = TextWrap.wrap(s, maxWidth, maxLines) { text.measureText(it) }
 
     private companion object {
         const val CARD_W_DP = 360f

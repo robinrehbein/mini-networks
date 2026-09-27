@@ -82,7 +82,7 @@ class RewardDialog(private val context: Context) {
         text.textSize = promptSize
         val prompt = context.getString(R.string.reward_prompt, World.Tuning.WEEK_BUDGET)
         // At most two lines; whatever does not fit ends the second one with an ellipsis.
-        val promptLines = wrap(prompt, width - 2 * side).let { if (it.size <= 2) it else listOf(it[0], it.drop(1).joinToString(" ")) }
+        val promptLines = TextWrap.wrap(prompt, width - 2 * side, maxLines = 2) { text.measureText(it) }
         val bonusH = bonusHeight()
         // With the bonus pill the cards move up, so prompt and pill fit below them.
         val below = promptSize * (1.0f + 1.3f * promptLines.size) + (if (bonus != null) bonusH + 16f * density else 0f)
@@ -285,21 +285,8 @@ class RewardDialog(private val context: Context) {
         Reward.CELL_TOWER -> R.string.reward_cell_tower_desc
     }
 
-    private fun wrap(s: String, maxWidth: Float): List<String> {
-        val lines = ArrayList<String>()
-        var line = ""
-        for (word in s.split(' ')) {
-            val next = if (line.isEmpty()) word else "$line $word"
-            if (line.isNotEmpty() && text.measureText(next) > maxWidth) {
-                lines += line
-                line = word
-            } else {
-                line = next
-            }
-        }
-        if (line.isNotEmpty()) lines += line
-        return lines
-    }
+    /** Splits [s] into lines no wider than [maxWidth] in the current text paint (at spaces, and between CJK characters). */
+    private fun wrap(s: String, maxWidth: Float): List<String> = TextWrap.wrap(s, maxWidth) { text.measureText(it) }
 
     // ---------------------------------------------------------------- isometric diorama
 

@@ -112,7 +112,8 @@ keytool -printcert -jarfile app/build/outputs/bundle/release/app-release.aab   #
 
    Produkte lassen sich erst anlegen, wenn ein AAB mit der Billing-Berechtigung hochgeladen ist (Schritt 3).
    Die Preise zeigt die App so an, wie Play sie liefert; im Code steht kein Preis.
-6. **Store-Eintrag:** Texte, Grafiken und Screenshot-Plan in `docs/store-listing.md`; Kategorie **Spiele → Strategie**
+6. **Store-Eintrag:** Texte in 12 Sprachen, Screenshots, Feature-Grafik und Trailer-Storyboard in `docs/store/`
+   (Übersicht `docs/store/README.md`; ältere Planung in `docs/store-listing.md`); Kategorie **Spiele → Strategie**
    (Alternative: Puzzle), Tags z. B. „Simulation“, „Casual“. Kontakt-E-Mail und Website eintragen.
 7. **Datenschutzerklärung:** `docs/privacy-policy.md` (DE/EN) mit echtem Verantwortlichen füllen, auf einer öffentlichen
    Seite (Website, GitHub Pages) veröffentlichen und die URL im Store-Eintrag **und** in der UMP-Nachricht eintragen.
@@ -127,7 +128,7 @@ keytool -printcert -jarfile app/build/outputs/bundle/release/app-release.aab   #
 2. Zwei Anzeigenblöcke: **Interstitial** → `mininetworks.admob.interstitialId`, **Rewarded** (Belohnung z. B. „1 ×
    Weiterspielen“, der Wert wird im Spiel nicht ausgewertet) → `mininetworks.admob.rewardedId`.
 3. **Datenschutz & Mitteilungen:** eine **DSGVO-Nachricht** (EWR, UK, Schweiz) für die App erstellen und veröffentlichen,
-   Datenschutz-URL eintragen, Sprachen DE + EN. Ohne veröffentlichte Nachricht zeigt UMP kein Formular und in der EU
+   Datenschutz-URL eintragen, Sprachen: die 12 der App (docs/TOP100.md F1). Ohne veröffentlichte Nachricht zeigt UMP kein Formular und in der EU
    gibt es keine Werbung. Optional eine Nachricht für US-Bundesstaaten (Datenschutzgesetze der Staaten).
    Den Knopf „Datenschutz“ im Spiel (Einstellungen) zeigt die App nur, wenn UMP ihn verlangt.
 4. **app-ads.txt:** die von AdMob angezeigte Zeile in `https://<entwickler-website>/app-ads.txt` ablegen; dieselbe
@@ -163,11 +164,18 @@ Das Spiel darf in Grafik und Store-Texten nicht gezielt Kinder ansprechen (tut e
 
 ## 9. Datensicherheit (Data safety)
 
-Grundlage: Was die App **selbst** verarbeitet, bleibt auf dem Gerät (Spielstand, Bestwerte, Einstellungen, bekannte
-Käufe; keine eigenen Server, kein Analytics, kein Crash-Reporting). Zu erklären sind die SDKs: **Google Mobile Ads**
-(mit UMP) und **Google Play Billing**. Die Antworten folgen Googles Hinweisen zum Mobile Ads SDK; vor dem Absenden mit
-der aktuellen Fassung von „Google Mobile Ads SDK – Datensicherheit“ und „Play Billing – Datensicherheit“ abgleichen,
-die Google für seine SDKs pflegt.
+Grundlage: Was die App **selbst** verarbeitet, bleibt auf dem Gerät (Spielstand, Bestwerte, Statistiken, Einstellungen,
+bekannte Käufe; keine eigenen Server, kein Analytics, kein Crash-Reporting). Zu erklären sind die SDKs, die im
+Release-Build stecken (Stand T8, abgeglichen mit `app/build.gradle.kts` und dem gemergten Release-Manifest,
+docs/TOP100.md F5):
+
+| SDK (Version) | Wann aktiv | Daten an Google | Quelle zum Abgleich |
+|---|---|---|---|
+| Google Mobile Ads 25.2.0 + UMP 4.0.0 | kostenlose Version; nach „Werbefrei“ ab dem nächsten Start nicht mehr (`PlayRules.canInitializeAds`) | ja, siehe Tabelle | developers.google.com/admob/android/privacy/play-data-disclosure |
+| Google Play Billing 9.1.0 | immer (Käufe, Wiederherstellen) | Kaufabwicklung durch Google Play | developer.android.com/google/play/billing (Data safety) |
+| Play Games Services v2 22.1.0 | nur mit echten IDs in `games-ids.xml` und Play-Spiele-Profil (Abschnitt 11) | ja, siehe Tabelle | developer.android.com/games/pgs/data-collection |
+| Play In-App Review 2.0.2 | höchstens alle 30 Tage nach einem guten Moment (`ReviewPolicy`) | nichts von der App; Google zeigt nur seinen Dialog, Bewertung geht direkt an Play | Google Play SDK Index (com.google.android.play:review) |
+| AndroidX Core 1.15 (FileProvider), ProfileInstaller 1.4.1 | Teilen bzw. Installation | keine (lokal) | – |
 
 **Allgemein**
 
@@ -175,41 +183,44 @@ die Google für seine SDKs pflegt.
 |---|---|
 | Erhebt oder teilt die App Nutzerdaten der erforderlichen Typen? | Ja |
 | Werden alle Daten bei der Übertragung verschlüsselt? | Ja (die SDKs nutzen HTTPS) |
-| Können Nutzer das Löschen ihrer Daten beantragen? | Nein – wir halten keine Daten; Werbe-ID zurücksetzen/löschen geht in den Android-Einstellungen, der Spielstand verschwindet mit „App-Daten löschen“ bzw. der Deinstallation. (Falls die Console einen Weg verlangt: Kontakt-E-Mail der Datenschutzerklärung.) |
+| Können Nutzer das Löschen ihrer Daten beantragen? | Ja, über Google: Werbe-ID in den Android-Einstellungen zurücksetzen/löschen, Play-Spiele-Daten über das Play-Spiele-Profil bzw. Google-Konto; der Spielstand verschwindet mit „App-Daten löschen“ bzw. der Deinstallation. Kontakt-E-Mail der Datenschutzerklärung für Fragen. |
 | Unabhängige Sicherheitsprüfung (MASA) | Nein |
 
-**Datentypen** (alle: *erhoben* und *geteilt* durch das Mobile Ads SDK an Google; nicht optional, außer wo vermerkt;
-verarbeitet flüchtig: Nein)
+**Datentypen** (verarbeitet flüchtig: Nein)
 
-| Datentyp | Zweck |
-|---|---|
-| Standort → Ungefährer Standort (aus der IP-Adresse) | Werbung oder Marketing, Analysen, Betrugsprävention/Sicherheit/Compliance |
-| Geräte- oder andere IDs (Werbe-ID, App-Set-ID) | Werbung oder Marketing, Analysen, Betrugsprävention/Sicherheit/Compliance |
-| App-Aktivität → App-Interaktionen (Anzeigen gesehen/angetippt) | Werbung oder Marketing, Analysen, Betrugsprävention/Sicherheit/Compliance |
-| App-Informationen und Leistung → Absturzprotokolle, Diagnosen (des SDK) | Analysen, Betrugsprävention/Sicherheit/Compliance |
+| Datentyp | Durch | Erhoben / geteilt | Optional | Zweck |
+|---|---|---|---|---|
+| Standort → Ungefährer Standort (aus der IP-Adresse) | Mobile Ads | erhoben, geteilt | nein | Werbung oder Marketing, Analysen, Betrugsprävention/Sicherheit/Compliance |
+| Geräte- oder andere IDs (Werbe-ID, App-Set-ID) | Mobile Ads | erhoben, geteilt | nein | Werbung oder Marketing, Analysen, Betrugsprävention/Sicherheit/Compliance |
+| App-Aktivität → App-Interaktionen (Anzeigen gesehen/angetippt) | Mobile Ads | erhoben, geteilt | nein | Werbung oder Marketing, Analysen, Betrugsprävention/Sicherheit/Compliance |
+| App-Informationen und Leistung → Absturzprotokolle, Diagnosen (des SDK) | Mobile Ads | erhoben, geteilt | nein | Analysen, Betrugsprävention/Sicherheit/Compliance |
+| Persönliche Daten → Nutzer-IDs (Spieler-ID, Gamertag, Avatar) | Play Games Services | erhoben | ja (nur mit Play-Spiele-Profil) | App-Funktionalität, Kontoverwaltung |
+| App-Aktivität → Sonstige Aktionen (freigeschaltete Erfolge, Bestenlisten-Punkte) | Play Games Services | erhoben | ja | App-Funktionalität |
+| App-Aktivität → Sonstige nutzergenerierte Inhalte (Cloud-Spielstand „progress“: Statistiken, Bestwerte, Tagesserie) | Play Games Services | erhoben | ja | App-Funktionalität |
 
-**Nicht erhoben:** Name, E-Mail, Konten, Kontakte, Fotos, Dateien, Nachrichten, Gesundheit, genauer Standort,
-Finanzdaten. **Kaufverlauf:** Die App kennt nur die Produkt-IDs gekaufter Artikel und speichert sie lokal; die
-Zahlung wickelt Google Play ab (keine Angabe als „erhoben“, solange nichts davon an uns oder Dritte geht – mit Googles
-aktueller Billing-Anleitung abgleichen).
+**Nicht erhoben:** Name, E-Mail, Kontakte, Fotos/Videos, Dateien, Nachrichten, Gesundheit, genauer Standort,
+Finanzdaten. **Kaufverlauf:** Die App kennt nur die Produkt-IDs gekaufter Artikel und speichert sie lokal; die Zahlung
+wickelt Google Play ab (keine Angabe als „erhoben“, solange nichts davon an uns oder Dritte geht – mit Googles aktueller
+Billing-Anleitung abgleichen). **In-App-Review:** keine eigene Angabe; die App erfährt nicht, ob bewertet wurde.
+**Teilen (D2):** Das Bild bleibt im App-Cache und geht nur über das System-Teilen-Menü an die gewählte App
+(FileProvider, Lese-Berechtigung, keine Speicher-Berechtigung) – das ist eine Aktion des Nutzers, kein Erheben.
+Play Games gilt als „erhoben“ (Daten gehen an Google als Anbieter des Dienstes), nicht als „geteilt“; vor dem
+Absenden mit Googles Seite „Prepare for Google Play's data disclosure requirements“ (Play Games Services) abgleichen.
+Solange `games-ids.xml` Platzhalter enthält, startet kein Play-Games-Code (Abschnitt 11) – dann entfallen die drei
+Play-Games-Zeilen.
 
 Mit „Werbefrei“ startet die App das Mobile Ads SDK nicht mehr (ab dem nächsten App-Start; `PlayRules.canInitializeAds`),
-die Angaben oben gelten also für Spieler ohne diesen Kauf. Die lokal gemerkten Käufe (`monetization`-Einstellungen) sind
+die Werbe-Zeilen gelten also für Spieler ohne diesen Kauf. Die lokal gemerkten Käufe (`monetization`-Einstellungen) sind
 von Backup und Geräteumzug ausgenommen (`res/xml/data_extraction_rules.xml`, `backup_rules.xml`): Besitz kommt immer
 von Google Play.
 
-**Play Games Services und In-App-Review (ab T5, docs/TOP100.md C2, C3, C6, D1):** Solange `games-ids.xml` Platzhalter
-enthält (Abschnitt 11), läuft kein Play-Games-Code. Mit echten IDs meldet Play Games den Spieler automatisch an; dann
-gehen an Google: Spieler-ID/Spielername (Konto: „Persönliche Daten → Nutzer-IDs“), freigeschaltete Erfolge,
-Bestenlisten-Punkte und der Cloud-Spielstand (Statistiken, Bestwerte, Tagesserie; „App-Aktivität → Sonstige
-nutzergenerierte Inhalte/Spielfortschritt“, Zweck „App-Funktionalität“). Vor dem Absenden mit Googles „Play Games
-Services – Datensicherheit“ abgleichen. Die In-App-Review-API überträgt nichts Eigenes der App (Google zeigt nur seinen
-Bewertungsdialog). Teilen (D2) legt ein PNG im App-Cache ab und gibt es nur über das System-Teilen-Menü mit
-Lese-Berechtigung für die gewählte App weiter (FileProvider, keine Speicher-Berechtigung).
-
-Berechtigungen im Release-Manifest (aus den SDKs): `INTERNET`, `ACCESS_NETWORK_STATE`, `com.google.android.gms.permission.AD_ID`,
-`ACCESS_ADSERVICES_AD_ID`/`_ATTRIBUTION`/`_TOPICS` (Privacy Sandbox), `com.android.vending.BILLING`, `WAKE_LOCK`,
-`FOREGROUND_SERVICE`. Die Frage „Verwendet die App die Werbe-ID?“ ist daher mit **Ja, Werbung oder Marketing** zu beantworten.
+Berechtigungen im gemergten Release-Manifest (`app/build/intermediates/merged_manifests/release/.../AndroidManifest.xml`,
+geprüft in T8): `INTERNET`, `ACCESS_NETWORK_STATE`, `WAKE_LOCK`, `FOREGROUND_SERVICE` (SDKs),
+`com.google.android.gms.permission.AD_ID`, `ACCESS_ADSERVICES_AD_ID`/`_ATTRIBUTION`/`_TOPICS` (Mobile Ads, Privacy
+Sandbox), `com.android.vending.BILLING` (Billing) und die interne Signatur-Berechtigung
+`com.mininetworks.game.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` (AndroidX Core, nur für die eigene App). Keine
+Standort-, Kontakt-, Kamera-, Mikrofon- oder Speicher-Berechtigung. Die Frage „Verwendet die App die Werbe-ID?“ ist
+daher mit **Ja, Werbung oder Marketing** zu beantworten.
 
 ## 10. Checkliste vor dem ersten Upload
 
@@ -229,7 +240,7 @@ Berechtigungen im Release-Manifest (aus den SDKs): `INTERNET`, `ACCESS_NETWORK_S
       (profgen liegt in `cmdline-tools/latest/bin`)
 - [ ] Datenschutzerklärung veröffentlicht, URL in Play Console und UMP-Nachricht
 - [ ] In-App-Produkte angelegt und aktiv, Lizenztester eingetragen
-- [ ] Store-Eintrag DE + EN, Icon 512 px (`docs/screenshots/store-icon-512.png`), Feature-Grafik, Screenshots
+- [ ] Store-Eintrag in 12 Sprachen (`docs/store/<sprache>.md`), Icon 512 px (`docs/screenshots/store-icon-512.png`), Feature-Grafik (`docs/store/feature-graphic.png`), Screenshots (`docs/store/screenshots/`)
 - [ ] Geräte-Checks aus Abschnitt 4 im internen Test bestanden
 
 ## 11. Play Games Services (Erfolge, Bestenlisten, Cloud-Spielstand)

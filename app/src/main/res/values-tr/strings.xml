@@ -1,0 +1,460 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- HUD -->
+    <string name="hud_date">%1$d · %2$d. hafta</string>
+    <plurals name="hud_delivered">
+        <item quantity="one">%1$d paket</item>
+        <item quantity="other">%1$d paket</item>
+    </plurals>
+    <string name="hud_resources">Bütçe %1$d  ·  Router %2$d</string>
+    <string name="hud_clock_day">Gündüz · %1$s</string>
+    <string name="hud_clock_night">Gece · %1$s · yedekleme saati %2$s</string>
+    <string name="button_router">Router (%1$d)</string>
+    <string name="hint_place_router">Boş bir kareye dokun</string>
+    <string name="button_access_point">Wi-Fi (%1$d)</string>
+    <string name="button_cell_tower">Baz (%1$d)</string>
+    <string name="hint_access_point">Kanal değiştirmek için erişim noktasına dokun · 5 GHz için basılı tut (%1$d)</string>
+    <string name="hint_channel">%1$s: kanal %2$d</string>
+    <plurals name="hint_channel_interference">
+        <item quantity="one">%1$s: kanal %2$d · %3$d komşuyla parazit yapıyor</item>
+        <item quantity="other">%1$s: kanal %2$d · %3$d komşuyla parazit yapıyor</item>
+    </plurals>
+    <string name="hint_5ghz">%1$s artık 5 GHz yayında (menzil 1)</string>
+    <string name="wifi_error_already_5ghz">Zaten 5 GHz yayında</string>
+    <string name="wifi_error_no_budget">Bütçe yetmiyor, 5 GHz’in bedeli %1$d</string>
+    <string name="hint_map_grew">Şehir büyüyor: kenarlarda yeni kareler</string>
+    <string name="server_error_max_level">Veri merkezi en üst seviye</string>
+    <string name="server_error_no_budget">Bütçe yetmiyor, yükseltmenin bedeli %1$d</string>
+    <string name="server_error_no_space">Veri merkezi için sunucunun yanında 2×2 boş kare gerekir</string>
+    <string name="incident_excavator_warning">Kepçe geliyor: kablo %1$d sn sonra kesilecek</string>
+    <string name="incident_outage_warning">Elektrik kesintisi yaklaşıyor: %1$s · %2$d sn sonra kapanır</string>
+    <string name="incident_cut">Kablo kesildi: %1$d karşılığında onarmak için dokun · %2$d sn sonra kendiliğinden düzelir</string>
+    <string name="incident_outage">Elektrik kesintisi: %1$s · %2$d sn daha elektriksiz</string>
+    <string name="repair_error_no_budget">Bütçe yetmiyor, onarımın bedeli %1$d</string>
+    <string name="hint_repaired">Kablo onarıldı</string>
+    <plurals name="hud_vouchers">
+        <item quantity="one">%1$d sunucu kuponu · bir sunucuya dokun</item>
+        <item quantity="other">%1$d sunucu kuponu · bir sunucuya dokun</item>
+    </plurals>
+
+    <!-- Names of game objects -->
+    <string name="service_mail">E-posta</string>
+    <string name="service_call">Telefon</string>
+    <string name="service_gaming">Oyun</string>
+    <string name="service_streaming">Yayın</string>
+    <string name="service_video_call">Görüntülü arama</string>
+    <string name="service_camera_upload">Kamera yükleme</string>
+    <string name="service_cloud_backup">Bulut yedekleme</string>
+    <string name="device_pc">PC</string>
+    <string name="device_phone">Telefon</string>
+    <string name="device_laptop">Dizüstü</string>
+    <string name="device_console">Konsol</string>
+    <string name="device_smartphone">Akıllı telefon</string>
+    <string name="device_tv">Akıllı TV</string>
+    <string name="device_tablet">Tablet</string>
+    <string name="device_watch">Akıllı saat</string>
+    <string name="device_camera">Güvenlik kamerası</string>
+    <string name="device_smart_home">Akıllı ev merkezi</string>
+    <string name="cable_isdn">ISDN</string>
+    <string name="cable_dsl">DSL</string>
+    <string name="cable_coax">Koaksiyel</string>
+    <string name="cable_fiber">Fiber</string>
+    <string name="node_router">Router</string>
+    <string name="node_access_point">Wi-Fi erişim noktası</string>
+    <string name="node_cell_tower">Baz istasyonu</string>
+    <string name="node_server">%1$s sunucusu</string>
+
+    <!-- Week news and cable feedback -->
+    <string name="news_with_year">%1$d · %2$s</string>
+    <string name="news_items">Yeni: %1$s</string>
+    <string name="list_separator">", "</string>
+    <string name="drag_cost">%1$s · %2$d</string>
+    <string name="connect_error_same_node">Aynı düğüm</string>
+    <string name="connect_error_already_connected">Zaten bağlı</string>
+    <string name="connect_error_not_invented">%1$s henüz icat edilmedi</string>
+    <string name="connect_error_ports_full">%1$s: tüm portlar dolu</string>
+    <string name="connect_error_no_budget">Bütçe yetmiyor</string>
+
+    <!-- Week rewards -->
+    <string name="reward_prompt">Haftalık ödenek: +%1$d · Ekstra için bir karta dokun</string>
+    <string name="reward_amount_plus">+%1$d</string>
+    <string name="reward_amount_voucher">Bedava</string>
+    <string name="reward_budget_title">Bütçe</string>
+    <string name="reward_budget_desc">Yeni kablolar ve yükseltmeler için</string>
+    <string name="reward_routers_title">Router</string>
+    <string name="reward_routers_desc">Ağın için 6 portlu dağıtıcılar</string>
+    <string name="reward_voucher_title">Sunucu kuponu</string>
+    <string name="reward_voucher_desc">Bir sonraki sunucu yükseltmesi bedava</string>
+    <string name="reward_access_point_title">Wi-Fi erişim noktası</string>
+    <string name="reward_access_point_desc">Yakındaki en fazla 4 cihaza kablosuz bağlanır</string>
+    <string name="reward_cell_tower_title">Baz istasyonu</string>
+    <string name="reward_cell_tower_desc">Geniş menzil, ama yalnızca akıllı telefon, tablet ve saatler için</string>
+
+    <!-- Menus -->
+    <string name="menu_tagline">Şehri ağla ör – 1995’ten bugüne</string>
+    <string name="menu_play">Oyna</string>
+    <string name="menu_continue">Devam et</string>
+    <string name="menu_settings">Ayarlar</string>
+    <string name="menu_best">En iyi: %1$d</string>
+    <string name="pause_title">Duraklatıldı</string>
+    <string name="pause_status">%1$s  ·  %2$s</string>
+    <string name="menu_resume">Sürdür</string>
+    <string name="menu_restart">Yeniden başlat</string>
+    <string name="menu_main">Ana menü</string>
+    <string name="menu_back">Geri</string>
+    <string name="settings_sound">Ses</string>
+    <string name="settings_haptics">Titreşim</string>
+    <string name="settings_overview">Düz görünüm</string>
+    <string name="settings_free_rotation">Serbest döndürme</string>
+    <string name="settings_colorblind">Renk körü modu</string>
+    <string name="settings_language">Dil, sistem dilini izler</string>
+
+    <!-- Game over -->
+    <string name="game_over_title">Ağ aşırı yüklendi</string>
+    <plurals name="game_over_stats">
+        <item quantity="one">%1$d paket teslim edildi · %2$d. hafta</item>
+        <item quantity="other">%1$d paket teslim edildi · %2$d. hafta</item>
+    </plurals>
+    <string name="game_over_best">En iyi: %1$d</string>
+    <string name="game_over_new_best">Yeni rekor!</string>
+    <string name="game_over_again">Tekrar oyna</string>
+
+    <!-- Sceneries -->
+    <string name="scenery_title">Bir manzara seç</string>
+    <string name="scenery_river_town">Nehir Kasabası</string>
+    <string name="scenery_metropolis">Metropol</string>
+    <string name="scenery_island_harbor">Ada ve Liman</string>
+    <string name="scenery_mountain_village">Dağ Köyü</string>
+    <string name="scenery_future_2030">Gelecek 2030</string>
+    <string name="scenery_river_town_desc">Tek nehir · başlangıç için</string>
+    <string name="scenery_metropolis_desc">İki nehir · gökdelenler sinyali bozar</string>
+    <string name="scenery_island_harbor_desc">Bol su · deniz altı kablosu ve telsiz</string>
+    <string name="scenery_mountain_village_desc">Dağlar sinyali keser · pahalı geçitler</string>
+    <string name="scenery_future_2030_desc">Her cihaza 6G · yörüngede sunucular</string>
+    <string name="scenery_from_year">başlangıç: %1$d</string>
+    <string name="scenery_not_played">Henüz oynanmadı</string>
+    <plurals name="scenery_progress">
+        <item quantity="one">%1$,d / %2$,d paket</item>
+        <item quantity="other">%1$,d / %2$,d paket</item>
+    </plurals>
+    <string name="scenery_progress_in">%1$s haritasında</string>
+    <string name="scenery_shop">Mağazada</string>
+    <string name="scenery_shop_pack">ayrı ayrı ya da pakette</string>
+    <plurals name="scenery_hint_score">
+        <item quantity="one">%2$s haritasında %1$,d paket teslim et ya da bu manzarayı satın al</item>
+        <item quantity="other">%2$s haritasında %1$,d paket teslim et ya da bu manzarayı satın al</item>
+    </plurals>
+    <string name="scenery_hint_no_shop">Mağazaya şu anda ulaşılamıyor</string>
+
+    <!-- Tutorial -->
+    <string name="tutorial_kicker">EĞİTİM · %1$d/%2$d</string>
+    <string name="tutorial_skip">Geç</string>
+    <string name="tutorial_play">Oyna</string>
+    <string name="tutorial_pause">Eğitim · adım %1$d/%2$d</string>
+    <string name="settings_tutorial">Eğitimi izle</string>
+    <string name="tutorial_cable_title">Kablo döşe</string>
+    <string name="tutorial_cable_text">PC bir e-posta göndermek istiyor. Parmağını PC’den e-posta sunucusuna sürükle.</string>
+    <string name="tutorial_router_title">Router yerleştir</string>
+    <string name="tutorial_router_text">Bir cihazın yalnızca 2 portu var, router’ın 6. Alttaki “Router” düğmesine, sonra telefonların yanındaki boş bir kareye dokun.</string>
+    <string name="tutorial_router_connect_text">Şimdi iki telefonu ve telefon sunucusunu router’a bağla. Aramaları o dağıtır.</string>
+    <string name="tutorial_bandwidth_title">Bant genişliği</string>
+    <string name="tutorial_bandwidth_text">1998: Televizyon yayın izlemek istiyor. Onu yayın sunucusuna bağla.</string>
+    <string name="tutorial_bandwidth_narrow_text">Çok dar! Yayın için bant genişliği %1$d gerekir, ISDN yalnızca %2$d taşır. Alttan DSL’i seç, o %3$d taşır.</string>
+    <string name="tutorial_bandwidth_upgrade_text">Şimdi ISDN kablosuna dokunup onu DSL’e yükselt. Yalnızca farkı ödersin.</string>
+    <string name="tutorial_ping_title">Ping</string>
+    <string name="tutorial_ping_text">2010: PC çevrim içi oynamak istiyor. Oyun için ping kısa olmalı, gidiş-dönüş en fazla %1$d ms. PC’yi oyun sunucusuna bağla.</string>
+    <string name="tutorial_ping_slow_text">Ping %1$d ms: oyun için çok yavaş (en fazla %2$d ms). Yalnızca fiber yeterince hızlı. Fiberi seç ve kabloya dokun.</string>
+    <string name="tutorial_overload_title">Aşırı yük</string>
+    <plurals name="tutorial_overload_text">
+        <item quantity="one">Bağlantısı olmayan yeni bir PC! Bekleyen istek sayısı %1$d olunca kırmızı bir halka dolmaya başlar. Halka kapanırsa oyun biter. PC’yi bağla!</item>
+        <item quantity="other">Bağlantısı olmayan yeni bir PC! Bekleyen istek sayısı %1$d olunca kırmızı bir halka dolmaya başlar. Halka kapanırsa oyun biter. PC’yi bağla!</item>
+    </plurals>
+    <string name="tutorial_done_title">Başardın!</string>
+    <string name="tutorial_done_text">Temelleri öğrendin. İpuçları: Yükseltmek için bir sunucuya dokun, kaldırmak için bir kabloya iki kez dokun; duraklatınca saat durur ama sen inşa etmeye devam edersin. İyi eğlenceler!</string>
+    <!-- Monetization (docs/PLAN.md 5.1) -->
+    <string name="menu_remove_ads">Reklamsız · %1$s</string>
+    <string name="settings_privacy">Gizlilik</string>
+    <string name="game_over_continue_ad">Devam et · video izle</string>
+    <string name="game_over_continue">Oynamaya devam et</string>
+    <string name="reward_bonus_router_ad">+1 router · video izle</string>
+    <string name="reward_bonus_router">+1 ekstra router</string>
+    <string name="hint_bonus_router">+1 router</string>
+    <string name="hint_continued">Aşırı yük halkaları boşaldı · her oyunda bir kez</string>
+    <string name="scenery_pack_buy">Tüm manzaralar · %1$s</string>
+
+    <!-- Controls feedback -->
+    <string name="hud_paused">Duraklatıldı · inşaata devam et</string>
+    <string name="hint_cable_info">%1$s: bant genişliği %2$d · kare başına %3$s ms ve %4$d</string>
+    <string name="hint_cable_too_narrow">şunun için çok dar: %1$s</string>
+    <string name="hint_cable_upgraded">Kablo yükseltildi: %1$s · −%2$d</string>
+    <string name="cable_error_no_budget">Bütçe yetmiyor, yükseltmenin bedeli %1$d</string>
+    <string name="hint_cable_remove">Kablo: %1$s · kaldırmak için tekrar dokun (+%2$d)</string>
+    <string name="hint_cable_removed">Kablo kaldırıldı, iade: +%1$d</string>
+    <string name="place_error_no_stock">Stokta kalmadı: %1$s</string>
+    <string name="place_error_locked">Bu kare henüz açılmadı</string>
+    <string name="place_error_occupied">Bu kare zaten dolu</string>
+    <string name="place_error_terrain">Yalnızca boş arazide</string>
+    <string name="hint_router_pick_up">Kablosu olmayan router · stoğa geri koymak için tekrar dokun</string>
+    <string name="hint_router_picked_up">Router stoğa geri döndü</string>
+    <string name="server_tier">seviye %1$d</string>
+    <string name="server_tier_data_center">veri merkezi</string>
+    <string name="hint_server_preview">%1$s → %2$s, bedeli %3$d · tekrar dokun</string>
+    <string name="hint_server_preview_voucher">%1$s → %2$s, kuponla · tekrar dokun</string>
+    <string name="hint_server_upgraded">%1$s artık: %2$s</string>
+    <string name="hint_server_busy">%1$s yetişemiyor: yükseltmek için dokun</string>
+    <string name="hint_radio_reward">Yeni: %1$s – haftalık ödül olarak kazanılır</string>
+    <string name="hint_service_needs">%1$s için bant genişliği %2$d gerekir</string>
+    <string name="hint_service_needs_ping">%1$s için bant genişliği %2$d ve en fazla %3$d ms ping gerekir</string>
+    <string name="device_wants">%1$s istiyor: %2$s</string>
+    <string name="problem_no_route">%1$s: %2$s – sunucuya giden yol yok</string>
+    <string name="problem_too_narrow">%1$s: %2$s – yeterince geniş kablo yok (bant genişliği %3$d)</string>
+    <string name="problem_ping">%1$s: %2$s – ping %3$d ms, izin verilen %4$d ms</string>
+    <string name="problem_jam">%1$s: %2$s – tıkanıklık, kablolar ya da sunucu dolu</string>
+    <string name="drag_too_narrow">%1$s için bant genişliği %2$d gerekir</string>
+    <string name="drag_ping">%1$s: ping %2$d/%3$d ms</string>
+    <string name="incident_more">%1$s (+%2$d)</string>
+    <!-- Accessibility (TalkBack) descriptions of the canvas-drawn HUD, docs/TOP100.md A7 -->
+    <string name="a11y_menu">Menü</string>
+    <string name="a11y_pause">Saati durdur</string>
+    <string name="a11y_compass">Haritayı kuzeye çevir</string>
+    <string name="a11y_recap" tools:ignore="PluralsCandidate">Hızlandırılmış: ağın, %1$d. haftadan %2$d. haftaya</string>
+    <string name="a11y_router">Router yerleştir (stokta: %1$d)</string>
+    <string name="a11y_access_point">Wi-Fi erişim noktası yerleştir (stokta: %1$d)</string>
+    <string name="a11y_cell_tower">Baz istasyonu yerleştir (stokta: %1$d)</string>
+    <string name="a11y_cable">Kablo: %1$s, kare başına fiyat: %2$d</string>
+    <string name="a11y_locked">kilitli</string>
+    <string name="a11y_map">Harita · düğüm: %1$d · kablo: %2$d. Kablo döşemek için bir düğümden diğerine sürükle.</string>
+    <!-- Retention (docs/TOP100.md C1, C2, C4, C5): daily challenge, achievements, modes, cosmetics -->
+    <string name="menu_daily">Günün görevi</string>
+    <string name="menu_achievements">Başarımlar</string>
+    <string name="daily_title">Günün görevi</string>
+    <string name="daily_scenery">%1$s · %2$s</string>
+    <string name="daily_rule">Günün kuralı: %1$s – %2$s</string>
+    <plurals name="daily_goal">
+        <item quantity="one">%1$d paket teslim et, gün serine sayılsın</item>
+        <item quantity="other">%1$d paket teslim et, gün serine sayılsın</item>
+    </plurals>
+    <string name="daily_done">Bugün tamamlandı · bugünün rekoru: %1$,d</string>
+    <plurals name="daily_streak">
+        <item quantity="one">Seri: %1$d gün · rekor: %2$d</item>
+        <item quantity="other">Seri: %1$d gün · rekor: %2$d</item>
+    </plurals>
+    <string name="daily_no_streak">Henüz seri yok · bugünün ilk turunu oyna</string>
+    <plurals name="daily_footer">
+        <item quantity="one">Herkes için aynı · yeni görev %1$d saat sonra</item>
+        <item quantity="other">Herkes için aynı · yeni görev %1$d saat sonra</item>
+    </plurals>
+    <string name="daily_start">Hadi başlayalım</string>
+    <string name="a11y_cable_free">Kablo: %1$s, ücretsiz</string>
+    <string name="hint_cable_info_free">%1$s: bant genişliği %2$d · kare başına %3$s ms</string>
+    <string name="hint_cable_upgraded_free">Kablo yükseltildi: %1$s</string>
+    <string name="hint_cable_remove_free">Kablo: %1$s · kaldırmak için tekrar dokun</string>
+    <string name="hint_cable_removed_free">Kablo kaldırıldı</string>
+    <string name="hint_daily_expired">Bu görevin günü bitti (UTC): Bu tur artık seriye ve günün rekoruna sayılmıyor. Yeni görev ana menüde seni bekliyor.</string>
+    <string name="daily_pause">Günün görevi · %1$s</string>
+    <plurals name="toast_daily_counted">
+        <item quantity="one">Günün görevi tamamlandı · seri: %1$d gün</item>
+        <item quantity="other">Günün görevi tamamlandı · seri: %1$d gün</item>
+    </plurals>
+    <string name="game_over_daily_best">Bugünün rekoru: %1$,d</string>
+    <string name="rule_tight_budget">Kemer sıkma</string>
+    <string name="rule_tight_budget_desc">başlangıçta daha az para, haftada yalnızca 40</string>
+    <string name="rule_rush_hour">Yoğun saat</string>
+    <string name="rule_rush_hour_desc">cihazlar daha sık istek gönderir</string>
+    <string name="rule_fiber_day">Fiber günü</string>
+    <string name="rule_fiber_day_desc">tüm kablolar baştan icat edilmiş</string>
+    <string name="rule_few_routers">Az router</string>
+    <string name="rule_few_routers_desc">başlangıçta tek router</string>
+    <string name="rule_storm">Fırtına</string>
+    <string name="rule_storm_desc">kepçeler ve kesintiler daha erken ve daha sık gelir</string>
+    <string name="rule_wide_land">Geniş topraklar</string>
+    <string name="rule_wide_land_desc">harita iki halka daha büyük başlar</string>
+    <string name="rule_crowd">Kalabalık</string>
+    <string name="rule_crowd_desc">daha çok yeni cihaz, ama aşırı yük daha yavaş dolar</string>
+
+    <string name="mode_normal">Normal</string>
+    <string name="mode_endless">Sonsuz</string>
+    <string name="mode_creative">Yaratıcı</string>
+    <string name="mode_pill">Mod: %1$s</string>
+    <string name="mode_endless_desc">Sonsuz: oyun bitmez – aşırı yük yalnızca çevreyi yavaşlatır</string>
+    <string name="mode_creative_desc">Yaratıcı: özgürce inşa et, sınırsız bütçe, her şey icat edilmiş</string>
+    <string name="pause_mode">%1$s · %2$s</string>
+    <string name="hud_resources_unlimited">Bütçe ∞  ·  Router ∞</string>
+    <string name="button_router_unlimited">Router (∞)</string>
+    <string name="button_access_point_unlimited">Wi-Fi (∞)</string>
+    <string name="button_cell_tower_unlimited">Baz (∞)</string>
+    <string name="a11y_unlimited">sınırsız</string>
+    <string name="hint_endless_jam">%1$s aşırı yüklendi: yakındaki cihazlar artık daha yavaş istek gönderiyor</string>
+    <string name="menu_best_endless">Sonsuz rekor: %1$,d</string>
+
+    <string name="achievements_title">Başarımlar ve görevler</string>
+    <string name="achievements_count" tools:ignore="PluralsCandidate">%1$d / %2$d kazanıldı</string>
+    <string name="ach_progress">%1$,d / %2$,d</string>
+    <string name="ach_reached">Kazanıldı</string>
+    <string name="ach_open">henüz açık</string>
+    <string name="ach_reward_skin">Ödül: kablo görünümü %1$s</string>
+    <string name="ach_reward_theme">Ödül: renk teması %1$s</string>
+    <string name="toast_achievement">Başarım: %1$s</string>
+    <string name="toast_new_skin">Yeni: kablo görünümü %1$s · ayarlarda</string>
+    <string name="toast_new_theme">Yeni: renk teması %1$s · ayarlarda</string>
+    <string name="ach_delivered_1">İlk paket</string>
+    <string name="ach_delivered_100">Postacı</string>
+    <string name="ach_delivered_1000">Dağıtım merkezi</string>
+    <string name="ach_delivered_10000">Omurga</string>
+    <string name="ach_game_100">İyi bağlantılı</string>
+    <string name="ach_game_300">Kavşak</string>
+    <string name="ach_game_600">Ağ operatörü</string>
+    <string name="ach_game_1000">Büyükşehir sağlayıcısı</string>
+    <string name="ach_week_5">Dayanıklı</string>
+    <string name="ach_week_10">On hafta çevrim içi</string>
+    <string name="ach_week_15">Hep açık</string>
+    <string name="ach_cables_10">Kablocu</string>
+    <string name="ach_cables_100">Altyapı ustası</string>
+    <string name="ach_cables_500">Kablo yumağı</string>
+    <string name="ach_fiber_1">Işık hızı</string>
+    <string name="ach_fiber_25">Fiber diyarı</string>
+    <string name="ach_upgrades_10">Yükseltici</string>
+    <string name="ach_routers_5">Dağıtıcı</string>
+    <string name="ach_routers_50">Router ormanı</string>
+    <string name="ach_server_1">Daha fazla güç</string>
+    <string name="ach_server_20">Sunucu çiftliği</string>
+    <string name="ach_data_center_1">Veri merkezi</string>
+    <string name="ach_access_points_3">Ölü bölge kalmadı</string>
+    <string name="ach_cell_towers_3">Yayındayız</string>
+    <string name="ach_repairs_5">Arıza ekibi</string>
+    <string name="ach_games_1">Hatalardan ders</string>
+    <string name="ach_games_10">Müdavim</string>
+    <string name="ach_games_50">Ağ gazisi</string>
+    <string name="ach_weeks_50">On yıllardır çevrim içi</string>
+    <string name="ach_sceneries_3">Dünya gezgini</string>
+    <string name="ach_streaming_500">Film gecesi</string>
+    <string name="ach_daily_1">Günlük mesai</string>
+    <string name="ach_daily_10">Günlük rutin</string>
+    <string name="ach_streak_3">Üst üste üç</string>
+    <string name="ach_streak_7">Üst üste bir hafta</string>
+    <string name="ach_endless_12">Sonsuza dek çevrim içi</string>
+    <string name="ach_creative_1">Serbest inşa</string>
+    <string name="ach_second_chance_1">İkinci şans</string>
+    <string name="ach_budget_300">Tutumlu</string>
+    <plurals name="ach_desc_delivered">
+        <item quantity="one">İlk paketini teslim et</item>
+        <item quantity="other">Toplam %1$,d paket teslim et</item>
+    </plurals>
+    <plurals name="ach_desc_best_game">
+        <item quantity="one">Tek oyunda %1$,d paket teslim et</item>
+        <item quantity="other">Tek oyunda %1$,d paket teslim et</item>
+    </plurals>
+    <plurals name="ach_desc_best_week">
+        <item quantity="one">Tek oyunda %1$d hafta dayan</item>
+        <item quantity="other">Tek oyunda %1$d hafta dayan</item>
+    </plurals>
+    <plurals name="ach_desc_cables">
+        <item quantity="one">%1$,d kablo döşe</item>
+        <item quantity="other">%1$,d kablo döşe</item>
+    </plurals>
+    <plurals name="ach_desc_fiber">
+        <item quantity="one">İlk fiber kablonu döşe</item>
+        <item quantity="other">%1$d fiber kablo döşe ya da yükselt</item>
+    </plurals>
+    <plurals name="ach_desc_cable_upgrades">
+        <item quantity="one">%1$d kablo yükselt</item>
+        <item quantity="other">%1$d kablo yükselt</item>
+    </plurals>
+    <plurals name="ach_desc_routers">
+        <item quantity="one">%1$d router yerleştir</item>
+        <item quantity="other">%1$d router yerleştir</item>
+    </plurals>
+    <plurals name="ach_desc_access_points">
+        <item quantity="one">%1$d Wi-Fi erişim noktası yerleştir</item>
+        <item quantity="other">%1$d Wi-Fi erişim noktası yerleştir</item>
+    </plurals>
+    <plurals name="ach_desc_cell_towers">
+        <item quantity="one">%1$d baz istasyonu kur</item>
+        <item quantity="other">%1$d baz istasyonu kur</item>
+    </plurals>
+    <plurals name="ach_desc_server_upgrades">
+        <item quantity="one">Bir sunucuyu yükselt</item>
+        <item quantity="other">Sunucuları %1$d kez yükselt</item>
+    </plurals>
+    <plurals name="ach_desc_data_centers">
+        <item quantity="one">Bir veri merkezi kur</item>
+        <item quantity="other">%1$d veri merkezi kur</item>
+    </plurals>
+    <plurals name="ach_desc_repairs">
+        <item quantity="one">%1$d kesik kablo onar</item>
+        <item quantity="other">%1$d kesik kablo onar</item>
+    </plurals>
+    <plurals name="ach_desc_games_finished">
+        <item quantity="one">Bir oyunu sonuna kadar oyna</item>
+        <item quantity="other">%1$d oyunu sonuna kadar oyna</item>
+    </plurals>
+    <plurals name="ach_desc_weeks_total">
+        <item quantity="one">Toplam %1$d hafta oyna</item>
+        <item quantity="other">Toplam %1$d hafta oyna</item>
+    </plurals>
+    <plurals name="ach_desc_sceneries">
+        <item quantity="one">%1$d manzarada oyna</item>
+        <item quantity="other">%1$d farklı manzarada oyna</item>
+    </plurals>
+    <plurals name="ach_desc_streaming">
+        <item quantity="one">%1$,d yayın teslim et</item>
+        <item quantity="other">%1$,d yayın teslim et</item>
+    </plurals>
+    <plurals name="ach_desc_daily_done">
+        <item quantity="one">Günün görevini bir kez tamamla</item>
+        <item quantity="other">Günün görevini %1$d kez tamamla</item>
+    </plurals>
+    <plurals name="ach_desc_best_streak">
+        <item quantity="one">Günün görevini %1$d gün üst üste tamamla</item>
+        <item quantity="other">Günün görevini %1$d gün üst üste tamamla</item>
+    </plurals>
+    <plurals name="ach_desc_endless_best_week">
+        <item quantity="one">Sonsuz modda %1$d. haftaya ulaş</item>
+        <item quantity="other">Sonsuz modda %1$d. haftaya ulaş</item>
+    </plurals>
+    <plurals name="ach_desc_creative_games">
+        <item quantity="one">Yaratıcı modda bir oyun başlat</item>
+        <item quantity="other">Yaratıcı modda %1$d oyun başlat</item>
+    </plurals>
+    <plurals name="ach_desc_second_chances">
+        <item quantity="one">Oyun bittikten sonra devam et</item>
+        <item quantity="other">Oyun bittikten sonra %1$d kez devam et</item>
+    </plurals>
+    <plurals name="ach_desc_richest">
+        <item quantity="one">Aynı anda %1$,d bütçen olsun</item>
+        <item quantity="other">Aynı anda %1$,d bütçen olsun</item>
+    </plurals>
+
+    <string name="settings_cable_skin">Kablolar: %1$s</string>
+    <string name="settings_color_theme">Tema: %1$s</string>
+    <string name="settings_appearance">Görünüm</string>
+    <string name="settings_cosmetics_unlocked">Açılan: görünüm %1$d/%2$d · tema %3$d/%4$d</string>
+    <string name="skin_classic">Klasik</string>
+    <string name="skin_copper">Bakır</string>
+    <string name="skin_neon">Neon</string>
+    <string name="skin_pastel">Pastel</string>
+    <string name="skin_gold">Altın</string>
+    <string name="theme_meadow">Çayır</string>
+    <string name="theme_autumn">Sonbahar</string>
+    <string name="theme_winter">Kış</string>
+    <string name="theme_desert">Çöl</string>
+    <!-- Play Games, rating and sharing (docs/TOP100.md C3, C6, D2) -->
+    <string name="menu_leaderboards">Liderlik tabloları</string>
+    <string name="game_over_share">Ağı paylaş</string>
+    <string name="share_chooser">Ağını paylaş</string>
+    <plurals name="share_text">
+        <item quantity="one">%1$s haritasındaki ağım: %2$s paket teslim edildi, %3$d yılına kadar. Daha iyisini yapabilir misin? #MiniNetworks</item>
+        <item quantity="other">%1$s haritasındaki ağım: %2$s paket teslim edildi, %3$d yılına kadar. Daha iyisini yapabilir misin? #MiniNetworks</item>
+    </plurals>
+    <plurals name="share_card_packets">
+        <item quantity="one">paket teslim edildi</item>
+        <item quantity="other">paket teslim edildi</item>
+    </plurals>
+    <string name="share_card_date">Yıl %1$d · %2$d. hafta</string>
+    <string name="share_card_daily">Günün görevi · %1$s</string>
+    <string name="share_card_tagline">Ağımı geçebilir misin?</string>
+    <plurals name="cloud_save_description">
+        <item quantity="one">%d paket teslim edildi</item>
+        <item quantity="other">%d paket teslim edildi</item>
+    </plurals>
+</resources>

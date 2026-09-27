@@ -1,0 +1,496 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- HUD -->
+    <string name="hud_date">%1$d · Settimana %2$d</string>
+    <plurals name="hud_delivered">
+        <item quantity="one">%1$d pacchetto</item>
+        <item quantity="many">%1$d pacchetti</item>
+        <item quantity="other">%1$d pacchetti</item>
+    </plurals>
+    <string name="hud_resources">Budget %1$d  ·  Router %2$d</string>
+    <string name="hud_clock_day">Giorno · %1$s</string>
+    <string name="hud_clock_night">Notte · %1$s · backup alle %2$s</string>
+    <string name="button_router">Router (%1$d)</string>
+    <string name="hint_place_router">Tocca una casella libera</string>
+    <string name="button_access_point">Wi-Fi (%1$d)</string>
+    <string name="button_cell_tower">Antenna (%1$d)</string>
+    <string name="hint_access_point">Tocca l’access point per cambiare canale · tieni premuto per i 5 GHz (%1$d)</string>
+    <string name="hint_channel">%1$s: canale %2$d</string>
+    <plurals name="hint_channel_interference">
+        <item quantity="one">%1$s: canale %2$d · interferisce con %3$d vicino</item>
+        <item quantity="many">%1$s: canale %2$d · interferisce con %3$d vicini</item>
+        <item quantity="other">%1$s: canale %2$d · interferisce con %3$d vicini</item>
+    </plurals>
+    <string name="hint_5ghz">%1$s ora trasmette a 5 GHz (raggio 1)</string>
+    <string name="wifi_error_already_5ghz">Trasmette già a 5 GHz</string>
+    <string name="wifi_error_no_budget">Budget insufficiente, i 5 GHz costano %1$d</string>
+    <string name="hint_map_grew">Il paese cresce: nuove caselle sul bordo</string>
+    <string name="server_error_max_level">Il data center è il livello massimo</string>
+    <string name="server_error_no_budget">Budget insufficiente, il potenziamento costa %1$d</string>
+    <string name="server_error_no_space">Un data center richiede 2×2 caselle libere accanto al server</string>
+    <string name="incident_excavator_warning">Arriva una ruspa: taglierà un cavo tra %1$d s</string>
+    <string name="incident_outage_warning">Blackout in arrivo: %1$s si spegne tra %2$d s</string>
+    <string name="incident_cut">Cavo tagliato: tocca per ripararlo (%1$d) · si ripara da solo tra %2$d s</string>
+    <string name="incident_outage">Blackout: %1$s senza corrente per altri %2$d s</string>
+    <string name="repair_error_no_budget">Budget insufficiente, la riparazione costa %1$d</string>
+    <string name="hint_repaired">Cavo riparato</string>
+    <plurals name="hud_vouchers">
+        <item quantity="one">%1$d buono server · tocca un server</item>
+        <item quantity="many">%1$d buoni server · tocca un server</item>
+        <item quantity="other">%1$d buoni server · tocca un server</item>
+    </plurals>
+
+    <!-- Names of game objects -->
+    <string name="service_mail">Email</string>
+    <string name="service_call">Chiamate</string>
+    <string name="service_gaming">Gaming</string>
+    <string name="service_streaming">Streaming</string>
+    <string name="service_video_call">Videochiamate</string>
+    <string name="service_camera_upload">Telecamere</string>
+    <string name="service_cloud_backup">Backup cloud</string>
+    <string name="device_pc">PC</string>
+    <string name="device_phone">Telefono</string>
+    <string name="device_laptop">Portatile</string>
+    <string name="device_console">Console</string>
+    <string name="device_smartphone">Smartphone</string>
+    <string name="device_tv">Smart TV</string>
+    <string name="device_tablet">Tablet</string>
+    <string name="device_watch">Smartwatch</string>
+    <string name="device_camera">Telecamera di sorveglianza</string>
+    <string name="device_smart_home">Hub smart home</string>
+    <string name="cable_isdn">ISDN</string>
+    <string name="cable_dsl">ADSL</string>
+    <string name="cable_coax">Coassiale</string>
+    <string name="cable_fiber">Fibra</string>
+    <string name="node_router">Router</string>
+    <string name="node_access_point">Access point Wi-Fi</string>
+    <string name="node_cell_tower">Antenna cellulare</string>
+    <string name="node_server">Server %1$s</string>
+
+    <!-- Week news and cable feedback -->
+    <string name="news_with_year">%1$d · %2$s</string>
+    <string name="news_items">Novità: %1$s</string>
+    <string name="list_separator">", "</string>
+    <string name="drag_cost">%1$s · %2$d</string>
+    <string name="connect_error_same_node">Stesso nodo</string>
+    <string name="connect_error_already_connected">Già collegati</string>
+    <string name="connect_error_not_invented">%1$s non ancora inventato</string>
+    <string name="connect_error_ports_full">%1$s: tutte le porte occupate</string>
+    <string name="connect_error_no_budget">Budget insufficiente</string>
+
+    <!-- Week rewards -->
+    <string name="reward_prompt">Paga settimanale: +%1$d · Tocca una carta per un extra</string>
+    <string name="reward_amount_plus">+%1$d</string>
+    <string name="reward_amount_voucher">Gratis</string>
+    <string name="reward_budget_title">Budget</string>
+    <string name="reward_budget_desc">Per nuovi cavi e potenziamenti</string>
+    <string name="reward_routers_title">Router</string>
+    <string name="reward_routers_desc">Distributori a 6 porte per la tua rete</string>
+    <string name="reward_voucher_title">Buono server</string>
+    <string name="reward_voucher_desc">Il prossimo potenziamento di un server è gratis</string>
+    <string name="reward_access_point_title">Access point Wi-Fi</string>
+    <string name="reward_access_point_desc">Collega senza cavi fino a 4 dispositivi vicini</string>
+    <string name="reward_cell_tower_title">Antenna cellulare</string>
+    <string name="reward_cell_tower_desc">Grande portata, ma solo per smartphone, tablet e smartwatch</string>
+
+    <!-- Menus -->
+    <string name="menu_tagline">Cabla la città – dal 1995 a oggi</string>
+    <string name="menu_play">Gioca</string>
+    <string name="menu_continue">Continua</string>
+    <string name="menu_settings">Impostazioni</string>
+    <string name="menu_best">Record: %1$d</string>
+    <string name="pause_title">Pausa</string>
+    <string name="pause_status">%1$s  ·  %2$s</string>
+    <string name="menu_resume">Riprendi</string>
+    <string name="menu_restart">Ricomincia</string>
+    <string name="menu_main">Menu principale</string>
+    <string name="menu_back">Indietro</string>
+    <string name="settings_sound">Audio</string>
+    <string name="settings_haptics">Vibrazione</string>
+    <string name="settings_overview">Vista piatta</string>
+    <string name="settings_free_rotation">Rotazione libera</string>
+    <string name="settings_colorblind">Daltonismo</string>
+    <string name="settings_language">La lingua segue quella del sistema</string>
+
+    <!-- Game over -->
+    <string name="game_over_title">Rete sovraccarica</string>
+    <plurals name="game_over_stats">
+        <item quantity="one">%1$d pacchetto consegnato · settimana %2$d</item>
+        <item quantity="many">%1$d pacchetti consegnati · settimana %2$d</item>
+        <item quantity="other">%1$d pacchetti consegnati · settimana %2$d</item>
+    </plurals>
+    <string name="game_over_best">Record: %1$d</string>
+    <string name="game_over_new_best">Nuovo record!</string>
+    <string name="game_over_again">Rigioca</string>
+
+    <!-- Sceneries -->
+    <string name="scenery_title">Scegli uno scenario</string>
+    <string name="scenery_river_town">Paese sul fiume</string>
+    <string name="scenery_metropolis">Metropoli</string>
+    <string name="scenery_island_harbor">Isola e porto</string>
+    <string name="scenery_mountain_village">Borgo di montagna</string>
+    <string name="scenery_future_2030">Futuro 2030</string>
+    <string name="scenery_river_town_desc">Un fiume · per iniziare</string>
+    <string name="scenery_metropolis_desc">Due fiumi · i grattacieli disturbano la radio</string>
+    <string name="scenery_island_harbor_desc">Tanta acqua · cavo sottomarino e radio</string>
+    <string name="scenery_mountain_village_desc">Le montagne bloccano la radio · valichi costosi</string>
+    <string name="scenery_future_2030_desc">6G ovunque · server in orbita</string>
+    <string name="scenery_from_year">dal %1$d</string>
+    <string name="scenery_not_played">Non ancora giocato</string>
+    <plurals name="scenery_progress">
+        <item quantity="one">%1$,d / %2$,d pacchetto</item>
+        <item quantity="many">%1$,d / %2$,d pacchetti</item>
+        <item quantity="other">%1$,d / %2$,d pacchetti</item>
+    </plurals>
+    <string name="scenery_progress_in">in %1$s</string>
+    <string name="scenery_shop">Nel negozio</string>
+    <string name="scenery_shop_pack">singolo o nel pacchetto</string>
+    <plurals name="scenery_hint_score">
+        <item quantity="one">Consegna %1$,d pacchetto in %2$s o acquista lo scenario</item>
+        <item quantity="many">Consegna %1$,d pacchetti in %2$s o acquista lo scenario</item>
+        <item quantity="other">Consegna %1$,d pacchetti in %2$s o acquista lo scenario</item>
+    </plurals>
+    <string name="scenery_hint_no_shop">Il negozio non è raggiungibile al momento</string>
+
+    <!-- Tutorial -->
+    <string name="tutorial_kicker">TUTORIAL · %1$d/%2$d</string>
+    <string name="tutorial_skip">Salta</string>
+    <string name="tutorial_play">Gioca</string>
+    <string name="tutorial_pause">Tutorial · passo %1$d/%2$d</string>
+    <string name="settings_tutorial">Rivedi il tutorial</string>
+    <string name="tutorial_cable_title">Posa un cavo</string>
+    <string name="tutorial_cable_text">Il PC vuole inviare un’email. Trascina il dito dal PC al server email.</string>
+    <string name="tutorial_router_title">Piazza un router</string>
+    <string name="tutorial_router_text">Un dispositivo ha solo 2 porte, un router ne ha 6. Tocca “Router” in basso, poi una casella libera vicino ai telefoni.</string>
+    <string name="tutorial_router_connect_text">Ora collega i due telefoni e il server delle chiamate al router. Smisterà lui le chiamate.</string>
+    <string name="tutorial_bandwidth_title">Banda</string>
+    <string name="tutorial_bandwidth_text">1998: la TV vuole lo streaming. Collegala al server streaming.</string>
+    <string name="tutorial_bandwidth_narrow_text">Troppo stretto! Lo streaming richiede banda %1$d, l’ISDN ne porta solo %2$d. Scegli l’ADSL in basso, porta %3$d.</string>
+    <string name="tutorial_bandwidth_upgrade_text">Ora tocca il cavo ISDN per potenziarlo ad ADSL. Paghi solo la differenza.</string>
+    <string name="tutorial_ping_title">Ping</string>
+    <string name="tutorial_ping_text">2010: il PC vuole giocare online. Il gaming richiede un ping basso, al massimo %1$d ms andata e ritorno. Collega il PC al server di gioco.</string>
+    <string name="tutorial_ping_slow_text">Ping di %1$d ms: troppo lento per il gaming (massimo %2$d ms). Solo la fibra è abbastanza veloce. Scegli la fibra e tocca il cavo.</string>
+    <string name="tutorial_overload_title">Sovraccarico</string>
+    <plurals name="tutorial_overload_text">
+        <item quantity="one">Un nuovo PC senza collegamento! Da %1$d richiesta in attesa si riempie un anello rosso. Quando si chiude, la partita è finita. Collega il PC!</item>
+        <item quantity="many">Un nuovo PC senza collegamento! Da %1$d richieste in attesa si riempie un anello rosso. Quando si chiude, la partita è finita. Collega il PC!</item>
+        <item quantity="other">Un nuovo PC senza collegamento! Da %1$d richieste in attesa si riempie un anello rosso. Quando si chiude, la partita è finita. Collega il PC!</item>
+    </plurals>
+    <string name="tutorial_done_title">Ce l’hai fatta!</string>
+    <string name="tutorial_done_text">Ora conosci le basi. Consigli: tocca un server per potenziarlo, tocca due volte un cavo per rimuoverlo, e la pausa ferma l’orologio mentre continui a costruire. Buon divertimento!</string>
+    <!-- Monetization (docs/PLAN.md 5.1) -->
+    <string name="menu_remove_ads">Zero annunci · %1$s</string>
+    <string name="settings_privacy">Privacy</string>
+    <string name="game_over_continue_ad">Continua · guarda un video</string>
+    <string name="game_over_continue">Continua a giocare</string>
+    <string name="reward_bonus_router_ad">+1 router · guarda un video</string>
+    <string name="reward_bonus_router">+1 router extra</string>
+    <string name="hint_bonus_router">+1 router</string>
+    <string name="hint_continued">Anelli di sovraccarico svuotati · una volta per partita</string>
+    <string name="scenery_pack_buy">Tutti gli scenari · %1$s</string>
+
+    <!-- Controls feedback -->
+    <string name="hud_paused">In pausa · continua a costruire</string>
+    <string name="hint_cable_info">%1$s: banda %2$d · %3$s ms per casella · %4$d per casella</string>
+    <string name="hint_cable_too_narrow">troppo stretto per %1$s</string>
+    <string name="hint_cable_upgraded">Cavo potenziato a %1$s · −%2$d</string>
+    <string name="cable_error_no_budget">Budget insufficiente, il potenziamento costa %1$d</string>
+    <string name="hint_cable_remove">Cavo %1$s · tocca di nuovo per rimuoverlo (+%2$d)</string>
+    <string name="hint_cable_removed">Cavo rimosso, rimborso: +%1$d</string>
+    <string name="place_error_no_stock">Esaurito: %1$s</string>
+    <string name="place_error_locked">Questa casella non è ancora disponibile</string>
+    <string name="place_error_occupied">Questa casella è già occupata</string>
+    <string name="place_error_terrain">Solo su terreno libero</string>
+    <string name="hint_router_pick_up">Router senza cavi · tocca di nuovo per rimetterlo in magazzino</string>
+    <string name="hint_router_picked_up">Router di nuovo in magazzino</string>
+    <string name="server_tier">livello %1$d</string>
+    <string name="server_tier_data_center">data center</string>
+    <string name="hint_server_preview">%1$s → %2$s per %3$d · tocca di nuovo</string>
+    <string name="hint_server_preview_voucher">%1$s → %2$s con un buono · tocca di nuovo</string>
+    <string name="hint_server_upgraded">%1$s ora: %2$s</string>
+    <string name="hint_server_busy">%1$s non ce la fa: toccalo per potenziarlo</string>
+    <string name="hint_radio_reward">Novità: %1$s – si vince come premio settimanale</string>
+    <string name="hint_service_needs">%1$s richiede banda %2$d</string>
+    <string name="hint_service_needs_ping">%1$s richiede banda %2$d e un ping di al massimo %3$d ms</string>
+    <string name="device_wants">%1$s vuole: %2$s</string>
+    <string name="problem_no_route">%1$s: %2$s – nessun percorso verso un server</string>
+    <string name="problem_too_narrow">%1$s: %2$s – nessun cavo abbastanza largo (banda %3$d)</string>
+    <string name="problem_ping">%1$s: %2$s – ping %3$d ms, consentiti %4$d ms</string>
+    <string name="problem_jam">%1$s: %2$s – ingorgo, cavi o server troppo pieni</string>
+    <string name="drag_too_narrow">%1$s richiede banda %2$d</string>
+    <string name="drag_ping">%1$s: ping %2$d/%3$d ms</string>
+    <string name="incident_more">%1$s (+%2$d)</string>
+    <!-- Accessibility (TalkBack) descriptions of the canvas-drawn HUD, docs/TOP100.md A7 -->
+    <string name="a11y_menu">Menu</string>
+    <string name="a11y_pause">Ferma l’orologio</string>
+    <string name="a11y_compass">Riporta la mappa a nord</string>
+    <string name="a11y_recap" tools:ignore="PluralsCandidate">Time-lapse: la tua rete dalla settimana %1$d alla settimana %2$d</string>
+    <string name="a11y_router">Piazza router (disponibili: %1$d)</string>
+    <string name="a11y_access_point">Piazza access point Wi-Fi (disponibili: %1$d)</string>
+    <string name="a11y_cell_tower">Piazza antenna cellulare (disponibili: %1$d)</string>
+    <string name="a11y_cable">Cavo %1$s, prezzo per casella: %2$d</string>
+    <string name="a11y_locked">bloccato</string>
+    <string name="a11y_map">Mappa · nodi: %1$d · cavi: %2$d. Per posare un cavo trascina da un nodo all’altro.</string>
+    <!-- Retention (docs/TOP100.md C1, C2, C4, C5): daily challenge, achievements, modes, cosmetics -->
+    <string name="menu_daily">Sfida del giorno</string>
+    <string name="menu_achievements">Obiettivi</string>
+    <string name="daily_title">Sfida del giorno</string>
+    <string name="daily_scenery">%1$s · %2$s</string>
+    <string name="daily_rule">Regola del giorno: %1$s – %2$s</string>
+    <plurals name="daily_goal">
+        <item quantity="one">Consegna %1$d pacchetto e il giorno conta per la tua serie</item>
+        <item quantity="many">Consegna %1$d pacchetti e il giorno conta per la tua serie</item>
+        <item quantity="other">Consegna %1$d pacchetti e il giorno conta per la tua serie</item>
+    </plurals>
+    <string name="daily_done">Fatto oggi · record di oggi: %1$,d</string>
+    <plurals name="daily_streak">
+        <item quantity="one">Serie: %1$d giorno · record: %2$d</item>
+        <item quantity="many">Serie: %1$d giorni · record: %2$d</item>
+        <item quantity="other">Serie: %1$d giorni · record: %2$d</item>
+    </plurals>
+    <string name="daily_no_streak">Ancora nessuna serie · gioca oggi il primo round</string>
+    <plurals name="daily_footer">
+        <item quantity="one">Uguale per tutti · nuova sfida tra %1$d ora</item>
+        <item quantity="many">Uguale per tutti · nuova sfida tra %1$d ore</item>
+        <item quantity="other">Uguale per tutti · nuova sfida tra %1$d ore</item>
+    </plurals>
+    <string name="daily_start">Si parte</string>
+    <string name="a11y_cable_free">Cavo %1$s, gratis</string>
+    <string name="hint_cable_info_free">%1$s: banda %2$d · %3$s ms per casella</string>
+    <string name="hint_cable_upgraded_free">Cavo potenziato a %1$s</string>
+    <string name="hint_cable_remove_free">Cavo %1$s · tocca di nuovo per rimuoverlo</string>
+    <string name="hint_cable_removed_free">Cavo rimosso</string>
+    <string name="hint_daily_expired">Il giorno di questa sfida è finito (UTC): la partita non conta più per la serie né per il record del giorno. La nuova sfida ti aspetta nel menu principale.</string>
+    <string name="daily_pause">Sfida del giorno · %1$s</string>
+    <plurals name="toast_daily_counted">
+        <item quantity="one">Sfida del giorno completata · serie: %1$d giorno</item>
+        <item quantity="many">Sfida del giorno completata · serie: %1$d giorni</item>
+        <item quantity="other">Sfida del giorno completata · serie: %1$d giorni</item>
+    </plurals>
+    <string name="game_over_daily_best">Record di oggi: %1$,d</string>
+    <string name="rule_tight_budget">Risparmio</string>
+    <string name="rule_tight_budget_desc">meno soldi all’inizio, solo 40 a settimana</string>
+    <string name="rule_rush_hour">Ora di punta</string>
+    <string name="rule_rush_hour_desc">i dispositivi chiedono più spesso</string>
+    <string name="rule_fiber_day">Giornata della fibra</string>
+    <string name="rule_fiber_day_desc">tutti i cavi sono già inventati</string>
+    <string name="rule_few_routers">Pochi router</string>
+    <string name="rule_few_routers_desc">un solo router all’inizio</string>
+    <string name="rule_storm">Maltempo</string>
+    <string name="rule_storm_desc">ruspe e blackout arrivano prima e più spesso</string>
+    <string name="rule_wide_land">Terre ampie</string>
+    <string name="rule_wide_land_desc">la mappa parte due anelli più grande</string>
+    <string name="rule_crowd">Folla</string>
+    <string name="rule_crowd_desc">più dispositivi nuovi, ma il sovraccarico sale più piano</string>
+
+    <string name="mode_normal">Normale</string>
+    <string name="mode_endless">Infinita</string>
+    <string name="mode_creative">Creativa</string>
+    <string name="mode_pill">Modalità: %1$s</string>
+    <string name="mode_endless_desc">Infinita: niente game over – il sovraccarico rallenta solo la zona</string>
+    <string name="mode_creative_desc">Creativa: costruisci liberamente, budget illimitato, tutto inventato</string>
+    <string name="pause_mode">%1$s · %2$s</string>
+    <string name="hud_resources_unlimited">Budget ∞  ·  Router ∞</string>
+    <string name="button_router_unlimited">Router (∞)</string>
+    <string name="button_access_point_unlimited">Wi-Fi (∞)</string>
+    <string name="button_cell_tower_unlimited">Antenna (∞)</string>
+    <string name="a11y_unlimited">illimitato</string>
+    <string name="hint_endless_jam">%1$s è sovraccarico: i dispositivi vicini ora chiedono più piano</string>
+    <string name="menu_best_endless">Record infinita: %1$,d</string>
+
+    <string name="achievements_title">Obiettivi e missioni</string>
+    <string name="achievements_count" tools:ignore="PluralsCandidate">%1$d / %2$d raggiunti</string>
+    <string name="ach_progress">%1$,d / %2$,d</string>
+    <string name="ach_reached">Raggiunto</string>
+    <string name="ach_open">non ancora raggiunto</string>
+    <string name="ach_reward_skin">Premio: skin cavi %1$s</string>
+    <string name="ach_reward_theme">Premio: tema colori %1$s</string>
+    <string name="toast_achievement">Obiettivo: %1$s</string>
+    <string name="toast_new_skin">Nuovo: skin cavi %1$s · nelle impostazioni</string>
+    <string name="toast_new_theme">Nuovo: tema colori %1$s · nelle impostazioni</string>
+    <string name="ach_delivered_1">Primo pacchetto</string>
+    <string name="ach_delivered_100">Postino</string>
+    <string name="ach_delivered_1000">Centro di smistamento</string>
+    <string name="ach_delivered_10000">Dorsale</string>
+    <string name="ach_game_100">Ben collegato</string>
+    <string name="ach_game_300">Snodo</string>
+    <string name="ach_game_600">Operatore di rete</string>
+    <string name="ach_game_1000">Provider della metropoli</string>
+    <string name="ach_week_5">Tenace</string>
+    <string name="ach_week_10">Dieci settimane online</string>
+    <string name="ach_week_15">Sempre acceso</string>
+    <string name="ach_cables_10">Portacavi</string>
+    <string name="ach_cables_100">Scavatore</string>
+    <string name="ach_cables_500">Groviglio di cavi</string>
+    <string name="ach_fiber_1">Velocità della luce</string>
+    <string name="ach_fiber_25">Terra della fibra</string>
+    <string name="ach_upgrades_10">Potenziatore</string>
+    <string name="ach_routers_5">Smistatore</string>
+    <string name="ach_routers_50">Foresta di router</string>
+    <string name="ach_server_1">Più potenza</string>
+    <string name="ach_server_20">Server farm</string>
+    <string name="ach_data_center_1">Data center</string>
+    <string name="ach_access_points_3">Addio zone morte</string>
+    <string name="ach_cell_towers_3">In onda</string>
+    <string name="ach_repairs_5">Pronto intervento</string>
+    <string name="ach_games_1">Sbagliando s’impara</string>
+    <string name="ach_games_10">Habitué</string>
+    <string name="ach_games_50">Veterano della rete</string>
+    <string name="ach_weeks_50">Decenni in rete</string>
+    <string name="ach_sceneries_3">Giramondo</string>
+    <string name="ach_streaming_500">Serata film</string>
+    <string name="ach_daily_1">Lavoro del giorno</string>
+    <string name="ach_daily_10">Routine quotidiana</string>
+    <string name="ach_streak_3">Tre di fila</string>
+    <string name="ach_streak_7">Una settimana di fila</string>
+    <string name="ach_endless_12">Online all’infinito</string>
+    <string name="ach_creative_1">Costruzione libera</string>
+    <string name="ach_second_chance_1">Seconda possibilità</string>
+    <string name="ach_budget_300">Risparmiatore</string>
+    <plurals name="ach_desc_delivered">
+        <item quantity="one">Consegna il tuo primo pacchetto</item>
+        <item quantity="many">Consegna %1$,d pacchetti in totale</item>
+        <item quantity="other">Consegna %1$,d pacchetti in totale</item>
+    </plurals>
+    <plurals name="ach_desc_best_game">
+        <item quantity="one">Consegna %1$,d pacchetto in una partita</item>
+        <item quantity="many">Consegna %1$,d pacchetti in una partita</item>
+        <item quantity="other">Consegna %1$,d pacchetti in una partita</item>
+    </plurals>
+    <plurals name="ach_desc_best_week">
+        <item quantity="one">Resisti %1$d settimana in una partita</item>
+        <item quantity="many">Resisti %1$d settimane in una partita</item>
+        <item quantity="other">Resisti %1$d settimane in una partita</item>
+    </plurals>
+    <plurals name="ach_desc_cables">
+        <item quantity="one">Posa %1$,d cavo</item>
+        <item quantity="many">Posa %1$,d cavi</item>
+        <item quantity="other">Posa %1$,d cavi</item>
+    </plurals>
+    <plurals name="ach_desc_fiber">
+        <item quantity="one">Posa il tuo primo cavo in fibra</item>
+        <item quantity="many">Posa o potenzia %1$d cavi in fibra</item>
+        <item quantity="other">Posa o potenzia %1$d cavi in fibra</item>
+    </plurals>
+    <plurals name="ach_desc_cable_upgrades">
+        <item quantity="one">Potenzia %1$d cavo</item>
+        <item quantity="many">Potenzia %1$d cavi</item>
+        <item quantity="other">Potenzia %1$d cavi</item>
+    </plurals>
+    <plurals name="ach_desc_routers">
+        <item quantity="one">Piazza %1$d router</item>
+        <item quantity="many">Piazza %1$d router</item>
+        <item quantity="other">Piazza %1$d router</item>
+    </plurals>
+    <plurals name="ach_desc_access_points">
+        <item quantity="one">Piazza %1$d access point Wi-Fi</item>
+        <item quantity="many">Piazza %1$d access point Wi-Fi</item>
+        <item quantity="other">Piazza %1$d access point Wi-Fi</item>
+    </plurals>
+    <plurals name="ach_desc_cell_towers">
+        <item quantity="one">Piazza %1$d antenna cellulare</item>
+        <item quantity="many">Piazza %1$d antenne cellulari</item>
+        <item quantity="other">Piazza %1$d antenne cellulari</item>
+    </plurals>
+    <plurals name="ach_desc_server_upgrades">
+        <item quantity="one">Potenzia un server</item>
+        <item quantity="many">Potenzia server %1$d volte</item>
+        <item quantity="other">Potenzia server %1$d volte</item>
+    </plurals>
+    <plurals name="ach_desc_data_centers">
+        <item quantity="one">Costruisci un data center</item>
+        <item quantity="many">Costruisci %1$d data center</item>
+        <item quantity="other">Costruisci %1$d data center</item>
+    </plurals>
+    <plurals name="ach_desc_repairs">
+        <item quantity="one">Ripara %1$d cavo tagliato</item>
+        <item quantity="many">Ripara %1$d cavi tagliati</item>
+        <item quantity="other">Ripara %1$d cavi tagliati</item>
+    </plurals>
+    <plurals name="ach_desc_games_finished">
+        <item quantity="one">Gioca una partita fino alla fine</item>
+        <item quantity="many">Gioca %1$d partite fino alla fine</item>
+        <item quantity="other">Gioca %1$d partite fino alla fine</item>
+    </plurals>
+    <plurals name="ach_desc_weeks_total">
+        <item quantity="one">Gioca %1$d settimana in totale</item>
+        <item quantity="many">Gioca %1$d settimane in totale</item>
+        <item quantity="other">Gioca %1$d settimane in totale</item>
+    </plurals>
+    <plurals name="ach_desc_sceneries">
+        <item quantity="one">Gioca %1$d scenario</item>
+        <item quantity="many">Gioca %1$d scenari diversi</item>
+        <item quantity="other">Gioca %1$d scenari diversi</item>
+    </plurals>
+    <plurals name="ach_desc_streaming">
+        <item quantity="one">Consegna %1$,d stream</item>
+        <item quantity="many">Consegna %1$,d stream</item>
+        <item quantity="other">Consegna %1$,d stream</item>
+    </plurals>
+    <plurals name="ach_desc_daily_done">
+        <item quantity="one">Completa una sfida del giorno</item>
+        <item quantity="many">Completa %1$d sfide del giorno</item>
+        <item quantity="other">Completa %1$d sfide del giorno</item>
+    </plurals>
+    <plurals name="ach_desc_best_streak">
+        <item quantity="one">Completa la sfida del giorno %1$d giorno di fila</item>
+        <item quantity="many">Completa la sfida del giorno %1$d giorni di fila</item>
+        <item quantity="other">Completa la sfida del giorno %1$d giorni di fila</item>
+    </plurals>
+    <plurals name="ach_desc_endless_best_week">
+        <item quantity="one">Raggiungi la settimana %1$d in modalità infinita</item>
+        <item quantity="many">Raggiungi la settimana %1$d in modalità infinita</item>
+        <item quantity="other">Raggiungi la settimana %1$d in modalità infinita</item>
+    </plurals>
+    <plurals name="ach_desc_creative_games">
+        <item quantity="one">Inizia una partita in modalità creativa</item>
+        <item quantity="many">Inizia %1$d partite in modalità creativa</item>
+        <item quantity="other">Inizia %1$d partite in modalità creativa</item>
+    </plurals>
+    <plurals name="ach_desc_second_chances">
+        <item quantity="one">Continua a giocare dopo un game over</item>
+        <item quantity="many">Continua a giocare dopo un game over %1$d volte</item>
+        <item quantity="other">Continua a giocare dopo un game over %1$d volte</item>
+    </plurals>
+    <plurals name="ach_desc_richest">
+        <item quantity="one">Accumula %1$,d di budget</item>
+        <item quantity="many">Accumula %1$,d di budget</item>
+        <item quantity="other">Accumula %1$,d di budget</item>
+    </plurals>
+
+    <string name="settings_cable_skin">Cavi: %1$s</string>
+    <string name="settings_color_theme">Tema: %1$s</string>
+    <string name="settings_appearance">Aspetto</string>
+    <string name="settings_cosmetics_unlocked">Sbloccati: skin %1$d/%2$d · temi %3$d/%4$d</string>
+    <string name="skin_classic">Classico</string>
+    <string name="skin_copper">Rame</string>
+    <string name="skin_neon">Neon</string>
+    <string name="skin_pastel">Pastello</string>
+    <string name="skin_gold">Oro</string>
+    <string name="theme_meadow">Prato</string>
+    <string name="theme_autumn">Autunno</string>
+    <string name="theme_winter">Inverno</string>
+    <string name="theme_desert">Deserto</string>
+    <!-- Play Games, rating and sharing (docs/TOP100.md C3, C6, D2) -->
+    <string name="menu_leaderboards">Classifiche</string>
+    <string name="game_over_share">Condividi la rete</string>
+    <string name="share_chooser">Condividi la tua rete</string>
+    <plurals name="share_text">
+        <item quantity="one">La mia rete in %1$s: %2$s pacchetto consegnato, fino al %3$d. Sai fare di meglio? #MiniNetworks</item>
+        <item quantity="many">La mia rete in %1$s: %2$s pacchetti consegnati, fino al %3$d. Sai fare di meglio? #MiniNetworks</item>
+        <item quantity="other">La mia rete in %1$s: %2$s pacchetti consegnati, fino al %3$d. Sai fare di meglio? #MiniNetworks</item>
+    </plurals>
+    <plurals name="share_card_packets">
+        <item quantity="one">pacchetto consegnato</item>
+        <item quantity="many">pacchetti consegnati</item>
+        <item quantity="other">pacchetti consegnati</item>
+    </plurals>
+    <string name="share_card_date">Anno %1$d · Settimana %2$d</string>
+    <string name="share_card_daily">Sfida del giorno · %1$s</string>
+    <string name="share_card_tagline">Riesci a battere la mia rete?</string>
+    <plurals name="cloud_save_description">
+        <item quantity="one">%d pacchetto consegnato</item>
+        <item quantity="many">%d pacchetti consegnati</item>
+        <item quantity="other">%d pacchetti consegnati</item>
+    </plurals>
+</resources>

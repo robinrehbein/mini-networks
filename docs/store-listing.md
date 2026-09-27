@@ -1,5 +1,9 @@
 # Mini Networks – Store-Eintrag
 
+> **Stand T8 (docs/TOP100.md F2–F4):** Die gültigen Store-Texte für alle 12 Sprachen, die Screenshots, die
+> Feature-Grafik und das Trailer-Storyboard liegen in `docs/store/` (Übersicht `docs/store/README.md`). Diese Datei
+> bleibt als Hintergrund (Richtlinien, Feature-Liste, ursprünglicher Screenshot-Plan).
+
 Texte für die Play Console (Hauptsprache Deutsch, Übersetzung Englisch). Grenzen: Titel 30 Zeichen, Kurzbeschreibung
 80, ausführliche Beschreibung 4000. Keine Superlative ohne Beleg („bestes Spiel“), keine Preis- oder Ranking-Aussagen,
 keine Emojis im Titel (Play-Richtlinie Metadaten). Der Name folgt `app_name`; ändert sich der, hier mitziehen.
@@ -89,7 +93,7 @@ Wire up a growing town – from 1995 dial-up to today's fibre.
 | Asset | Vorgabe Play | Stand |
 |---|---|---|
 | App-Symbol | 512 × 512 PNG, 32 Bit, ≤ 1 MB, Play maskiert selbst | `docs/screenshots/store-icon-512.png` (aus dem adaptiven Launcher-Icon gerendert, `ScreenshotTest.renderLauncherIcon`) |
-| Feature-Grafik | 1024 × 500 PNG/JPG, ohne Alpha | offen: Iso-Stadt links (Ausschnitt aus `iso-polish.png`), rechts Schriftzug „Mini Networks“ auf dem Dämmerungsblau des Icons; nichts Wichtiges in den äußeren 10 % |
+| Feature-Grafik | 1024 × 500 PNG/JPG, ohne Alpha | `docs/store/feature-graphic.png` (StoreScreenshotTest.featureGraphic); ursprünglicher Plan: Iso-Stadt links (Ausschnitt aus `iso-polish.png`), rechts Schriftzug „Mini Networks“ auf dem Dämmerungsblau des Icons; nichts Wichtiges in den äußeren 10 % |
 | Screenshots Telefon | 2–8, 16:9 oder 9:16, 320–3840 px, Seitenverhältnis ≤ 2:1 | Plan unten |
 | Screenshots Tablet 7"/10" | optional, empfohlen für „Für Tablets entwickelt“ | dieselben Motive in 1920 × 1200 |
 

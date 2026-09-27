@@ -121,8 +121,8 @@ class AccessibleLayoutTest {
      */
     @Test
     fun settingsLabelsAreNeverCutInEveryFormat() = everywhere { size, german, bmp ->
-        // German and English, each with the longest cosmetic names unlocked and picked.
-        for (lang in listOf("de", "en")) {
+        // Every language (docs/TOP100.md F1), each with the longest cosmetic names unlocked and picked.
+        for (lang in LANGUAGES) {
             RuntimeEnvironment.setQualifiers("+$lang")
             val view = if (lang == "de") german else GameView(app).also { it.accessibilityLayer.forceActive = true }
             view.monetization = FakeMonetization(privacyOptionsRequired = true)
@@ -144,6 +144,32 @@ class AccessibleLayoutTest {
             Cosmetic.reset()
         }
         RuntimeEnvironment.setQualifiers("+de")
+    }
+
+    /**
+     * docs/TOP100.md F1: no label of the main menu, the daily challenge's card, the pause menu and the game-over card is
+     * cut with "…" in any of the 12 languages, in every format at normal text size.
+     */
+    @Test
+    fun menuLabelsAreNeverCutInAnyLanguage() {
+        val cuts = ArrayList<String>()
+        for (lang in LANGUAGES) for (size in sizes) {
+            RuntimeEnvironment.setQualifiers("$lang-${size.qualifiers}")
+            val view = GameView(app)
+            view.accessibilityLayer.forceActive = true
+            view.monetization = FakeMonetization(prices = mapOf(Entitlements.REMOVE_ADS to "2,99 €"), privacyOptionsRequired = true)
+            view.gameServices = FakeGameServices()
+            val bmp = Bitmap.createBitmap(size.width, size.height, Bitmap.Config.ARGB_8888)
+            val game = FormFactorScreenshotTest.busyHud()
+            for (screen in listOf(null, Screen.DAILY, Screen.PAUSED, Screen.GAME_OVER)) {
+                bmp.eraseColor(0)
+                val world = if (screen == null || screen == Screen.DAILY) view.currentWorld else game
+                view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 1.3f, style = "Iso", screen = screen)
+                view.accessibilityLayer.nodes.filter { it.shortened }.forEach { cuts += "$lang, ${size.id}, ${screen ?: "MAIN"}: ${it.text}" }
+            }
+        }
+        RuntimeEnvironment.setQualifiers("de")
+        assertTrue("labels cut with …:\n${cuts.joinToString("\n")}", cuts.isEmpty())
     }
 
     @Test
@@ -194,6 +220,42 @@ class AccessibleLayoutTest {
         SettingsStore(app).tutorialSeen = true
     }
 
+    /**
+     * docs/TOP100.md F1: in every language the HUD (with the paused banner and a long hint), the week reward and the
+     * tutorial keep their elements apart, inside the screen and at least 48 dp, in every format at text size 1.0 and 2.0.
+     */
+    @Test
+    fun hudRewardAndTutorialStayApartInEveryLanguage() {
+        for (lang in LANGUAGES) {
+            RuntimeEnvironment.setQualifiers(lang)
+            everywhere { size, view, bmp ->
+                val where = "$lang, $size"
+                val world = FormFactorScreenshotTest.busyHud()
+                view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 1.3f, style = "Iso")
+                check(where, "hud", view.accessibilityLayer.nodes.filter { it.key != "hud:map" }, expectedActions = 9)
+                view.accessibilityLayer.performAction(view.accessibilityLayer.idOf("hud:pause"), android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK, null)
+                view.accessibilityLayer.performAction(view.accessibilityLayer.idOf("hud:cable:FIBER"), android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK, null)
+                view.advance(0f)
+                view.drawCurrent(Canvas(bmp))
+                check(where, "hud-paused", view.accessibilityLayer.nodes.filter { it.key != "hud:map" }, expectedActions = 9)
+                val reward = GameView(app).also { it.accessibilityLayer.forceActive = true; it.monetization = FakeMonetization(owned = mutableSetOf(Entitlements.REMOVE_ADS)) }
+                bmp.eraseColor(0)
+                reward.drawSnapshot(Canvas(bmp), FormFactorScreenshotTest.rewardWorld(), bmp.width, bmp.height, time = 1.3f, style = "Iso")
+                check(where, "reward", reward.accessibilityLayer.nodes, expectedActions = 4)
+                SettingsStore(app).tutorialSeen = false
+                val tutorial = GameView(app).also { it.accessibilityLayer.forceActive = true }
+                val w = tutorial.currentTutorial!!.world
+                bmp.eraseColor(0)
+                tutorial.drawSnapshot(Canvas(bmp), w, bmp.width, bmp.height, time = 0.3f, screen = null)
+                tutorial.advance(0.5f)
+                tutorial.drawCurrent(Canvas(bmp))
+                check(where, "tutorial", tutorial.accessibilityLayer.nodes.filter { it.key != "hud:map" }, expectedActions = 5)
+                SettingsStore(app).tutorialSeen = true
+            }
+        }
+        RuntimeEnvironment.setQualifiers("de")
+    }
+
     /** Runs [body] with a fresh view for every size at font scale 1.0 and 2.0. */
     private fun everywhere(body: (String, GameView, Bitmap) -> Unit) {
         for (size in sizes) for (font in listOf(1f, 2f)) {
@@ -212,6 +274,8 @@ class AccessibleLayoutTest {
 
     private companion object {
         val HEADER = setOf("achievement:back", "achievement:title", "achievement:count")
+        /** Resource qualifiers of the 12 languages (docs/TOP100.md F1). */
+        val LANGUAGES = listOf("de", "en", "fr", "es", "it", "pt-rBR", "pl", "nl", "tr", "ja", "ko", "zh-rCN")
     }
 
     private fun check(size: String, what: String, nodes: List<UiNode>, expectedActions: Int, offScreenOk: (String) -> Boolean = { false }) {
