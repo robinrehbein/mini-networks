@@ -276,6 +276,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private var emptyTapY = 0f
     /** The unlocked area the cameras were last framed for; a change means the map grew. */
     private var framedArea = world.unlocked
+
+    /** Node and cable counts the cameras last checked; a change may put something new outside a portrait framing. */
+    private var framedNodes = -1
+    private var framedCables = -1
     private var growthHintPending = false
 
     private val density = resources.displayMetrics.density
@@ -467,12 +471,20 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         renderer.camera.step(animStep)
     }
 
-    /** When the map grew: widen every style's zoom range, follow the new area, and say so once the reward is picked. */
+    /**
+     * When the map grew: widen every style's zoom range, follow the new area, and say so once the reward is picked.
+     * When nodes or cables came or went: keep them in a portrait framing ([Renderer.onContentChanged]).
+     */
     private fun followArea() {
         if (world.unlocked != framedArea) {
             framedArea = world.unlocked
             renderers.forEach { it.onAreaChanged(world) }
             growthHintPending = true
+        }
+        if (world.nodes.size != framedNodes || world.cables.size != framedCables) {
+            framedNodes = world.nodes.size
+            framedCables = world.cables.size
+            renderers.forEach { it.onContentChanged(world) }
         }
         if (growthHintPending && world.rewardOffer == null) {
             growthHintPending = false
@@ -1889,6 +1901,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         }
         renderers.forEach { it.layout(surfaceWidth, surfaceHeight, world, insets) }
         framedArea = world.unlocked
+        framedNodes = world.nodes.size
+        framedCables = world.cables.size
         growthHintPending = false
     }
 

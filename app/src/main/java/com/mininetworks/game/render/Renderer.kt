@@ -85,19 +85,61 @@ interface Renderer {
 
     /**
      * Zooms so the unlocked area fills the view (not below [readableScale]), e.g. on a double tap. In a portrait view
-     * the wide map would fill only a band in the middle, so it zooms in towards the height ([Camera.fillScale]).
+     * the iso map (twice as wide as high) would only fill a band in the middle; there the framing ([frame]) zooms in
+     * as far as the height allows while every device, server and cable stays on screen, so only empty ground is cut.
      */
     fun fitArea(world: World, animate: Boolean) {
         updateLimits(world)
-        camera.fit(mapBounds(world.unlocked), animate, atLeast = framingScale(world))
+        camera.fit(frame(world), animate, atLeast = readableScale)
     }
-
-    private fun framingScale(world: World) = maxOf(readableScale, camera.fillScale(mapBounds(world.unlocked), PORTRAIT_OVERFLOW))
 
     /** Call when the unlocked area grew: widens the limits and, unless the player moved the view, follows the area. */
     fun onAreaChanged(world: World) {
         updateLimits(world)
-        if (camera.followsArea) camera.fit(mapBounds(world.unlocked), animate = true, atLeast = framingScale(world))
+        if (camera.followsArea) camera.fit(frame(world), animate = true, atLeast = readableScale)
+    }
+
+    /**
+     * Call when nodes or cables changed: in a portrait view that [frame]s on the built content, glides out (unless the
+     * player moved the view) when something new lies outside the view, e.g. a device on an empty corner of the map.
+     */
+    fun onContentChanged(world: World) {
+        if (!camera.isTall || !camera.followsArea) return
+        val content = contentBounds(world) ?: return
+        if (!camera.shows(content)) camera.fit(frame(world), animate = true, atLeast = readableScale)
+    }
+
+    /**
+     * What the automatic framing shows: the unlocked area; in a portrait view its full height, but across only the
+     * width of what is built on it ([contentBounds]), so the view zooms in towards the height without cutting off any
+     * node. Map corners without nodes may lie outside; the player pans there.
+     */
+    fun frame(world: World): MapRect {
+        val area = mapBounds(world.unlocked)
+        if (!camera.isTall) return area
+        val c = contentBounds(world) ?: return area
+        return MapRect(c.left, area.top, c.right, area.bottom)
+    }
+
+    /**
+     * Map-space box around every node (with its building, badges and queue, as [mapBounds] draws them for its cells)
+     * and every cable bend on the unlocked area, plus [CONTENT_MARGIN], within the area's [mapBounds]; null when nothing is there.
+     */
+    fun contentBounds(world: World): MapRect? {
+        var l = Float.MAX_VALUE; var t = Float.MAX_VALUE; var r = -Float.MAX_VALUE; var b = -Float.MAX_VALUE
+        for (n in world.nodes) for (cell in n.footprint) {
+            if (cell !in world.unlocked) continue
+            val m = mapBounds(CellRect(cell.x, cell.y, cell.x + 1, cell.y + 1))
+            l = minOf(l, m.left); t = minOf(t, m.top); r = maxOf(r, m.right); b = maxOf(b, m.bottom)
+        }
+        for (c in world.cables) for (p in c.layout.waypoints) {
+            val m = toMap(p)
+            l = minOf(l, m.x); t = minOf(t, m.y); r = maxOf(r, m.x); b = maxOf(b, m.y)
+        }
+        if (l > r) return null
+        val pad = CONTENT_MARGIN * (mapBounds(CellRect(0, 0, 1, 1)).width)
+        val a = mapBounds(world.unlocked)
+        return MapRect(maxOf(a.left, l - pad), maxOf(a.top, t - pad), minOf(a.right, r + pad), minOf(a.bottom, b + pad))
     }
 
     /**
@@ -152,8 +194,8 @@ interface Renderer {
         const val ZOOM_IN_ROWS = 4
         /** Zoom factor of [focusOn]. */
         const val FOCUS_ZOOM = 1.6f
-        /** In a portrait view the automatic framing may show the map this much wider than the view (the player pans). */
-        const val PORTRAIT_OVERFLOW = 1.5f
+        /** Room around [contentBounds], in widths of one drawn cell. */
+        const val CONTENT_MARGIN = 0.15f
     }
 }
 

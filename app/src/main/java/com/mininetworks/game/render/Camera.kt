@@ -81,16 +81,13 @@ class Camera {
         return minOf(w / r.width, h / r.height)
     }
 
-    /**
-     * In a view taller than wide: the scale at which [r] fills the height, but at most [maxOverflow] times [fitScale]
-     * (so [r] overflows the sides by at most that much); in a landscape view just [fitScale].
-     */
-    fun fillScale(r: MapRect, maxOverflow: Float): Float {
-        val w = (viewWidth - insets.left - insets.right).coerceAtLeast(1f)
-        val h = (viewHeight - insets.top - insets.bottom).coerceAtLeast(1f)
-        val fit = fitScale(r)
-        return if (h > w) minOf(h / r.height, fit * maxOverflow).coerceAtLeast(fit) else fit
-    }
+    /** True when the inset viewport is taller than wide (a portrait window). */
+    val isTall get() = viewHeight - insets.top - insets.bottom > viewWidth - insets.left - insets.right
+
+    /** Whether all of [r] is on screen inside the inset viewport right now. */
+    fun shows(r: MapRect): Boolean =
+        toScreenX(r.left) >= insets.left - EPS && toScreenX(r.right) <= viewWidth - insets.right + EPS &&
+            toScreenY(r.top) >= insets.top - EPS && toScreenY(r.bottom) <= viewHeight - insets.bottom + EPS
 
     /**
      * Shows all of [r], centred, but zoomed in at least to [atLeast] (then [r] may overflow the view); with [animate],
@@ -181,6 +178,8 @@ class Camera {
         const val ANIM_RATE = 9f
         /** Rate of a gentle [glideTo], e.g. the game-over focus. */
         const val GENTLE_RATE = 2.6f
+        /** Tolerance of [shows] in pixels. */
+        const val EPS = 0.5f
     }
 }
 
