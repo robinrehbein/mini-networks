@@ -129,10 +129,16 @@ class Texts(private val context: Context) {
         ConnectError.SAME_NODE -> context.getString(R.string.connect_error_same_node)
         ConnectError.ALREADY_CONNECTED -> context.getString(R.string.connect_error_already_connected)
         ConnectError.NOT_INVENTED -> context.getString(R.string.connect_error_not_invented, cable(type))
-        ConnectError.FROM_PORTS_FULL -> context.getString(R.string.connect_error_ports_full, node(from))
-        ConnectError.TO_PORTS_FULL -> context.getString(R.string.connect_error_ports_full, node(to))
+        ConnectError.FROM_PORTS_FULL -> portsFull(from, R.plurals.ports_full_short)
+        ConnectError.TO_PORTS_FULL -> portsFull(to, R.plurals.ports_full_short)
         ConnectError.NO_BUDGET -> context.getString(R.string.connect_error_no_budget)
     }
+
+    /** "[n] has only 2 ports" in the wording of [plural] ([R.plurals.ports_full] or its short form). */
+    fun portsFull(n: Node, plural: Int): String = context.resources.getQuantityString(plural, n.maxPorts, node(n), n.maxPorts)
+
+    /** "6 ports", for the toolbar tiles and the accessibility labels. */
+    fun ports(count: Int): String = context.resources.getQuantityString(R.plurals.toolbar_ports, count, count)
 
     /** The HUD line for incident [i]: the announcement with its countdown, or the effect and how long it lasts. */
     fun incident(i: Incident): String {

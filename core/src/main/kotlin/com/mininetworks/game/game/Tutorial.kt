@@ -20,6 +20,12 @@ enum class TutorialStep {
     /** A new PC without a cable piles up requests and its overload ring fills: connect it. */
     OVERLOAD,
 
+    /**
+     * Two new PCs next to the first one, whose 2 ports are both in use by now (mail and gaming): a PC has only 2 ports,
+     * so both are joined to the mail server through one router (6 ports).
+     */
+    PORTS,
+
     /** All steps done. */
     DONE,
 }
@@ -35,7 +41,7 @@ sealed interface TutorialFocus {
     /** Tap one of these cables. */
     data class Cables(val cables: List<Cable>) : TutorialFocus
 
-    /** The HUD button that arms placing a router. */
+    /** The HUD tile that places a router (tap it, or drag it onto the map). */
     data object RouterButton : TutorialFocus
 
     /** The HUD button that picks cable technology [type]. */
@@ -45,9 +51,9 @@ sealed interface TutorialFocus {
 }
 
 /**
- * The five-step tutorial on the "Kleinstadt am Fluss" map (docs/PLAN.md P3.3, docs/TOP100.md B2): lay a cable, place a
- * router, give a streaming TV enough bandwidth, fix a ping that is too high for gaming, and rescue a device whose
- * overload ring fills. Bandwidth and ping are taught by playing: the player may first build what does not work (ISDN
+ * The six-step tutorial on the "Kleinstadt am Fluss" map (docs/PLAN.md P3.3, docs/TOP100.md B2): lay a cable, place a
+ * router, give a streaming TV enough bandwidth, fix a ping that is too high for gaming, rescue a device whose overload
+ * ring fills, and join two PCs to a server through one router because a PC has only 2 ports. Bandwidth and ping are taught by playing: the player may first build what does not work (ISDN
  * for the TV, DSL across the river), sees why on the map (a "too narrow" or "ping" badge) and then fixes it.
  *
  * The first packet is delivered within seconds of the first launch (B1): the PC already has a mail waiting, so it
@@ -90,6 +96,12 @@ class Tutorial private constructor(val world: World) {
     /** Step 5: the new PC without a cable. */
     var newPc: Node? = null; private set
 
+    /** Step 6: the two PCs to be joined to the mail server through one router. */
+    var officePcs: List<Node> = emptyList(); private set
+
+    /** Routers on the map when step 6 began; the ones after them were placed for it. */
+    private var routersBefore = 0
+
     init {
         mailServer = addServer(Service.MAIL, 1, 1)
         pc = addClient(Device.PC, 4, 2)
@@ -119,6 +131,7 @@ class Tutorial private constructor(val world: World) {
         TutorialStep.BANDWIDTH -> world.routeFor(tv!!, Service.STREAMING) != null
         TutorialStep.PING -> world.routeFor(pc, Service.GAMING) != null
         TutorialStep.OVERLOAD -> newPc!!.let { world.routeFor(it, Service.MAIL) != null && it.pending.size < World.Tuning.MAX_PENDING }
+        TutorialStep.PORTS -> sharedRouter() != null && officePcs.all { world.routeFor(it, Service.MAIL) != null }
         TutorialStep.DONE -> false
     }
 
@@ -140,6 +153,10 @@ class Tutorial private constructor(val world: World) {
             }
             TutorialStep.OVERLOAD -> newPc = addClient(Device.PC, 2, 4).also { pc ->
                 repeat(World.Tuning.MAX_PENDING) { pc.pending.addLast(Service.MAIL) }
+            }
+            TutorialStep.PORTS -> {
+                routersBefore = world.nodes.count { it.kind == NodeKind.ROUTER }
+                officePcs = listOf(addClient(Device.PC, 6, 4), addClient(Device.PC, 7, 6)).onEach { it.pending.addLast(Service.MAIL) }
             }
             TutorialStep.LAY_CABLE, TutorialStep.DONE -> Unit
         }
@@ -169,7 +186,26 @@ class Tutorial private constructor(val world: World) {
             }
         }
         TutorialStep.OVERLOAD -> TutorialFocus.Drag(newPc!!, mailServer)
+        TutorialStep.PORTS -> {
+            // A router placed in this step (or one already cabled to a PC here) and what to join to it; before that
+            // the router tile. The router from step 2 would do as well, but it stands far off by the phones.
+            val routers = world.nodes.filter { it.kind == NodeKind.ROUTER }
+            val here = routers.drop(routersBefore) + routers.filter { r -> officePcs.any { world.cableBetween(it, r) != null } }
+            when {
+                here.isNotEmpty() -> TutorialFocus.Nodes(here.distinct() + officePcs + mailServer)
+                world.routersAvailable > 0 -> TutorialFocus.RouterButton
+                else -> TutorialFocus.Nodes(routers + officePcs + mailServer)
+            }
+        }
         TutorialStep.DONE -> TutorialFocus.None
+    }
+
+    /** The nodes a router being placed should go next to: the phones in step 2, the two PCs in step 6. */
+    fun placeNear(): List<Node> = if (step == TutorialStep.PORTS) officePcs else phones
+
+    /** A router cabled to both PCs of step 6, or null. */
+    fun sharedRouter(): Node? = world.nodes.firstOrNull { r ->
+        r.kind == NodeKind.ROUTER && officePcs.isNotEmpty() && officePcs.all { world.cableBetween(it, r) != null }
     }
 
     /** True in step 3 while the TV is cabled but a link on the way is too narrow for streaming. */
@@ -198,11 +234,11 @@ class Tutorial private constructor(val world: World) {
 
     companion object {
         /** Guided steps, not counting [TutorialStep.DONE]. */
-        const val STEPS = 5
+        const val STEPS = 6
         /** The tutorial map is always the same. */
         const val SEED = 7L
         /** Enough for every step with room for a detour. */
-        const val BUDGET = 80
+        const val BUDGET = 100
         /** Weeks the tutorial jumps to: DSL (1998) for the bandwidth, fiber (2010) for the ping. */
         val DSL_WEEK = CableType.DSL.unlockWeek
         val FIBER_WEEK = CableType.FIBER.unlockWeek

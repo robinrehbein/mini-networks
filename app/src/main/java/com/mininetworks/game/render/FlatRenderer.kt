@@ -242,6 +242,16 @@ class FlatRenderer : Renderer {
             }
         }
 
+        // Port dots under every node (docs: ports); during a cable drag the full ones turn red at any zoom.
+        val showPorts = PortDots.visible(cell, density)
+        for (n in world.nodes) {
+            val e = PortDots.emphasis(world, n, drag, showPorts) ?: continue
+            val c = n.footprintCenter
+            val nx = screenX(c.x, c.y); val ny = screenY(c.x, c.y)
+            val k = if (n.isDataCenter) 2f else 1f
+            PortDots.draw(canvas, world, n, nx, ny + cell * 0.46f * k, cell, density, e, nx, ny, cell * 0.55f * k, cell * 0.55f * k)
+        }
+
         for (n in world.nodes) {
             val dark = world.isDark(n)
             if (!dark && world.incidents.none { it.node === n }) continue

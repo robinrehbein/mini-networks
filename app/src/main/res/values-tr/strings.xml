@@ -10,6 +10,36 @@
     <string name="hud_clock_day">Gündüz · %1$s</string>
     <string name="hud_clock_night">Gece · %1$s · yedekleme saati %2$s</string>
     <string name="button_router">Router (%1$d)</string>
+    <!-- Toolbar network & ports -->
+    <string name="toolbar_cables">Kablolar</string>
+    <string name="toolbar_network">Ağ</string>
+    <string name="toolbar_router">Router</string>
+    <string name="toolbar_access_point">Wi-Fi</string>
+    <string name="toolbar_cell_tower">Baz</string>
+    <plurals name="toolbar_ports">
+        <item quantity="one">%1$d port</item>
+        <item quantity="other">%1$d port</item>
+    </plurals>
+    <string name="hint_drop_tool">Boş bir kareye sürükle ve bırak</string>
+    <plurals name="ports_full">
+        <item quantity="one">%1$s yalnızca %2$d porta sahip – araya bir router koy</item>
+        <item quantity="other">%1$s yalnızca %2$d porta sahip – araya bir router koy</item>
+    </plurals>
+    <plurals name="ports_full_short">
+        <item quantity="one">%1$s: yalnızca %2$d port</item>
+        <item quantity="other">%1$s: yalnızca %2$d port</item>
+    </plurals>
+    <string name="ports_add_router">Araya bir router koy</string>
+    <plurals name="tip_ports">
+        <item quantity="one">İpucu: bir cihazın altındaki noktalar portlarıdır, ● dolu, ○ boş. Bir router’ın %1$d portu var: alttaki çubuktan cihazların arasına sürükle.</item>
+        <item quantity="other">İpucu: bir cihazın altındaki noktalar portlarıdır, ● dolu, ○ boş. Bir router’ın %1$d portu var: alttaki çubuktan cihazların arasına sürükle.</item>
+    </plurals>
+    <string name="tutorial_ports_title">Portlar</string>
+    <string name="tutorial_ports_text">İki yeni PC! İlk PC iki portunu da kullanıyor, iki noktayı görüyor musun? Alttaki çubuktan yeni PC’lerin yanına bir router sürükle.</string>
+    <string name="tutorial_ports_connect_text">Şimdi iki PC’yi ve e-posta sunucusunu router’a bağla. 6 portu var ve e-postalarını dağıtır.</string>
+    <string name="legend_router_desc">Birçok cihazı bağlar: PC gibi 2 değil, 6 port. Alttaki çubuktan boş bir kareye sürükle.</string>
+    <string name="legend_ports_title">Portlar</string>
+    <string name="legend_ports_desc">Bir cihazın altındaki noktalar: ● dolu, ○ boş. Cihazlar ve Wi-Fi 2, sunucular ve bazlar 4, router’lar 6 porta sahip.</string>
     <string name="hint_place_router">Boş bir kareye dokun</string>
     <string name="button_access_point">Wi-Fi (%1$d)</string>
     <string name="button_cell_tower">Baz (%1$d)</string>
@@ -76,7 +106,6 @@
     <string name="connect_error_same_node">Aynı düğüm</string>
     <string name="connect_error_already_connected">Zaten bağlı</string>
     <string name="connect_error_not_invented">%1$s henüz icat edilmedi</string>
-    <string name="connect_error_ports_full">%1$s: tüm portlar dolu</string>
     <string name="connect_error_no_budget">Bütçe yetmiyor</string>
 
     <!-- Week rewards -->

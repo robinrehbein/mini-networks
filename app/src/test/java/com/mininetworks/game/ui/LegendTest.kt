@@ -72,7 +72,7 @@ class LegendTest {
         save(bmp, "legend-de.png")
         // Every service, every device, every cable and the warning signs have a tile.
         for (id in Service.entries.map { "service:${it.name}" } + Device.entries.map { "device:${it.name}" } +
-            CableType.entries.map { "cable:${it.name}" } + listOf("server", "router", "access_point", "cell_tower", "request", "response", "overload", "too_narrow", "ping")) {
+            CableType.entries.map { "cable:${it.name}" } + listOf("server", "router", "ports", "access_point", "cell_tower", "request", "response", "overload", "too_narrow", "ping")) {
             assertNotNull("tile $id", view.legendTile(id))
         }
         // Scrolling shows the rest; the back pill stays where it is.

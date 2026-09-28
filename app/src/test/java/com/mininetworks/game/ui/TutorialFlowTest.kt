@@ -225,6 +225,19 @@ class TutorialFlowTest {
         play(view, 0.1f)
         assertTrue(w.connect(t.newPc!!, t.mailServer, CableType.DSL))
         play(view, 1f)
+        assertEquals(TutorialStep.PORTS, t.step)
+        // Step 6 with touches: the router tile dragged next to the new PCs, then both PCs and the server cabled to it.
+        val pcs = t.officePcs
+        val tile = view.hudTarget("router")!!
+        val spot = w.nearestFree(Cell(pcs[1].cellX + 1, pcs[1].cellY))!!
+        val drop = view.activeRenderer.toScreen(spot.center)
+        view.injectTouch(MotionEvent.ACTION_DOWN, tile.centerX(), tile.centerY())
+        view.injectTouch(MotionEvent.ACTION_MOVE, drop.x, drop.y)
+        draw(view)
+        view.injectTouch(MotionEvent.ACTION_UP, drop.x, drop.y)
+        val shared = w.nodes.single { it.kind == NodeKind.ROUTER && it.cell == spot }
+        for (n in pcs + t.mailServer) assertTrue(w.connect(n, shared, CableType.DSL))
+        play(view, 0.1f)
         assertTrue(t.finished)
         assertNull("no skip at the end", view.tutorialTarget(TutorialOverlay.SKIP))
         tapBubble(view, TutorialOverlay.PLAY)

@@ -10,6 +10,36 @@
     <string name="hud_clock_day">Day · %1$s</string>
     <string name="hud_clock_night">Night · %1$s · backups at %2$s</string>
     <string name="button_router">Router (%1$d)</string>
+    <!-- Toolbar network & ports -->
+    <string name="toolbar_cables">Cables</string>
+    <string name="toolbar_network">Network</string>
+    <string name="toolbar_router">Router</string>
+    <string name="toolbar_access_point">Wi-Fi</string>
+    <string name="toolbar_cell_tower">Tower</string>
+    <plurals name="toolbar_ports">
+        <item quantity="one">%1$d port</item>
+        <item quantity="other">%1$d ports</item>
+    </plurals>
+    <string name="hint_drop_tool">Drag onto a free cell and let go</string>
+    <plurals name="ports_full">
+        <item quantity="one">%1$s has only %2$d port – put a router in between</item>
+        <item quantity="other">%1$s has only %2$d ports – put a router in between</item>
+    </plurals>
+    <plurals name="ports_full_short">
+        <item quantity="one">%1$s: only %2$d port</item>
+        <item quantity="other">%1$s: only %2$d ports</item>
+    </plurals>
+    <string name="ports_add_router">Put a router in between</string>
+    <plurals name="tip_ports">
+        <item quantity="one">Tip: the dots under a device are its ports, ● in use, ○ free. A router has %1$d: drag one from the bar below between the devices.</item>
+        <item quantity="other">Tip: the dots under a device are its ports, ● in use, ○ free. A router has %1$d: drag one from the bar below between the devices.</item>
+    </plurals>
+    <string name="tutorial_ports_title">Ports</string>
+    <string name="tutorial_ports_text">Two new PCs! The first PC already uses both of its ports, see the two dots? Drag a router from the bar below to the new PCs.</string>
+    <string name="tutorial_ports_connect_text">Now connect both PCs and the mail server to the router. It has 6 ports and passes on their mail.</string>
+    <string name="legend_router_desc">Connects many devices: 6 ports instead of 2 like a PC. Drag it from the bar below onto a free cell.</string>
+    <string name="legend_ports_title">Ports</string>
+    <string name="legend_ports_desc">The dots under a device: ● in use, ○ free. Devices and Wi-Fi have 2, servers and towers 4, routers 6.</string>
     <string name="hint_place_router">Tap a free cell</string>
     <string name="button_access_point">Wi-Fi (%1$d)</string>
     <string name="button_cell_tower">Tower (%1$d)</string>
@@ -76,7 +106,6 @@
     <string name="connect_error_same_node">Same node</string>
     <string name="connect_error_already_connected">Already connected</string>
     <string name="connect_error_not_invented">%1$s not invented yet</string>
-    <string name="connect_error_ports_full">%1$s: all ports in use</string>
     <string name="connect_error_no_budget">Not enough budget</string>
 
     <!-- Week rewards -->

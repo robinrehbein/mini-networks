@@ -9,6 +9,32 @@
     <string name="hud_clock_day">昼 · %1$s</string>
     <string name="hud_clock_night">夜 · %1$s · バックアップ %2$s</string>
     <string name="button_router">ルーター (%1$d)</string>
+    <!-- Toolbar network & ports -->
+    <string name="toolbar_cables">ケーブル</string>
+    <string name="toolbar_network">ネットワーク</string>
+    <string name="toolbar_router">ルーター</string>
+    <string name="toolbar_access_point">Wi-Fi</string>
+    <string name="toolbar_cell_tower">基地局</string>
+    <plurals name="toolbar_ports">
+        <item quantity="other">ポート%1$d個</item>
+    </plurals>
+    <string name="hint_drop_tool">空きマスまでドラッグして指を離す</string>
+    <plurals name="ports_full">
+        <item quantity="other">%1$sのポートは%2$d個だけ。間にルーターを置こう</item>
+    </plurals>
+    <plurals name="ports_full_short">
+        <item quantity="other">%1$s：ポートは%2$d個だけ</item>
+    </plurals>
+    <string name="ports_add_router">間にルーターを置こう</string>
+    <plurals name="tip_ports">
+        <item quantity="other">ヒント：端末の下の点はポートです。●使用中、○空き。ルーターは%1$d個：下のバーから端末の間にドラッグしよう。</item>
+    </plurals>
+    <string name="tutorial_ports_title">ポート</string>
+    <string name="tutorial_ports_text">新しいPCが2台！最初のPCはもう両方のポートを使っています。2つの点が見えますか？下のバーから新しいPCのそばにルーターをドラッグしよう。</string>
+    <string name="tutorial_ports_connect_text">2台のPCとメールサーバーをルーターにつなごう。ポートは6個あり、メールを振り分けます。</string>
+    <string name="legend_router_desc">たくさんの端末をつなぐ：PCの2個に対してポート6個。下のバーから空きマスにドラッグ。</string>
+    <string name="legend_ports_title">ポート</string>
+    <string name="legend_ports_desc">端末の下の点：●使用中、○空き。端末とWi-Fiは2個、サーバーと基地局は4個、ルーターは6個。</string>
     <string name="hint_place_router">空いているマスをタップ</string>
     <string name="button_access_point">Wi-Fi (%1$d)</string>
     <string name="button_cell_tower">基地局 (%1$d)</string>
@@ -73,7 +99,6 @@
     <string name="connect_error_same_node">同じノードです</string>
     <string name="connect_error_already_connected">すでに接続済み</string>
     <string name="connect_error_not_invented">%1$sはまだ発明されていません</string>
-    <string name="connect_error_ports_full">%1$s：ポートがいっぱいです</string>
     <string name="connect_error_no_budget">予算が足りません</string>
 
     <!-- Week rewards -->

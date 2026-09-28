@@ -50,6 +50,13 @@ class TutorialTest {
             assertTrue(w.connect(t.newPc!!, t.mailServer, CableType.DSL))
             run(t, 1f)
         }
+        if (t.step < target) {
+            val pcs = t.officePcs
+            val at = w.nearestFree(Cell(pcs[0].cellX - 1, pcs[0].cellY + 1))!!
+            val r = w.placeRouter(at.x, at.y)!!
+            for (n in pcs + t.mailServer) assertTrue(w.connect(n, r, CableType.DSL))
+            run(t, 0.1f)
+        }
         assertEquals(target, t.step)
         return t
     }
@@ -193,6 +200,34 @@ class TutorialTest {
         assertTrue(w.connect(pc, t.mailServer, CableType.DSL))
         assertFalse("its requests have not left yet", t.update())
         run(t, 1f)
+        assertEquals(TutorialStep.PORTS, t.step)
+    }
+
+    @Test
+    fun portsStepJoinsTwoPcsToTheServerThroughOneRouter() {
+        val t = playTo(TutorialStep.PORTS)
+        val w = t.world
+        val pcs = t.officePcs
+        assertEquals(2, pcs.size)
+        assertTrue(pcs.all { it.device == Device.PC && w.ports(it) == 0 && it.maxPorts == 2 })
+        assertEquals("the first PC uses both of its ports by now", t.pc.maxPorts, w.ports(t.pc))
+        assertEquals("the first PC cannot take a third cable", ConnectError.TO_PORTS_FULL, w.connectError(pcs[0], t.pc, CableType.DSL))
+        assertEquals(TutorialFocus.RouterButton, t.focus(CableType.DSL))
+        assertEquals(pcs, t.placeNear())
+        // Chaining the PCs to the server works, but fills the first PC's ports: the step waits for a shared router.
+        assertTrue(w.connect(pcs[0], t.mailServer, CableType.DSL))
+        assertTrue(w.connect(pcs[1], pcs[0], CableType.DSL))
+        run(t, 0.5f)
+        assertEquals(TutorialStep.PORTS, t.step)
+        assertEquals(ConnectError.FROM_PORTS_FULL, w.connectError(pcs[0], t.pc, CableType.DSL))
+        w.removeCable(w.cableBetween(pcs[1], pcs[0])!!)
+        val at = w.nearestFree(Cell(pcs[1].cellX + 1, pcs[1].cellY))!!
+        val r = w.placeRouter(at.x, at.y)!!
+        assertEquals(TutorialFocus.Nodes(listOf(r) + pcs + t.mailServer), t.focus(CableType.DSL))
+        assertTrue(w.connect(pcs[0], r, CableType.DSL))
+        assertNull("one PC is not enough", t.sharedRouter())
+        assertTrue(w.connect(pcs[1], r, CableType.DSL))
+        assertTrue(t.update())
         assertEquals(TutorialStep.DONE, t.step)
         assertTrue(t.finished)
         assertFalse(t.skipped)

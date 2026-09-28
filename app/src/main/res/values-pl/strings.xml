@@ -12,6 +12,44 @@
     <string name="hud_clock_day">Dzień · %1$s</string>
     <string name="hud_clock_night">Noc · %1$s · kopie zapasowe o %2$s</string>
     <string name="button_router">Router (%1$d)</string>
+    <!-- Toolbar network & ports -->
+    <string name="toolbar_cables">Kable</string>
+    <string name="toolbar_network">Sieć</string>
+    <string name="toolbar_router">Router</string>
+    <string name="toolbar_access_point">Wi-Fi</string>
+    <string name="toolbar_cell_tower">Maszt</string>
+    <plurals name="toolbar_ports">
+        <item quantity="one">%1$d port</item>
+        <item quantity="few">%1$d porty</item>
+        <item quantity="many">%1$d portów</item>
+        <item quantity="other">%1$d portu</item>
+    </plurals>
+    <string name="hint_drop_tool">Przeciągnij na wolne pole i puść</string>
+    <plurals name="ports_full">
+        <item quantity="one">%1$s ma tylko %2$d port – wstaw router pomiędzy</item>
+        <item quantity="few">%1$s ma tylko %2$d porty – wstaw router pomiędzy</item>
+        <item quantity="many">%1$s ma tylko %2$d portów – wstaw router pomiędzy</item>
+        <item quantity="other">%1$s ma tylko %2$d portu – wstaw router pomiędzy</item>
+    </plurals>
+    <plurals name="ports_full_short">
+        <item quantity="one">%1$s: tylko %2$d port</item>
+        <item quantity="few">%1$s: tylko %2$d porty</item>
+        <item quantity="many">%1$s: tylko %2$d portów</item>
+        <item quantity="other">%1$s: tylko %2$d portu</item>
+    </plurals>
+    <string name="ports_add_router">Wstaw router pomiędzy</string>
+    <plurals name="tip_ports">
+        <item quantity="one">Wskazówka: kropki pod urządzeniem to jego porty, ● zajęty, ○ wolny. Router ma %1$d port: przeciągnij go z paska na dole między urządzenia.</item>
+        <item quantity="few">Wskazówka: kropki pod urządzeniem to jego porty, ● zajęty, ○ wolny. Router ma %1$d porty: przeciągnij go z paska na dole między urządzenia.</item>
+        <item quantity="many">Wskazówka: kropki pod urządzeniem to jego porty, ● zajęty, ○ wolny. Router ma %1$d portów: przeciągnij go z paska na dole między urządzenia.</item>
+        <item quantity="other">Wskazówka: kropki pod urządzeniem to jego porty, ● zajęty, ○ wolny. Router ma %1$d portu: przeciągnij go z paska na dole między urządzenia.</item>
+    </plurals>
+    <string name="tutorial_ports_title">Porty</string>
+    <string name="tutorial_ports_text">Dwa nowe PC! Pierwszy PC ma już zajęte oba porty, widzisz dwie kropki? Przeciągnij router z paska na dole do nowych PC.</string>
+    <string name="tutorial_ports_connect_text">Teraz połącz oba PC i serwer poczty z routerem. Ma 6 portów i rozdziela ich pocztę.</string>
+    <string name="legend_router_desc">Łączy wiele urządzeń: 6 portów zamiast 2 jak w PC. Przeciągnij go z paska na dole na wolne pole.</string>
+    <string name="legend_ports_title">Porty</string>
+    <string name="legend_ports_desc">Kropki pod urządzeniem: ● zajęty, ○ wolny. Urządzenia i Wi-Fi mają 2, serwery i maszty 4, routery 6.</string>
     <string name="hint_place_router">Dotknij wolnego pola</string>
     <string name="button_access_point">Wi-Fi (%1$d)</string>
     <string name="button_cell_tower">Maszt (%1$d)</string>
@@ -82,7 +120,6 @@
     <string name="connect_error_same_node">Ten sam węzeł</string>
     <string name="connect_error_already_connected">Już połączone</string>
     <string name="connect_error_not_invented">%1$s: jeszcze nie wynaleziono</string>
-    <string name="connect_error_ports_full">%1$s: wszystkie porty zajęte</string>
     <string name="connect_error_no_budget">Za mały budżet</string>
 
     <!-- Week rewards -->

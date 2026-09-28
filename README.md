@@ -17,7 +17,9 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 ```
 
 **Steuerung:** Von Gerät/Server/Router zu einem anderen Knoten ziehen = Kabel legen ·
-Kabeltechnik unten links wählen · Kabel antippen = auf gewählte Technik upgraden (gleiche Technik = entfernen) ·
-„Router“ und dann ein freies Feld antippen · „Pause“ oder Zurück öffnet das Pause-Menü ·
+Kabeltechnik in der Leiste unten unter „Kabel“ wählen · Kabel antippen = auf gewählte Technik upgraden (gleiche Technik = entfernen) ·
+Router, WLAN und Mast unter „Netzwerk“ aufs Feld ziehen (oder antippen, dann ein freies Feld antippen) ·
+die Punkte unter jedem Gerät sind seine Anschlüsse (● belegt, ○ frei: PC 2, Server 4, Router 6); sind sie voll,
+kommt ein Router dazwischen · „Pause“ oder Zurück öffnet das Pause-Menü ·
 der flache Übersichtsmodus, Ton, Haptik und eine Farbenblind-Palette stehen in den Einstellungen.
 Das Spiel speichert automatisch beim Pausieren und Verlassen; „Fortsetzen“ im Hauptmenü lädt den Stand.

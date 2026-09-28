@@ -13,6 +13,36 @@
     <string name="hud_clock_night">Nacht · %1$s · Backups um %2$s</string>
     <string name="clock_time" translatable="false">%1$02d:%2$02d</string>
     <string name="button_router">Router (%1$d)</string>
+    <!-- Toolbar network & ports -->
+    <string name="toolbar_cables">Kabel</string>
+    <string name="toolbar_network">Netzwerk</string>
+    <string name="toolbar_router">Router</string>
+    <string name="toolbar_access_point">WLAN</string>
+    <string name="toolbar_cell_tower">Mast</string>
+    <plurals name="toolbar_ports">
+        <item quantity="one">%1$d Anschluss</item>
+        <item quantity="other">%1$d Anschlüsse</item>
+    </plurals>
+    <string name="hint_drop_tool">Auf ein freies Feld ziehen und loslassen</string>
+    <plurals name="ports_full">
+        <item quantity="one">%1$s hat nur %2$d Anschluss – setz einen Router dazwischen</item>
+        <item quantity="other">%1$s hat nur %2$d Anschlüsse – setz einen Router dazwischen</item>
+    </plurals>
+    <plurals name="ports_full_short">
+        <item quantity="one">%1$s: nur %2$d Anschluss</item>
+        <item quantity="other">%1$s: nur %2$d Anschlüsse</item>
+    </plurals>
+    <string name="ports_add_router">Router dazwischen setzen</string>
+    <plurals name="tip_ports">
+        <item quantity="one">Tipp: Die Punkte unter einem Gerät sind seine Anschlüsse, ● belegt, ○ frei. Ein Router hat %1$d: Zieh ihn aus der Leiste unten zwischen die Geräte.</item>
+        <item quantity="other">Tipp: Die Punkte unter einem Gerät sind seine Anschlüsse, ● belegt, ○ frei. Ein Router hat %1$d: Zieh ihn aus der Leiste unten zwischen die Geräte.</item>
+    </plurals>
+    <string name="tutorial_ports_title">Anschlüsse</string>
+    <string name="tutorial_ports_text">Zwei neue PCs! Der erste PC hat schon beide Anschlüsse belegt, siehst du die zwei Punkte? Zieh einen Router aus der Leiste unten zu den neuen PCs.</string>
+    <string name="tutorial_ports_connect_text">Verbinde jetzt beide PCs und den Mail-Server mit dem Router. Er hat 6 Anschlüsse und verteilt ihre Mails.</string>
+    <string name="legend_router_desc">Verbindet viele Geräte: 6 Anschlüsse statt 2 wie am PC. Aus der Leiste unten auf ein freies Feld ziehen.</string>
+    <string name="legend_ports_title">Anschlüsse</string>
+    <string name="legend_ports_desc">Die Punkte unter einem Gerät: ● belegt, ○ frei. Geräte und WLAN haben 2, Server und Mast 4, Router 6.</string>
     <string name="hint_place_router">Tippe auf ein freies Feld</string>
     <string name="button_access_point">WLAN (%1$d)</string>
     <string name="button_cell_tower">Mast (%1$d)</string>
@@ -79,7 +109,6 @@
     <string name="connect_error_same_node">Gleicher Knoten</string>
     <string name="connect_error_already_connected">Schon verbunden</string>
     <string name="connect_error_not_invented">%1$s noch nicht erfunden</string>
-    <string name="connect_error_ports_full">%1$s: alle Ports belegt</string>
     <string name="connect_error_no_budget">Budget reicht nicht</string>
 
     <!-- Week rewards -->

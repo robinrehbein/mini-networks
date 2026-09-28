@@ -40,6 +40,7 @@ import com.mininetworks.game.game.CableSkin
 import com.mininetworks.game.game.CableType
 import com.mininetworks.game.game.Device
 import com.mininetworks.game.game.CableUpgradeError
+import com.mininetworks.game.game.ConnectError
 import com.mininetworks.game.game.Cell
 import com.mininetworks.game.game.CellRect
 import com.mininetworks.game.game.ColorTheme
@@ -159,20 +160,26 @@ import kotlin.math.roundToInt
  *
  * Controls:
  *  - drag from a node to another node: lay a cable along the grid (L-shaped; the drag path picks which way it bends);
- *    the label shows the price and, for a device, the ping it would get or that the cable is too narrow
+ *    the label shows the price and, for a device, the ping it would get or that the cable is too narrow. Every node has
+ *    a row of port dots ([com.mininetworks.game.render.PortDots]: filled in use, hollow free; a PC 2, a server 4, a
+ *    router 6); while a cable is dragged, nodes without a free port are ringed red. A cable that fails on full ports
+ *    says so ("PC hat nur 2 Anschlüsse – setz einen Router dazwischen"), the router tile pulses, and the first time
+ *    in a game a tip explains the dots
  *  - drag on empty ground or with two fingers: pan; pinch: zoom; turn two fingers: rotate the map around their midpoint
  *    (all at once); on release it eases to the nearest multiple of 90° unless "free rotation" is on in the settings;
  *    the compass button (only while the map is turned) turns it back to north; double tap on empty ground: fit the
  *    playable area
- *  - pick a cable technology in the bottom-left bar (ISDN, DSL, Koax, Glasfaser; the coin is the price per cell);
- *    picking one names its bandwidth, speed and price
+ *  - the bottom toolbar ([layoutToolbar]) has two captioned groups: "Kabel" picks a cable technology (ISDN, DSL,
+ *    Koax, Glasfaser; the coin is the price per cell; picking one names its bandwidth, speed and price), "Netzwerk"
+ *    holds the devices that join several others (router, and WLAN and mast while some are in stock), each tile with
+ *    its icon, one dot per port and its stock; pause and menu sit at the right
  *  - tap a server: preview its next hardware tier and price; tap again to upgrade (tier 4 is a data center on 2×2 cells)
  *  - tap a cable: upgrade it to a better picked technology; otherwise the first tap selects it and a second tap removes
  *    it for a refund; a cable cut by an excavator is repaired instead (small fee)
  *  - tap a device: why its requests are stuck (no way, too narrow, ping too high, jam), or what it wants
- *  - "Router" button, then tap an empty cell: place a router (a tap, not the start of a pan or pinch; a cell that does
- *    not work says why); tap a router without cables twice to put it back; "WLAN" and "Mast" place won radios the same
- *    way and only show while some are in stock
+ *  - drag a network tile onto the map: the device floats over the cell under the finger (red where it cannot go) and
+ *    is placed where it is let go, not over the toolbar; or tap the tile, then tap an empty cell (a tap, not the start
+ *    of a pan or pinch). A cell that does not work says why; tap a router without cables twice to put it back
  *  - tap an access point: next WLAN channel; hold it: switch it to 5 GHz (costs budget)
  *  - pause button: stops the clock in place, building goes on (like Mini Metro); menu button or back: pause menu
  *    (resume, settings, restart, main menu)
@@ -361,6 +368,22 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     /** What the next tap on an empty cell places: [NodeKind.ROUTER] or a radio kind; null while not placing. */
     private var placing: NodeKind? = null
+    /**
+     * The network tile ("router", "radio:…") a finger went down on: lifted in place it arms [placing] like a tap,
+     * moved past the tap slop it carries the device onto the map ([toolDrag]).
+     */
+    private var toolPress: String? = null
+    /** The device dragged from the toolbar and the finger's screen position; null while none is. */
+    private var toolDrag: NodeKind? = null
+    private var toolDragAt: Vec2? = null
+    /** Top edge of the toolbar's tray in the last drawn frame (NaN before the first): a drop below it is no drop. */
+    private var toolbarTop = Float.NaN
+    /** The tray's raised part behind a network row above the controls in the last drawn frame, or null. */
+    private var toolbarRaised: RectF? = null
+    /** [animTime] when a cable last failed on full ports; the router tile pulses from then on for a moment. */
+    private var routerPulseAt = Float.NEGATIVE_INFINITY
+    /** Set once this game explained the port dots, after the first cable that failed on full ports. */
+    private var portsTipShown = false
     private var cableType = CableType.ISDN
     private var animTime = 0f
 
@@ -462,8 +485,24 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private val chipBadgeRim = fill(0xFFFFFFFF.toInt())
     /** The frosted tray under the bottom toolbar: the map stops visibly behind the buttons instead of running under them. */
     private val trayFill = fill(0xA6F4F6F1.toInt())
-    private val trayEdge = fill(0x1F1C2A30)
     private val coinText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; textSize = textScale.px(11f); color = 0xFF5A4300.toInt() }
+    /** Group captions of the toolbar ("KABEL", "NETZWERK"): small, spaced capitals that label without shouting. */
+    private val captionText = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFF5B6674.toInt(); typeface = Typeface.DEFAULT_BOLD; textSize = textScale.px(11f); letterSpacing = 0.08f
+    }
+    private val dividerFill = fill(0x331C2A30)
+    private val trayPath = android.graphics.Path()
+    private val trayLine = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; color = 0x1F1C2A30 }
+    private val trayLineFill = fill(0x1F1C2A30)
+    private val tileWell = fill(TILE_WELL)
+    private val tileDot = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+    private val stockFill = fill(0)
+    private val stockText = Paint(coinText).apply { color = 0xFFFFFFFF.toInt() }
+    private val tilePulse = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; color = PORTS_FULL_RED }
+    private val ghostFill = fill(0)
+    private val ghostLine = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeJoin = Paint.Join.ROUND }
+    /** Device icons of the network tiles and of a tile dragged onto the map. */
+    private val toolIcons = com.mininetworks.game.render.DeviceIcons()
     private val pinFill = fill(0)
     private val pinText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; textSize = textScale.px(12f); color = 0xFFFFFFFF.toInt() }
     private val selectionPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
@@ -955,6 +994,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             drawHoldProgress(canvas)
         }
         if (hudVisible && !hudHidden) drawHud(canvas) else hudNodes.clear()
+        if (playing) drawToolGhost(canvas)
         if (playing) tutorial?.let {
             tutorialOverlay.place(safeInsets.left + 16 * density, tutorialTop(), tutorialBottom())
             tutorialOverlay.draw(canvas, it, tutorialFocus(it), renderer, world, ::hudTarget, surfaceWidth, animTime, tutorialPressed)
@@ -1110,7 +1150,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     /** Screen rectangle of a scenery card (or [SceneryPicker.BACK], [SceneryPicker.PACK]) in the last drawn picker, for tests. */
     internal fun sceneryTarget(id: String): RectF? = if (screen == Screen.SCENERIES) sceneryPicker.targetOf(id) else null
 
-    /** Screen rectangle of the HUD button [id] ("menu", "pause", "router", "radio:…", "cable:…") in the last drawn frame, for tests. */
+    /**
+     * Screen rectangle of the HUD button [id] ("menu", "pause", "cable:…", and the network tiles "router", "radio:…") in
+     * the last drawn frame, for tests.
+     */
     internal fun hudTarget(id: String): RectF? = buttons.firstOrNull { it.id == id }?.rect
 
     /** The accessibility layer, for tests; set [CanvasAccessibility.forceActive] to collect elements without a service. */
@@ -1133,6 +1176,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     /** True while the clock is stopped in place by the pause button, for tests. */
     internal val pausedInPlace: Boolean get() = userPaused
+
+    /** True while a tap has armed placing a router or radio, for tests. */
+    internal val placingArmed: Boolean get() = placing != null
+
+    /** True while the router tile pulses after a cable failed on full ports, for tests. */
+    internal val routerPulsing: Boolean get() = animTime - routerPulseAt in 0f..ROUTER_PULSE_SECONDS
 
     /** Number of haptic pulses sent (only counted while haptics are on), for tests. */
     internal var hapticPulses = 0
@@ -1167,13 +1216,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         val client = if (from.kind == NodeKind.CLIENT) from else target?.takeIf { it.kind == NodeKind.CLIENT }
         val other = if (client === from) target else from
         val check = if (error == null && client != null && other != null) world.checkCable(client, other, cableType) else null
-        val detail = check?.let {
+        val portsFull = error == ConnectError.FROM_PORTS_FULL || error == ConnectError.TO_PORTS_FULL
+        val detail = if (portsFull) context.getString(R.string.ports_add_router) else check?.let {
             if (it.problem == RouteProblem.TOO_NARROW) context.getString(R.string.drag_too_narrow, texts.service(it.service), it.service.bandwidth)
             else context.getString(R.string.drag_ping, texts.service(it.service), it.pingMs!!.roundToInt(), it.limitMs!!)
         }
         return DragPreview(
             from = from, end = end, target = target, type = cableType, layout = layout, blocked = error != null, label = label,
-            detail = detail, detailWarning = check?.problem != null, trail = dragTrail.toList(),
+            detail = detail, detailWarning = check?.problem != null || portsFull, trail = dragTrail.toList(),
         )
     }
 
@@ -1194,6 +1244,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     /** Drops the gesture in progress: a half-drawn cable, a pan, and a hold on an access point. */
     private fun endDrag() {
+        endToolDrag()
         holdAp = null
         snapTarget = null
         dragFrom = null
@@ -1307,11 +1358,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         canvas.drawCircle(cx, cy, h * 0.05f, compassPaint)
     }
 
-    /** Lowest edge of the tutorial panel: above the cable buttons at the bottom left (and their slab). */
-    private fun tutorialBottom() = surfaceHeight - safeInsets.bottom - 16 * density - buttonHeight - 12 * density
+    /** Lowest edge of the tutorial panel: above the toolbar's tray (as last drawn; before that, one captioned row). */
+    private fun tutorialBottom() =
+        if (toolbarTop.isNaN()) surfaceHeight - safeInsets.bottom - 16 * density - buttonHeight - captionHeight - 12 * density
+        else toolbarTop - 8 * density
 
-    /** Room the HUD's bottom row takes below the map. */
-    private val hudBottomReserve get() = maxOf(68 * density, 16 * density + buttonHeight + 4 * density)
+    /** Room the HUD's bottom row and its group captions take below the map. */
+    private val hudBottomReserve get() = maxOf(68 * density, 16 * density + buttonHeight + captionHeight + 4 * density)
 
     private fun drawHud(canvas: Canvas) {
         // Everything stays inside the safe area (display cutout), with a margin of [pad] (docs/TOP100.md A5). Rows are
@@ -1404,157 +1457,17 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         var banner = if (userPaused && world.rewardOffer == null) placePausedBanner(center, right - left, ::place) else null
 
         val bh = buttonHeight
-        val gap = 10 * density
-        var x = right
-        val y = bottom - bh
-        // The right-hand buttons are laid out first (the cable chips need their room) but drawn over the tray.
-        val besideTray = ArrayList<() -> Unit>(3)
-        // Menu and pause as round icon buttons at the right edge, then the router stock.
-        for (id in listOf("menu", "pause")) {
-            val r = RectF(x - bh, y, x, y + bh)
-            val on = id == "pause" && userPaused
-            besideTray += { drawIconButton(canvas, r, id, active = on) }
-            buttons += Button(id, r)
-            hudNodes += UiNode(
-                "hud:$id", RectF(r),
-                context.getString(if (id == "menu") R.string.a11y_menu else R.string.a11y_pause),
-                if (id == "menu") UiNode.Kind.BUTTON else UiNode.Kind.TOGGLE, checked = id == "pause" && userPaused,
-            )
-            x -= bh + gap
-        }
-        val routerLabel = if (world.unlimited) context.getString(R.string.button_router_unlimited) else context.getString(R.string.button_router, world.routersAvailable)
-        val rw = maxOf(bh, btnText.measureText(routerLabel) + 32 * density)
-        val routerRect = RectF(x - rw, y, x, y + bh)
-        val routerOn = placing == NodeKind.ROUTER
-        besideTray += { drawHudButton(canvas, routerRect, routerLabel, active = routerOn) }
-        buttons += Button("router", routerRect)
-        val routerA11y = if (world.unlimited) "$routerLabel, ${context.getString(R.string.a11y_unlimited)}" else context.getString(R.string.a11y_router, world.routersAvailable)
-        hudNodes += UiNode("hud:router", RectF(routerRect), routerA11y, UiNode.Kind.BUTTON, selected = placing == NodeKind.ROUTER)
-        val rightEdge = routerRect.left
-        // Cable technology picker, bottom left: invented technologies, each with a short piece of its cable (color,
-        // thickness and core tell them apart) and its price per cell on a coin. In a narrow (portrait) window or with
-        // large text it moves to its own row above, and names shorten ("Faser" for "Glasfaser") before they disappear:
-        // colour alone is not enough to tell the technologies apart (docs/TOP100.md A7).
-        // Creative mode (docs/TOP100.md C4): nothing costs anything, so no price coins.
-        val priced = !world.unlimited
-        var showPrice = priced
-        // In a narrow window the price moves onto a coin badge on the chip's corner instead of dropping out (judge
-        // panel: the portrait chips lost their prices).
-        var badgePrice = false
-        val coinR = maxOf(9 * density, coinText.textSize * 0.8f)
-        val cables = world.unlockedCables
-        var chipText = btnText
-        fun widthOf(t: CableType, label: String?) =
-            26 * density + (if (label != null) chipText.measureText(label) + 8 * density else 0f) +
-                (if (showPrice && !badgePrice) 2 * coinR + 10 * density else if (badgePrice) 12 * density else 4 * density)
-        fun rowWidth(label: (CableType) -> String?) =
-            cables.sumOf { widthOf(it, label(it)).toDouble() }.toFloat() + gap * (cables.size - 1)
-        val full = { t: CableType -> texts.cable(t) }
-        val short = { t: CableType -> texts.cableShort(t) }
-        val selectedShort = { t: CableType -> if (t == cableType) texts.cableShort(t) else null }
-        // An extra row only where there is height to spare (not on a landscape phone with large text).
-        val tall = bottom - top - m.bottom >= 6 * bh
-        val fitsBeside = { label: (CableType) -> String? -> left + rowWidth(label) <= rightEdge - gap }
-        val none = { _: CableType -> null as String? }
-        val (ownRow, named) = when {
-            fitsBeside(full) -> false to full
-            tall && left + rowWidth(full) <= right -> true to full
-            // The full names in a slightly smaller type before they are cut, so a portrait window says "Glasfaser" as
-            // landscape does instead of a clipped "Glas" (judge panel: the terms must stay the same everywhere).
-            tall && run { chipText = chipLabelCompact; left + rowWidth(full) <= right } -> true to full
-            priced && tall && run { badgePrice = true; left + rowWidth(full) <= right } -> true to full
-            run { badgePrice = false; chipText = btnText; fitsBeside(short) } -> false to short
-            tall && left + rowWidth(short) <= right -> true to short
-            // Short names a step smaller keep their price coins, the resource count every chip shows in landscape.
-            tall && run { chipText = chipLabelCompact; left + rowWidth(short) <= right } -> true to short
-            priced && tall && run { badgePrice = true; left + rowWidth(short) <= right } -> true to short
-            // Still too narrow: the names matter more than the prices, which the drag bubble shows anyway.
-            priced && tall && run { badgePrice = false; chipText = btnText; left + rowWidth(short) - cables.size * (2 * coinR + 6 * density) <= right } -> {
-                showPrice = false
-                true to short
-            }
-            // Beside the buttons without prices, then with the names capped at 130 % of the normal size: a short
-            // name on every chip beats colour alone, which fails colour-blind players (judge panel, docs/TOP100.md B4).
-            priced && run { showPrice = false; fitsBeside(short) } -> false to short
-            run { showPrice = false; chipText = chipLabelSmall; fitsBeside(short) } -> false to short
-            tall && left + rowWidth(short) <= right -> true to short
-            run { showPrice = priced; chipText = btnText; fitsBeside(selectedShort) } -> false to selectedShort
-            tall && left + rowWidth(selectedShort) <= right -> true to selectedShort
-            fitsBeside(none) -> false to none
-            else -> true to none
-        }
-        val cableY = if (ownRow) y - bh - gap else y
-        run {
-            val radioRows = if (RadioType.entries.any { world.unlimited || world.radiosAvailable(it) > 0 }) 1 else 0
-            val rowsAbove = (if (ownRow) 1 else 0) + radioRows
-            val trayTop = y - rowsAbove * (bh + gap) - 10 * density
-            canvas.drawRect(0f, trayTop, surfaceWidth.toFloat(), surfaceHeight.toFloat(), trayFill)
-            canvas.drawRect(0f, trayTop - 1 * density, surfaceWidth.toFloat(), trayTop, trayEdge)
-        }
-        besideTray.forEach { it() }
-        var cx = left
-        for (t in cables) {
-            val label = named(t)
-            val w = widthOf(t, label)
-            val r = RectF(cx, cableY, cx + w, cableY + bh)
-            val active = t == cableType
-            canvas.drawRoundRect(r, bh / 2, bh / 2, if (active) btnActive else btnFill)
-            drawCableGlyph(canvas, t, r.left + 12 * density, r.left + 20 * density, r.centerY())
-            if (label != null) {
-                chipText.color = if (active) 0xFFFFFFFF.toInt() else 0xFF262B33.toInt()
-                chipText.textAlign = Paint.Align.LEFT
-                canvas.drawText(label, r.left + 27 * density, r.centerY() + chipText.textSize * 0.35f, chipText)
-                chipText.textAlign = Paint.Align.CENTER
-            }
-            if (showPrice && badgePrice) {
-                // The price on a coin badge over the chip's top right corner, with a white rim to lift it off the chip.
-                val br = coinR * 0.9f
-                val bx = r.right - br * 0.7f
-                val by = r.top + br * 0.35f
-                canvas.drawCircle(bx, by, br + 2 * density, chipBadgeRim)
-                canvas.drawCircle(bx, by, br, coinFill)
-                canvas.drawText(t.costPerCell.toString(), bx, by + coinText.textSize * 0.36f, coinText)
-            } else if (showPrice) {
-                val coinX = r.right - 10 * density - coinR
-                canvas.drawCircle(coinX, r.centerY(), coinR, coinFill)
-                canvas.drawText(t.costPerCell.toString(), coinX, r.centerY() + coinText.textSize * 0.36f, coinText)
-            }
-            buttons += Button("cable:${t.name}", r)
-            val a11y = if (priced) context.getString(R.string.a11y_cable, texts.cable(t), t.costPerCell) else context.getString(R.string.a11y_cable_free, texts.cable(t))
-            hudNodes += UiNode("hud:cable:${t.name}", RectF(r), a11y, UiNode.Kind.BUTTON, selected = active)
-            cx += w + gap
-        }
-        // Radios in a row above the right buttons (above the cables too when those have their own row), only while
-        // some are in stock (they come as week rewards).
-        var rows = if (ownRow) 1 else 0
-        x = right
-        var radioRow = false
-        for (type in RadioType.entries.reversed()) {
-            val stock = world.radiosAvailable(type)
-            if (stock == 0 && !world.unlimited) continue
-            radioRow = true
-            val label = when {
-                world.unlimited -> context.getString(if (type == RadioType.WLAN) R.string.button_access_point_unlimited else R.string.button_cell_tower_unlimited)
-                else -> context.getString(if (type == RadioType.WLAN) R.string.button_access_point else R.string.button_cell_tower, stock)
-            }
-            val w = maxOf(bh, btnText.measureText(label) + 32 * density)
-            val top = y - (rows + 1) * (bh + gap)
-            val r = RectF(x - w, top, x, top + bh)
-            drawHudButton(canvas, r, label, active = placing == type.kind)
-            buttons += Button("radio:${type.name}", r)
-            hudNodes += UiNode(
-                "hud:radio:${type.name}", RectF(r),
-                if (world.unlimited) "$label, ${context.getString(R.string.a11y_unlimited)}"
-                else context.getString(if (type == RadioType.WLAN) R.string.a11y_access_point else R.string.a11y_cell_tower, stock),
-                UiNode.Kind.BUTTON, selected = placing == type.kind,
-            )
-            x -= w + gap
-        }
-        if (radioRow) rows++
-        val hintY = y - 10 * density - rows * (bh + gap)
+        val bar = layoutToolbar(left, right, bottom - bh, tall = bottom - top - m.bottom >= 6 * bh)
+        toolbarTop = bar.trayTop
+        toolbarRaised = bar.raised
+        drawTray(canvas, bar)
+        drawToolbar(canvas, bar)
+        // Above the whole toolbar, the raised network row too: a long word must never run into it.
+        val hintY = (bar.raised?.top ?: bar.trayTop) - hudSub.descent() - 4 * density
         // No hint under a menu card: the game-over card and the pause menu cover that spot.
         val hintText = when {
             screen != Screen.PLAYING -> null
+            toolDrag != null -> dropHint()
             placing != null -> context.getString(R.string.hint_place_router)
             animTime < hintUntil -> hint
             else -> null
@@ -1576,6 +1489,423 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             hudNodes += UiNode("hud:hint", RectF(left, hintY - (lines.size - 1) * lineH - hudSub.textSize, left + w, hintY + hudSub.descent()), it, UiNode.Kind.TEXT)
         }
         banner?.let { drawPausedBanner(canvas, it) }
+    }
+
+    /** How the cable chips name and price themselves, from full names with a coin down to no name at all. */
+    private class ChipStyle(val label: (CableType) -> String?, val paint: Paint, val price: ChipPrice)
+
+    /** The price on a cable chip: a coin at its end, a coin badge over its corner (own row only), or none. */
+    private enum class ChipPrice { COIN, BADGE, NONE }
+
+    /** One network tile: the [kind] it places, its button [id], its [stock] (null: unlimited) and short [name]. */
+    private class NetTool(val kind: NodeKind, val id: String, val stock: Int?, val name: String)
+
+    /** A group caption ("KABEL", "NETZWERK") with its left end and baseline. */
+    private class Caption(val key: String, val text: String, val x: Float, val baseline: Float)
+
+    /**
+     * The bottom toolbar as laid out for one frame by [layoutToolbar]: the cable [chips] in [chip] style, the network
+     * [tiles] with their names in [tilePaint] (null: icon, dots and stock only), pause and menu ([controls]), the group
+     * [captions], the [divider] between the groups when they share a row, and the top of the tray behind it all, with
+     * a [raised] part (rounded at its top left) behind a network row that sits above the controls.
+     */
+    private class Toolbar(
+        val chips: List<Pair<CableType, RectF>>,
+        val chip: ChipStyle,
+        val tiles: List<Pair<NetTool, RectF>>,
+        val tilePaint: Paint?,
+        val controls: List<Pair<String, RectF>>,
+        val captions: List<Caption>,
+        val divider: RectF?,
+        val trayTop: Float,
+        val raised: RectF? = null,
+    )
+
+    /**
+     * Cable chip styles, best first. Names shorten ("Faser" for "Glasfaser") before they disappear, and a slightly
+     * smaller type comes first so a portrait window says "Glasfaser" as landscape does (judge panel: the terms must stay
+     * the same everywhere); colour alone is not enough to tell the technologies apart (docs/TOP100.md A7, B4). Prices
+     * move onto a corner badge before they drop out, and drop out before the names: the drag bubble shows them anyway.
+     * Creative mode (docs/TOP100.md C4): nothing costs anything, so no coins.
+     */
+    private fun chipStyles(): List<ChipStyle> {
+        val full = { t: CableType -> texts.cable(t) }
+        val short = { t: CableType -> texts.cableShort(t) }
+        val selectedShort = { t: CableType -> if (t == cableType) texts.cableShort(t) else null }
+        val none = { _: CableType -> null as String? }
+        val priced = !world.unlimited
+        val coin = if (priced) ChipPrice.COIN else ChipPrice.NONE
+        return listOfNotNull(
+            ChipStyle(full, btnText, coin),
+            ChipStyle(full, chipLabelCompact, coin),
+            if (priced) ChipStyle(full, chipLabelCompact, ChipPrice.BADGE) else null,
+            ChipStyle(short, btnText, coin),
+            ChipStyle(short, chipLabelCompact, coin),
+            if (priced) ChipStyle(short, chipLabelCompact, ChipPrice.BADGE) else null,
+            if (priced) ChipStyle(short, btnText, ChipPrice.NONE) else null,
+            ChipStyle(short, chipLabelSmall, ChipPrice.NONE),
+            ChipStyle(selectedShort, btnText, coin),
+            ChipStyle(none, btnText, coin),
+        )
+    }
+
+    /** Radius of the price coins and stock badges. */
+    private val coinR get() = maxOf(9 * density, coinText.textSize * 0.8f)
+
+    private fun chipWidth(t: CableType, style: ChipStyle): Float {
+        val label = style.label(t)
+        return 26 * density + (if (label != null) style.paint.measureText(label) + 8 * density else 0f) +
+            when (style.price) {
+                ChipPrice.COIN -> 2 * coinR + 10 * density
+                ChipPrice.BADGE -> 12 * density
+                ChipPrice.NONE -> 4 * density
+            }
+    }
+
+    private fun chipsWidth(style: ChipStyle): Float {
+        val cables = world.unlockedCables
+        return cables.sumOf { chipWidth(it, style).toDouble() }.toFloat() + TOOL_GAP_DP * density * (cables.size - 1)
+    }
+
+    /** The router always, WLAN and mast while some are in stock (they come as week rewards) or in creative mode. */
+    private fun networkTools(): List<NetTool> {
+        val unlimited = world.unlimited
+        val router = NetTool(NodeKind.ROUTER, "router", if (unlimited) null else world.routersAvailable, context.getString(R.string.toolbar_router))
+        return listOf(router) + RadioType.entries.filter { unlimited || world.radiosAvailable(it) > 0 }.map {
+            val name = context.getString(if (it == RadioType.WLAN) R.string.toolbar_access_point else R.string.toolbar_cell_tower)
+            NetTool(it.kind, "radio:${it.name}", if (unlimited) null else world.radiosAvailable(it), name)
+        }
+    }
+
+    /** Width of a row of [n] port dots in a tile. */
+    private fun tileDotsWidth(n: Int) = (n - 1) * TILE_DOT_STEP_DP * density + 2 * TILE_DOT_DP * density
+
+    /**
+     * A network tile: the device in a round well, its name with a row of one hollow dot per port under it, and the
+     * stock on a dark badge at the end (as the price coin on a cable chip). Without a name ([paint] null) the dots
+     * move under the well and the stock onto a small badge over the well's corner, so three tiles fit beside pause and
+     * menu in a portrait phone.
+     */
+    private fun tileWidth(tool: NetTool, paint: Paint?): Float {
+        val dots = tileDotsWidth(tool.kind.maxPorts)
+        val well = 2 * TILE_WELL_DP * density
+        val badge = 2 * coinR + 10 * density
+        return if (paint == null) maxOf(buttonHeight, 2 * 14 * density + maxOf(well, dots))
+        else 12 * density + well + 8 * density + maxOf(paint.measureText(tool.name), dots) + 8 * density + badge
+    }
+
+    private fun tilesWidth(tools: List<NetTool>, paint: Paint?) =
+        tools.sumOf { tileWidth(it, paint).toDouble() }.toFloat() + TOOL_GAP_DP * density * (tools.size - 1)
+
+    /** Height a group caption takes above its row. */
+    private val captionHeight get() = captionText.textSize + captionText.descent() + CAPTION_GAP_DP * density
+
+    /** Baseline of a caption over a row whose top is [rowTop]. */
+    private fun captionBaseline(rowTop: Float) = rowTop - CAPTION_GAP_DP * density - captionText.descent()
+
+    private fun caption(key: String, res: Int, x: Float, rowTop: Float) =
+        Caption(key, context.getString(res).uppercase(resources.configuration.locales[0]), x, captionBaseline(rowTop))
+
+    /**
+     * Lays out the bottom toolbar above [y] (the top of the lowest row) between [left] and [right]: two captioned
+     * groups, "Kabel" (the cable technologies) and "Netzwerk" (router, WLAN, mast: the devices that join several
+     * others), then pause and menu at the right edge. The best cable [chipStyles] wins that fits one of, in this order:
+     *  - one row: cables | divider | network, and the controls at the right (landscape, tablets);
+     *  - network on a row above the controls, cables beside the controls (a landscape window with radios in stock or
+     *    large text): the tray stays one row high on the left, where the map is, instead of the names shrinking away;
+     *  - cables on their own row above, network and controls below, only where there is height to spare ([tall]:
+     *    portrait windows, where the cables do not fit beside the controls).
+     * The network tiles keep their names in the chips' type if they fit, a step smaller otherwise, and only show icon,
+     * dots and stock as a last resort. Every tile and chip is at least [buttonHeight] tall and wide (48 dp).
+     */
+    private fun layoutToolbar(left: Float, right: Float, y: Float, tall: Boolean): Toolbar {
+        val bh = buttonHeight
+        val gap = TOOL_GAP_DP * density
+        val menu = RectF(right - bh, y, right, y + bh)
+        val pause = RectF(menu.left - gap - bh, y, menu.left - gap, y + bh)
+        val controls = listOf("menu" to menu, "pause" to pause)
+        val controlsEdge = pause.left - gap
+        val tools = networkTools()
+        val groupGap = GROUP_GAP_DP * density
+        val cables = world.unlockedCables
+        fun chipsAt(style: ChipStyle, top: Float): List<Pair<CableType, RectF>> {
+            var x = left
+            return cables.map { t -> val w = chipWidth(t, style); (t to RectF(x, top, x + w, top + bh)).also { x += w + gap } }
+        }
+        fun tilesAt(paint: Paint?, from: Float, top: Float): List<Pair<NetTool, RectF>> {
+            var x = from
+            return tools.map { tool -> val w = tileWidth(tool, paint); (tool to RectF(x, top, x + w, top + bh)).also { x += w + gap } }
+        }
+        fun trayTop(captions: List<Caption>, rowTops: List<Float>) =
+            minOf(captions.minOfOrNull { it.baseline - captionText.textSize } ?: Float.MAX_VALUE, rowTops.min()) - TRAY_PAD_DP * density
+        val styles = chipStyles()
+        for (style in styles) {
+            val cw = chipsWidth(style)
+            if (style.price != ChipPrice.BADGE) {
+                val tilePaint = listOf(style.paint, chipLabelCompact).distinct().firstOrNull { left + cw + 2 * groupGap + tilesWidth(tools, it) <= controlsEdge }
+                if (tilePaint != null) {
+                    val netLeft = left + cw + 2 * groupGap
+                    val captions = listOf(
+                        caption("cables", R.string.toolbar_cables, left + CAPTION_INSET_DP * density, y),
+                        caption("network", R.string.toolbar_network, netLeft + CAPTION_INSET_DP * density, y),
+                    )
+                    val mid = left + cw + groupGap
+                    val divider = RectF(mid - 0.5f * density, y + bh * 0.2f, mid + 0.5f * density, y + bh * 0.8f)
+                    return Toolbar(chipsAt(style, y), style, tilesAt(tilePaint, netLeft, y), tilePaint, controls, captions, divider, trayTop(captions, listOf(y)))
+                }
+            }
+            if (style.price != ChipPrice.BADGE && left + cw <= controlsEdge) {
+                val netTop = y - bh - gap
+                val cablesCaption = caption("cables", R.string.toolbar_cables, left + CAPTION_INSET_DP * density, y)
+                val besideCaption = cablesCaption.x + captionText.measureText(cablesCaption.text) + 2 * gap
+                val tilePaint = listOf(style.paint, chipLabelCompact).distinct().firstOrNull { right - tilesWidth(tools, it) >= besideCaption }
+                val netLeft = right - tilesWidth(tools, tilePaint)
+                val netCaption = caption("network", R.string.toolbar_network, netLeft + CAPTION_INSET_DP * density, netTop).let {
+                    // A caption wider than a lone narrow tile ends at the right edge instead of running past it.
+                    val w = captionText.measureText(it.text)
+                    if (it.x + w > right) Caption(it.key, it.text, right - w, it.baseline) else it
+                }
+                // Where the network row reaches over the cables' caption (a very narrow window), that caption goes.
+                val captions = listOfNotNull(cablesCaption.takeIf { netLeft >= besideCaption - gap }, netCaption)
+                val raisedTop = minOf(netCaption.baseline - captionText.textSize, netTop) - TRAY_PAD_DP * density
+                val raised = RectF(minOf(netLeft, netCaption.x) - GROUP_GAP_DP * density, raisedTop, surfaceWidth.toFloat(), y)
+                val low = trayTop(captions - netCaption, listOf(y))
+                return Toolbar(chipsAt(style, y), style, tilesAt(tilePaint, netLeft, netTop), tilePaint, controls, captions, null, low, raised)
+            }
+            if (tall && left + cw <= right) {
+                val cableTop = y - bh - gap - captionHeight
+                val tilePaint = listOf(style.paint, chipLabelCompact).distinct().firstOrNull { left + tilesWidth(tools, it) <= controlsEdge }
+                val captions = listOf(
+                    caption("cables", R.string.toolbar_cables, left + CAPTION_INSET_DP * density, cableTop),
+                    caption("network", R.string.toolbar_network, left + CAPTION_INSET_DP * density, y),
+                )
+                return Toolbar(chipsAt(style, cableTop), style, tilesAt(tilePaint, left, y), tilePaint, controls, captions, null, trayTop(captions, listOf(cableTop)))
+            }
+        }
+        val last = styles.last()
+        val captions = listOf(caption("network", R.string.toolbar_network, left + CAPTION_INSET_DP * density, y))
+        return Toolbar(chipsAt(last, y - bh - gap - captionHeight), last, tilesAt(null, left, y), null, controls, captions, null, trayTop(captions, listOf(y - bh - gap - captionHeight)))
+    }
+
+    /**
+     * The frosted tray under the toolbar with a hairline along its top edge, and its raised part (rounded at the top
+     * left) on top of it, meeting it edge to edge so the translucent fill never doubles.
+     */
+    private fun drawTray(canvas: Canvas, bar: Toolbar) {
+        val w = surfaceWidth.toFloat()
+        val line = 1 * density
+        canvas.drawRect(0f, bar.trayTop, w, surfaceHeight.toFloat(), trayFill)
+        val raised = bar.raised
+        canvas.drawRect(0f, bar.trayTop - line, raised?.left ?: w, bar.trayTop, trayLineFill)
+        if (raised == null) return
+        val r = TRAY_CORNER_DP * density
+        // Its outline: up the left side, round the top left corner, along the top to the screen edge.
+        trayPath.reset()
+        trayPath.moveTo(raised.left, bar.trayTop)
+        trayPath.lineTo(raised.left, raised.top + r)
+        trayPath.quadTo(raised.left, raised.top, raised.left + r, raised.top)
+        trayPath.lineTo(w, raised.top)
+        trayLine.strokeWidth = 2 * line
+        canvas.drawPath(trayPath, trayLine)
+        trayPath.lineTo(w, bar.trayTop)
+        trayPath.close()
+        canvas.drawPath(trayPath, trayFill)
+    }
+
+    /** Draws [bar] and registers its buttons for touches and TalkBack. */
+    private fun drawToolbar(canvas: Canvas, bar: Toolbar) {
+        for ((id, r) in bar.controls) {
+            drawIconButton(canvas, r, id, active = id == "pause" && userPaused)
+            buttons += Button(id, r)
+            hudNodes += UiNode(
+                "hud:$id", RectF(r),
+                context.getString(if (id == "menu") R.string.a11y_menu else R.string.a11y_pause),
+                if (id == "menu") UiNode.Kind.BUTTON else UiNode.Kind.TOGGLE, checked = id == "pause" && userPaused,
+            )
+        }
+        for (c in bar.captions) {
+            canvas.drawText(c.text, c.x, c.baseline, captionText)
+            val w = captionText.measureText(c.text)
+            hudNodes += UiNode("hud:group:${c.key}", RectF(c.x, c.baseline - captionText.textSize, c.x + w, c.baseline + captionText.descent()), c.text, UiNode.Kind.HEADING)
+        }
+        bar.divider?.let { canvas.drawRect(it, dividerFill) }
+        val style = bar.chip
+        val chipText = style.paint
+        val priced = !world.unlimited
+        for ((t, r) in bar.chips) {
+            val bh = r.height()
+            val label = style.label(t)
+            val active = t == cableType
+            canvas.drawRoundRect(r, bh / 2, bh / 2, if (active) btnActive else btnFill)
+            drawCableGlyph(canvas, t, r.left + 12 * density, r.left + 20 * density, r.centerY())
+            if (label != null) {
+                chipText.color = if (active) 0xFFFFFFFF.toInt() else 0xFF262B33.toInt()
+                chipText.textAlign = Paint.Align.LEFT
+                canvas.drawText(label, r.left + 27 * density, r.centerY() + chipText.textSize * 0.35f, chipText)
+                chipText.textAlign = Paint.Align.CENTER
+            }
+            when (style.price) {
+                // The price on a coin badge over the chip's top right corner, with a white rim to lift it off the chip.
+                ChipPrice.BADGE -> {
+                    val br = coinR * 0.9f
+                    val bx = r.right - br * 0.7f
+                    val by = r.top + br * 0.35f
+                    canvas.drawCircle(bx, by, br + 2 * density, chipBadgeRim)
+                    canvas.drawCircle(bx, by, br, coinFill)
+                    canvas.drawText(t.costPerCell.toString(), bx, by + coinText.textSize * 0.36f, coinText)
+                }
+                ChipPrice.COIN -> {
+                    val coinX = r.right - 10 * density - coinR
+                    canvas.drawCircle(coinX, r.centerY(), coinR, coinFill)
+                    canvas.drawText(t.costPerCell.toString(), coinX, r.centerY() + coinText.textSize * 0.36f, coinText)
+                }
+                ChipPrice.NONE -> Unit
+            }
+            buttons += Button("cable:${t.name}", r)
+            val a11y = if (priced) context.getString(R.string.a11y_cable, texts.cable(t), t.costPerCell) else context.getString(R.string.a11y_cable_free, texts.cable(t))
+            hudNodes += UiNode("hud:cable:${t.name}", RectF(r), a11y, UiNode.Kind.BUTTON, selected = active)
+        }
+        for ((tool, r) in bar.tiles) {
+            drawTile(canvas, tool, r, bar.tilePaint)
+            buttons += Button(tool.id, r)
+            val stock = tool.stock
+            val base = when {
+                stock == null -> "${tool.name}, ${context.getString(R.string.a11y_unlimited)}"
+                tool.kind == NodeKind.ROUTER -> context.getString(R.string.a11y_router, stock)
+                tool.kind == NodeKind.ACCESS_POINT -> context.getString(R.string.a11y_access_point, stock)
+                else -> context.getString(R.string.a11y_cell_tower, stock)
+            }
+            hudNodes += UiNode(
+                "hud:${tool.id}", RectF(r), context.getString(R.string.hint_two_parts, base, texts.ports(tool.kind.maxPorts)),
+                UiNode.Kind.BUTTON, selected = placing == tool.kind,
+            )
+        }
+    }
+
+    /** One network tile (see [tileWidth]); the router's pulses after a cable failed on full ports. */
+    private fun drawTile(canvas: Canvas, tool: NetTool, r: RectF, paint: Paint?) {
+        val h = r.height()
+        val active = placing == tool.kind || toolDrag == tool.kind
+        val pulse = animTime - routerPulseAt
+        if (tool.kind == NodeKind.ROUTER && pulse in 0f..ROUTER_PULSE_SECONDS) {
+            // Two rings that grow out of the tile and fade: "this is what you need".
+            for (k in 0 until 2) {
+                val f = (pulse / ROUTER_PULSE_SECONDS * 2f - k * 0.5f).let { it - floor(it) }
+                val grow = (3f + 9f * f) * density
+                tilePulse.alpha = ((1f - f) * 230).toInt()
+                tilePulse.strokeWidth = 3 * density
+                canvas.drawRoundRect(r.left - grow, r.top - grow, r.right + grow, r.bottom + grow, h / 2 + grow, h / 2 + grow, tilePulse)
+            }
+        }
+        canvas.drawRoundRect(r, h / 2, h / 2, if (active) btnActive else btnFill)
+        val well = TILE_WELL_DP * density
+        val named = paint != null
+        val wx = if (named) r.left + 12 * density + well else r.centerX()
+        val wy = if (named) r.centerY() else r.centerY() - 5 * density
+        tileWell.color = if (active) 0xFFFFFFFF.toInt() else TILE_WELL
+        canvas.drawCircle(wx, wy, if (named) well else well * 0.85f, tileWell)
+        drawToolIcon(canvas, tool.kind, wx, wy, (if (named) 9.5f else 8f) * density)
+        // One hollow dot per port: a fresh device has them all free.
+        val dotR = TILE_DOT_DP * density
+        tileDot.color = if (active) 0xFFFFFFFF.toInt() else 0xFF5B6674.toInt()
+        tileDot.strokeWidth = 1.3f * density
+        val dotsY: Float
+        var dx: Float
+        if (paint != null) {
+            val cap = paint.textSize * 0.72f
+            val block = cap + 6 * density + 2 * dotR
+            val baseline = r.centerY() - block / 2f + cap
+            paint.color = if (active) 0xFFFFFFFF.toInt() else 0xFF262B33.toInt()
+            paint.textAlign = Paint.Align.LEFT
+            val tx = wx + well + 8 * density
+            canvas.drawText(tool.name, tx, baseline, paint)
+            paint.textAlign = Paint.Align.CENTER
+            dotsY = baseline + 6 * density + dotR
+            dx = tx + dotR
+        } else {
+            dotsY = r.bottom - 9 * density
+            dx = wx - tileDotsWidth(tool.kind.maxPorts) / 2f + dotR
+        }
+        repeat(tool.kind.maxPorts) {
+            canvas.drawCircle(dx, dotsY, dotR - tileDot.strokeWidth / 2f, tileDot)
+            dx += TILE_DOT_STEP_DP * density
+        }
+        // The stock on a dark badge where a cable chip has its price coin (on the well's corner without a name); grey
+        // once none is left.
+        val badgeR = if (named) coinR else coinR * 0.85f
+        val bx = if (named) r.right - 10 * density - coinR else wx + well * 0.85f
+        val by = if (named) r.centerY() else wy - well * 0.55f
+        val stock = tool.stock
+        stockFill.color = when {
+            stock == 0 -> 0xFFB4BAC2.toInt()
+            active -> 0xFFFFFFFF.toInt()
+            else -> 0xFF262B33.toInt()
+        }
+        if (!named) canvas.drawCircle(bx, by, badgeR + 2 * density, if (active) btnActive else chipBadgeRim)
+        canvas.drawCircle(bx, by, badgeR, stockFill)
+        stockText.color = if (active && stock != 0) 0xFF262B33.toInt() else 0xFFFFFFFF.toInt()
+        canvas.drawText(stock?.toString() ?: "∞", bx, by + stockText.textSize * 0.36f, stockText)
+    }
+
+    /** The device [kind] places, as on the legend: a router block, a WLAN puck with its arcs, a lattice mast. */
+    private fun drawToolIcon(canvas: Canvas, kind: NodeKind, x: Float, y: Float, s: Float) {
+        when (kind) {
+            NodeKind.ROUTER -> toolIcons.router(canvas, x - s * 0.08f, y + s * 0.22f, s, animTime)
+            NodeKind.ACCESS_POINT -> toolIcons.accessPoint(canvas, x, y + s * 0.02f, s, ACCESS_POINT_LED, animTime)
+            NodeKind.CELL_TOWER -> toolIcons.cellTower(canvas, x, y + s * 0.05f, s * 0.95f, animTime)
+            NodeKind.CLIENT, NodeKind.SERVER -> Unit
+        }
+    }
+
+    /**
+     * While a network tile is dragged over the map: the cell under the finger (its four corners projected, so it
+     * follows any rotation or tilt of the camera) in white where the device can go and red where it cannot, and the
+     * device itself floating on it; over the toolbar it just follows the finger.
+     */
+    private fun drawToolGhost(canvas: Canvas) {
+        val kind = toolDrag ?: return
+        val at = toolDragAt ?: return
+        val s = maxOf(renderer.unitPx * 0.45f, 14 * density)
+        var gx = at.x
+        var gy = at.y - s
+        var alpha = 230
+        if (!overToolbar(at.x, at.y)) {
+            val cell = cellAt(at.x, at.y)
+            val ok = world.placeError(kind, cell.x, cell.y) == null
+            selectionPath.reset()
+            for (k in 0 until 4) {
+                val q = renderer.toScreen(Vec2(cell.x + (if (k == 1 || k == 2) 1f else 0f), cell.y + (if (k >= 2) 1f else 0f)))
+                if (k == 0) selectionPath.moveTo(q.x, q.y) else selectionPath.lineTo(q.x, q.y)
+            }
+            selectionPath.close()
+            ghostFill.color = if (ok) 0x66FFFFFF else 0x55D7263D
+            canvas.drawPath(selectionPath, ghostFill)
+            ghostLine.color = if (ok) 0xF2FFFFFF.toInt() else PORTS_FULL_RED
+            ghostLine.strokeWidth = 2.5f * density
+            canvas.drawPath(selectionPath, ghostLine)
+            val c = renderer.toScreen(cell.center)
+            gx = c.x
+            gy = c.y - s * 0.35f
+            if (!ok) alpha = 140
+        }
+        canvas.saveLayerAlpha(gx - 3 * s, gy - 3 * s, gx + 3 * s, gy + 3 * s, alpha)
+        drawToolIcon(canvas, kind, gx, gy, s)
+        canvas.restore()
+    }
+
+    /** True if ([x], [y]) lies on the toolbar's tray (as last drawn), where a dragged tile is not dropped. */
+    private fun overToolbar(x: Float, y: Float) = y >= toolbarTop || toolbarRaised?.contains(x, y) == true
+
+    /** The cell under the screen point ([sx], [sy]), through the renderer's own picking (any rotation or tilt). */
+    private fun cellAt(sx: Float, sy: Float): Cell = renderer.toWorld(sx, sy).let { Cell(floor(it.x).toInt(), floor(it.y).toInt()) }
+
+    /** The hint line while a tile is dragged: where to let go, or why the cell under the finger does not work. */
+    private fun dropHint(): String {
+        val kind = toolDrag ?: return context.getString(R.string.hint_drop_tool)
+        val at = toolDragAt ?: return context.getString(R.string.hint_drop_tool)
+        if (overToolbar(at.x, at.y)) return context.getString(R.string.hint_drop_tool)
+        val cell = cellAt(at.x, at.y)
+        return world.placeError(kind, cell.x, cell.y)?.let { placeErrorText(kind, it) } ?: context.getString(R.string.hint_drop_tool)
     }
 
     /** Room left of the counters for the coin in front of the budget line. */
@@ -1812,11 +2142,17 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             onRewardTouch(e)
             return
         }
+        if (toolPress != null && onToolTouch(e)) return
         when (e.action) {
             MotionEvent.ACTION_DOWN -> {
                 downX = e.x; downY = e.y; downTime = e.time
                 cameraGesture = false
-                buttons.firstOrNull { it.rect.contains(e.x, e.y) }?.let { onButton(it.id); return }
+                endToolDrag()
+                buttons.firstOrNull { it.rect.contains(e.x, e.y) }?.let {
+                    // A network tile waits for the finger: lifted, it arms placing; dragged, it carries the device.
+                    if (it.id == "router" || it.id.startsWith("radio:")) toolPress = it.id else onButton(it.id)
+                    return
+                }
                 dragTrail.clear()
                 // While placing, the tap (not the start of a pan or pinch) decides where: see ACTION_UP.
                 dragFrom = if (placing != null) null else pickNode(e.x, e.y)
@@ -1882,10 +2218,17 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 } else if (from != null) {
                     trackDrag(e.x, e.y)
                     pickNode(e.x, e.y, except = from)?.let {
-                        if (world.connect(from, it, cableType, dragBend(from.cell, it.cell))) {
+                        val bend = dragBend(from.cell, it.cell)
+                        if (world.connect(from, it, cableType, bend)) {
                             selection = null
                             haptic(HapticFeedbackConstants.VIRTUAL_KEY)
                             sounds.play(Sound.CABLE)
+                        } else {
+                            when (world.connectError(from, it, cableType, bend)) {
+                                ConnectError.FROM_PORTS_FULL -> portsFull(from)
+                                ConnectError.TO_PORTS_FULL -> portsFull(it)
+                                else -> Unit
+                            }
                         }
                     }
                 } else if (isTap && panArmed) {
@@ -1906,6 +2249,65 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 stopPinch()
                 endDrag()
             }
+        }
+    }
+
+    /**
+     * The rest of a gesture that went down on a network tile ([toolPress]): past the tap slop the device follows the
+     * finger ([drawToolGhost]) and is placed where it is let go, on the map, not over the toolbar; lifted in place it is
+     * a tap. A second finger drops it for a pinch. Returns true if the touch was handled here.
+     */
+    private fun onToolTouch(e: Input.Touch): Boolean {
+        val id = toolPress ?: return false
+        when (e.action) {
+            MotionEvent.ACTION_MOVE -> {
+                if (toolDrag == null && hypot(e.x - downX, e.y - downY) >= TAP_SLOP_DP * density) {
+                    val kind = if (id == "router") NodeKind.ROUTER else RadioType.valueOf(id.removePrefix("radio:")).kind
+                    val stock = if (world.unlimited) Int.MAX_VALUE else RadioType.of(kind)?.let(world::radiosAvailable) ?: world.routersAvailable
+                    if (stock <= 0) {
+                        showHint(placeErrorText(kind, PlaceError.NO_STOCK))
+                        endToolDrag()
+                        return true
+                    }
+                    toolDrag = kind
+                    placing = null
+                    selection = null
+                    haptic(HapticFeedbackConstants.CLOCK_TICK)
+                }
+                if (toolDrag != null) toolDragAt = Vec2(e.x, e.y)
+            }
+            MotionEvent.ACTION_UP -> {
+                val kind = toolDrag
+                when {
+                    kind == null -> onButton(id)
+                    !overToolbar(e.x, e.y) -> cellAt(e.x, e.y).let { place(kind, it.x, it.y) }
+                }
+                endToolDrag()
+            }
+            MotionEvent.ACTION_CANCEL -> endToolDrag()
+            // A second finger: the normal handling starts the pinch (and ends this gesture with [endDrag]).
+            else -> return false
+        }
+        return true
+    }
+
+    private fun endToolDrag() {
+        toolPress = null
+        toolDrag = null
+        toolDragAt = null
+    }
+
+    /**
+     * A cable failed because [n] has no free port: say how many it has and that a router goes in between, let the router
+     * tile pulse, and the first time in a game explain the port dots right after.
+     */
+    private fun portsFull(n: Node) {
+        routerPulseAt = animTime
+        showHint(texts.portsFull(n, R.plurals.ports_full), LONG_HINT_SECONDS)
+        if (!portsTipShown) {
+            portsTipShown = true
+            val ports = NodeKind.ROUTER.maxPorts
+            hintQueue.addFirst(resources.getQuantityString(R.plurals.tip_ports, ports, ports))
         }
     }
 
@@ -2003,10 +2405,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         showWorld(DemoCity.build())
     }
 
-    /** What the tutorial highlights; while a router is being placed, the phones it should go to instead of the button. */
+    /**
+     * What the tutorial highlights; while a router is being placed (armed or dragged), the devices it should go next to
+     * instead of the tile.
+     */
     private fun tutorialFocus(t: Tutorial): TutorialFocus {
         val focus = t.focus(cableType)
-        return if (focus == TutorialFocus.RouterButton && placing == NodeKind.ROUTER) TutorialFocus.Nodes(t.phones) else focus
+        val carrying = placing == NodeKind.ROUTER || toolDrag == NodeKind.ROUTER
+        return if (focus == TutorialFocus.RouterButton && carrying) TutorialFocus.Nodes(t.placeNear()) else focus
     }
 
     /** While the reward choice is open, a card is picked when the finger goes down and up on the same card. */
@@ -2223,15 +2629,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         val radio = RadioType.of(kind)
         val error = world.placeError(kind, cx, cy)
         if (error != null) {
-            val name = if (radio == null) context.getString(R.string.node_router) else texts.radio(radio)
-            showHint(
-                when (error) {
-                    PlaceError.NO_STOCK -> context.getString(R.string.place_error_no_stock, name)
-                    PlaceError.LOCKED -> context.getString(R.string.place_error_locked)
-                    PlaceError.OCCUPIED -> context.getString(R.string.place_error_occupied)
-                    PlaceError.TERRAIN -> context.getString(R.string.place_error_terrain)
-                },
-            )
+            showHint(placeErrorText(kind, error))
             if (error == PlaceError.NO_STOCK) placing = null
             return
         }
@@ -2240,6 +2638,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         haptic(HapticFeedbackConstants.CLOCK_TICK)
         if (placed.kind == NodeKind.ACCESS_POINT) showHint(context.getString(R.string.hint_access_point, Wifi.UPGRADE_5_GHZ_COST))
         placed.cellGeneration?.let { showHint(context.getString(R.string.hint_cell_tower, it.longLabel)) }
+    }
+
+    /** Why [kind] cannot go where the player tapped or let go. */
+    private fun placeErrorText(kind: NodeKind, error: PlaceError): String = when (error) {
+        PlaceError.NO_STOCK -> context.getString(R.string.place_error_no_stock, RadioType.of(kind)?.let(texts::radio) ?: context.getString(R.string.node_router))
+        PlaceError.LOCKED -> context.getString(R.string.place_error_locked)
+        PlaceError.OCCUPIED -> context.getString(R.string.place_error_occupied)
+        PlaceError.TERRAIN -> context.getString(R.string.place_error_terrain)
     }
 
     private fun cycleChannel(ap: Node) {
@@ -3039,7 +3445,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         }
         val network = listOf(
             LegendEntry("server", LegendIcon.Server(Service.MAIL), context.getString(R.string.legend_server_title), context.getString(R.string.legend_server_desc)),
-            LegendEntry("router", LegendIcon.Router, context.getString(R.string.node_router), context.getString(R.string.reward_routers_desc)),
+            LegendEntry("router", LegendIcon.Router, context.getString(R.string.node_router), context.getString(R.string.legend_router_desc)),
+            LegendEntry("ports", LegendIcon.Ports, context.getString(R.string.legend_ports_title), context.getString(R.string.legend_ports_desc)),
         ) + CableType.entries.map { t ->
             LegendEntry(
                 "cable:${t.name}", LegendIcon.Cable(t), texts.cable(t),
@@ -3134,6 +3541,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         selection = null
         userPaused = false
         busyHintShown = false
+        portsTipShown = false
+        routerPulseAt = Float.NEGATIVE_INFINITY
         hintQueue.clear()
         hint = null
         hintedNews = w.lastNews
@@ -3337,6 +3746,25 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         /** Running seconds after which a full-screen ad whose result never came counts as closed. */
         const val AD_TIMEOUT_SECONDS = 6f
         const val COIN_COLOR = 0xFFF5C542.toInt()
+        /** Gap between the toolbar's chips and tiles, and between its rows. */
+        const val TOOL_GAP_DP = 10f
+        /** Room on each side of the divider between the cable and the network group. */
+        const val GROUP_GAP_DP = 12f
+        /** Between a group caption's descent and its row; the caption starts [CAPTION_INSET_DP] in from the row. */
+        const val CAPTION_GAP_DP = 5f
+        const val CAPTION_INSET_DP = 12f
+        /** The tray reaches this far above the highest caption or row. */
+        const val TRAY_PAD_DP = 8f
+        const val TRAY_CORNER_DP = 16f
+        /** Radius of the round well behind a tile's device icon, and a tile's port dots and their spacing. */
+        const val TILE_WELL_DP = 14f
+        const val TILE_DOT_DP = 2.4f
+        const val TILE_DOT_STEP_DP = 6.4f
+        const val TILE_WELL = 0xFFEDF0EB.toInt()
+        const val ACCESS_POINT_LED = 0xFF3BA55C.toInt()
+        /** Full ports: the router tile's pulse and a red ghost cell; the map's alarm red. */
+        const val PORTS_FULL_RED = 0xFFD7263D.toInt()
+        const val ROUTER_PULSE_SECONDS = 1.6f
         const val SELECTION_COLOR = 0xFFFFC21A.toInt()
         const val COMPASS_NORTH = 0xFFD7263D.toInt()
         const val STATE_IN_GAME = "mininetworks.inGame"

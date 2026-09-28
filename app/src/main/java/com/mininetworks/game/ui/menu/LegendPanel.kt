@@ -32,6 +32,8 @@ sealed interface LegendIcon {
     data object CellTower : LegendIcon
     data class Problem(val problem: RouteProblem) : LegendIcon
     data object Overload : LegendIcon
+    /** A PC with its row of port dots, one in use and one free, as under every node on the map. */
+    data object Ports : LegendIcon
 }
 
 /** One entry of the [LegendPanel]; texts are ready to show. [services] are drawn as tokens under the title. */
@@ -291,6 +293,17 @@ class LegendPanel(context: Context) {
             LegendIcon.AccessPoint -> icons.accessPoint(canvas, cx, cy + h * 0.15f, h * 0.45f, 0xFF3BA55C.toInt(), time)
             LegendIcon.CellTower -> icons.cellTower(canvas, cx, cy + h * 0.1f, h * 0.45f, time)
             is LegendIcon.Problem -> ProblemBadges.draw(canvas, icon.problem, cx, cy, h * 0.5f)
+            LegendIcon.Ports -> {
+                icons.device(canvas, Device.PC, cx, cy - h * 0.22f, h * 0.42f)
+                val r = h * 0.11f
+                val py = cy + h * 0.58f
+                fillP.color = 0xFFFFFFFF.toInt()
+                canvas.drawRoundRect(cx - r * 3.3f, py - r * 1.9f, cx + r * 3.3f, py + r * 1.9f, r * 1.9f, r * 1.9f, fillP)
+                lineP.color = 0xFF3A4350.toInt(); lineP.strokeWidth = r * 0.3f
+                canvas.drawRoundRect(cx - r * 3.3f, py - r * 1.9f, cx + r * 3.3f, py + r * 1.9f, r * 1.9f, r * 1.9f, lineP)
+                fillP.color = 0xFF3A4350.toInt(); canvas.drawCircle(cx - r * 1.4f, py, r, fillP)
+                lineP.strokeWidth = r * 0.45f; canvas.drawCircle(cx + r * 1.4f, py, r * 0.78f, lineP)
+            }
             LegendIcon.Overload -> {
                 // The map's timer ring: dark track, white casing, the red arc that runs out, and the "!" sign.
                 arc.set(cx - h * 0.62f, cy - h * 0.62f, cx + h * 0.62f, cy + h * 0.62f)

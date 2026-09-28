@@ -10,6 +10,36 @@
     <string name="hud_clock_day">Dag · %1$s</string>
     <string name="hud_clock_night">Nacht · %1$s · back-ups om %2$s</string>
     <string name="button_router">Router (%1$d)</string>
+    <!-- Toolbar network & ports -->
+    <string name="toolbar_cables">Kabels</string>
+    <string name="toolbar_network">Netwerk</string>
+    <string name="toolbar_router">Router</string>
+    <string name="toolbar_access_point">Wifi</string>
+    <string name="toolbar_cell_tower">Mast</string>
+    <plurals name="toolbar_ports">
+        <item quantity="one">%1$d poort</item>
+        <item quantity="other">%1$d poorten</item>
+    </plurals>
+    <string name="hint_drop_tool">Sleep naar een vrij vak en laat los</string>
+    <plurals name="ports_full">
+        <item quantity="one">%1$s heeft maar %2$d poort – zet er een router tussen</item>
+        <item quantity="other">%1$s heeft maar %2$d poorten – zet er een router tussen</item>
+    </plurals>
+    <plurals name="ports_full_short">
+        <item quantity="one">%1$s: maar %2$d poort</item>
+        <item quantity="other">%1$s: maar %2$d poorten</item>
+    </plurals>
+    <string name="ports_add_router">Zet er een router tussen</string>
+    <plurals name="tip_ports">
+        <item quantity="one">Tip: de stippen onder een apparaat zijn zijn poorten, ● bezet, ○ vrij. Een router heeft er %1$d: sleep er een uit de balk onderaan tussen de apparaten.</item>
+        <item quantity="other">Tip: de stippen onder een apparaat zijn zijn poorten, ● bezet, ○ vrij. Een router heeft er %1$d: sleep er een uit de balk onderaan tussen de apparaten.</item>
+    </plurals>
+    <string name="tutorial_ports_title">Poorten</string>
+    <string name="tutorial_ports_text">Twee nieuwe pc’s! De eerste pc gebruikt al allebei zijn poorten, zie je de twee stippen? Sleep een router uit de balk onderaan naar de nieuwe pc’s.</string>
+    <string name="tutorial_ports_connect_text">Verbind nu beide pc’s en de mailserver met de router. Hij heeft 6 poorten en verdeelt hun mail.</string>
+    <string name="legend_router_desc">Verbindt veel apparaten: 6 poorten in plaats van 2 zoals een pc. Sleep hem uit de balk onderaan naar een vrij vak.</string>
+    <string name="legend_ports_title">Poorten</string>
+    <string name="legend_ports_desc">De stippen onder een apparaat: ● bezet, ○ vrij. Apparaten en wifi hebben er 2, servers en masten 4, routers 6.</string>
     <string name="hint_place_router">Tik op een vrij vak</string>
     <string name="button_access_point">Wifi (%1$d)</string>
     <string name="button_cell_tower">Mast (%1$d)</string>
@@ -76,7 +106,6 @@
     <string name="connect_error_same_node">Zelfde knooppunt</string>
     <string name="connect_error_already_connected">Al verbonden</string>
     <string name="connect_error_not_invented">%1$s is nog niet uitgevonden</string>
-    <string name="connect_error_ports_full">%1$s: alle poorten bezet</string>
     <string name="connect_error_no_budget">Budget reikt niet</string>
 
     <!-- Week rewards -->
