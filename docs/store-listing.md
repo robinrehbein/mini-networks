@@ -92,7 +92,7 @@ Wire up a growing town – from 1995 ISDN to today's fibre.
 
 | Asset | Vorgabe Play | Stand |
 |---|---|---|
-| App-Symbol | 512 × 512 PNG, 32 Bit, ≤ 1 MB, Play maskiert selbst | `docs/store/icon-512.png` (aus den Icon-SVGs, `tools/icon/render.js`; Vorschau `docs/store/icon-preview.png`), gleichwertig `docs/screenshots/store-icon-512.png` aus `ScreenshotTest.renderLauncherIcon` |
+| App-Symbol | 512 × 512 PNG, 32 Bit, ≤ 1 MB, Play maskiert selbst | `docs/store/icon-512.png` (aus `tools/icon/generate.js`; Vorschau `docs/store/icon-preview.png`, sieben Entwürfe in `docs/icon-explorations/`); `docs/screenshots/store-icon-512.png` wird aus `ScreenshotTest.renderLauncherIcon` erzeugt |
 | Feature-Grafik | 1024 × 500 PNG/JPG, ohne Alpha | `docs/store/feature-graphic.png` (StoreScreenshotTest.featureGraphic); ursprünglicher Plan: Iso-Stadt links (Ausschnitt aus `iso-polish.png`), rechts Schriftzug „Mini Networks“ auf dem Dämmerungsblau des Icons; nichts Wichtiges in den äußeren 10 % |
 | Screenshots Telefon | 2–8, 16:9 oder 9:16, 320–3840 px, Seitenverhältnis ≤ 2:1 | Plan unten |
 | Screenshots Tablet 7"/10" | optional, empfohlen für „Für Tablets entwickelt“ | dieselben Motive in 1920 × 1200 |
