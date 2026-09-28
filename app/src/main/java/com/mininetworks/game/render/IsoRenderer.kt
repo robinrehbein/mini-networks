@@ -236,15 +236,16 @@ class IsoRenderer : Renderer {
         drawArrivalRings(canvas, world)
         world.failedNode?.let { drawFailedPulse(canvas, it, time) }
 
-        // A red glow on the ground under an overloaded device that pulses faster and stronger as its ring closes, so
-        // it draws the eye across the whole map (judge panel: two thin rings read as calm).
+        // An opaque warning disc on the ground under an overloaded device, as wide as its timer ring, that warms from
+        // pale rose to hot pink as the ring closes (judge panel: a large translucent red glow over rivers and towers read
+        // as a muddy purple blob). A crisp red rim pulses faster past half way.
         for (n in world.nodes) {
             if (n.kind != NodeKind.CLIENT || n.overload <= 0f) continue
             val cx = sx(n.center.x, n.center.y); val cy = sy(n.center.x, n.center.y)
-            val beat = 0.5f + 0.5f * sin(time * (4f + 6f * n.overload))
-            val reach = 0.8f + 0.4f * n.overload + 0.12f * beat
-            oval.set(cx - tw * reach, cy - th * reach, cx + tw * reach, cy + th * reach)
-            fillP.color = (((n.overload * (0.4f + 0.3f * beat)).coerceIn(0f, 0.7f) * 255).toInt() shl 24) or (alarm and 0xFFFFFF)
+            val beat = if (n.overload > 0.5f) 0.5f + 0.5f * sin(time * (5f + 6f * n.overload)) else 0f
+            val rr = 0.58f + 0.04f * beat
+            oval.set(cx - tw * rr, cy - th * rr, cx + tw * rr, cy + th * rr)
+            fillP.color = blend(WARN_DISC_CALM, WARN_DISC_HOT, (n.overload * (0.7f + 0.3f * beat)).coerceIn(0f, 1f))
             canvas.drawOval(oval, fillP)
         }
 
@@ -706,18 +707,40 @@ class IsoRenderer : Renderer {
         e[8] = x1; e[9] = y0; e[10] = x1; e[11] = y1
         e[12] = x1; e[13] = y1; e[14] = x0; e[15] = y1
         sortFacesBackToFront()
+        // Each face breaks at a gully that runs from the peak to a point on its base edge: the two facets take a lit and
+        // a shaded tone of the face, so a peak reads as rock and not as a smooth pyramid (judge panel).
         for (i in 0 until 4) {
             val f = faceOrder[i]
-            poly(e[4 * f], e[4 * f + 1], 0f, e[4 * f + 2], e[4 * f + 3], 0f, ax, ay, h)
-            fillP.color = col(rockColor(MOUNTAIN_NORMALS[2 * f], MOUNTAIN_NORMALS[2 * f + 1])); c.drawPath(path, fillP)
+            val bx0 = e[4 * f]; val by0 = e[4 * f + 1]; val bx1 = e[4 * f + 2]; val by1 = e[4 * f + 3]
+            val t = 0.38f + 0.24f * Scenery.unit(seed, cell.x, cell.y, 40 + f)
+            val mx = bx0 + (bx1 - bx0) * t; val my = by0 + (by1 - by0) * t
+            val rock = rockColor(MOUNTAIN_NORMALS[2 * f], MOUNTAIN_NORMALS[2 * f + 1])
+            poly(bx0, by0, 0f, mx, my, 0f, ax, ay, h)
+            fillP.color = col(rock.shade(0.05f)); c.drawPath(path, fillP)
+            poly(mx, my, 0f, bx1, by1, 0f, ax, ay, h)
+            fillP.color = col(rock.shade(-0.07f)); c.drawPath(path, fillP)
+            // A pale ridge line down the gully.
+            strokeP.color = col(rock.shade(0.14f)); strokeP.strokeWidth = maxOf(1f, tw * 0.012f)
+            c.drawLine(sx(ax, ay), sy(ax, ay, h), sx(mx, my), sy(mx, my, 0f), strokeP)
         }
         if (h < SNOW_FROM) return
-        val k = 0.3f
+        // The snow cap follows the facets: it reaches further down along each gully than at the corners.
         for (i in 0 until 4) {
             val f = faceOrder[i]
-            val ax0 = ax + (e[4 * f] - ax) * k; val ay0 = ay + (e[4 * f + 1] - ay) * k
-            val ax1 = ax + (e[4 * f + 2] - ax) * k; val ay1 = ay + (e[4 * f + 3] - ay) * k
-            poly(ax0, ay0, h * (1f - k), ax1, ay1, h * (1f - k), ax, ay, h)
+            val bx0 = e[4 * f]; val by0 = e[4 * f + 1]; val bx1 = e[4 * f + 2]; val by1 = e[4 * f + 3]
+            val t = 0.38f + 0.24f * Scenery.unit(seed, cell.x, cell.y, 40 + f)
+            val mx = bx0 + (bx1 - bx0) * t; val my = by0 + (by1 - by0) * t
+            val k = 0.28f
+            val g = 0.46f
+            path.reset()
+            path.moveTo(sx(ax, ay), sy(ax, ay, h))
+            val px0 = ax + (bx0 - ax) * k; val py0 = ay + (by0 - ay) * k
+            path.lineTo(sx(px0, py0), sy(px0, py0, h * (1f - k)))
+            val qx = ax + (mx - ax) * g; val qy = ay + (my - ay) * g
+            path.lineTo(sx(qx, qy), sy(qx, qy, h * (1f - g)))
+            val px1 = ax + (bx1 - ax) * k; val py1 = ay + (by1 - ay) * k
+            path.lineTo(sx(px1, py1), sy(px1, py1, h * (1f - k)))
+            path.close()
             fillP.color = col(snowColor(MOUNTAIN_NORMALS[2 * f], MOUNTAIN_NORMALS[2 * f + 1]))
             c.drawPath(path, fillP)
         }
@@ -1122,8 +1145,10 @@ class IsoRenderer : Renderer {
         for (n in radios) {
             val col = RadioStyles.color(n)
             groundEllipse(n.center, n.radius)
-            fillP.color = col and 0x00FFFFFF or 0x33000000; canvas.drawOval(oval, fillP)
-            strokeP.color = col and 0x00FFFFFF or 0xB0000000.toInt(); strokeP.strokeWidth = tw * 0.02f; canvas.drawOval(oval, strokeP)
+            // A clearly tinted disc with a crisp rim (judge panel: thin grey outlines vanished at thumbnail size).
+            fillP.color = col and 0x00FFFFFF or 0x2E000000; canvas.drawOval(oval, fillP)
+            strokeP.color = 0xCCFFFFFF.toInt(); strokeP.strokeWidth = maxOf(3f * density, tw * 0.05f); canvas.drawOval(oval, strokeP)
+            strokeP.color = col; strokeP.strokeWidth = maxOf(2f * density, tw * 0.028f); canvas.drawOval(oval, strokeP)
             // Two signal waves running out from the radio to the edge of its coverage and fading.
             for (k in 0 until 2) {
                 val f = ((time * RADIO_WAVE_SPEED + k * 0.5f + n.id * 0.37f) % 1f + 1f) % 1f
@@ -1184,22 +1209,41 @@ class IsoRenderer : Renderer {
                 val col = ServiceColors.of(service)
                 val unit = 0.72f
                 for (lv in 0 until n.level) {
-                    box(canvas, x, y, 0.78f, unit - 0.06f, col.shade(0.15f), 0xFFE9ECEF.toInt(), z0 = lv * unit)
-                    for (i in 0 until 2) {
-                        val on = sin(time * 3f + i * 1.7f + lv + x) > 0f
-                        fillP.color = when {
-                            busy -> 0xFFD7263D.toInt()
-                            on -> col
-                            else -> 0xFF9AA3AD.toInt()
+                    val z0 = lv * unit
+                    box(canvas, x, y, 0.78f, unit - 0.06f, col.shade(0.15f), 0xFFE9ECEF.toInt(), z0 = z0)
+                    // Every wall facing the viewer carries a dark rack front with a row of blinking LEDs and a vent slot,
+                    // so the most important building is also the most detailed one (judge panel: plain white boxes).
+                    for (f in 0 until 4) {
+                        val nx = FACES[4 * f]; val ny = FACES[4 * f + 1]
+                        if (!wallPatch(x, y, 0.39f, 0.39f, f, -0.31f, 0.31f, z0 + 0.09f, z0 + unit - 0.16f)) continue
+                        fillP.color = litWall(RACK_FRONT, nx, ny); canvas.drawPath(path, fillP)
+                        wallPatch(x, y, 0.39f, 0.39f, f, -0.25f, 0.12f, z0 + 0.34f, z0 + 0.38f)
+                        fillP.color = litWall(RACK_VENT, nx, ny); canvas.drawPath(path, fillP)
+                        wallPatch(x, y, 0.39f, 0.39f, f, -0.25f, 0.12f, z0 + 0.24f, z0 + 0.28f)
+                        canvas.drawPath(path, fillP)
+                        for (i in 0 until 3) {
+                            val on = sin(time * 3f + i * 1.7f + lv + x + f) > -0.2f
+                            fillP.color = when {
+                                busy -> 0xFFFF4D5E.toInt()
+                                on -> col.shade(0.35f)
+                                else -> 0xFF56606C.toInt()
+                            }
+                            wallPatch(x, y, 0.39f, 0.39f, f, 0.17f, 0.25f, z0 + 0.2f + i * 0.1f, z0 + 0.26f + i * 0.1f)
+                            canvas.drawPath(path, fillP)
                         }
-                        val f = rightFace()
-                        val px = x + FACES[4 * f] * 0.39f - FACES[4 * f + 2] * 0.2f
-                        val py = y + FACES[4 * f + 1] * 0.39f - FACES[4 * f + 3] * 0.2f
-                        val lx = sx(px, py); val ly = sy(px, py, lv * unit + 0.2f + i * 0.25f)
-                        canvas.drawRect(lx - tw * 0.04f, ly - th * 0.08f, lx + tw * 0.06f, ly + th * 0.04f, fillP)
                     }
                 }
                 val top = n.level * unit - 0.06f
+                // A mast with a blinking beacon on the back corner of the roof.
+                val order = sortedByDepth(ROOF_MAST, x, y)
+                val mx = x + ROOF_MAST[2 * order[0]]; val my = y + ROOF_MAST[2 * order[0] + 1]
+                strokeP.color = 0xFF56606C.toInt(); strokeP.strokeWidth = maxOf(1.5f, tw * 0.025f)
+                canvas.drawLine(sx(mx, my), sy(mx, my, top), sx(mx, my), sy(mx, my, top + 0.38f), strokeP)
+                strokeP.strokeWidth = maxOf(1f, tw * 0.018f)
+                canvas.drawLine(sx(mx, my) - tw * 0.05f, sy(mx, my, top + 0.28f), sx(mx, my) + tw * 0.05f, sy(mx, my, top + 0.28f), strokeP)
+                val blink = sin(time * 2.4f + x * 1.3f + y) > 0f
+                fillP.color = if (blink) 0xFFFF4D5E.toInt() else 0xFFB33A46.toInt()
+                canvas.drawCircle(sx(mx, my), sy(mx, my, top + 0.38f), maxOf(1.5f, tw * 0.03f), fillP)
                 fillP.color = 0xFFFFFFFF.toInt()
                 Shapes.draw(canvas, service.shape, sx(x, y), sy(x, y, top), tw * 0.13f * badgePop(world, n), fillP)
             }
@@ -1209,7 +1253,16 @@ class IsoRenderer : Renderer {
                 // Devices, queues and packets are drawn about 1.3x the tile ratio they once had, so everyday play at the
                 // default zoom reads like the close-up store shots (judge panel, docs/TOP100.md B4).
                 val icon = maxOf(tw * 0.26f, ICON_MIN_DP * density)
-                icons.device(canvas, d, sx(x, y), sy(x, y, 0.2f) - icon, icon)
+                // The device stands on its plinth turned to the viewer's left front, sheared to the iso angle, with its
+                // thickness showing behind (judge panel: flat front-facing billboards broke the iso art direction).
+                val bx = sx(x, y); val by = sy(x, y, 0.2f)
+                canvas.save()
+                canvas.translate(bx, by)
+                canvas.skew(0f, DEVICE_SHEAR)
+                canvas.translate(-bx, -by)
+                icons.depthX = 0.16f; icons.depthY = -0.16f
+                icons.device(canvas, d, bx, by - icon, icon)
+                canvas.restore()
                 // Waiting requests in a queue beside the device, on a white plate so they read as "this device wants
                 // service" and not as ground clutter; a red outline marks one that is stuck (ping, bandwidth).
                 val r = maxOf(tw * 0.12f, REQUEST_MIN_DP * 1.56f * density)
@@ -1684,11 +1737,21 @@ class IsoRenderer : Renderer {
         const val HOUSE_ROOF = 0xFFC9694F.toInt()
         const val HOUSE_DOOR = 0xFF8A6A4A.toInt()
         const val HOUSE_WINDOW = 0xFFBFD6E6.toInt()
+        /** Ground disc under an overloaded device: calm at the start of the timer, hot when it is about to run out. */
+        /** Shear of the device icons on the iso map: the slope of a wall edge (tan 26.6° is 0.5), a little gentler. */
+        const val DEVICE_SHEAR = 0.38f
+        /** Rack front and vent slots on the walls of a server tower. */
+        const val RACK_FRONT = 0xFF3A4452.toInt()
+        const val RACK_VENT = 0xFF222932.toInt()
+        /** Where a server's roof mast may stand (the four roof corners, x/y pairs); the one furthest back is used. */
+        val ROOF_MAST = floatArrayOf(-0.26f, -0.26f, 0.26f, -0.26f, 0.26f, 0.26f, -0.26f, 0.26f)
+        const val WARN_DISC_CALM = 0xFFFFE3DF.toInt()
+        const val WARN_DISC_HOT = 0xFFFF9C9C.toInt()
         const val ROCK_A = 0xFFCBC6B8.toInt()
         const val ROCK_B = 0xFFC4BFB0.toInt()
-        const val ROCK_LIT = 0xFFB7AE9C.toInt()
+        const val ROCK_LIT = 0xFFC4B8A0.toInt()
         const val ROCK_MID = 0xFF9C9382.toInt()
-        const val ROCK_DARK = 0xFF837B6C.toInt()
+        const val ROCK_DARK = 0xFF776C5C.toInt()
         const val SNOW = 0xFFFBFCFD.toInt()
         const val SNOW_SHADE = 0xFFD9E0E8.toInt()
         /** Peaks at least this high (in tile widths) get a snow cap. */

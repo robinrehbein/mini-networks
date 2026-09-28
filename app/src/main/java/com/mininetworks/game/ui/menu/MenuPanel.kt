@@ -199,11 +199,11 @@ class MenuPanel(context: Context) {
         val titleGap = (if (split) 4f else 10f) * u
         val scoreSize = scale.px(if (split) SPLIT_SCORE_SP else 44f) * s
         val scoreH = if (page.score != null) scoreSize * 1.3f else 0f
-        val highlightH = if (page.highlight != null) highlightSize * 1.55f else 0f
+        val highlightH = if (page.highlight != null) highlightSize * 1.8f else 0f
         val lineH = lineSize * 1.6f
         val linesH = lines.size * lineH + if (lines.isNotEmpty() || page.highlight != null) 8f * u else 0f
         /** The main menu's primary entry (Play) is taller than the rest in a single column: the one thing to tap. */
-        val primaryExtra = if (page.hero && grid.any { it is MenuItem.Button && it.primary }) itemH * 0.4f else 0f
+        val primaryExtra = if (page.hero && grid.any { it is MenuItem.Button && it.primary }) itemH * 0.2f else 0f
         val itemsH = rows * itemH + rows * gap + primaryExtra + links.size * linkH
         /** On the main menu the footer (the best score) is a badge. */
         val footerH = if (page.footer != null) footerSize * (if (page.hero) 2.9f else 2f) else 0f
@@ -328,6 +328,23 @@ class MenuPanel(context: Context) {
         drawContent(canvas, l, card.right - paneW, card.top + (ch - l.height) / 2f, pressed)
     }
 
+    private val ribbon = RectF()
+    private val deco = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val starPath = android.graphics.Path()
+
+    /** A five-pointed star of outer radius [r] around ([x], [y]) in [deco]'s colour. */
+    private fun star(canvas: Canvas, x: Float, y: Float, r: Float) {
+        starPath.reset()
+        for (i in 0 until 10) {
+            val a = -Math.PI / 2 + i * Math.PI / 5
+            val rr = if (i % 2 == 0) r else r * 0.45f
+            val px = x + (kotlin.math.cos(a) * rr).toFloat(); val py = y + (kotlin.math.sin(a) * rr).toFloat()
+            if (i == 0) starPath.moveTo(px, py) else starPath.lineTo(px, py)
+        }
+        starPath.close()
+        canvas.drawPath(starPath, deco)
+    }
+
     /** Title, score, texts, picture (single-column card), entries and footer of [l], in a pane from [paneLeft], [paneTop]. */
     private fun drawContent(canvas: Canvas, l: Layout, paneLeft: Float, paneTop: Float, pressed: MenuAction?) {
         val page = l.page
@@ -357,9 +374,35 @@ class MenuPanel(context: Context) {
             y += l.scoreH
         }
         page.highlight?.let {
-            text.color = accent.shade(-0.2f)
+            // A gold ribbon with a star at each end and a burst of confetti (judge panel: a new best in plain text
+            // did not feel like the payoff of the game).
             text.textSize = l.highlightSize
-            canvas.drawText(fitShrinking(it, inner, l.highlightSize, l.highlightSize * 0.8f), cx, y + l.highlightSize * 1.1f, text)
+            val shown = fitShrinking(it, inner - l.highlightSize * 3.2f, l.highlightSize, l.highlightSize * 0.7f)
+            val hs = text.textSize
+            val tw = text.measureText(shown)
+            val midY = y + l.highlightH / 2f
+            val half = tw / 2f + hs * 1.6f
+            val ph = hs * 1.35f
+            ribbon.set(cx - half, midY - ph / 2f, cx + half, midY + ph / 2f)
+            for (k in 0 until CONFETTI.size / 3) {
+                val a = CONFETTI[3 * k]; val d = CONFETTI[3 * k + 1]
+                val px = cx + kotlin.math.cos(a) * (half + hs * d)
+                val py = midY + kotlin.math.sin(a) * (ph / 2f + hs * d * 0.45f)
+                deco.color = CONFETTI_COLORS[k % CONFETTI_COLORS.size]
+                canvas.save(); canvas.rotate(CONFETTI[3 * k + 2], px, py)
+                canvas.drawRect(px - hs * 0.14f, py - hs * 0.07f, px + hs * 0.14f, py + hs * 0.07f, deco)
+                canvas.restore()
+            }
+            deco.color = GOLD.shade(-0.3f)
+            canvas.drawRoundRect(ribbon.left, ribbon.top + hs * 0.12f, ribbon.right, ribbon.bottom + hs * 0.12f, ph / 2f, ph / 2f, deco)
+            deco.color = GOLD
+            canvas.drawRoundRect(ribbon, ph / 2f, ph / 2f, deco)
+            for (side in listOf(-1f, 1f)) {
+                deco.color = 0xFFFFFFFF.toInt()
+                star(canvas, cx + side * (half - hs * 0.8f), midY, hs * 0.42f)
+            }
+            text.color = 0xFF4A2F00.toInt()
+            canvas.drawText(shown, cx, midY + hs * 0.36f, text)
             drawnNodes += UiNode("menu:highlight", textBounds(cx, y, inner, l.highlightH), it, UiNode.Kind.TEXT)
             y += l.highlightH
         }
@@ -741,6 +784,14 @@ class MenuPanel(context: Context) {
     private fun labelSp(page: MenuPage) = if (page.hero) 20f else 17f
 
     private companion object {
+        /** The ribbon of a highlight line (a new best, the daily streak). */
+        const val GOLD = 0xFFFFC53D.toInt()
+        /** Confetti around the ribbon: angle (radians), distance (in text heights) and tilt (degrees) per piece. */
+        val CONFETTI = floatArrayOf(
+            3.3f, 0.5f, 20f, 2.8f, 0.9f, -35f, 3.7f, 1.0f, 60f, 0.2f, 0.6f, -15f, -0.3f, 1.0f, 40f, 0.5f, 1.1f, -60f,
+            -1.3f, 0.7f, 10f, 1.9f, 0.8f, 75f, -2.2f, 0.8f, -25f, 1.2f, 0.9f, 30f,
+        )
+        val CONFETTI_COLORS = intArrayOf(0xFFF28C28.toInt(), 0xFF2E86AB.toInt(), 0xFF3BA55C.toInt(), 0xFFD7263D.toInt(), 0xFF8E6CC0.toInt())
         const val CARD_W_DP = 360f
         /** The reason a game ended, dark alarm red. */
         const val ALERT = 0xFFC2182B.toInt()

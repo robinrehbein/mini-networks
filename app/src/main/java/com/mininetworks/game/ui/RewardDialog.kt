@@ -38,11 +38,11 @@ class RewardDialog(private val context: Context) {
     private val icons = DeviceIcons()
     private val texts = Texts(context)
     /**
-     * A deep dusk-blue scrim (judge panel: a light one let the yellow glow and the teal map mix into an olive wash):
+     * A neutral near-black scrim (judge panel: a light one mixed into an olive wash, a teal one muddied the map):
      * the map stays a quiet backdrop, and a tight warm spotlight with slowly turning rays lifts the cards in the middle, so the week's reward feels like a
      * celebration rather than a settings dialog.
      */
-    private val dim = fill(0xB80E2A38.toInt())
+    private val dim = fill(0xC014171D.toInt())
     private val glowP = Paint(Paint.ANTI_ALIAS_FLAG)
     private val rayP = Paint(Paint.ANTI_ALIAS_FLAG)
     private val haloP = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -187,7 +187,7 @@ class RewardDialog(private val context: Context) {
 
     private fun amountSize() = baseW * 0.13f * scale.factor(24f) * fitK
     private fun titleSize() = baseW * 0.085f * textK * fitK
-    private fun descSize() = baseW * 0.058f * textK * fitK
+    private fun descSize() = baseW * 0.064f * textK * fitK
 
     /** Height of the amount, title and wrapped description of [reward] on a card [cardW] wide. */
     private fun blockHeight(reward: Reward, cardW: Float): Float {
@@ -242,6 +242,7 @@ class RewardDialog(private val context: Context) {
 
     private val outlineP = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { style = android.graphics.Paint.Style.STROKE }
 
+    private val rimP = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { style = android.graphics.Paint.Style.STROKE }
     private val shadowP = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = 0x2E000000 }
     private var blurRadius = 0f
     private var blur: android.graphics.BlurMaskFilter? = null
@@ -319,6 +320,9 @@ class RewardDialog(private val context: Context) {
         canvas.drawRoundRect(slot.left, slot.top + depth, slot.right, slot.bottom + depth, radius, radius, fillP)
         fillP.color = 0xFFFAFAF7.toInt()
         canvas.drawRoundRect(r, radius, radius, fillP)
+        // A rim in the reward's category colour tells the two choices apart at a glance (judge panel).
+        rimP.color = accent; rimP.strokeWidth = depth * 0.7f
+        canvas.drawRoundRect(r.left + rimP.strokeWidth / 2f, r.top + rimP.strokeWidth / 2f, r.right - rimP.strokeWidth / 2f, r.bottom - rimP.strokeWidth / 2f, radius, radius, rimP)
 
         // Text from the bottom up: amount, title and description; larger text pushes it up and shrinks the diorama.
         val w = r.width()
@@ -373,7 +377,7 @@ class RewardDialog(private val context: Context) {
         canvas.drawText(fit(title, w * 0.9f), cx, y, text)
         text.typeface = Typeface.DEFAULT
         text.textSize = descSize
-        text.color = 0xFF5B6674.toInt()
+        text.color = 0xFF3F4854.toInt()
         for (line in desc) {
             y += descSize * 1.3f
             canvas.drawText(line, cx, y, text)

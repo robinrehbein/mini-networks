@@ -86,7 +86,7 @@ class GrowthRecap(private val density: Float, private val dateOf: (GrowthRecorde
         val v = focusArea(frames.last(), a)
         val span = (v.width + v.height).toFloat()
         val thick = 0.45f
-        u = minOf(out.width() * 0.96f / span, out.height() * 0.9f / (span / 2f + thick + 1.6f))
+        u = minOf(out.width() * 0.98f / span, out.height() * 0.94f / (span / 2f + thick + 0.9f))
         ox = out.centerX() - ((v.right - v.top) + (v.left - v.bottom)) / 2f * u
         oy = out.centerY() + u * 0.6f - ((v.left + v.top) + (v.right + v.bottom)) / 4f * u
         canvas.save()
@@ -155,6 +155,38 @@ class GrowthRecap(private val density: Float, private val dateOf: (GrowthRecorde
             canvas.drawPath(path, line)
             st.core?.let { line.color = it; line.strokeWidth = maxOf(u * st.coreWidth * 1.4f, 1f * density); canvas.drawPath(path, line) }
         }
+        // Packets streaming along every cable in the colour and shape of the service it carries (the server at one
+        // of its ends), so the look back shows the living network and not a grey wiring plan (judge panel).
+        for (c in f.cables) {
+            val svc = c.points.firstNotNullOfOrNull { p ->
+                f.nodes.firstOrNull { n -> n.kind == NodeKind.SERVER && p.x >= n.x - 0.01f && p.x <= n.x + n.size + 0.01f && p.y >= n.y - 0.01f && p.y <= n.y + n.size + 0.01f }?.service
+            } ?: continue
+            var len = 0f
+            for (i in 1 until c.points.size) len += abs(c.points[i].x - c.points[i - 1].x) + abs(c.points[i].y - c.points[i - 1].y)
+            if (len < 0.5f) continue
+            val gap = 1.3f
+            val shift = (t * 1.1f) % gap
+            var d = shift
+            dot.color = ServiceColors.of(svc)
+            while (d < len) {
+                var rest = d
+                for (i in 1 until c.points.size) {
+                    val a0 = c.points[i - 1]; val b0 = c.points[i]
+                    val seg = abs(b0.x - a0.x) + abs(b0.y - a0.y)
+                    if (rest <= seg && seg > 0f) {
+                        val q = rest / seg
+                        val x = a0.x + (b0.x - a0.x) * q; val y = a0.y + (b0.y - a0.y) * q
+                        val rr = maxOf(u * 0.17f, 3f * density)
+                        casing.strokeWidth = rr * 0.5f
+                        Shapes.draw(canvas, svc.shape, px(x, y), py(x, y) - rr * 0.4f, rr * 1.1f, casing)
+                        Shapes.draw(canvas, svc.shape, px(x, y), py(x, y) - rr * 0.4f, rr, dot)
+                        break
+                    }
+                    rest -= seg
+                }
+                d += gap
+            }
+        }
         // Buildings back to front.
         for (n in f.nodes.sortedBy { it.x + it.y + it.size }) {
             val cx = n.x + n.size / 2f; val cy = n.y + n.size / 2f
@@ -178,7 +210,7 @@ class GrowthRecap(private val density: Float, private val dateOf: (GrowthRecorde
                     }
                     box(canvas, cx, cy, 0.5f, h, 0xFFFAFAF7.toInt(), 0xFFE3E6E1.toInt())
                     val d = n.device
-                    val s = maxOf(u * 0.26f, 4f * density)
+                    val s = maxOf(u * 0.34f, 5f * density)
                     if (d != null) icons.device(canvas, d, px(cx, cy), py(cx, cy, h) - s * 1.05f, s)
                     else {
                         dot.color = 0xFF3A4350.toInt()

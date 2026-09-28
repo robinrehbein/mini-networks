@@ -55,7 +55,7 @@ def rrect_d(x, y, w, h, r):
 
 
 # ---------------------------------------------------------------- palette
-WATER_C, WATER_M, WATER_E = "#4FB9D0", "#2B93B5", "#17607F"  # deep teal: the pale board pops at 48 dp
+WATER_C, WATER_M, WATER_E = "#3667B8", "#1E3F82", "#0C1B3D"  # deep navy (judge panel): the pale board and the orange fiber pop at 48 dp
 MINT, MINT_CHECK, MINT_RIM = "#E6F3DC", "#D3EAC4", "#F6FBF2"
 MINT_L, MINT_R = "#8CC276", "#6CA65A"       # tile sides (lit / shaded)
 BLUE, BLUE_D = "#1F7FC4", "#17639C"         # mail
@@ -67,19 +67,19 @@ INK, SCREEN = "#2B3A42", "#BFE3F2"
 SHADOW = "#2F4A2A"
 
 # ---------------------------------------------------------------- scene layout (u, v in tile units)
-TOWER = (3.0, 3.0, 12.0, 8.0)          # u0, v0, width, floor height (2 floors): a bigger, bolder server block
+TOWER = (3.0, 3.0, 13.0, 9.0)          # u0, v0, width, floor height (2 floors): a bigger, bolder server block
 SMALL = (5.0, 18.5, 6.0, 5.5)          # gaming server: u0, v0, width, height
 DEVICE = (24.5, 24.5, 5.5, 2.2)        # plinth: u0, v0, width, height
 TU0, TV0, TW, TF = TOWER
 PORT_V = TV0 + 3.0                     # cable leaves the tower's right face here
-CABLE = [(TU0 + TW, PORT_V), (29.0, PORT_V), (29.0, 25.5)]
+CABLE = [(TU0 + TW, PORT_V), (28.0, PORT_V), (28.0, 31.0)]
 PACKET = (22.5, PORT_V)                 # on the leg leaving the tower
 # Two more route lines in the game's cable colours (DSL teal, coax wine) leave the tower's front face and run off the
 # board's front-left edge: three coloured lines read as "network" at 48 dp (judge panel).
-ROUTES = [
-    ([(TU0 + TW * 0.22, TV0 + TW), (TU0 + TW * 0.22, 32.0)], "#1FA39A", "#0E6F68"),
-    ([(TU0 + TW * 0.78, TV0 + TW), (TU0 + TW * 0.78, 32.0)], "#B0305A", "#741838"),
-]
+# (Formerly two thin route lines in DSL teal and coax wine: at 48 dp they read as roofs, judge panel.) One bold
+# silhouette now: the tower and one thick glowing fiber that runs off the board's front corner.
+ROUTES = []
+SHOW_DEVICE = False
 ROUTE_W = 4.8
 TREES = []   # no props: server, fiber, packet and one device read at 48 dp (judge panel)
 PACKET_S = 6.6                          # packet cube edge: the glowing packet is the hero
@@ -183,23 +183,25 @@ def foreground():
     s.append(fill(poly_d(inner), FIBER))
     # glass fiber: dark under-stroke, orange body, light core line (the game's fiber look)
     cp = [P(*c) for c in CABLE]
-    s.append(stroke(line_d(cp), "#FFF3DC", 16.0, 0.55))
-    s.append(stroke(line_d(cp), FIBER_D, 13.4))
-    s.append(stroke(line_d(cp), FIBER, 10.4))
-    s.append(stroke(line_d(cp), FIBER_CORE, 3.0))
-    # device: white plinth with a monitor (dark outline, light-blue screen) like the in-game markers
-    du, dv, dw, dh = DEVICE
-    f = box_faces(du, dv, dw, dw, dh)
-    s += [fill(poly_d(f["left"]), WHITE), fill(poly_d(f["right"]), WHITE_S), fill(poly_d(f["top"]), WHITE)]
-    mx, my = P(du + dw / 2, dv + dw / 2, dh)
-    s.append(("group", (1.0, 0.5, mx, my), [fill(circle_d(mx, my, 4.6), SHADOW, 0.18)]))
-    k = 1.05  # a modest monitor: the fiber and the packet are the hero (judge panel)
-    s.append(fill(rrect_d(mx - 1.0 * k, my - 3.2 * k, 2.0 * k, 2.9 * k, 0.3), INK))       # stand
-    s.append(fill(rrect_d(mx - 3.0 * k, my - 1.1 * k, 6.0 * k, 1.4 * k, 0.7), INK))       # foot
-    s.append(fill(rrect_d(mx - 5.3 * k, my - 11.0 * k, 10.6 * k, 8.0 * k, 1.5 * k), INK))     # bezel
-    s.append(fill(rrect_d(mx - 4.1 * k, my - 9.8 * k, 8.2 * k, 5.6 * k, 0.6), SCREEN))    # screen
-    s.append(fill(poly_d([(mx - 4.1 * k, my - 6.6 * k), (mx - 0.8 * k, my - 9.8 * k), (mx + 1.4 * k, my - 9.8 * k),
-                          (mx - 2.8 * k, my - 4.2 * k), (mx - 4.1 * k, my - 4.2 * k)]), "#FFFFFF", 0.45))       # glare
+    s.append(stroke(line_d(cp), "#FFD9A0", 22.0, 0.35))
+    s.append(stroke(line_d(cp), "#FFF3DC", 18.5, 0.6))
+    s.append(stroke(line_d(cp), FIBER_D, 15.6))
+    s.append(stroke(line_d(cp), FIBER, 12.2))
+    s.append(stroke(line_d(cp), FIBER_CORE, 3.4))
+    if SHOW_DEVICE:
+        # device: white plinth with a monitor (dark outline, light-blue screen) like the in-game markers
+        du, dv, dw, dh = DEVICE
+        f = box_faces(du, dv, dw, dw, dh)
+        s += [fill(poly_d(f["left"]), WHITE), fill(poly_d(f["right"]), WHITE_S), fill(poly_d(f["top"]), WHITE)]
+        mx, my = P(du + dw / 2, dv + dw / 2, dh)
+        s.append(("group", (1.0, 0.5, mx, my), [fill(circle_d(mx, my, 4.6), SHADOW, 0.18)]))
+        k = 1.05  # a modest monitor: the fiber and the packet are the hero (judge panel)
+        s.append(fill(rrect_d(mx - 1.0 * k, my - 3.2 * k, 2.0 * k, 2.9 * k, 0.3), INK))       # stand
+        s.append(fill(rrect_d(mx - 3.0 * k, my - 1.1 * k, 6.0 * k, 1.4 * k, 0.7), INK))       # foot
+        s.append(fill(rrect_d(mx - 5.3 * k, my - 11.0 * k, 10.6 * k, 8.0 * k, 1.5 * k), INK))     # bezel
+        s.append(fill(rrect_d(mx - 4.1 * k, my - 9.8 * k, 8.2 * k, 5.6 * k, 0.6), SCREEN))    # screen
+        s.append(fill(poly_d([(mx - 4.1 * k, my - 6.6 * k), (mx - 0.8 * k, my - 9.8 * k), (mx + 1.4 * k, my - 9.8 * k),
+                              (mx - 2.8 * k, my - 4.2 * k), (mx - 4.1 * k, my - 4.2 * k)]), "#FFFFFF", 0.45))       # glare
     # the packet: glowing white cube with an orange core, travelling along the fiber
     kx, ky = P(*PACKET)
     h = PACKET_S / 2
@@ -207,9 +209,10 @@ def foreground():
                   [(0, "#FFFBEF", 1), (0.4, "#FFE9BE", 0.8), (1, "#FFE9BE", 0)]))
     s.append(("group", (1.0, 0.5, kx + 0.8, ky + 0.8), [fill(circle_d(kx + 0.8, ky + 0.8, 5.4), "#6B3606", 0.35)]))
     k = box_faces(PACKET[0] - h, PACKET[1] - h, PACKET_S, PACKET_S, PACKET_S * 0.88, h0=2.4)
-    s += [fill(poly_d(k["left"]), "#FFFFFF"), fill(poly_d(k["right"]), "#F1E4D2"), fill(poly_d(k["top"]), "#FFFFFF")]
+    # an orange top sets the cube apart from the white tower at 48 dp (judge panel)
+    s += [fill(poly_d(k["left"]), "#FFFFFF"), fill(poly_d(k["right"]), "#F1E4D2"), fill(poly_d(k["top"]), "#FFB347")]
     qx, qy = P(PACKET[0], PACKET[1], 2.4 + PACKET_S * 0.88)
-    s.append(fill(poly_d([(qx, qy - 2.0), (qx + 4.0, qy), (qx, qy + 2.0), (qx - 4.0, qy)]), FIBER))
+    s.append(fill(poly_d([(qx, qy - 2.0), (qx + 4.0, qy), (qx, qy + 2.0), (qx - 4.0, qy)]), "#FFFFFF"))
     s.append(fill(poly_d([P(PACKET[0] + h, PACKET[1] - 1.6, 3.6), P(PACKET[0] + h, PACKET[1] + 1.6, 3.6),
                           P(PACKET[0] + h, PACKET[1] + 1.6, 6.0), P(PACKET[0] + h, PACKET[1] - 1.6, 6.0)]),
                   FIBER))
@@ -247,7 +250,7 @@ def monochrome():
     bezel = bezel.buffer(-1.3, join_style=2).buffer(1.3, quad_segs=Q)
     stand = Polygon([(mx - 1.1 * k, my - 3.2 * k), (mx + 1.1 * k, my - 3.2 * k), (mx + 1.1 * k, my), (mx - 1.1 * k, my)])
     screen = Polygon([(mx - 3.9 * k, my - 9.6 * k), (mx + 3.9 * k, my - 9.6 * k), (mx + 3.9 * k, my - 4.4 * k), (mx - 3.9 * k, my - 4.4 * k)])
-    device = unary_union([plinth.difference(bezel.buffer(1.3)), bezel.union(stand).difference(screen)])
+    device = unary_union([plinth.difference(bezel.buffer(1.3)), bezel.union(stand).difference(screen)]) if SHOW_DEVICE else Polygon()
     # packet cube with its orange core as a hole, framed by a gap cut into the cable
     h = PACKET_S / 2
     k = box_faces(PACKET[0] - h, PACKET[1] - h, PACKET_S, PACKET_S, PACKET_S * 0.88, h0=2.4)
@@ -393,10 +396,10 @@ def to_vector(elements, name, comment):
 if __name__ == "__main__":
     os.makedirs(SVG_OUT, exist_ok=True)
     layers = {
-        "background": (background(), "Launcher background: a deep teal, lighter behind the island, so the pale board reads at 48 dp."),
-        "foreground": (foreground(), "Launcher foreground: a mint board tile with a mail-blue server tower; an orange glass fiber\n"
-                                     "     carries a glowing packet to a device. 108 dp canvas, subject inside the 66 dp safe zone."),
-        "monochrome": (monochrome(), "Themed-icon layer (Android 13+): solid tower, fiber, packet and device on a translucent tile."),
+        "background": (background(), "Launcher background: a deep navy, lighter behind the island, so the pale board reads at 48 dp."),
+        "foreground": (foreground(), "Launcher foreground: a mint board tile with a mail-blue server tower; one thick orange glass\n"
+                                     "     fiber carries a glowing packet off the board. 108 dp canvas, subject inside the 66 dp safe zone."),
+        "monochrome": (monochrome(), "Themed-icon layer (Android 13+): solid tower, fiber and packet on a translucent tile."),
     }
     for name, (els, comment) in layers.items():
         to_svg(els, f"{name}.svg")

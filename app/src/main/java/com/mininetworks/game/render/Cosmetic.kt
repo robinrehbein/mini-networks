@@ -127,11 +127,11 @@ object Cosmetic {
         flatLand = 0xFFEEF1E6.toInt(), flatWater = 0xFFB6D6E6.toInt(), flatBackdrop = 0xFFCDC6B5.toInt(),
     )
 
-    /** Zukunft 2030: dusk violet ground (a little deeper, so it does not wash out), electric blue water, teal trees. */
+    /** Zukunft 2030: the city at night (judge panel: the set needed a mood shot): deep indigo ground, electric blue water, glowing teal trees. */
     private val FUTURE = palette(
-        landA = 0xFFD3C8EE.toInt(), landB = 0xFFC8BCE8.toInt(), waterA = 0xFF437EE0.toInt(), waterB = 0xFF6093EA.toInt(),
-        boardLit = 0xFF9383C8.toInt(), boardShade = 0xFF7C6BB4.toInt(), background = 0xFFE2DBF3.toInt(),
-        grass = 0xFFAFA2DA.toInt(), leaf = 0xFF4FC4B0.toInt(), leafDark = 0xFF33A08D.toInt(), pine = 0xFF3E9C97.toInt(), pineDark = 0xFF2A7D78.toInt(),
+        landA = 0xFF443D7E.toInt(), landB = 0xFF3D3775.toInt(), waterA = 0xFF2D6BD6.toInt(), waterB = 0xFF3A7BE0.toInt(),
+        boardLit = 0xFF2E2860.toInt(), boardShade = 0xFF241E4E.toInt(), background = 0xFF2A2552.toInt(),
+        grass = 0xFF5C54A0.toInt(), leaf = 0xFF4FD6C0.toInt(), leafDark = 0xFF2FA590.toInt(), pine = 0xFF45B8B0.toInt(), pineDark = 0xFF2A8A84.toInt(),
         flatLand = 0xFFF0EDF7.toInt(), flatWater = 0xFFC0CAEE.toInt(), flatBackdrop = 0xFFCDC6E0.toInt(),
     )
 
