@@ -66,7 +66,7 @@ class IsoRenderer : Renderer {
 
     override val camera = Camera().apply { projection = IsoProjection }
     override var density = 1f
-    /** A tile at least [READABLE_TILE_DP] wide: device icons about 14 dp, requests about 6 dp. */
+    /** A tile at least [READABLE_TILE_DP] wide on first launch, close to the store framing: devices and packets read at phone size. */
     override val readableScale get() = READABLE_TILE_DP * density
     /** Tile width and height in pixels at the current zoom. */
     private val tw get() = camera.scale
@@ -1766,7 +1766,7 @@ class IsoRenderer : Renderer {
     private companion object {
         /** Readable sizes on a phone (docs/PLAN.md P4.3 review): tile width of the automatic framing, and minimum dp of
          *  a device icon's half size, a request's radius, an overload ring and the drag label. */
-        const val READABLE_TILE_DP = 36f
+        const val READABLE_TILE_DP = 54f
         /** Edge colour of the screen vignette over the ground. */
         const val VIGNETTE = 0x2414242E
         /** Thin dark rim around every cable, under its white halo. */

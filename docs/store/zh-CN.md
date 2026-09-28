@@ -8,9 +8,9 @@ Grenzen prüft `StoreListingTest`). Keine Superlative, keine Preis- oder Ranking
 
 Mini Networks：网络布线益智
 
-## Kurzbeschreibung (36/80 Zeichen)
+## Kurzbeschreibung (41/80 Zeichen)
 
-为不断扩张的城镇铺设网络——从 1995 年的 ISDN 到今天的光纤。
+为你的城镇铺设网络——从 ISDN 到光纤。从 1995 年到今天的轻松策略游戏。
 
 ## Ausführliche Beschreibung (781/4000 Zeichen)
 
@@ -56,4 +56,4 @@ Mini Networks 可免费游玩。两局之间偶尔会出现广告，游戏过程
 8. 五个场景
 
 Bilder: nicht eingecheckt; erzeugen mit `ROBOLECTRIC_DEPS_DIR=/opt/robolectric ./gradlew testDebugUnitTest --tests '*StoreScreenshotTest*' -Pstore.locales=zh-rCN` (landet in `docs/store/screenshots/<gerät>/zh-rCN/`). Bis dahin zeigt Play die englischen bzw. deutschen Bilder.
-Feature-Grafik: `docs/store/feature-graphic/zh-rCN.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=zh-rCN`); bis dahin die Standardgrafik `docs/store/feature-graphic.png`, die die englische Tagline „Wire your town – from dial-up to fiber“ trägt
+Feature-Grafik: `docs/store/feature-graphic/zh-rCN.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=zh-rCN`); bis dahin die Standardgrafik `docs/store/feature-graphic.png`, die die englische Tagline „Wire your town – from ISDN to fiber“ trägt

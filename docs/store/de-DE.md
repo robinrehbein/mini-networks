@@ -8,9 +8,9 @@ Grenzen prüft `StoreListingTest`). Keine Superlative, keine Preis- oder Ranking
 
 Mini Networks: Netz-Puzzle
 
-## Kurzbeschreibung (74/80 Zeichen)
+## Kurzbeschreibung (73/80 Zeichen)
 
-Verkabel eine wachsende Stadt – vom ISDN 1995 bis zur Glasfaser von heute.
+Verkabel deine Stadt – von ISDN bis Glasfaser. Strategie, 1995 bis heute.
 
 ## Ausführliche Beschreibung (2173/4000 Zeichen)
 
@@ -56,4 +56,4 @@ Netzwerk, Kabel verlegen, Strategiespiel, Puzzle, Aufbauspiel, Stadt, Router, WL
 8. Fünf Szenerien
 
 Bilder: `docs/store/screenshots/{phone,phone-portrait,tablet-7,tablet-10}/de/01…08-*.png`
-Feature-Grafik: `docs/store/feature-graphic/de.png` (mit Tagline dieser Sprache); nicht `docs/store/feature-graphic.png` hochladen: das ist die Standardgrafik mit der englischen Tagline „Wire your town – from dial-up to fiber“ (Rückfall nur für Einträge ohne eigene `feature-graphic/<sprache>.png`)
+Feature-Grafik: `docs/store/feature-graphic/de.png` (mit Tagline dieser Sprache); nicht `docs/store/feature-graphic.png` hochladen: das ist die Standardgrafik mit der englischen Tagline „Wire your town – from ISDN to fiber“ (Rückfall nur für Einträge ohne eigene `feature-graphic/<sprache>.png`)

@@ -49,6 +49,26 @@ class StoreListingTest {
     }
 
     /**
+     * One promise everywhere (docs/TOP100.md B4, judge panel): in every language the main menu's tagline, the feature
+     * graphic's tagline and the start of the short store description are the same words, and the first screenshot's
+     * caption is that tagline up to its dash.
+     */
+    @Test
+    fun theTaglineIsTheSameInMenuFeatureGraphicStoreTextAndFirstCaption() {
+        val res = listOf(File("src/main/res"), File("app/src/main/res")).first { it.isDirectory }
+        for ((locale, qualifier) in listings) {
+            val tagline = StoreScreenshotTest.TAGLINES.getValue(qualifier)
+            val xml = File(res, if (qualifier == "de") "values/strings.xml" else "values-$qualifier/strings.xml").readText()
+            val menu = Regex("""<string name="menu_tagline">([^<]*)</string>""").find(xml)?.groupValues?.get(1)
+            assertEquals("$locale: menu tagline", tagline, menu)
+            val (short, _) = section(File(store, "$locale.md").readText(), "Kurzbeschreibung")
+            assertTrue("$locale: the short description starts with the tagline: $short", short.startsWith(tagline))
+            val caption = StoreScreenshotTest.LANGUAGES.getValue(qualifier).first()
+            assertTrue("$locale: caption 1 \"$caption\" opens the tagline \"$tagline\"", tagline.startsWith(caption))
+        }
+    }
+
+    /**
      * docs/TOP100.md F5: the privacy page at the URL for the Play Console and the UMP message covers every SDK of the
      * release build (ads with UMP, billing, Play Games with its cloud save, in-app review) in German and in English,
      * names the controller and holds no placeholder; so does the long form in docs/privacy-policy.md.

@@ -31,7 +31,7 @@ Play Games optional, Werbung nur zwischen Partien, „Werbefrei“ und Szenerien
 - `feature-graphic.png`: 1024 × 500, 24-Bit-PNG, nichts Wichtiges in den äußeren 10 %: ein einziges starkes Bild,
   die Stadt 2030 bei Nacht spät im Spiel (echte Karte), eng auf die Skyline mit Rechenzentren und leuchtenden
   Glasfaser-Leitungen rechts gerahmt; links geht der Nachthimmel in ein ruhiges Indigo über, darauf App-Icon, Name in
-  Nunito Black und die Tagline in Glasfaser-Orange („Wire your town – from dial-up to fiber“).
+  Nunito Black und die Tagline in Glasfaser-Orange („Wire your town – from ISDN to fiber“).
   `feature-graphic/<sprache>.png`: dieselbe Grafik mit der Tagline der Sprache, für jede erzeugte Sprache; in der Play
   Console je Sprache hochladen.
 - Vor dem Start (docs/RELEASE.md 4): die übrigen 10 Sprachen mit `-Pstore.locales=fr,es,it,pt-rBR,pl,nl,tr,ja,ko,zh-rCN`

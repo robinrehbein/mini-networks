@@ -139,6 +139,9 @@ android {
             // Store listing assets (docs/TOP100.md F3): StoreScreenshotTest renders into docs/store/; more languages with -Pstore.locales=fr,ja,…
             test.systemProperty("store.dir", rootDir.resolve("docs/store").absolutePath)
             (findProperty("store.locales") as String?)?.let { test.systemProperty("store.locales", it) }
+            // Quicker iterations on the store art: -Pstore.only=en renders one language, -Pstore.devices=phone,phone-portrait some devices.
+            (findProperty("store.only") as String?)?.let { test.systemProperty("store.only", it) }
+            (findProperty("store.devices") as String?)?.let { test.systemProperty("store.devices", it) }
             test.systemProperty("sounds.dir", projectDir.resolve("src/main/res/raw").absolutePath)
             System.getenv("REGENERATE_SOUNDS")?.let { test.systemProperty("sounds.regenerate", it) }
             // Optional: point Robolectric at pre-downloaded android-all jars (CI / sandboxed containers).

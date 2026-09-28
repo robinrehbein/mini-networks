@@ -8,9 +8,9 @@ Grenzen prüft `StoreListingTest`). Keine Superlative, keine Preis- oder Ranking
 
 Mini Networks : puzzle réseau
 
-## Kurzbeschreibung (70/80 Zeichen)
+## Kurzbeschreibung (77/80 Zeichen)
 
-Câble une ville qui grandit, du RNIS de 1995 à la fibre d’aujourd’hui.
+Câble ta ville – du RNIS à la fibre. Stratégie paisible, de 1995 à nos jours.
 
 ## Ausführliche Beschreibung (2215/4000 Zeichen)
 
@@ -56,4 +56,4 @@ réseau, câbles, stratégie, puzzle, jeu de construction, ville, routeur, Wi-Fi
 8. Cinq décors
 
 Bilder: nicht eingecheckt; erzeugen mit `ROBOLECTRIC_DEPS_DIR=/opt/robolectric ./gradlew testDebugUnitTest --tests '*StoreScreenshotTest*' -Pstore.locales=fr` (landet in `docs/store/screenshots/<gerät>/fr/`). Bis dahin zeigt Play die englischen bzw. deutschen Bilder.
-Feature-Grafik: `docs/store/feature-graphic/fr.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=fr`); bis dahin die Standardgrafik `docs/store/feature-graphic.png`, die die englische Tagline „Wire your town – from dial-up to fiber“ trägt
+Feature-Grafik: `docs/store/feature-graphic/fr.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=fr`); bis dahin die Standardgrafik `docs/store/feature-graphic.png`, die die englische Tagline „Wire your town – from ISDN to fiber“ trägt

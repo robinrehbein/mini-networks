@@ -1669,18 +1669,23 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     /** A countdown pin over every incident's spot on the map, so the line at the top points at its cable or node. */
     private fun drawIncidentPins(canvas: Canvas) {
         if (world.rewardOffer != null) return
+        // The countdown grows with the zoom (up to 1.8×), so close in it reads as large as the cut it belongs to.
+        val base = textScale.px(12f)
+        val k = (renderer.unitPx / (PIN_UNIT_DP * density)).coerceIn(1f, PIN_MAX_SCALE)
+        pinText.textSize = base * k
         for (i in world.incidents) {
             val at = renderer.toScreen(i.node?.center ?: i.spot)
             val seconds = ceil(if (i.struck) i.remaining else i.warning).toInt().coerceAtLeast(1)
             val text = context.getString(R.string.incident_countdown, seconds)
-            val w = pinText.measureText(text) + 12 * density
-            val h = 20 * density
+            val w = pinText.measureText(text) + 12 * density * k
+            val h = 20 * density * k
             val bottom = at.y - maxOf(renderer.unitPx * 0.9f, 26 * density)
             pinFill.color = if (i.struck) IncidentStyles.CUT else IncidentStyles.WARNING.shade(-0.2f)
             canvas.drawRoundRect(at.x - w / 2f, bottom - h, at.x + w / 2f, bottom, h / 2f, h / 2f, pinFill)
-            canvas.drawLine(at.x, bottom, at.x, bottom + 5 * density, pinFill.also { it.strokeWidth = 2 * density })
+            canvas.drawLine(at.x, bottom, at.x, bottom + 5 * density * k, pinFill.also { it.strokeWidth = 2 * density * k })
             canvas.drawText(text, at.x, bottom - h / 2f + pinText.textSize * 0.36f, pinText)
         }
+        pinText.textSize = base
     }
 
     /** A pulsing yellow glow on the selected cable or node, the one a second tap acts on. */
@@ -3138,6 +3143,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     internal companion object {
         /** Share of the top HUD rows a landscape map keeps free (the pills sit in the corners). */
         const val LANDSCAPE_TOP_SHARE = 0.4f
+        /** World-unit size (dp) above which an incident's countdown pin grows with the zoom, and its largest growth. */
+        const val PIN_UNIT_DP = 36f
+        const val PIN_MAX_SCALE = 1.8f
         /** Cells of ground the tutorial's framing keeps around its devices. */
         const val TUTORIAL_MARGIN = 1
         /** The part of [insets] the HUD must keep clear of: the display cutout, in pixels. */

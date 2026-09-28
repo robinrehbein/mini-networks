@@ -8,9 +8,9 @@ Grenzen prüft `StoreListingTest`). Keine Superlative, keine Preis- oder Ranking
 
 Mini Networks: 네트워크 퍼즐
 
-## Kurzbeschreibung (43/80 Zeichen)
+## Kurzbeschreibung (55/80 Zeichen)
 
-커지는 도시를 케이블로 연결하세요. 1995년 ISDN부터 오늘의 광섬유까지.
+도시를 케이블로 연결하세요 – ISDN부터 광섬유까지. 1995년부터 오늘까지의 차분한 전략 게임.
 
 ## Ausführliche Beschreibung (1115/4000 Zeichen)
 
@@ -56,4 +56,4 @@ Mini Networks는 무료입니다. 판과 판 사이에 가끔 광고가 나오�
 8. 다섯 가지 배경
 
 Bilder: nicht eingecheckt; erzeugen mit `ROBOLECTRIC_DEPS_DIR=/opt/robolectric ./gradlew testDebugUnitTest --tests '*StoreScreenshotTest*' -Pstore.locales=ko` (landet in `docs/store/screenshots/<gerät>/ko/`). Bis dahin zeigt Play die englischen bzw. deutschen Bilder.
-Feature-Grafik: `docs/store/feature-graphic/ko.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=ko`); bis dahin die Standardgrafik `docs/store/feature-graphic.png`, die die englische Tagline „Wire your town – from dial-up to fiber“ trägt
+Feature-Grafik: `docs/store/feature-graphic/ko.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=ko`); bis dahin die Standardgrafik `docs/store/feature-graphic.png`, die die englische Tagline „Wire your town – from ISDN to fiber“ trägt

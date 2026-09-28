@@ -8,9 +8,9 @@ Grenzen prüft `StoreListingTest`). Keine Superlative, keine Preis- oder Ranking
 
 Mini Networks：ネットワークパズル
 
-## Kurzbeschreibung (40/80 Zeichen)
+## Kurzbeschreibung (51/80 Zeichen)
 
-成長する町をケーブルでつなごう。1995年のISDNから今日の光ファイバーまで。
+町をケーブルでつなごう ― ISDNから光ファイバーまで。1995年から今日までの穏やかな戦略ゲーム。
 
 ## Ausführliche Beschreibung (1027/4000 Zeichen)
 
@@ -56,4 +56,4 @@ Mini Networksは基本無料です。ゲームとゲームの間にときどき�
 8. 5つのステージ
 
 Bilder: nicht eingecheckt; erzeugen mit `ROBOLECTRIC_DEPS_DIR=/opt/robolectric ./gradlew testDebugUnitTest --tests '*StoreScreenshotTest*' -Pstore.locales=ja` (landet in `docs/store/screenshots/<gerät>/ja/`). Bis dahin zeigt Play die englischen bzw. deutschen Bilder.
-Feature-Grafik: `docs/store/feature-graphic/ja.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=ja`); bis dahin die Standardgrafik `docs/store/feature-graphic.png`, die die englische Tagline „Wire your town – from dial-up to fiber“ trägt
+Feature-Grafik: `docs/store/feature-graphic/ja.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=ja`); bis dahin die Standardgrafik `docs/store/feature-graphic.png`, die die englische Tagline „Wire your town – from ISDN to fiber“ trägt

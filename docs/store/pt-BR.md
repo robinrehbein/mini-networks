@@ -8,9 +8,9 @@ Grenzen prüft `StoreListingTest`). Keine Superlative, keine Preis- oder Ranking
 
 Mini Networks: puzzle de redes
 
-## Kurzbeschreibung (63/80 Zeichen)
+## Kurzbeschreibung (77/80 Zeichen)
 
-Conecte uma cidade que cresce: do ISDN de 1995 à fibra de hoje.
+Conecte sua cidade – do ISDN à fibra. Estratégia tranquila, de 1995 até hoje.
 
 ## Ausführliche Beschreibung (2207/4000 Zeichen)
 
@@ -56,4 +56,4 @@ rede, cabos, estratégia, quebra-cabeça, construção, cidade, roteador, Wi-Fi,
 8. Cinco cenários
 
 Bilder: nicht eingecheckt; erzeugen mit `ROBOLECTRIC_DEPS_DIR=/opt/robolectric ./gradlew testDebugUnitTest --tests '*StoreScreenshotTest*' -Pstore.locales=pt-rBR` (landet in `docs/store/screenshots/<gerät>/pt-rBR/`). Bis dahin zeigt Play die englischen bzw. deutschen Bilder.
-Feature-Grafik: `docs/store/feature-graphic/pt-rBR.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=pt-rBR`); bis dahin die Standardgrafik `docs/store/feature-graphic.png`, die die englische Tagline „Wire your town – from dial-up to fiber“ trägt
+Feature-Grafik: `docs/store/feature-graphic/pt-rBR.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=pt-rBR`); bis dahin die Standardgrafik `docs/store/feature-graphic.png`, die die englische Tagline „Wire your town – from ISDN to fiber“ trägt

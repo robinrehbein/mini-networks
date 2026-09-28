@@ -8,9 +8,9 @@ Grenzen prüft `StoreListingTest`). Keine Superlative, keine Preis- oder Ranking
 
 Mini Networks: puzle de redes
 
-## Kurzbeschreibung (66/80 Zeichen)
+## Kurzbeschreibung (79/80 Zeichen)
 
-Conecta un pueblo que crece: de la RDSI de 1995 a la fibra de hoy.
+Conecta tu pueblo – de la RDSI a la fibra. Estrategia tranquila, de 1995 a hoy.
 
 ## Ausführliche Beschreibung (2211/4000 Zeichen)
 
@@ -56,4 +56,4 @@ red, cables, estrategia, puzle, construcción, ciudad, pueblo, router, Wi-Fi, fi
 8. Cinco escenarios
 
 Bilder: nicht eingecheckt; erzeugen mit `ROBOLECTRIC_DEPS_DIR=/opt/robolectric ./gradlew testDebugUnitTest --tests '*StoreScreenshotTest*' -Pstore.locales=es` (landet in `docs/store/screenshots/<gerät>/es/`). Bis dahin zeigt Play die englischen bzw. deutschen Bilder.
-Feature-Grafik: `docs/store/feature-graphic/es.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=es`); bis dahin die Standardgrafik `docs/store/feature-graphic.png`, die die englische Tagline „Wire your town – from dial-up to fiber“ trägt
+Feature-Grafik: `docs/store/feature-graphic/es.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=es`); bis dahin die Standardgrafik `docs/store/feature-graphic.png`, die die englische Tagline „Wire your town – from ISDN to fiber“ trägt

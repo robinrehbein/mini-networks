@@ -8,9 +8,9 @@ Grenzen prüft `StoreListingTest`). Keine Superlative, keine Preis- oder Ranking
 
 Mini Networks: łamigłówka
 
-## Kurzbeschreibung (70/80 Zeichen)
+## Kurzbeschreibung (72/80 Zeichen)
 
-Okabluj rosnące miasto – od ISDN z 1995 roku po dzisiejszy światłowód.
+Okabluj swoje miasto – od ISDN po światłowód. Strategia od 1995 do dziś.
 
 ## Ausführliche Beschreibung (2139/4000 Zeichen)
 
@@ -56,4 +56,4 @@ sieć, kable, strategia, łamigłówka, budowanie miasta, router, Wi-Fi, świat�
 8. Pięć scenerii
 
 Bilder: nicht eingecheckt; erzeugen mit `ROBOLECTRIC_DEPS_DIR=/opt/robolectric ./gradlew testDebugUnitTest --tests '*StoreScreenshotTest*' -Pstore.locales=pl` (landet in `docs/store/screenshots/<gerät>/pl/`). Bis dahin zeigt Play die englischen bzw. deutschen Bilder.
-Feature-Grafik: `docs/store/feature-graphic/pl.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=pl`); bis dahin die Standardgrafik `docs/store/feature-graphic.png`, die die englische Tagline „Wire your town – from dial-up to fiber“ trägt
+Feature-Grafik: `docs/store/feature-graphic/pl.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=pl`); bis dahin die Standardgrafik `docs/store/feature-graphic.png`, die die englische Tagline „Wire your town – from ISDN to fiber“ trägt

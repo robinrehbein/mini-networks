@@ -8,9 +8,9 @@ Grenzen prüft `StoreListingTest`). Keine Superlative, keine Preis- oder Ranking
 
 Mini Networks: Ağ Bulmacası
 
-## Kurzbeschreibung (70/80 Zeichen)
+## Kurzbeschreibung (77/80 Zeichen)
 
-Büyüyen bir şehri kabloyla bağla: 1995’in ISDN’inden bugünün fiberine.
+Şehrini kabloyla bağla – ISDN’den fibere. 1995’ten bugüne sakin bir strateji.
 
 ## Ausführliche Beschreibung (2074/4000 Zeichen)
 
@@ -56,4 +56,4 @@ ağ, kablo, strateji, bulmaca, şehir kurma, router, Wi-Fi, fiber, internet, çe
 8. Beş manzara
 
 Bilder: nicht eingecheckt; erzeugen mit `ROBOLECTRIC_DEPS_DIR=/opt/robolectric ./gradlew testDebugUnitTest --tests '*StoreScreenshotTest*' -Pstore.locales=tr` (landet in `docs/store/screenshots/<gerät>/tr/`). Bis dahin zeigt Play die englischen bzw. deutschen Bilder.
-Feature-Grafik: `docs/store/feature-graphic/tr.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=tr`); bis dahin die Standardgrafik `docs/store/feature-graphic.png`, die die englische Tagline „Wire your town – from dial-up to fiber“ trägt
+Feature-Grafik: `docs/store/feature-graphic/tr.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=tr`); bis dahin die Standardgrafik `docs/store/feature-graphic.png`, die die englische Tagline „Wire your town – from ISDN to fiber“ trägt

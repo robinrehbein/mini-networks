@@ -8,9 +8,9 @@ Grenzen prüft `StoreListingTest`). Keine Superlative, keine Preis- oder Ranking
 
 Mini Networks: puzzle di reti
 
-## Kurzbeschreibung (66/80 Zeichen)
+## Kurzbeschreibung (76/80 Zeichen)
 
-Cabla una città che cresce, dall’ISDN del 1995 alla fibra di oggi.
+Cabla la tua città – dall’ISDN alla fibra. Strategia calma, dal 1995 a oggi.
 
 ## Ausführliche Beschreibung (2204/4000 Zeichen)
 
@@ -56,4 +56,4 @@ rete, cavi, strategia, puzzle, gestionale, città, router, Wi-Fi, fibra, interne
 8. Cinque scenari
 
 Bilder: nicht eingecheckt; erzeugen mit `ROBOLECTRIC_DEPS_DIR=/opt/robolectric ./gradlew testDebugUnitTest --tests '*StoreScreenshotTest*' -Pstore.locales=it` (landet in `docs/store/screenshots/<gerät>/it/`). Bis dahin zeigt Play die englischen bzw. deutschen Bilder.
-Feature-Grafik: `docs/store/feature-graphic/it.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=it`); bis dahin die Standardgrafik `docs/store/feature-graphic.png`, die die englische Tagline „Wire your town – from dial-up to fiber“ trägt
+Feature-Grafik: `docs/store/feature-graphic/it.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=it`); bis dahin die Standardgrafik `docs/store/feature-graphic.png`, die die englische Tagline „Wire your town – from ISDN to fiber“ trägt

@@ -235,14 +235,14 @@ interface Renderer {
         /** Angles the zoom-out limit is worked out for; the widest one counts. */
         val LIMIT_ANGLES = floatArrayOf(0f, 30f, 45f, 60f, 90f, 120f, 135f, 150f)
         const val ZOOM_OUT_SLACK = 0.9f
-        const val ZOOM_IN_COLS = 6
-        const val ZOOM_IN_ROWS = 4
+        const val ZOOM_IN_COLS = 4
+        const val ZOOM_IN_ROWS = 3
         /** Zoom factor of [focusOn]. */
-        const val FOCUS_ZOOM = 1.6f
+        const val FOCUS_ZOOM = 2f
         /** Room around [contentBounds], in widths of one drawn cell. */
         const val CONTENT_MARGIN = 0.15f
         /** Share of the area's width and height a landscape [frame] always shows around its middle. */
-        const val CORE_FRACTION = 0.6f
+        const val CORE_FRACTION = 0.45f
     }
 }
 

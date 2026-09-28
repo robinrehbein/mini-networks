@@ -8,9 +8,9 @@ Grenzen prüft `StoreListingTest`). Keine Superlative, keine Preis- oder Ranking
 
 Mini Networks: Network Puzzle
 
-## Kurzbeschreibung (79/80 Zeichen)
+## Kurzbeschreibung (73/80 Zeichen)
 
-Wire up a growing town – from 1995 ISDN to today’s fiber. A calm strategy game.
+Wire your town – from ISDN to fiber. A calm strategy game, 1995 to today.
 
 ## Ausführliche Beschreibung (2103/4000 Zeichen)
 
@@ -46,7 +46,7 @@ network, cables, strategy, puzzle, city builder, town, router, Wi-Fi, fiber, int
 
 ## Screenshot-Beschriftungen (1–8)
 
-1. Wire up your town
+1. Wire your town
 2. One swipe, one cable
 3. Excavators cut your cables
 4. Don't let it overload
@@ -56,4 +56,4 @@ network, cables, strategy, puzzle, city builder, town, router, Wi-Fi, fiber, int
 8. Five sceneries
 
 Bilder: `docs/store/screenshots/{phone,phone-portrait,tablet-7,tablet-10}/en/01…08-*.png`
-Feature-Grafik: `docs/store/feature-graphic/en.png` (mit Tagline dieser Sprache); gleichwertig `docs/store/feature-graphic.png`: die Standardgrafik trägt ebenfalls die englische Tagline „Wire your town – from dial-up to fiber“ (nicht wortlos). Sie ist der Rückfall für Einträge ohne eigene Grafik; alle anderen Sprachen bekommen `docs/store/feature-graphic/<sprache>.png`
+Feature-Grafik: `docs/store/feature-graphic/en.png` (mit Tagline dieser Sprache); gleichwertig `docs/store/feature-graphic.png`: die Standardgrafik trägt ebenfalls die englische Tagline „Wire your town – from ISDN to fiber“ (nicht wortlos). Sie ist der Rückfall für Einträge ohne eigene Grafik; alle anderen Sprachen bekommen `docs/store/feature-graphic/<sprache>.png`

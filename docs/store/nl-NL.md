@@ -8,9 +8,9 @@ Grenzen prüft `StoreListingTest`). Keine Superlative, keine Preis- oder Ranking
 
 Mini Networks: netwerkpuzzel
 
-## Kurzbeschreibung (67/80 Zeichen)
+## Kurzbeschreibung (77/80 Zeichen)
 
-Verbind een groeiende stad – van ISDN in 1995 tot glasvezel van nu.
+Verbind je stad – van ISDN tot glasvezel. Rustige strategie, van 1995 tot nu.
 
 ## Ausführliche Beschreibung (2115/4000 Zeichen)
 
@@ -56,4 +56,4 @@ netwerk, kabels, strategie, puzzel, stad bouwen, router, wifi, glasvezel, intern
 8. Vijf landschappen
 
 Bilder: nicht eingecheckt; erzeugen mit `ROBOLECTRIC_DEPS_DIR=/opt/robolectric ./gradlew testDebugUnitTest --tests '*StoreScreenshotTest*' -Pstore.locales=nl` (landet in `docs/store/screenshots/<gerät>/nl/`). Bis dahin zeigt Play die englischen bzw. deutschen Bilder.
-Feature-Grafik: `docs/store/feature-graphic/nl.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=nl`); bis dahin die Standardgrafik `docs/store/feature-graphic.png`, die die englische Tagline „Wire your town – from dial-up to fiber“ trägt
+Feature-Grafik: `docs/store/feature-graphic/nl.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=nl`); bis dahin die Standardgrafik `docs/store/feature-graphic.png`, die die englische Tagline „Wire your town – from ISDN to fiber“ trägt
