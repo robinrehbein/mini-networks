@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.view.MotionEvent
 import com.mininetworks.game.data.SettingsStore
 import com.mininetworks.game.game.CableType
+import com.mininetworks.game.game.CellGeneration
 import com.mininetworks.game.game.Cell
 import com.mininetworks.game.game.DebugApi
 import com.mininetworks.game.game.Device
@@ -136,6 +137,36 @@ class GameViewControlsTest {
         assertEquals(budget - World.Tuning.SERVER_UPGRADE_COST[0], world.budget)
         assertTrue("feedback", view.hapticPulses > pulses)
         assertTrue(view.shownHint!!.contains("Stufe 2"))
+    }
+
+    @Test
+    fun cellTowerTapPreviewsTheNextGenerationAndUpgradesOnTheSecondTap() {
+        world.jumpToWeek(RadioType.CELL.unlockWeek)
+        val tower = world.addRadio(RadioType.CELL, cell(6, 4).x, cell(6, 4).y)
+        assertEquals(CellGeneration.G3, tower.cellGeneration)
+        draw()
+        tapCell(tower.cell)
+        assertTrue("4G comes later: ${view.shownHint}", view.shownHint!!.contains("4G/LTE gibt es erst ab 2010"))
+        world.jumpToWeek(CellGeneration.G4.unlockWeek)
+        val budget = world.budget
+        val pulses = view.hapticPulses
+        tapCell(tower.cell)
+        assertEquals("the first tap only previews", CellGeneration.G3, tower.cellGeneration)
+        assertTrue(view.shownHint!!.contains("4G/LTE für ${CellGeneration.G4.upgradeCost}"))
+        tapCell(tower.cell)
+        assertEquals(CellGeneration.G4, tower.cellGeneration)
+        assertEquals(budget - CellGeneration.G4.upgradeCost, world.budget)
+        assertTrue("feedback", view.hapticPulses > pulses)
+        world.jumpToWeek(CellGeneration.G5.unlockWeek)
+        world.grant(-world.budget)
+        tapCell(tower.cell)
+        assertTrue(view.shownHint!!.startsWith("Zu wenig Budget"))
+        world.grant(CellGeneration.G5.upgradeCost)
+        tapCell(tower.cell)
+        tapCell(tower.cell)
+        assertEquals(CellGeneration.G5, tower.cellGeneration)
+        tapCell(tower.cell)
+        assertEquals("Funkt schon mit der neuesten Generation", view.shownHint)
     }
 
     @Test

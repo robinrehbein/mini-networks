@@ -14,6 +14,9 @@ object WeekSchedule {
 
     fun radios(week: Int) = RadioType.entries.filter { it.unlockWeek == week }
 
+    /** Mobile generations new in [week]; the one that comes with the cell tower is announced as the tower. */
+    fun cellGenerations(week: Int) = CellGeneration.entries.filter { it.unlockWeek == week && week > RadioType.CELL.unlockWeek }
+
     /** The service whose first server appears in [week], if any. */
     fun firstServer(week: Int) = Service.entries.firstOrNull { it.serverWeek == week }
 
@@ -25,7 +28,7 @@ object WeekSchedule {
 
     /** Everything [week] brings in a game that started in week 1 (the first scenery), see [WeekContent]. */
     fun content(week: Int) = WeekContent(
-        week, cables(week), devices(week), radios(week), firstServer(week), randomServer(week), moreIncidents(week),
+        week, cables(week), devices(week), radios(week), firstServer(week), randomServer(week), moreIncidents(week), cellGenerations(week),
     )
 }
 
@@ -41,7 +44,9 @@ data class WeekContent(
     val server: Service?,
     val randomServer: Boolean,
     val moreIncidents: Boolean,
+    val cellGenerations: List<CellGeneration> = emptyList(),
 ) {
     /** True if the week brings nothing new at all. */
-    val isEmpty get() = cables.isEmpty() && devices.isEmpty() && radios.isEmpty() && server == null && !randomServer && !moreIncidents
+    val isEmpty get() = cables.isEmpty() && devices.isEmpty() && radios.isEmpty() && server == null && !randomServer && !moreIncidents &&
+        cellGenerations.isEmpty()
 }

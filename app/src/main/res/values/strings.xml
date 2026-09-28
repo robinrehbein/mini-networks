@@ -503,4 +503,9 @@
     <string name="legend_too_narrow_desc">Kein Weg hat genug Bandbreite für diesen Dienst. Leg ein breiteres Kabel.</string>
     <string name="legend_ping_title">Zu langsam</string>
     <string name="legend_ping_desc">Der Weg ist zu lang für den Ping des Dienstes. Verbinde kürzer oder mit schnellerem Kabel.</string>
+    <string name="news_cell_generation">Mobilfunk %1$s</string>
+    <string name="hint_cell_tower">Mast funkt mit %1$s · neue Generation erfunden? Antippen zum Aufrüsten</string>
+    <string name="cell_error_newest">Funkt schon mit der neuesten Generation</string>
+    <string name="cell_error_not_invented">%1$s gibt es erst ab %2$d</string>
+    <string name="legend_cell_tower_desc">Nur für Smartphone, Tablet und Uhr · 3G → 4G/LTE → 5G: Antippen rüstet auf, mehr Kapazität, weniger Ping</string>
 </resources>

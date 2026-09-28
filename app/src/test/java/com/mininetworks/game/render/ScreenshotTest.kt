@@ -9,6 +9,7 @@ import android.view.MotionEvent
 import com.mininetworks.game.R
 import com.mininetworks.game.data.HighscoreStore
 import com.mininetworks.game.data.SettingsStore
+import com.mininetworks.game.game.CellGeneration
 import com.mininetworks.game.game.Bend
 import com.mininetworks.game.game.Cell
 import com.mininetworks.game.game.CableType
@@ -319,6 +320,28 @@ class ScreenshotTest {
             r.layout(bmp.width, bmp.height, world)
             r.draw(Canvas(bmp), world, drag = null, time = 1.3f)
             save(bmp, File(shots, "wireless-${r.name.lowercase()}.png"))
+        }
+    }
+
+    /** Three cell towers side by side, one per mobile generation, each with its sign: 3G, 4G and 5G. */
+    @Test
+    fun renderCellGenerations() {
+        val world = World(cols = 9, rows = 5, seed = 3L, spawnInitialNodes = false)
+        for (row in world.water) row.fill(false)
+        world.incidentsEnabled = false
+        world.jumpToWeek(RadioType.CELL.unlockWeek)
+        val towers = listOf(2, 4, 6).map { world.addRadio(RadioType.CELL, it, 2) }
+        world.jumpToWeek(CellGeneration.G5.unlockWeek)
+        world.grant(100)
+        world.upgradeCell(towers[1])
+        world.upgradeCell(towers[2]); world.upgradeCell(towers[2])
+        check(towers.map { it.cellGeneration } == CellGeneration.entries)
+        repeat(60 * 3) { world.update(1f / 60f) }
+        for (r in listOf(FlatRenderer(), IsoRenderer())) {
+            val bmp = Bitmap.createBitmap(1200, 600, Bitmap.Config.ARGB_8888)
+            r.layout(bmp.width, bmp.height, world)
+            r.draw(Canvas(bmp), world, drag = null, time = 5f)
+            save(bmp, File(shots, "cell-generations-${r.name.lowercase()}.png"))
         }
     }
 

@@ -498,4 +498,9 @@
     <string name="legend_too_narrow_desc">Geen weg heeft genoeg bandbreedte voor deze dienst. Leg een bredere kabel.</string>
     <string name="legend_ping_title">Te traag</string>
     <string name="legend_ping_desc">De weg is te lang voor de ping van de dienst. Verbind korter of met een snellere kabel.</string>
+    <string name="news_cell_generation">Mobiel %1$s</string>
+    <string name="hint_cell_tower">Mast zendt %1$s · tik om te upgraden zodra er een nieuwe generatie is</string>
+    <string name="cell_error_newest">Al de nieuwste generatie</string>
+    <string name="cell_error_not_invented">%1$s komt in %2$d</string>
+    <string name="legend_cell_tower_desc">Alleen smartphone, tablet en horloge · 3G → 4G/LTE → 5G: tik om te upgraden, meer capaciteit en minder ping</string>
 </resources>

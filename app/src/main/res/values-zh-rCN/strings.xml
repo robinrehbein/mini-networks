@@ -463,4 +463,9 @@
     <string name="legend_too_narrow_desc">没有一条线路的带宽够这项服务。铺一条更宽的电缆。</string>
     <string name="legend_ping_title">太慢</string>
     <string name="legend_ping_desc">线路太长，赶不上这项服务的 Ping。连得更短，或换更快的电缆。</string>
+    <string name="news_cell_generation">移动网络 %1$s</string>
+    <string name="hint_cell_tower">基站使用 %1$s · 新一代出现后点按即可升级</string>
+    <string name="cell_error_newest">已是最新一代</string>
+    <string name="cell_error_not_invented">%1$s 将于 %2$d 年出现</string>
+    <string name="legend_cell_tower_desc">仅限手机、平板和手表 · 3G → 4G/LTE → 5G：点按升级，容量更大、延迟更低</string>
 </resources>

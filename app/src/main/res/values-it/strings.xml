@@ -533,4 +533,9 @@
     <string name="legend_too_narrow_desc">Nessuna strada ha banda sufficiente per questo servizio. Posa un cavo più largo.</string>
     <string name="legend_ping_title">Troppo lento</string>
     <string name="legend_ping_desc">La strada è troppo lunga per il ping del servizio. Collegalo più corto o con un cavo più veloce.</string>
+    <string name="news_cell_generation">Rete mobile %1$s</string>
+    <string name="hint_cell_tower">Il ripetitore trasmette in %1$s · toccalo per aggiornarlo quando arriva una nuova generazione</string>
+    <string name="cell_error_newest">Usa già la generazione più recente</string>
+    <string name="cell_error_not_invented">%1$s arriva nel %2$d</string>
+    <string name="legend_cell_tower_desc">Solo smartphone, tablet e orologio · 3G → 4G/LTE → 5G: tocca per aggiornare, più capacità e meno ping</string>
 </resources>

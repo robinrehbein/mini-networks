@@ -96,6 +96,8 @@ data class NodeSnapshot(
     /** WLAN channel of an access point, 0 for other nodes. */
     val channel: Int = 0,
     val fiveGhz: Boolean = false,
+    /** Generation of a cell tower; null for other nodes and in saves from before the generations ([CellGeneration.LEGACY]). */
+    val cellGeneration: CellGeneration? = null,
 )
 
 /** A cable between the nodes with ids [a] and [b]; [waypoints] are the cells whose centers the layout runs through. */

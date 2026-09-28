@@ -568,4 +568,9 @@
     <string name="legend_too_narrow_desc">Żadna droga nie ma dość przepustowości dla tej usługi. Połóż szerszy kabel.</string>
     <string name="legend_ping_title">Za wolno</string>
     <string name="legend_ping_desc">Droga jest za długa dla pingu usługi. Połącz krócej lub szybszym kablem.</string>
+    <string name="news_cell_generation">Sieć komórkowa %1$s</string>
+    <string name="hint_cell_tower">Maszt nadaje w %1$s · dotknij, aby ulepszyć, gdy pojawi się nowa generacja</string>
+    <string name="cell_error_newest">To już najnowsza generacja</string>
+    <string name="cell_error_not_invented">%1$s pojawi się w %2$d</string>
+    <string name="legend_cell_tower_desc">Tylko smartfon, tablet i zegarek · 3G → 4G/LTE → 5G: dotknij, by ulepszyć – większa przepustowość, niższy ping</string>
 </resources>

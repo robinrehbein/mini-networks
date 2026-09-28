@@ -69,6 +69,7 @@ import com.mininetworks.game.game.TutorialFocus
 import com.mininetworks.game.game.Vec2
 import com.mininetworks.game.game.WeekNews
 import com.mininetworks.game.game.Wifi
+import com.mininetworks.game.game.CellUpgradeError
 import com.mininetworks.game.game.WifiUpgradeError
 import com.mininetworks.game.game.Unlock
 import com.mininetworks.game.game.World
@@ -1876,7 +1877,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                         NodeKind.ACCESS_POINT -> if (e.time - downTime >= LONG_PRESS_MS) upgradeTo5Ghz(from) else cycleChannel(from)
                         NodeKind.ROUTER -> routerTap(from)
                         NodeKind.CLIENT -> explainClient(from)
-                        NodeKind.CELL_TOWER -> Unit
+                        NodeKind.CELL_TOWER -> cellTap(from)
                     }
                 } else if (from != null) {
                     trackDrag(e.x, e.y)
@@ -2063,6 +2064,38 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         showHint(context.getString(R.string.hint_server_upgraded, texts.node(server), next))
     }
 
+    /**
+     * A tap on a cell tower previews its next mobile generation (like a server tier); a second tap upgrades it.
+     * Otherwise it says why not: already the newest, not invented yet or too little budget.
+     */
+    private fun cellTap(tower: Node) {
+        val next = tower.cellGeneration?.next
+        val error = world.cellUpgradeError(tower)
+        if (error != null) {
+            showHint(
+                when (error) {
+                    CellUpgradeError.NOT_A_CELL_TOWER -> return
+                    CellUpgradeError.NEWEST -> context.getString(R.string.cell_error_newest)
+                    CellUpgradeError.NOT_INVENTED ->
+                        context.getString(R.string.cell_error_not_invented, next!!.longLabel, world.yearOfWeek(next.unlockWeek))
+                    CellUpgradeError.NO_BUDGET -> context.getString(R.string.server_error_no_budget, next!!.upgradeCost)
+                },
+            )
+            return
+        }
+        next!!
+        if (selection !== tower) {
+            select(tower)
+            showHint(context.getString(R.string.hint_server_preview, texts.node(tower), next.longLabel, next.upgradeCost), SELECT_SECONDS)
+            return
+        }
+        if (!world.upgradeCell(tower)) return
+        selection = null
+        haptic(HapticFeedbackConstants.VIRTUAL_KEY)
+        sounds.play(Sound.CABLE)
+        showHint(context.getString(R.string.hint_server_upgraded, texts.node(tower), next.longLabel))
+    }
+
     private fun tierName(level: Int) =
         if (level >= World.Tuning.DATA_CENTER_LEVEL) context.getString(R.string.server_tier_data_center) else context.getString(R.string.server_tier, level)
 
@@ -2206,6 +2239,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         placing = null
         haptic(HapticFeedbackConstants.CLOCK_TICK)
         if (placed.kind == NodeKind.ACCESS_POINT) showHint(context.getString(R.string.hint_access_point, Wifi.UPGRADE_5_GHZ_COST))
+        placed.cellGeneration?.let { showHint(context.getString(R.string.hint_cell_tower, it.longLabel)) }
     }
 
     private fun cycleChannel(ap: Node) {
@@ -3013,7 +3047,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             )
         } + listOf(
             LegendEntry("access_point", LegendIcon.AccessPoint, context.getString(R.string.node_access_point), context.getString(R.string.reward_access_point_desc)),
-            LegendEntry("cell_tower", LegendIcon.CellTower, context.getString(R.string.node_cell_tower), context.getString(R.string.reward_cell_tower_desc)),
+            LegendEntry("cell_tower", LegendIcon.CellTower, context.getString(R.string.node_cell_tower), context.getString(R.string.legend_cell_tower_desc)),
         )
         val signs = listOf(
             LegendEntry("request", LegendIcon.Request(Service.MAIL), context.getString(R.string.legend_request_title), context.getString(R.string.legend_request_desc)),

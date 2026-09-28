@@ -17,7 +17,7 @@ import kotlin.math.sign
  * - a route that fails on bandwidth or ping gets its cables upgraded; a congested route gets its narrowest cable
  *   upgraded or a faster way around its busiest cable;
  * - a server that keeps requests waiting or has no port left is upgraded; cut cables are repaired;
- * - radios from rewards go where they reach the most devices;
+ * - radios from rewards go where they reach the most devices; cell towers move to each new generation when affordable;
  * - rewards: a server voucher while a server is busy, routers while fewer than [ROUTER_STOCK] are left or budget is at
  *   least [RICH], otherwise budget.
  *
@@ -38,6 +38,7 @@ class GreedyBot(private val w: World, private val strategy: BotStrategy = BotStr
         sampleServers()
         repairCuts()
         placeRadios()
+        upgradeCellTowers()
         linkServers()
         linkBackbone()
         val clients = w.nodes.filter { it.kind == NodeKind.CLIENT }
@@ -398,6 +399,11 @@ class GreedyBot(private val w: World, private val strategy: BotStrategy = BotStr
 
     /** Invented cable technologies the [strategy] may lay. */
     private fun allowedCables() = w.unlockedCables.filter { it in strategy.cables }
+
+    /** Moves every cell tower to the next mobile generation as soon as it is invented and affordable. */
+    private fun upgradeCellTowers() {
+        for (t in w.nodes.filter { it.kind == NodeKind.CELL_TOWER }) while (w.cellUpgradeError(t) == null) w.upgradeCell(t)
+    }
 
     /** Devices a radio must reach before the bot places it there. */
     private val minReach get() = if (strategy.cablesDevices) 2 else 1

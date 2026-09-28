@@ -1471,7 +1471,7 @@ class IsoRenderer : Renderer {
                 if (!dark) channelBadge(canvas, n, sx(x, y) + tw * 0.22f, sy(x, y, 0.3f) - tw * 0.2f, world.interferers(n).isNotEmpty())
                 if (dark || warning) powerBadge(canvas, sx(x, y) - tw * 0.2f, sy(x, y, 0.3f) - tw * 0.3f, dark, time)
             }
-            NodeKind.CELL_TOWER -> drawCellTower(canvas, x, y, time)
+            NodeKind.CELL_TOWER -> drawCellTower(canvas, n, x, y, time)
         }
     }
 
@@ -1632,8 +1632,11 @@ class IsoRenderer : Renderer {
         canvas.drawText(n.channel.toString(), bx, by + labelP.textSize * 0.36f, labelP)
     }
 
-    /** A lattice mast on a concrete foot: four legs meet at the top, braces between them, antenna panels and a light. */
-    private fun drawCellTower(canvas: Canvas, x: Float, y: Float, time: Float) {
+    /**
+     * A lattice mast on a concrete foot: four legs meet at the top, braces between them, antenna panels and a light;
+     * the generation sign ([CellBadges]) hangs beside the mast.
+     */
+    private fun drawCellTower(canvas: Canvas, n: Node, x: Float, y: Float, time: Float) {
         box(canvas, x, y, 0.56f, 0.08f, 0xFFCBD2D9.toInt(), 0xFFB9C2CC.toInt())
         val base = 0.08f
         val height = 2.1f
@@ -1669,6 +1672,10 @@ class IsoRenderer : Renderer {
         }
         fillP.color = if (sin(time * 2.5f) > 0f) 0xFFE4572E.toInt() else 0xFF8A3A2A.toInt()
         canvas.drawCircle(sx(x, y), sy(x, y, top + 0.05f), tw * 0.04f, fillP)
+        n.cellGeneration?.let {
+            val r = maxOf(tw * 0.09f, SIGN_MIN_DP * 0.75f * density)
+            CellBadges.draw(canvas, it, sx(x, y) + r * 2.2f, sy(x, y, base + height * 0.45f), r)
+        }
     }
 
     /** Tier 4: a wide, low hall over the 2×2 footprint with rack LEDs on both visible walls and cooling on the roof. */

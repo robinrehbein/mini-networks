@@ -533,4 +533,9 @@
     <string name="legend_too_narrow_desc">Aucun chemin n\'a assez de bande passante pour ce service. Pose un câble plus large.</string>
     <string name="legend_ping_title">Trop lent</string>
     <string name="legend_ping_desc">Le chemin est trop long pour le ping du service. Relie-le plus court ou avec un câble plus rapide.</string>
+    <string name="news_cell_generation">Réseau mobile %1$s</string>
+    <string name="hint_cell_tower">Antenne en %1$s · touchez pour la mettre à niveau quand une nouvelle génération arrive</string>
+    <string name="cell_error_newest">Déjà la génération la plus récente</string>
+    <string name="cell_error_not_invented">%1$s arrive en %2$d</string>
+    <string name="legend_cell_tower_desc">Smartphone, tablette et montre seulement · 3G → 4G/LTE → 5G : touchez pour améliorer, plus de capacité, moins de ping</string>
 </resources>

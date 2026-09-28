@@ -14,7 +14,8 @@ class UnlockScheduleTest {
         CableType.entries.filter { it.unlockWeek == week } +
             RadioType.entries.filter { it.unlockWeek == week } +
             Device.entries.filter { it.unlockWeek == week } +
-            Service.entries.filter { it.serverWeek == week }
+            Service.entries.filter { it.serverWeek == week } +
+            CellGeneration.entries.filter { it.unlockWeek == week }
 
     @Test
     fun scheduleMatchesThePlan() {
@@ -23,11 +24,11 @@ class UnlockScheduleTest {
             2 to listOf(CableType.DSL, Device.LAPTOP),
             3 to listOf(CableType.COAX, Device.CONSOLE, Service.GAMING),
             4 to listOf(Device.TV, Service.STREAMING),
-            5 to listOf(RadioType.WLAN, Device.SMARTPHONE),
-            6 to listOf(CableType.FIBER, Device.TABLET),
-            7 to listOf(RadioType.CELL, Service.VIDEO_CALL),
+            5 to listOf(RadioType.WLAN, RadioType.CELL, Device.SMARTPHONE, CellGeneration.G3),
+            6 to listOf(CableType.FIBER, Device.TABLET, CellGeneration.G4),
+            7 to listOf(Service.VIDEO_CALL),
             8 to listOf(Device.WATCH),
-            9 to listOf(Device.CAMERA, Service.CAMERA_UPLOAD),
+            9 to listOf(Device.CAMERA, Service.CAMERA_UPLOAD, CellGeneration.G5),
             10 to listOf(Service.CLOUD_BACKUP),
             11 to listOf(Device.SMART_HOME),
         )
@@ -43,6 +44,7 @@ class UnlockScheduleTest {
         assertTrue(RadioType.entries.all { it.unlockWeek <= lastWeek })
         assertTrue(Device.entries.all { it.unlockWeek <= lastWeek })
         assertTrue(Service.entries.all { it.serverWeek <= lastWeek })
+        assertTrue(CellGeneration.entries.all { it.unlockWeek <= lastWeek })
     }
 
     @Test

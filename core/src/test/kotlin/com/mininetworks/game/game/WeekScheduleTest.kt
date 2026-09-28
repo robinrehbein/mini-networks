@@ -35,7 +35,11 @@ class WeekScheduleTest {
     fun scheduleFollowsTheUnlockWeeks() {
         assertEquals(listOf(CableType.FIBER), WeekSchedule.cables(CableType.FIBER.unlockWeek))
         assertEquals(listOf(Device.CAMERA), WeekSchedule.devices(Device.CAMERA.unlockWeek))
-        assertEquals(listOf(RadioType.WLAN), WeekSchedule.radios(RadioType.WLAN.unlockWeek))
+        assertEquals(listOf(RadioType.WLAN, RadioType.CELL), WeekSchedule.radios(RadioType.WLAN.unlockWeek))
+        // The first generation comes with the tower and is announced as the tower; later ones are news of their own.
+        assertEquals(emptyList<CellGeneration>(), WeekSchedule.cellGenerations(RadioType.CELL.unlockWeek))
+        assertEquals(listOf(CellGeneration.G4), WeekSchedule.cellGenerations(CellGeneration.G4.unlockWeek))
+        assertEquals(listOf(CellGeneration.G5), WeekSchedule.cellGenerations(CellGeneration.G5.unlockWeek))
         assertSame(Service.CLOUD_BACKUP, WeekSchedule.firstServer(Service.CLOUD_BACKUP.serverWeek))
         // A due first server takes the week; random servers fill every second week after that.
         assertFalse(WeekSchedule.randomServer(World.Tuning.RANDOM_SERVERS_FROM))
@@ -62,6 +66,7 @@ class WeekScheduleTest {
             assertEquals(c.cables, news.cables)
             assertEquals(c.devices, news.devices)
             assertEquals(c.radios, news.radios)
+            assertEquals(c.cellGenerations, news.cellGenerations)
             val newServer = c.server != null || c.randomServer
             assertEquals("server in week $week", newServer, news.servers.isNotEmpty())
             assertEquals(servers + if (newServer) 1 else 0, w.nodes.count { it.kind == NodeKind.SERVER })

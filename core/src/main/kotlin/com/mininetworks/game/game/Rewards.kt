@@ -21,7 +21,7 @@ enum class Reward {
     /** +[Rewards.ACCESS_POINTS] WLAN access points. Offered from the week WLAN is invented ([RadioType.WLAN]). */
     ACCESS_POINT,
 
-    /** +[Rewards.CELL_TOWERS] cell towers. Offered from the week mobile radio is invented ([RadioType.CELL]). */
+    /** +[Rewards.CELL_TOWERS] cell towers. Offered from [World.Tuning.CELL_TOWER_REWARD_WEEK]; the first tower comes with [RadioType.CELL]. */
     CELL_TOWER,
 }
 

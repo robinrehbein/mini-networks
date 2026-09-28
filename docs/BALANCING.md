@@ -72,11 +72,11 @@ Mit 40 Seeds (1–40) liegen die Mediane bei 9,7 / 8,9 / 7,5 / 6,0 / 5,1 Wochen,
 | 2 | 1998 | DSL | Laptop | – | – |
 | 3 | 2001 | TV-Kabel | Konsole | Gaming | erste Störungen (1 je Woche) |
 | 4 | 2004 | – | Fernseher | Streaming | – |
-| 5 | 2007 | WLAN | Smartphone | – | – |
-| 6 | 2010 | Glasfaser | Tablet | – | – |
-| 7 | 2013 | Mobilfunkmast | – | Videocall | – |
+| 5 | 2007 | WLAN, Mobilfunkmast 3G (1 geschenkt) | Smartphone | – | – |
+| 6 | 2010 | Glasfaser, 4G/LTE | Tablet | – | – |
+| 7 | 2013 | – (Masten jetzt auch als Belohnung) | – | Videocall | – |
 | 8 | 2016 | – | Smartwatch | – | – |
-| 9 | 2019 | – | Kamera | Kamera-Upload | 2 Störungen je Woche |
+| 9 | 2019 | 5G | Kamera | Kamera-Upload | 2 Störungen je Woche |
 | 10 | 2022 | – | – | Backup | – |
 | 11 | 2024 | – | Smart-Home | – | – |
 | 12 | 2026 | – | – | Server eines Zufallsdienstes (dann jede zweite Woche) | – |
@@ -104,7 +104,7 @@ Ausgewogener Bot (G1):
 Punktzahl (Median der zugestellten Pakete) des ausgewogenen und der einseitigen Bots, dahinter Median der Wochen und der Abstand zum
 ausgewogenen Bot (G2). Nur ISDN ist für Telefonie über längere Wege zu langsam und für Streaming (3 Einheiten) zu schmal, nur DSL
 für Gaming zu langsam; nur TV-Kabel oder Glasfaser hat in den ersten Wochen gar nichts zu legen, und Funk kommt nur als Belohnung
-(Access Points ab Woche 5, Masten ab 7), höchstens einer je Woche. Auch in Zukunft 2030, wo alles ab dem Start da ist, bleibt jeder
+(Access Points ab Woche 5, Masten ab 7; der erste 3G-Mast kommt in Woche 5 geschenkt), höchstens einer je Woche. Auch in Zukunft 2030, wo alles ab dem Start da ist, bleibt jeder
 einseitige Bot weit zurück: nur Glasfaser ist zu teuer, nur Funk reicht für zu wenige Geräte, nur TV-Kabel oder DSL staut die Kameras.
 Dass `wireless_only`, `only_coax` und `only_fiber` in der Kleinstadt schon in Woche 2 verlieren, liegt am Kalender (vor Woche 3, 5 bzw. 6
 gibt es ihr Werkzeug nicht), nicht an einer schwachen Umsetzung; darum prüft der Test G2 zusätzlich in Zukunft 2030.
@@ -167,6 +167,7 @@ Der Stand vor T6; die Zahlen in dieser Tabelle gelten für die damaligen Werte.
 | Fairer Start `EARLY_WEEKS` (neu) | – | 2 Wochen | In den ersten zwei Wochen erscheinen Geräte nur dort, wo jeder ihrer Dienste mit einem direkten Kabel einer erfundenen Technik erreichbar ist: breit genug, höchstens 80 % des Ping-Limits (Platz für einen Router) und höchstens 24 Budget. Vorher endete Zukunft 2030 in einzelnen Seeds nach 0,9 Wochen |
 | Überlast in den ersten Wochen `EARLY_OVERLOAD_SLOWDOWN` (neu) | – | Ring füllt sich halb so schnell | Schonfrist bis zum ersten Wochenlohn: der Bot war in Zukunft 2030 und Bergdorf früh pleite, bevor die +60 kamen |
 | Freischalt-Ziele `METROPOLIS_TARGET` / `ISLAND_TARGET` | 1.500 / 3.000 Pakete | 900 / 650 Pakete | Etwa das 1,3-Fache des Bot-Medians in der Szenerie davor (damals 709 bzw. 507, mit dem Erfindungs-Fahrplan 667 bzw. 533); 1.500 und 3.000 lagen über dem besten Bot-Lauf und wirkten wie eine Bezahlschranke |
+| Mobilfunk-Generationen (`CellGeneration`) | ein Mast ab Woche 7 mit Kapazität 8 und 15 ms, nur als Belohnung | Mast ab Woche 5 (2007, mit dem Smartphone) als 3G (Kapazität 3, 35 ms), 4G/LTE ab Woche 6 (8, 15 ms, Aufrüsten 8), 5G ab Woche 9 (14, 6 ms, Aufrüsten 12); in Woche 5 gibt es einen 3G-Mast geschenkt (`FIRST_CELL_TOWERS`), als Belohnung weiter erst ab Woche 7 (`CELL_TOWER_REWARD_WEEK`) | Wunsch aus dem Probespiel: WLAN, 3G, 4G/LTE und 5G unterscheiden. Die Mast-Belohnung schon ab Woche 5 verdrängte andere Belohnungen und machte Insel & Hafen (7,0 → 6,1 Wochen) schwerer als das Bergdorf (G1 verletzt); mit dem geschenkten Mast und der Belohnung ab Woche 7 bleibt G1 grün. Alte Spielstände: Masten funken mit 4G (die bisherigen Werte) |
 | Erfindungs-Fahrplan (`unlockWeek`, `serverWeek`) | Glasfaser Woche 5, WLAN 6, Mast 7, zuletzt Kamera und Smart-Home in Woche 7, Backup-Server Woche 8; ab Woche 9 nur noch Zufalls-Server | jede Woche bis 2026 bringt etwas: Smartphone und WLAN 5, Glasfaser und Tablet 6, Mast und Videocall 7, Smartwatch 8, Kamera 9, Backup 10, Smart-Home 11, ab 12 Zufalls-Server; Zukunft 2030 startet in Woche 12 | Der Kalender läuft bis 2026, die Neuheiten endeten aber 2016. Späte Erfindungen machen die ersten Wochen etwas leichter (Glasfaser kommt eine Woche später, dafür auch Tablet, Videocall und Kamera); Kleinstadt 7,4 statt 7,5 Wochen, Bergdorf 4,8 statt 4,0 |
 | Geräte-Gewicht `DEVICE_WEIGHT_WEEKS` (neu) | 1 + Erfindungswoche | 1 + Erfindungswoche, höchstens bis Woche 8 | Neuere Geräte kommen weiter häufiger, aber Kamera und Smart-Home (Woche 9 und 11) würden sonst in Zukunft 2030 jedes dritte Gerät stellen |
 

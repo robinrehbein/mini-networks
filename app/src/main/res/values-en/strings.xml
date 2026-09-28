@@ -498,4 +498,9 @@
     <string name="legend_too_narrow_desc">No way has enough bandwidth for this service. Lay a wider cable.</string>
     <string name="legend_ping_title">Too slow</string>
     <string name="legend_ping_desc">The way is too long for the service\'s ping. Connect it shorter or with a faster cable.</string>
+    <string name="news_cell_generation">Mobile %1$s</string>
+    <string name="hint_cell_tower">Tower sends %1$s · tap to upgrade once a new generation is invented</string>
+    <string name="cell_error_newest">Already on the newest generation</string>
+    <string name="cell_error_not_invented">%1$s comes in %2$d</string>
+    <string name="legend_cell_tower_desc">Smartphones, tablets and watches only · 3G → 4G/LTE → 5G: tap to upgrade for more capacity and lower ping</string>
 </resources>
