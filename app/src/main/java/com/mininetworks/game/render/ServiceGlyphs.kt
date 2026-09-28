@@ -14,7 +14,7 @@ import com.mininetworks.game.game.Service
  * the delivery pop, the legend and the recap map. The pictogram carries the meaning, the color only supports it, so
  * the colorblind palette changes nothing about which is which.
  *
- * Paths: Material Icons (round), Apache License 2.0, see docs/licenses-material-icons.txt.
+ * Paths: Material Icons (round), Apache License 2.0; the router sign uses "lan" the same way, see docs/licenses-material-icons.txt.
  */
 object ServiceGlyphs {
     private const val VIEWPORT = 24f
@@ -45,6 +45,27 @@ object ServiceGlyphs {
     }
 
     private fun parse(data: String): Path = PathParser.createPathFromPathData(data)
+
+    /** Material Icons "lan": the network tree on a router's sign, so routers read as network gear like servers. */
+    private val network: Path = parse(
+        "M15 22h4c1.1 0 2-.9 2-2v-3c0-1.1-.9-2-2-2h-1v-2c0-1.1-.9-2-2-2h-3V9h1c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2h-4c-1.1 0-2 .9-2 2v3c0 1.1.9 2 2 2h1v2H8c-1.1 0-2 .9-2 2v2H5c-1.1 0-2 .9-2 2v3c0 1.1.9 2 2 2h4c1.1 0 2-.9 2-2v-3c0-1.1-.9-2-2-2H8v-2h8v2h-1c-1.1 0-2 .9-2 2v3c0 1.1.9 2 2 2z",
+    )
+
+    /** A router's sign: white disc, rim in [rimColor], the network tree in [color]; the counterpart of [sign]. */
+    fun networkSign(c: Canvas, x: Float, y: Float, r: Float, color: Int, rimColor: Int) {
+        fillP.color = 0xFFFFFFFF.toInt()
+        c.drawCircle(x, y, r, fillP)
+        rimP.color = rimColor; rimP.strokeWidth = r * 0.16f
+        c.drawCircle(x, y, r, rimP)
+        fillP.color = color
+        val size = r * 1.2f
+        val k = size / VIEWPORT
+        c.save()
+        c.translate(x - size / 2f, y - size / 2f)
+        c.scale(k, k)
+        c.drawPath(network, fillP)
+        c.restore()
+    }
 
     private val fillP = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
     private val rimP = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }

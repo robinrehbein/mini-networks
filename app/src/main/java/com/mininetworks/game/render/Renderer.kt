@@ -563,6 +563,8 @@ object IncidentStyles {
  */
 class DeviceIcons {
     private val ink = 0xFF262B33.toInt()
+    /** The network's slate blue, shared with the iso router block. */
+    private val ROUTER_BODY = 0xFF5C7FA8.toInt()
     /** A lit screen in sky blue with a glare, so devices read as glowing gadgets rather than line icons (judge panel). */
     private val screen = 0xFF4FA8E8.toInt()
     private val glare = 0x66FFFFFF
@@ -806,21 +808,26 @@ class DeviceIcons {
      * (outage in effect) has a grey body and no light.
      */
     fun router(c: Canvas, x: Float, y: Float, s: Float, time: Float, warning: Boolean = false, dark: Boolean = false) {
+        // Network gear like the rack server: a slate-blue unit with a dark port strip, two antennas and the network
+        // sign, instead of the white gadget it once was (playtest: it read as an end device).
         canvas = c
         line.color = ink
-        line.strokeWidth = s * 0.14f
-        canvas.drawLine(x - s * 0.5f, y - s * 0.2f, x - s * 0.7f, y - s * 0.9f, line)
-        canvas.drawLine(x + s * 0.5f, y - s * 0.2f, x + s * 0.7f, y - s * 0.9f, line)
-        box(x - s * 0.9f, y - s * 0.25f, x + s * 0.9f, y + s * 0.45f, s * 0.15f, if (dark) IncidentStyles.DARK_BODY else 0xFFFFFFFF.toInt(), s)
-        for (i in 0 until 3) {
+        line.strokeWidth = s * 0.12f
+        canvas.drawLine(x - s * 0.55f, y - s * 0.3f, x - s * 0.55f, y - s * 0.95f, line)
+        canvas.drawLine(x + s * 0.2f, y - s * 0.3f, x + s * 0.2f, y - s * 0.95f, line)
+        box(x - s * 0.9f, y - s * 0.3f, x + s * 0.9f, y + s * 0.55f, s * 0.14f, if (dark) IncidentStyles.DARK_BODY else ROUTER_BODY, s)
+        rect.set(x - s * 0.7f, y - s * 0.05f, x + s * 0.7f, y + s * 0.3f)
+        body.color = 0xFF3A4452.toInt(); canvas.drawRect(rect, body)
+        for (i in 0 until 4) {
             body.color = when {
-                dark -> ink
-                warning -> if (sin(time * 17f + i * 2.1f) > 0f) IncidentStyles.WARNING else 0xFFB9C2CC.toInt()
-                sin(time * 6f + i * 1.3f) > 0f -> 0xFF3BA55C.toInt()
-                else -> 0xFFB9C2CC.toInt()
+                dark -> 0xFF56606C.toInt()
+                warning -> if (sin(time * 17f + i * 2.1f) > 0f) IncidentStyles.WARNING else 0xFF56606C.toInt()
+                sin(time * 6f + i * 1.3f) > -0.1f -> 0xFF7CF29A.toInt()
+                else -> 0xFF56606C.toInt()
             }
-            canvas.drawCircle(x - s * 0.4f + i * s * 0.4f, y + s * 0.1f, s * 0.09f, body)
+            canvas.drawCircle(x - s * 0.48f + i * s * 0.32f, y + s * 0.125f, s * 0.08f, body)
         }
+        ServiceGlyphs.networkSign(canvas, x + s * 0.8f, y - s * 0.3f, s * 0.42f, ROUTER_BODY, ink)
     }
 
     /**
