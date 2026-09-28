@@ -186,6 +186,13 @@
     <string name="cable_error_no_budget">予算不足：強化には%1$d必要です</string>
     <string name="hint_cable_remove">%1$sケーブル · もう一度タップで撤去（+%2$d）</string>
     <string name="hint_cable_removed">ケーブルを撤去、払い戻し：+%1$d</string>
+    <!-- Cable reroute -->
+    <string name="hint_cable_select">%1$sケーブル · 端をドラッグで引き直し · もう一度タップで撤去（+%2$d）</string>
+    <string name="hint_cable_select_free">%1$sケーブル · 端をドラッグで引き直し · もう一度タップで撤去</string>
+    <string name="hint_cable_rerouted">ケーブルを引き直しました</string>
+    <string name="hint_cable_rerouted_paid">ケーブルを引き直しました · −%1$d</string>
+    <string name="hint_cable_rerouted_refund">ケーブルを引き直し、払い戻し：+%1$d</string>
+    <string name="reroute_error_incident">このケーブルにショベルカー · 去ってから引き直せます</string>
     <string name="place_error_no_stock">%1$sの在庫がありません</string>
     <string name="place_error_locked">このマスはまだ開放されていません</string>
     <string name="place_error_occupied">このマスはすでに使われています</string>

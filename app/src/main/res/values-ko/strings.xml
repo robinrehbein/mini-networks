@@ -186,6 +186,13 @@
     <string name="cable_error_no_budget">예산 부족: 업그레이드 비용 %1$d</string>
     <string name="hint_cable_remove">%1$s 케이블 · 한 번 더 탭하면 제거 (+%2$d)</string>
     <string name="hint_cable_removed">케이블 제거, 환급: +%1$d</string>
+    <!-- Cable reroute -->
+    <string name="hint_cable_select">%1$s 케이블 · 끝을 끌어 경로 변경 · 한 번 더 탭하면 제거 (+%2$d)</string>
+    <string name="hint_cable_select_free">%1$s 케이블 · 끝을 끌어 경로 변경 · 한 번 더 탭하면 제거</string>
+    <string name="hint_cable_rerouted">케이블 경로 변경</string>
+    <string name="hint_cable_rerouted_paid">케이블 경로 변경 · −%1$d</string>
+    <string name="hint_cable_rerouted_refund">케이블 경로 변경, 환급: +%1$d</string>
+    <string name="reroute_error_incident">이 케이블에 굴착기 · 떠난 뒤에 경로를 바꿀 수 있어요</string>
     <string name="place_error_no_stock">재고 없음: %1$s</string>
     <string name="place_error_locked">아직 열리지 않은 칸입니다</string>
     <string name="place_error_occupied">이미 사용 중인 칸입니다</string>

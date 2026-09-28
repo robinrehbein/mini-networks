@@ -192,6 +192,13 @@
     <string name="cable_error_no_budget">Bütçe yetmiyor, yükseltmenin bedeli %1$d</string>
     <string name="hint_cable_remove">Kablo: %1$s · kaldırmak için tekrar dokun (+%2$d)</string>
     <string name="hint_cable_removed">Kablo kaldırıldı, iade: +%1$d</string>
+    <!-- Cable reroute -->
+    <string name="hint_cable_select">Kablo: %1$s · yeniden döşemek için bir ucunu sürükle · kaldırmak için tekrar dokun (+%2$d)</string>
+    <string name="hint_cable_select_free">Kablo: %1$s · yeniden döşemek için bir ucunu sürükle · kaldırmak için tekrar dokun</string>
+    <string name="hint_cable_rerouted">Kablo yeniden döşendi</string>
+    <string name="hint_cable_rerouted_paid">Kablo yeniden döşendi · −%1$d</string>
+    <string name="hint_cable_rerouted_refund">Kablo yeniden döşendi, iade: +%1$d</string>
+    <string name="reroute_error_incident">Bu kabloda kepçe var · gidince yeniden döşeyebilirsin</string>
     <string name="place_error_no_stock">Stokta kalmadı: %1$s</string>
     <string name="place_error_locked">Bu kare henüz açılmadı</string>
     <string name="place_error_occupied">Bu kare zaten dolu</string>

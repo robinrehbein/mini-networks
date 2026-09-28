@@ -213,7 +213,10 @@ class IsoRenderer : Renderer {
         for (i in world.incidents) drawIncidentGround(canvas, i, time)
 
         drag?.let { d ->
-            val end = d.layout.end
+            d.replaces?.let { old ->
+                polyline(cablePath(old))
+                DragJuice.ghost(canvas, path, tw * CableStyles.of(old.type).width * 0.5f, density)
+            }
             polyline(d.layout.waypoints)
             val st = CableStyles.of(d.type)
             val col = if (d.blocked) alarm else st.color
@@ -226,13 +229,6 @@ class IsoRenderer : Renderer {
             d.trail.forEachIndexed { i, p -> xs[i] = sx(p.x, p.y); ys[i] = sy(p.x, p.y) }
             xs[d.trail.size] = sx(d.end.x, d.end.y); ys[d.trail.size] = sy(d.end.x, d.end.y)
             DragJuice.trail(canvas, xs, ys, col, density)
-            d.label?.let {
-                val size = maxOf(tw * 0.3f, LABEL_MIN_DP * 1.2f * density)
-                DragJuice.bubble(
-                    canvas, it, d.detail, sx(end.x, end.y), sy(end.x, end.y), maxOf(th * 2.2f, 40f * density), size, density,
-                    if (d.blocked) alarm else 0xFF2F3A34.toInt(), if (d.detailWarning) alarm else 0xFF5B6674.toInt(), col,
-                )
-            }
         }
 
         drawArrivalRings(canvas, world)
@@ -302,6 +298,21 @@ class IsoRenderer : Renderer {
         }
         for (n in nodes) if (n.upgradedAt > Float.NEGATIVE_INFINITY) drawUpgradeJuice(canvas, world, n)
         drawDeliveryPops(canvas, world)
+
+        // The drag's handles and label go on top, so no building ever covers the price.
+        drag?.let { d ->
+            val end = d.labelAt ?: d.layout.end
+            val st = CableStyles.of(d.type)
+            val col = if (d.blocked) alarm else st.color
+            for (h in d.handles) DragJuice.handle(canvas, sx(h.x, h.y), sy(h.x, h.y), st.color, density)
+            d.label?.let {
+                val size = maxOf(tw * 0.3f, LABEL_MIN_DP * 1.2f * density)
+                DragJuice.bubble(
+                    canvas, it, d.detail, sx(end.x, end.y), sy(end.x, end.y), maxOf(th * 2.2f, 40f * density), size, density,
+                    if (d.blocked) alarm else 0xFF2F3A34.toInt(), if (d.detailWarning) alarm else 0xFF5B6674.toInt(), col,
+                )
+            }
+        }
     }
 
     /** The cable in [path] with style [st]: dark outline, white halo, the cable colour and its core, if any. */

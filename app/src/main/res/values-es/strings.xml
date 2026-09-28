@@ -198,6 +198,13 @@
     <string name="cable_error_no_budget">Presupuesto insuficiente, la mejora cuesta %1$d</string>
     <string name="hint_cable_remove">Cable %1$s · toca otra vez para quitarlo (+%2$d)</string>
     <string name="hint_cable_removed">Cable quitado, reembolso: +%1$d</string>
+    <!-- Cable reroute -->
+    <string name="hint_cable_select">Cable %1$s · arrastra un extremo para desviarlo · toca otra vez para quitarlo (+%2$d)</string>
+    <string name="hint_cable_select_free">Cable %1$s · arrastra un extremo para desviarlo · toca otra vez para quitarlo</string>
+    <string name="hint_cable_rerouted">Cable desviado</string>
+    <string name="hint_cable_rerouted_paid">Cable desviado · −%1$d</string>
+    <string name="hint_cable_rerouted_refund">Cable desviado, reembolso: +%1$d</string>
+    <string name="reroute_error_incident">Excavadora en este cable · desvíalo cuando se vaya</string>
     <string name="place_error_no_stock">No te queda: %1$s</string>
     <string name="place_error_locked">Esta casilla aún no está disponible</string>
     <string name="place_error_occupied">Esta casilla ya está ocupada</string>

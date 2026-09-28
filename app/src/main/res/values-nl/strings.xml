@@ -192,6 +192,13 @@
     <string name="cable_error_no_budget">Te weinig budget, upgraden kost %1$d</string>
     <string name="hint_cable_remove">%1$s-kabel · tik nog eens om weg te halen (+%2$d)</string>
     <string name="hint_cable_removed">Kabel weggehaald, terug: +%1$d</string>
+    <!-- Cable reroute -->
+    <string name="hint_cable_select">%1$s-kabel · sleep een uiteinde om om te leggen · tik nog eens om weg te halen (+%2$d)</string>
+    <string name="hint_cable_select_free">%1$s-kabel · sleep een uiteinde om om te leggen · tik nog eens om weg te halen</string>
+    <string name="hint_cable_rerouted">Kabel omgelegd</string>
+    <string name="hint_cable_rerouted_paid">Kabel omgelegd · −%1$d</string>
+    <string name="hint_cable_rerouted_refund">Kabel omgelegd, terug: +%1$d</string>
+    <string name="reroute_error_incident">Graafmachine bij deze kabel · leg hem om als die weg is</string>
     <string name="place_error_no_stock">Geen voorraad meer: %1$s</string>
     <string name="place_error_locked">Dit vak is nog niet vrijgegeven</string>
     <string name="place_error_occupied">Dit vak is al bezet</string>

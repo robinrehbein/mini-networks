@@ -17,6 +17,7 @@ import com.mininetworks.game.game.Incidents
 import com.mininetworks.game.game.Node
 import com.mininetworks.game.game.NodeKind
 import com.mininetworks.game.game.RadioType
+import com.mininetworks.game.game.RerouteError
 import com.mininetworks.game.game.Scenario
 import com.mininetworks.game.game.Scenarios
 import com.mininetworks.game.game.Service
@@ -132,6 +133,16 @@ class Texts(private val context: Context) {
         ConnectError.FROM_PORTS_FULL -> context.getString(R.string.connect_error_ports_full, node(from))
         ConnectError.TO_PORTS_FULL -> context.getString(R.string.connect_error_ports_full, node(to))
         ConnectError.NO_BUDGET -> context.getString(R.string.connect_error_no_budget)
+    }
+
+    /** Why a cable cannot be re-routed onto [to]; null when nothing needs saying ([RerouteError.UNCHANGED]). */
+    fun rerouteError(e: RerouteError, to: Node): String? = when (e) {
+        RerouteError.SAME_NODE -> context.getString(R.string.connect_error_same_node)
+        RerouteError.ALREADY_CONNECTED -> context.getString(R.string.connect_error_already_connected)
+        RerouteError.PORTS_FULL -> context.getString(R.string.connect_error_ports_full, node(to))
+        RerouteError.NO_BUDGET -> context.getString(R.string.connect_error_no_budget)
+        RerouteError.INCIDENT -> context.getString(R.string.reroute_error_incident)
+        RerouteError.UNCHANGED, RerouteError.GONE -> null
     }
 
     /** The HUD line for incident [i]: the announcement with its countdown, or the effect and how long it lasts. */

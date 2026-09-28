@@ -195,6 +195,13 @@
     <string name="cable_error_no_budget">Zu wenig Budget, Aufrüsten kostet %1$d</string>
     <string name="hint_cable_remove">%1$s-Kabel · nochmal antippen zum Entfernen (+%2$d)</string>
     <string name="hint_cable_removed">Kabel entfernt, zurück: +%1$d</string>
+    <!-- Cable reroute -->
+    <string name="hint_cable_select">%1$s-Kabel · Ende ziehen zum Verlegen · nochmal antippen zum Entfernen (+%2$d)</string>
+    <string name="hint_cable_select_free">%1$s-Kabel · Ende ziehen zum Verlegen · nochmal antippen zum Entfernen</string>
+    <string name="hint_cable_rerouted">Kabel neu verlegt</string>
+    <string name="hint_cable_rerouted_paid">Kabel neu verlegt · −%1$d</string>
+    <string name="hint_cable_rerouted_refund">Kabel neu verlegt, zurück: +%1$d</string>
+    <string name="reroute_error_incident">Bagger am Kabel · erst danach neu verlegbar</string>
     <string name="place_error_no_stock">Kein %1$s mehr auf Lager</string>
     <string name="place_error_locked">Dieses Feld ist noch nicht erschlossen</string>
     <string name="place_error_occupied">Das Feld ist schon belegt</string>

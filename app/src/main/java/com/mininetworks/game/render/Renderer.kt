@@ -42,6 +42,12 @@ class DragPreview(
     val detailWarning: Boolean = false,
     /** The finger's path in world space, oldest first, drawn as a fading touch trail behind the pointer. */
     val trail: List<Vec2> = emptyList(),
+    /** The laid cable this drag re-routes, drawn as a dashed ghost under the preview; null for a new cable. */
+    val replaces: Cable? = null,
+    /** World points where grab handles ([DragJuice.handle]) are drawn on the preview, e.g. the end that stays. */
+    val handles: List<Vec2> = emptyList(),
+    /** Where the bubble's tail points; the end of [layout] if null. */
+    val labelAt: Vec2? = null,
 )
 
 /**
@@ -892,6 +898,35 @@ object DragJuice {
         glowP.strokeWidth = width * 1.9f
         canvas.drawPath(path, glowP)
     }
+
+    /**
+     * A grab handle at screen point ([x], [y]): a white disc with a dark rim and a dot in the cable's [color], on a soft
+     * shadow; the same at any zoom, so it reads as a control rather than part of the map.
+     */
+    fun handle(canvas: Canvas, x: Float, y: Float, color: Int, density: Float) {
+        val r = HANDLE_DP * density
+        dotP.color = 0x38000000
+        canvas.drawCircle(x, y + 1.5f * density, r + 1f * density, dotP)
+        dotP.color = 0xFFFFFFFF.toInt()
+        canvas.drawCircle(x, y, r, dotP)
+        ringP.color = HANDLE_RIM; ringP.strokeWidth = 2.5f * density
+        canvas.drawCircle(x, y, r - 1.25f * density, ringP)
+        dotP.color = color or 0xFF000000.toInt()
+        canvas.drawCircle(x, y, r * 0.42f, dotP)
+    }
+
+    /** The cable a drag re-routes, along [path] (stroke [width] pixels): dashed white over it, so it reads as "moving away". */
+    fun ghost(canvas: Canvas, path: Path, width: Float, density: Float) {
+        ghostP.pathEffect = ghostDash.get(maxOf(width * 1.2f, 6f * density), 0.6f, 0f)
+        ghostP.strokeWidth = width
+        canvas.drawPath(path, ghostP)
+    }
+
+    /** Visible radius of a [handle]; its touch target is larger (see GameView). */
+    const val HANDLE_DP = 11f
+    private const val HANDLE_RIM = 0xFF2F3A34.toInt()
+    private val ghostP = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeJoin = Paint.Join.ROUND; color = 0xD9FFFFFF.toInt() }
+    private val ghostDash = DashCache()
 
     /** The finger's trail through the screen points [xs]/[ys] (oldest first) and the contact ring at the last one. */
     fun trail(canvas: Canvas, xs: FloatArray, ys: FloatArray, color: Int, density: Float) {

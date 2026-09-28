@@ -198,6 +198,13 @@
     <string name="cable_error_no_budget">Budget insuffisant, l’amélioration coûte %1$d</string>
     <string name="hint_cable_remove">Câble %1$s · touche encore pour le retirer (+%2$d)</string>
     <string name="hint_cable_removed">Câble retiré, remboursement : +%1$d</string>
+    <!-- Cable reroute -->
+    <string name="hint_cable_select">Câble %1$s · fais glisser un bout pour le dévier · touche encore pour le retirer (+%2$d)</string>
+    <string name="hint_cable_select_free">Câble %1$s · fais glisser un bout pour le dévier · touche encore pour le retirer</string>
+    <string name="hint_cable_rerouted">Câble dévié</string>
+    <string name="hint_cable_rerouted_paid">Câble dévié · −%1$d</string>
+    <string name="hint_cable_rerouted_refund">Câble dévié, remboursement : +%1$d</string>
+    <string name="reroute_error_incident">Pelleteuse sur ce câble · dévie-le une fois partie</string>
     <string name="place_error_no_stock">Plus de %1$s en stock</string>
     <string name="place_error_locked">Cette case n’est pas encore ouverte</string>
     <string name="place_error_occupied">Cette case est déjà occupée</string>

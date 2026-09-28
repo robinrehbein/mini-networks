@@ -198,6 +198,13 @@
     <string name="cable_error_no_budget">Verba insuficiente, a melhoria custa %1$d</string>
     <string name="hint_cable_remove">Cabo %1$s · toque de novo para remover (+%2$d)</string>
     <string name="hint_cable_removed">Cabo removido, reembolso: +%1$d</string>
+    <!-- Cable reroute -->
+    <string name="hint_cable_select">Cabo %1$s · arraste uma ponta para refazer o trajeto · toque de novo para remover (+%2$d)</string>
+    <string name="hint_cable_select_free">Cabo %1$s · arraste uma ponta para refazer o trajeto · toque de novo para remover</string>
+    <string name="hint_cable_rerouted">Trajeto do cabo refeito</string>
+    <string name="hint_cable_rerouted_paid">Trajeto do cabo refeito · −%1$d</string>
+    <string name="hint_cable_rerouted_refund">Trajeto do cabo refeito, reembolso: +%1$d</string>
+    <string name="reroute_error_incident">Escavadeira neste cabo · refaça o trajeto quando ela sair</string>
     <string name="place_error_no_stock">Acabou o estoque: %1$s</string>
     <string name="place_error_locked">Este espaço ainda não está liberado</string>
     <string name="place_error_occupied">Este espaço já está ocupado</string>

@@ -58,6 +58,7 @@ import com.mininetworks.game.game.NodeKind
 import com.mininetworks.game.game.PlaceError
 import com.mininetworks.game.game.RadioType
 import com.mininetworks.game.game.RepairError
+import com.mininetworks.game.game.RerouteError
 import com.mininetworks.game.game.RouteProblem
 import com.mininetworks.game.game.Scenario
 import com.mininetworks.game.game.Scenarios
@@ -82,6 +83,7 @@ import com.mininetworks.game.monetization.PlayMonetization
 import com.mininetworks.game.render.CableStyles
 import com.mininetworks.game.render.Camera
 import com.mininetworks.game.render.Cosmetic
+import com.mininetworks.game.render.DragJuice
 import com.mininetworks.game.render.DragPreview
 import com.mininetworks.game.render.FlatRenderer
 import com.mininetworks.game.render.IncidentStyles
@@ -169,6 +171,9 @@ import kotlin.math.roundToInt
  *  - tap a server: preview its next hardware tier and price; tap again to upgrade (tier 4 is a data center on 2×2 cells)
  *  - tap a cable: upgrade it to a better picked technology; otherwise the first tap selects it and a second tap removes
  *    it for a refund; a cable cut by an excavator is repaired instead (small fee)
+ *  - a selected cable shows a grab handle at each end: drag one onto another node to re-route that end, drag the middle
+ *    of a bent cable to flip its L ([World.reroute]; the label shows the price difference, "+12", "−4" or "±0", and
+ *    releasing anywhere else cancels); a long press on any cable selects it and grabs its nearer end at once
  *  - tap a device: why its requests are stuck (no way, too narrow, ping too high, jam), or what it wants
  *  - "Router" button, then tap an empty cell: place a router (a tap, not the start of a pan or pinch; a cell that does
  *    not work says why); tap a router without cables twice to put it back; "WLAN" and "Mast" place won radios the same
@@ -180,9 +185,11 @@ import kotlin.math.roundToInt
  *  - at each week change the world pauses and [RewardDialog] shows two reward cards; tap one to pick it
  *    (the menu button stays tappable above the dialog; resuming returns to the choice)
  *
- * Sound ([SoundPlayer]): a pluck per delivery pitched by service, a click when a cable locks in, a soft warning when a
- * device starts to overload and a chime at each new week ([SoundCues] reads them from the world while playing).
- * Haptics: a tick when a dragged cable snaps onto a target node and a pulse when it is laid.
+ * Sound ([SoundPlayer]): a pluck per delivery pitched by service, a click when a cable locks in (or is re-routed), a
+ * soft warning when a device starts to overload and a chime at each new week ([SoundCues] reads them from the world
+ * while playing).
+ * Haptics: a tick when a dragged cable (or a re-routed end) snaps onto a target node and a pulse when it is laid or
+ * re-routed; a long press that grabs a cable pulses too.
  */
 class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback {
 
@@ -401,6 +408,20 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private var holdStart = 0f
     /** True once a hold fired, so lifting the finger does nothing more. */
     private var holdFired = false
+
+    /**
+     * A finger on the selected cable ([selection]): [moving] is the end that follows it while the other one stays,
+     * or null for the middle, which flips the L's bend. It re-routes the cable ([World.reroute]) once [grabbing].
+     */
+    private class Grab(val cable: Cable, val moving: Node?) {
+        /** The end that stays; for a bend change, the cable's start. */
+        val fixed: Node get() = if (moving === cable.a) cable.b else cable.a
+    }
+    private var grab: Grab? = null
+    /** True once the grabbing finger left the tap slop (or a long press grabbed): the drag now previews the re-route. */
+    private var grabbing = false
+    /** Cable under a finger that has not moved yet; holding it for [LONG_PRESS_MS] selects it and grabs its nearest end. */
+    private var holdCable: Cable? = null
     /** True from a touch-down on the reward dialog until the finger lifts, so that gesture never reaches the map. */
     private var gestureConsumed = false
     private var pressedCard: Int? = null
@@ -760,7 +781,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         failFocusUntil?.let { if (animTime >= it) showGameOverCard() }
         askReviewIfDue()
         followArea()
-        if (selection != null && animTime >= selectionUntil) selection = null
+        if (selection != null && animTime >= selectionUntil && grab == null) selection = null
         if (screen == Screen.PLAYING && animTime >= hintUntil && world.rewardOffer == null) hintQueue.removeFirstOrNull()?.let { showHint(it, LONG_HINT_SECONDS) }
         toast.update(animTime)
         renderer.stepCamera(animStep, world)
@@ -1134,6 +1155,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     /** True while the clock is stopped in place by the pause button, for tests. */
     internal val pausedInPlace: Boolean get() = userPaused
 
+    /** The cable, server or router a second tap acts on, or null, for tests. */
+    internal val selected: Any? get() = selection
+
+    /** Screen points of the selected cable's grab handles (start end first), empty without them, for tests. */
+    internal fun handleTargets(): List<Vec2> =
+        (selection as? Cable)?.takeIf(::canReroute)?.let { c -> handlePoints(c.layout).map(renderer::toScreen) } ?: emptyList()
+
     /** Number of haptic pulses sent (only counted while haptics are on), for tests. */
     internal var hapticPulses = 0
         private set
@@ -1150,6 +1178,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     private fun dragPreview(): DragPreview? {
         if (holdAp != null) return null
+        if (grabbing) return reroutePreview()
         val from = dragFrom ?: return null
         val end = dragEnd ?: return null
         val target = dragEndScreen?.let { pickNode(it.x, it.y, except = from) }
@@ -1179,11 +1208,148 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     private fun dragBend(from: Cell, to: Cell): Bend? = CableLayout.suggestBend(from, to, dragTrail)
 
+    /** Where the [grab] would re-route its cable: the end that stays, the node under the finger (if any) and the bend. */
+    private class ReroutePlan(val fixed: Node, val target: Node?, val toCell: Cell, val bend: Bend?)
+
+    private fun reroutePlan(): ReroutePlan? {
+        val g = grab ?: return null
+        val end = dragEnd ?: return null
+        val fixed = g.fixed
+        if (g.moving == null) {
+            // The middle: the bend whose corner is nearer the finger (in world space, so any camera turn or tilt agrees).
+            val other = g.cable.other(fixed)
+            val h = Cell(other.cell.x, fixed.cell.y).center
+            val v = Cell(fixed.cell.x, other.cell.y).center
+            val bend = if (hypot(end.x - v.x, end.y - v.y) < hypot(end.x - h.x, end.y - h.y)) Bend.VERTICAL_FIRST else Bend.HORIZONTAL_FIRST
+            return ReroutePlan(fixed, other, other.cell, bend)
+        }
+        val target = dragEndScreen?.let { pickNode(it.x, it.y, except = fixed) }
+        val toCell = target?.cell ?: Cell(floor(end.x).toInt(), floor(end.y).toInt())
+        return ReroutePlan(fixed, target, toCell, dragBend(fixed.cell, toCell))
+    }
+
+    /**
+     * The re-route under the finger: the new way from the end that stays, the old cable as a dashed ghost, a handle on
+     * the end that stays, and a label with the price difference ("+12", "−4", "±0") or why it does not work.
+     */
+    private fun reroutePreview(): DragPreview? {
+        val g = grab ?: return null
+        val plan = reroutePlan() ?: return null
+        val end = dragEnd ?: return null
+        val c = g.cable
+        val target = plan.target
+        val layout = world.planLayout(plan.fixed.cell, plan.toCell, plan.bend)
+        val error = target?.let { world.rerouteError(c, plan.fixed, it, plan.bend) }
+        val blocked = error != null && error != RerouteError.UNCHANGED
+        val label = when {
+            target == null || !blocked && world.unlimited -> texts.cable(c.type)
+            error != null -> texts.rerouteError(error, target) ?: texts.cable(c.type)
+            else -> context.getString(R.string.hint_two_parts, texts.cable(c.type), signed(world.rerouteCost(c, plan.fixed, target, plan.bend)))
+        }
+        val client = if (plan.fixed.kind == NodeKind.CLIENT) plan.fixed else target?.takeIf { it.kind == NodeKind.CLIENT }
+        val other = if (client === plan.fixed) target else plan.fixed
+        val check = if (!blocked && client != null && other != null) world.checkCable(client, other, c.type, plan.bend) else null
+        val detail = check?.let {
+            if (it.problem == RouteProblem.TOO_NARROW) context.getString(R.string.drag_too_narrow, texts.service(it.service), it.service.bandwidth)
+            else context.getString(R.string.drag_ping, texts.service(it.service), it.pingMs!!.roundToInt(), it.limitMs!!)
+        }
+        val handles = handlePoints(layout)
+        return DragPreview(
+            from = plan.fixed, end = end, target = target, type = c.type, layout = layout, blocked = blocked, label = label,
+            detail = detail, detailWarning = check?.problem != null, trail = dragTrail.toList(), replaces = c,
+            // Moving an end, the finger is the other handle; changing the bend, both ends stay and keep theirs.
+            handles = if (g.moving == null) handles else listOf(handles[0]),
+            labelAt = if (g.moving == null) end else null,
+        )
+    }
+
+    /** A price difference as the label shows it: "+12", "−4" or "±0". */
+    private fun signed(diff: Int) = when {
+        diff > 0 -> "+$diff"
+        diff < 0 -> "−${-diff}"
+        else -> "±0"
+    }
+
+    /**
+     * World points of the two grab handles on [layout], start end first: on the cable just outside its end nodes, at
+     * least [HANDLE_GAP_DP] from the node's center on screen, never past 40 % of the cable, so they never meet.
+     */
+    private fun handlePoints(layout: CableLayout): List<Vec2> {
+        val length = layout.length
+        if (length <= 0f) return listOf(layout.start, layout.end)
+        val gap = maxOf(HANDLE_GAP_CELLS, HANDLE_GAP_DP * density / renderer.unitPx).coerceAtMost(length * 0.4f)
+        return listOf(layout.pointAt(gap / length), layout.pointAt(1f - gap / length))
+    }
+
+    /**
+     * The grab a finger going down at ([sx], [sy]) starts on the selected cable, if any: a handle within
+     * [HANDLE_TOUCH_DP] (unless a node is nearer, so a node next to a handle still starts its own cable), or the middle
+     * of a bent cable. A cable an excavator is at has no handles: it cannot be re-routed.
+     */
+    private fun grabAt(sx: Float, sy: Float): Grab? {
+        val c = (selection as? Cable)?.takeIf { canReroute(it) } ?: return null
+        val p = Vec2(sx, sy)
+        val (ha, hb) = handlePoints(c.layout).map(renderer::toScreen)
+        val da = hypot(ha.x - p.x, ha.y - p.y)
+        val db = hypot(hb.x - p.x, hb.y - p.y)
+        val node = pickNode(sx, sy)
+        val dn = node?.footprint?.minOf { renderer.toScreen(it.center).let { q -> hypot(q.x - p.x, q.y - p.y) } }
+        if (minOf(da, db) <= HANDLE_TOUCH_DP * density && (dn == null || minOf(da, db) < dn)) return Grab(c, if (da <= db) c.a else c.b)
+        val bent = c.layout.waypoints.size > 2
+        if (node == null && bent && renderer.cableAtScreen(world, sx, sy, TouchTargets.cableRadiusPx(renderer, density)) === c) return Grab(c, null)
+        return null
+    }
+
+    private fun canReroute(c: Cable) = c in world.cables && world.incidents.none { it.cable === c }
+
+    /** A long press on [cable] fired: it is selected and its end nearer the finger follows the finger from now on. */
+    private fun grabByHold(cable: Cable) {
+        holdCable = null
+        panArmed = false
+        select(cable)
+        if (!canReroute(cable)) {
+            holdFired = true
+            showHint(context.getString(R.string.reroute_error_incident))
+            return
+        }
+        val p = Vec2(dragEndScreen?.x ?: downX, dragEndScreen?.y ?: downY)
+        val a = renderer.toScreen(cable.a.center)
+        val b = renderer.toScreen(cable.b.center)
+        grab = Grab(cable, if (hypot(a.x - p.x, a.y - p.y) <= hypot(b.x - p.x, b.y - p.y)) cable.a else cable.b)
+        grabbing = true
+        dragTrail.clear()
+        haptic(HapticFeedbackConstants.LONG_PRESS)
+        trackDrag(p.x, p.y)
+    }
+
+    /** Releasing a grab that moved: re-routes the cable if the finger is on a node that works; anything else cancels. */
+    private fun finishReroute(sx: Float, sy: Float) {
+        trackDrag(sx, sy)
+        val g = grab ?: return
+        val plan = reroutePlan() ?: return
+        val target = plan.target ?: return
+        val c = g.cable
+        if (world.rerouteError(c, plan.fixed, target, plan.bend) != null) return
+        val diff = world.rerouteCost(c, plan.fixed, target, plan.bend)
+        if (!world.reroute(c, plan.fixed, target, plan.bend)) return
+        world.cableBetween(plan.fixed, target)?.let(::select)
+        haptic(HapticFeedbackConstants.VIRTUAL_KEY)
+        sounds.play(Sound.CABLE)
+        showHint(
+            when {
+                world.unlimited || diff == 0 -> context.getString(R.string.hint_cable_rerouted)
+                diff > 0 -> context.getString(R.string.hint_cable_rerouted_paid, diff)
+                else -> context.getString(R.string.hint_cable_rerouted_refund, -diff)
+            },
+        )
+    }
+
     private fun trackDrag(sx: Float, sy: Float) {
         val p = renderer.toWorld(sx, sy)
         dragEnd = p
         dragEndScreen = Vec2(sx, sy)
-        val target = dragFrom?.let { pickNode(sx, sy, except = it) }
+        val from = dragFrom ?: grab?.takeIf { grabbing && it.moving != null }?.fixed
+        val target = from?.let { pickNode(sx, sy, except = it) }
         if (target !== snapTarget) {
             snapTarget = target
             if (target != null) haptic(HapticFeedbackConstants.CLOCK_TICK)
@@ -1192,9 +1358,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         if ((last == null || hypot(p.x - last.x, p.y - last.y) >= TRAIL_SPACING) && dragTrail.size < MAX_TRAIL) dragTrail += p
     }
 
-    /** Drops the gesture in progress: a half-drawn cable, a pan, and a hold on an access point. */
+    /** Drops the gesture in progress: a half-drawn cable, a re-route, a pan, and a hold on an access point or cable. */
     private fun endDrag() {
         holdAp = null
+        holdCable = null
+        grab = null
+        grabbing = false
         snapTarget = null
         dragFrom = null
         dragEnd = null
@@ -1716,9 +1885,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         pinText.textSize = base
     }
 
-    /** A pulsing yellow glow on the selected cable or node, the one a second tap acts on. */
+    /**
+     * A pulsing yellow glow on the selected cable or node, the one a second tap acts on; a cable that can be re-routed
+     * also shows a grab handle at each end. While a handle is dragged, the drag preview shows the cable instead.
+     */
     private fun drawSelection(canvas: Canvas) {
         val sel = selection ?: return
+        if (grabbing) return
         val pulse = 0.6f + 0.4f * kotlin.math.sin(animTime * 7f)
         selectionPaint.color = SELECTION_COLOR
         selectionPaint.alpha = (140 * pulse).toInt() + 60
@@ -1731,6 +1904,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 }
                 selectionPaint.strokeWidth = maxOf(12 * density, renderer.unitPx * 0.3f)
                 canvas.drawPath(selectionPath, selectionPaint)
+                if (canReroute(sel)) for (h in handlePoints(sel.layout)) {
+                    val q = renderer.toScreen(h)
+                    DragJuice.handle(canvas, q.x, q.y, CableStyles.of(sel.type).color, density)
+                }
             }
             is Node -> {
                 val c = renderer.toScreen(sel.footprintCenter)
@@ -1819,15 +1996,17 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 buttons.firstOrNull { it.rect.contains(e.x, e.y) }?.let { onButton(it.id); return }
                 dragTrail.clear()
                 // While placing, the tap (not the start of a pan or pinch) decides where: see ACTION_UP.
-                dragFrom = if (placing != null) null else pickNode(e.x, e.y)
-                if (dragFrom == null && isDoubleTap(e)) {
+                grab = if (placing != null) null else grabAt(e.x, e.y)
+                dragFrom = if (placing != null || grab != null) null else pickNode(e.x, e.y)
+                if (dragFrom == null && grab == null && isDoubleTap(e)) {
                     renderer.fitArea(world, animate = true)
                     emptyTapTime = null
                     cameraGesture = true
                     return
                 }
-                panArmed = dragFrom == null
+                panArmed = dragFrom == null && grab == null
                 holdAp = dragFrom?.takeIf { it.kind == NodeKind.ACCESS_POINT }
+                holdCable = if (panArmed && placing == null) renderer.cableAtScreen(world, e.x, e.y, TouchTargets.cableRadiusPx(renderer, density)) else null
                 holdStart = animTime
                 holdFired = false
                 trackDrag(e.x, e.y)
@@ -1846,11 +2025,29 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                     pinch.move(e.pointers[0], e.pointers[1], e.pointers[2], e.pointers[3], renderer.camera)
                     if (renderer.camera.angle != before) renderer.updateLimits(world)
                 }
+                grab != null -> {
+                    if (!grabbing && hypot(e.x - downX, e.y - downY) >= TAP_SLOP_DP * density) {
+                        grabbing = true
+                        dragTrail.clear()
+                    }
+                    if (grabbing) trackDrag(e.x, e.y)
+                }
                 dragFrom != null -> {
                     if (hypot(e.x - downX, e.y - downY) >= TAP_SLOP_DP * density) holdAp = null
                     trackDrag(e.x, e.y)
                 }
-                panArmed -> panWithOneFinger(e)
+                panArmed -> {
+                    val held = holdCable
+                    if (held != null) {
+                        val still = hypot(e.x - downX, e.y - downY) < TAP_SLOP_DP * density
+                        if (!still) holdCable = null
+                        else if (e.time - downTime >= LONG_PRESS_MS) {
+                            grabByHold(held)
+                            return
+                        }
+                    }
+                    panWithOneFinger(e)
+                }
             }
             MotionEvent.ACTION_POINTER_UP -> if (cameraGesture) startPinch(e)
             MotionEvent.ACTION_UP -> {
@@ -1888,14 +2085,16 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                             sounds.play(Sound.CABLE)
                         }
                     }
-                } else if (isTap && panArmed) {
-                    val cable = renderer.cableAtScreen(world, e.x, e.y, TouchTargets.cableRadiusPx(renderer, density))
-                    if (cable == null) {
-                        selection = null
-                        emptyTapTime = e.time; emptyTapX = e.x; emptyTapY = e.y
-                    } else {
-                        cableTap(cable)
+                } else if (grab != null) {
+                    val g = grab!!
+                    when {
+                        grabbing -> finishReroute(e.x, e.y)
+                        // A tap on a handle only keeps the cable selected; the second tap that removes it goes elsewhere.
+                        isTap && g.moving != null && onHandle(g.cable, e.x, e.y) -> select(g.cable)
+                        isTap -> tapGround(e)
                     }
+                } else if (isTap && panArmed) {
+                    tapGround(e)
                 }
                 endDrag()
             }
@@ -1907,6 +2106,23 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 endDrag()
             }
         }
+    }
+
+    /** A tap that started on no node: on a cable, see [cableTap]; on empty ground it deselects and may start a double tap. */
+    private fun tapGround(e: Input.Touch) {
+        val cable = renderer.cableAtScreen(world, e.x, e.y, TouchTargets.cableRadiusPx(renderer, density))
+        if (cable == null) {
+            selection = null
+            emptyTapTime = e.time; emptyTapX = e.x; emptyTapY = e.y
+        } else {
+            cableTap(cable)
+        }
+    }
+
+    /** True if ([sx], [sy]) is on one of [c]'s drawn handles (with a finger's margin), not just near it. */
+    private fun onHandle(c: Cable, sx: Float, sy: Float) = handlePoints(c.layout).any {
+        val q = renderer.toScreen(it)
+        hypot(q.x - sx, q.y - sy) <= (DragJuice.HANDLE_DP + HANDLE_TAP_MARGIN_DP) * density
     }
 
     /** (Re)starts the two-finger gesture from the fingers still down, or stops it if fewer than two remain. */
@@ -2100,8 +2316,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         if (level >= World.Tuning.DATA_CENTER_LEVEL) context.getString(R.string.server_tier_data_center) else context.getString(R.string.server_tier, level)
 
     /**
-     * A tap on an intact cable upgrades it to a better picked technology. Otherwise the first tap selects it and says
-     * what removing it gives back; a second tap on the selected cable removes it. A cut cable is repaired.
+     * A tap on an intact cable upgrades it to a better picked technology. Otherwise the first tap selects it (with grab
+     * handles to re-route it, see [grabAt]) and says what removing it gives back; a second tap on the selected cable
+     * removes it. A cut cable is repaired.
      */
     private fun cableTap(cable: Cable) {
         if (world.isCut(cable)) {
@@ -2130,9 +2347,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         val refund = world.refundOf(cable)
         if (selection !== cable) {
             select(cable)
+            val movable = canReroute(cable)
             showHint(
-                if (world.unlimited) context.getString(R.string.hint_cable_remove_free, texts.cable(cable.type))
-                else context.getString(R.string.hint_cable_remove, texts.cable(cable.type), refund),
+                when {
+                    world.unlimited && movable -> context.getString(R.string.hint_cable_select_free, texts.cable(cable.type))
+                    world.unlimited -> context.getString(R.string.hint_cable_remove_free, texts.cable(cable.type))
+                    movable -> context.getString(R.string.hint_cable_select, texts.cable(cable.type), refund)
+                    else -> context.getString(R.string.hint_cable_remove, texts.cable(cable.type), refund)
+                },
                 SELECT_SECONDS,
             )
             return
@@ -2253,8 +2475,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         )
     }
 
-    /** Fires a hold on an access point as soon as it lasted [LONG_PRESS_MS], not only when the finger lifts. */
+    /** Fires a hold on an access point or a cable as soon as it lasted [LONG_PRESS_MS], not only when the finger lifts. */
     private fun checkHold() {
+        holdCable?.let { c ->
+            if (screen != Screen.PLAYING || world.gameOver || world.rewardOffer != null || failFocusUntil != null || c !in world.cables) holdCable = null
+            else if (animTime - holdStart >= LONG_PRESS_MS / 1000f) grabByHold(c)
+        }
         val ap = holdAp ?: return
         if (screen != Screen.PLAYING || world.gameOver || world.rewardOffer != null || failFocusUntil != null || ap !in world.nodes) {
             holdAp = null
@@ -3345,8 +3571,15 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         const val TAP_SLOP_DP = 12f
         const val DOUBLE_TAP_MS = 300L
         const val DOUBLE_TAP_SLOP_DP = 40f
-        /** Holding a tap on an access point this long switches it to 5 GHz. */
+        /** Holding a tap on an access point this long switches it to 5 GHz; on a cable, it grabs the cable's nearer end. */
         const val LONG_PRESS_MS = 500L
+        /** Touch radius of a selected cable's grab handles: a 64 dp target, easy to hit beside the node it belongs to. */
+        const val HANDLE_TOUCH_DP = 32f
+        /** A tap this far outside a handle's drawn disc still counts as on the handle (and does not remove the cable). */
+        private const val HANDLE_TAP_MARGIN_DP = 8f
+        /** Handles sit this far from their node's center on screen (at least [HANDLE_GAP_CELLS]), clear of its icon. */
+        private const val HANDLE_GAP_DP = 30f
+        private const val HANDLE_GAP_CELLS = 0.7f
         /** The hold ring appears only after this, so a quick tap does not flash it. */
         private const val HOLD_RING_DELAY_MS = 120f
         private const val HOLD_RING_DP = 40f

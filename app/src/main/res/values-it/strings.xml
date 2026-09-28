@@ -198,6 +198,13 @@
     <string name="cable_error_no_budget">Budget insufficiente, il potenziamento costa %1$d</string>
     <string name="hint_cable_remove">Cavo %1$s · tocca di nuovo per rimuoverlo (+%2$d)</string>
     <string name="hint_cable_removed">Cavo rimosso, rimborso: +%1$d</string>
+    <!-- Cable reroute -->
+    <string name="hint_cable_select">Cavo %1$s · trascina un capo per spostarlo · tocca di nuovo per rimuoverlo (+%2$d)</string>
+    <string name="hint_cable_select_free">Cavo %1$s · trascina un capo per spostarlo · tocca di nuovo per rimuoverlo</string>
+    <string name="hint_cable_rerouted">Cavo spostato</string>
+    <string name="hint_cable_rerouted_paid">Cavo spostato · −%1$d</string>
+    <string name="hint_cable_rerouted_refund">Cavo spostato, rimborso: +%1$d</string>
+    <string name="reroute_error_incident">Escavatore su questo cavo · spostalo quando se ne va</string>
     <string name="place_error_no_stock">Esaurito: %1$s</string>
     <string name="place_error_locked">Questa casella non è ancora disponibile</string>
     <string name="place_error_occupied">Questa casella è già occupata</string>

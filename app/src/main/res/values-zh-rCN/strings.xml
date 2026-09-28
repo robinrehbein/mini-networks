@@ -186,6 +186,13 @@
     <string name="cable_error_no_budget">预算不足，升级需要 %1$d</string>
     <string name="hint_cable_remove">%1$s电缆 · 再次点按即可拆除（+%2$d）</string>
     <string name="hint_cable_removed">电缆已拆除，退还：+%1$d</string>
+    <!-- Cable reroute -->
+    <string name="hint_cable_select">%1$s电缆 · 拖动一端即可改线 · 再次点按即可拆除（+%2$d）</string>
+    <string name="hint_cable_select_free">%1$s电缆 · 拖动一端即可改线 · 再次点按即可拆除</string>
+    <string name="hint_cable_rerouted">电缆已改线</string>
+    <string name="hint_cable_rerouted_paid">电缆已改线 · −%1$d</string>
+    <string name="hint_cable_rerouted_refund">电缆已改线，退还：+%1$d</string>
+    <string name="reroute_error_incident">这条电缆旁有挖掘机 · 等它离开后再改线</string>
     <string name="place_error_no_stock">%1$s库存不足</string>
     <string name="place_error_locked">这个格子尚未开放</string>
     <string name="place_error_occupied">这个格子已被占用</string>

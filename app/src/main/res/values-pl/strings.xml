@@ -204,6 +204,13 @@
     <string name="cable_error_no_budget">Za mały budżet, ulepszenie kosztuje %1$d</string>
     <string name="hint_cable_remove">Kabel: %1$s · dotknij ponownie, by usunąć (+%2$d)</string>
     <string name="hint_cable_removed">Kabel usunięty, zwrot: +%1$d</string>
+    <!-- Cable reroute -->
+    <string name="hint_cable_select">Kabel: %1$s · przeciągnij koniec, by poprowadzić inaczej · dotknij ponownie, by usunąć (+%2$d)</string>
+    <string name="hint_cable_select_free">Kabel: %1$s · przeciągnij koniec, by poprowadzić inaczej · dotknij ponownie, by usunąć</string>
+    <string name="hint_cable_rerouted">Kabel poprowadzony inaczej</string>
+    <string name="hint_cable_rerouted_paid">Kabel poprowadzony inaczej · −%1$d</string>
+    <string name="hint_cable_rerouted_refund">Kabel poprowadzony inaczej, zwrot: +%1$d</string>
+    <string name="reroute_error_incident">Koparka przy tym kablu · przełóż go, gdy odjedzie</string>
     <string name="place_error_no_stock">Brak w magazynie: %1$s</string>
     <string name="place_error_locked">To pole nie jest jeszcze dostępne</string>
     <string name="place_error_occupied">To pole jest już zajęte</string>

@@ -192,6 +192,13 @@
     <string name="cable_error_no_budget">Not enough budget, the upgrade costs %1$d</string>
     <string name="hint_cable_remove">%1$s cable · tap again to remove it (+%2$d)</string>
     <string name="hint_cable_removed">Cable removed, refund: +%1$d</string>
+    <!-- Cable reroute -->
+    <string name="hint_cable_select">%1$s cable · drag an end to re-route · tap again to remove (+%2$d)</string>
+    <string name="hint_cable_select_free">%1$s cable · drag an end to re-route · tap again to remove</string>
+    <string name="hint_cable_rerouted">Cable re-routed</string>
+    <string name="hint_cable_rerouted_paid">Cable re-routed · −%1$d</string>
+    <string name="hint_cable_rerouted_refund">Cable re-routed, refund: +%1$d</string>
+    <string name="reroute_error_incident">Excavator at this cable · re-route it once it is gone</string>
     <string name="place_error_no_stock">No %1$s left in stock</string>
     <string name="place_error_locked">This cell is not open yet</string>
     <string name="place_error_occupied">This cell is taken</string>

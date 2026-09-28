@@ -138,6 +138,10 @@ class FlatRenderer : Renderer {
         for (i in world.incidents) drawIncidentGround(canvas, i, time)
 
         drag?.let { d ->
+            d.replaces?.let { old ->
+                polyline(cablePath(old))
+                DragJuice.ghost(canvas, path, cell * CableStyles.of(old.type).width * FLAT_LINE * 0.6f, density)
+            }
             polyline(d.layout.waypoints)
             val st = CableStyles.of(d.type)
             val col = if (d.blocked) alarm else st.color
@@ -148,22 +152,6 @@ class FlatRenderer : Renderer {
             canvas.drawPath(path, cableP)
         }
         canvas.restore()
-
-        drag?.let { d ->
-            val end = d.layout.end
-            val col = if (d.blocked) alarm else CableStyles.of(d.type).color
-            val xs = FloatArray(d.trail.size + 1); val ys = FloatArray(d.trail.size + 1)
-            d.trail.forEachIndexed { k, p -> val q = toScreen(p); xs[k] = q.x; ys[k] = q.y }
-            toScreen(d.end).let { xs[d.trail.size] = it.x; ys[d.trail.size] = it.y }
-            DragJuice.trail(canvas, xs, ys, col, density)
-            d.label?.let {
-                val s = toScreen(end)
-                DragJuice.bubble(
-                    canvas, it, d.detail, s.x, s.y, maxOf(cell * 0.9f, 40f * density), maxOf(cell * 0.38f, LABEL_MIN_DP * 1.2f * density), density,
-                    if (d.blocked) alarm else ink, if (d.detailWarning) alarm else ink, col,
-                )
-            }
-        }
 
         val packets = world.packets
         for (k in packets.indices) {
@@ -259,6 +247,24 @@ class FlatRenderer : Renderer {
             val s = toScreen(it.center)
             strokeP.color = alarm; strokeP.strokeWidth = cell * 0.05f
             canvas.drawCircle(s.x, s.y, cell * (0.7f + 0.15f * kotlin.math.sin(time * 6f)), strokeP)
+        }
+
+        // The drag's touch trail, handles and label go on top, so no device or server ever covers the price.
+        drag?.let { d ->
+            val end = d.labelAt ?: d.layout.end
+            val col = if (d.blocked) alarm else CableStyles.of(d.type).color
+            val xs = FloatArray(d.trail.size + 1); val ys = FloatArray(d.trail.size + 1)
+            d.trail.forEachIndexed { k, p -> val q = toScreen(p); xs[k] = q.x; ys[k] = q.y }
+            toScreen(d.end).let { xs[d.trail.size] = it.x; ys[d.trail.size] = it.y }
+            DragJuice.trail(canvas, xs, ys, col, density)
+            for (h in d.handles) toScreen(h).let { DragJuice.handle(canvas, it.x, it.y, CableStyles.of(d.type).color, density) }
+            d.label?.let {
+                val s = toScreen(end)
+                DragJuice.bubble(
+                    canvas, it, d.detail, s.x, s.y, maxOf(cell * 0.9f, 40f * density), maxOf(cell * 0.38f, LABEL_MIN_DP * 1.2f * density), density,
+                    if (d.blocked) alarm else ink, if (d.detailWarning) alarm else ink, col,
+                )
+            }
         }
     }
 
