@@ -28,7 +28,7 @@ import kotlin.math.sin
  * [hit] maps a tap in the bubble to [SKIP], [PLAY], [MENU] or [BUBBLE]; it is valid for the last drawn frame.
  */
 class TutorialOverlay(private val context: Context) {
-    private val scale = TextScale(context.resources.displayMetrics)
+    private val scale = TextScale.of(context)
     private val density = scale.density
     private val ink = 0xFF262B33.toInt()
     private val muted = 0xFF5B6674.toInt()
@@ -305,22 +305,8 @@ class TutorialOverlay(private val context: Context) {
         }
     }
 
-    /** Splits [s] into lines no wider than [maxWidth] in the current text paint, breaking at spaces. */
-    private fun wrap(s: String, maxWidth: Float): List<String> {
-        val lines = ArrayList<String>()
-        var line = ""
-        for (word in s.split(' ')) {
-            val candidate = if (line.isEmpty()) word else "$line $word"
-            if (line.isNotEmpty() && text.measureText(candidate) > maxWidth) {
-                lines += line
-                line = word
-            } else {
-                line = candidate
-            }
-        }
-        if (line.isNotEmpty()) lines += line
-        return lines
-    }
+    /** Splits [s] into lines no wider than [maxWidth] in the current text paint (at spaces, and between CJK characters). */
+    private fun wrap(s: String, maxWidth: Float): List<String> = TextWrap.wrap(s, maxWidth) { text.measureText(it) }
 
     /** [s], shortened with an ellipsis if it is wider than [maxWidth] in the current text paint. */
     private fun fit(s: String, maxWidth: Float): String {

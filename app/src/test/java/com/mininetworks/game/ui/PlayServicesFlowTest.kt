@@ -1,5 +1,6 @@
 package com.mininetworks.game.ui
 
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -12,9 +13,12 @@ import com.mininetworks.game.data.GameIo
 import com.mininetworks.game.data.HighscoreStore
 import com.mininetworks.game.data.ProgressStore
 import com.mininetworks.game.data.ReviewStore
+import com.mininetworks.game.data.GameSettings
 import com.mininetworks.game.data.SettingsStore
 import com.mininetworks.game.game.Achievements
+import com.mininetworks.game.game.CableSkin
 import com.mininetworks.game.game.CableType
+import com.mininetworks.game.game.ColorTheme
 import com.mininetworks.game.game.CloudProgress
 import com.mininetworks.game.game.DailyChallenge
 import com.mininetworks.game.game.DailyStreak
@@ -31,6 +35,7 @@ import com.mininetworks.game.game.Service
 import com.mininetworks.game.game.World
 import com.mininetworks.game.games.FakeGameServices
 import com.mininetworks.game.games.GamesIds
+import com.mininetworks.game.render.Cosmetic
 import com.mininetworks.game.review.ReviewPrompt
 import com.mininetworks.game.share.ShareCard
 import com.mininetworks.game.share.ShareSheet
@@ -48,6 +53,7 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import org.robolectric.shadows.ShadowLog
 import java.io.File
 
 /**
@@ -270,6 +276,58 @@ class PlayServicesFlowTest {
         assertTrue(games.saved.isEmpty())
     }
 
+    @Test
+    fun cosmeticsTheCloudSaveUnlocksTakeEffectAtOnce() {
+        SettingsStore(app).save(GameSettings(cableSkin = CableSkin.COPPER, colorTheme = ColorTheme.AUTUMN))
+        val games = FakeGameServices(cloud = CloudProgress(savedAt = 5, stats = PlayerStats(cablesLaid = 100, fiberLaid = 25, bestWeek = 10)))
+        try {
+            val view = newView(games)
+            assertEquals("not unlocked on this device yet", CableSkin.CLASSIC, Cosmetic.skin)
+            assertEquals(ColorTheme.MEADOW, Cosmetic.theme)
+            games.signInNow()
+            view.advance(0f)
+            assertEquals("unlocked by the merged cloud stats", CableSkin.COPPER, Cosmetic.skin)
+            assertEquals(ColorTheme.AUTUMN, Cosmetic.theme)
+        } finally {
+            Cosmetic.reset()
+        }
+    }
+
+    // ---------------------------------------------------------------- privacy policy (E1)
+
+    @Test
+    fun thePrivacyPolicyOpensInTheBrowserFromTheMainThread() {
+        val view = newView()
+        tap(view, MenuAction.SETTINGS)
+        tap(view, MenuAction.PRIVACY_POLICY)
+        assertNull("not started from the game thread", shadowOf(app).nextStartedActivity)
+        shadowOf(Looper.getMainLooper()).idle()
+        val started = shadowOf(app).nextStartedActivity ?: throw AssertionError("no browser was asked for")
+        assertEquals(Intent.ACTION_VIEW, started.action)
+        assertEquals(Uri.parse(GameView.PRIVACY_POLICY_URL), started.data)
+    }
+
+    @Test
+    fun withoutABrowserThePrivacyPolicyEntryDoesNotCrash() {
+        // No app handles the link (no browser, or browsers disabled by a work profile): startActivity throws.
+        shadowOf(app).checkActivities(true)
+        val uncaught = java.util.concurrent.atomic.AtomicReference<Throwable?>(null)
+        val before = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { _, e -> uncaught.set(e) }
+        try {
+            val view = newView()
+            tap(view, MenuAction.SETTINGS)
+            tap(view, MenuAction.PRIVACY_POLICY)
+            shadowOf(Looper.getMainLooper()).idle()
+            assertNull("nothing reached the uncaught-exception handler", uncaught.get())
+            assertTrue("the missing browser was caught", ShadowLog.getLogsForTag("GameView").any { it.throwable is ActivityNotFoundException })
+            assertEquals("the settings stay open", Screen.SETTINGS, view.currentScreen)
+        } finally {
+            Thread.setDefaultUncaughtExceptionHandler(before)
+            shadowOf(app).checkActivities(false)
+        }
+    }
+
     // ---------------------------------------------------------------- rating (D1)
 
     private class CountingPrompt : ReviewPrompt {
@@ -301,6 +359,25 @@ class PlayServicesFlowTest {
         view.wallClock = { NOON + 31 * DAY }
         loseGame(view, doomedGame(7))
         assertEquals(2, prompt.requests)
+    }
+
+    @Test
+    fun aPauseDuringTheGameOverGlideKeepsTheRatingForTheReturn() {
+        val prompt = CountingPrompt()
+        val view = newView().also { it.reviewPrompt = prompt }
+        ReviewStore(app).state = ReviewState(finishedGames = 2)
+        view.drawSnapshot(Canvas(bmp), doomedGame(3), bmp.width, bmp.height, time = 0f)
+        while (!view.currentWorld.gameOver) step(view)
+        assertTrue("the camera still glides", view.currentScreen != Screen.GAME_OVER)
+        // The app goes to the background mid-glide: the card is there, but Play could not show a dialog now.
+        view.pause()
+        assertEquals(Screen.GAME_OVER, view.currentScreen)
+        assertEquals("no rating request from the background", 0, prompt.requests)
+        // Back in the foreground, the first frame of the card asks.
+        view.advance(1f / 60f)
+        assertEquals(1, prompt.requests)
+        view.advance(1f / 60f)
+        assertEquals("asked once", 1, prompt.requests)
     }
 
     @Test
@@ -338,6 +415,32 @@ class PlayServicesFlowTest {
         assertEquals(ShareCard.HEIGHT, card.height)
         assertEquals(app.resources.getQuantityString(R.plurals.share_text, 4, Texts(app).scenario(Scenarios.RIVER_TOWN), "4", view.currentWorld.year), text)
         assertEquals("the game-over card stays", Screen.GAME_OVER, view.currentScreen)
+    }
+
+    @Test
+    fun aShareThatCannotBeWrittenSkipsTheShareSheetInsteadOfCrashing() {
+        // The share folder is taken by a plain file, as good as a full or unwritable cache: writing throws IOException.
+        val blocked = File(app.cacheDir, ShareSheet.DIR)
+        blocked.deleteRecursively()
+        blocked.writeText("not a folder")
+        val uncaught = java.util.concurrent.atomic.AtomicReference<Throwable?>(null)
+        val before = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { _, e -> uncaught.set(e) }
+        try {
+            val view = newView()
+            var shared = false
+            view.onShare = { _, _ -> shared = true }
+            loseGame(view, doomedGame(4))
+            tap(view, MenuAction.SHARE)
+            GameIo.awaitIdle()
+            shadowOf(Looper.getMainLooper()).idle()
+            assertFalse("no share sheet without a card", shared)
+            assertNull("nothing reached the uncaught-exception handler", uncaught.get())
+            assertEquals("the game-over card stays", Screen.GAME_OVER, view.currentScreen)
+        } finally {
+            Thread.setDefaultUncaughtExceptionHandler(before)
+            blocked.delete()
+        }
     }
 
     @Test

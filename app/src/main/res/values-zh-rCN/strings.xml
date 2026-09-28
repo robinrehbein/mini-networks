@@ -1,0 +1,446 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- HUD -->
+    <string name="hud_date">%1$d年 · 第%2$d周</string>
+    <plurals name="hud_delivered">
+        <item quantity="other">%1$d 个数据包</item>
+    </plurals>
+    <string name="hud_resources">预算 %1$d  ·  路由器 %2$d</string>
+    <string name="hud_clock_day">白天 · %1$s</string>
+    <string name="hud_clock_night">夜晚 · %1$s · %2$s 备份</string>
+    <string name="button_router">路由器 (%1$d)</string>
+    <string name="hint_place_router">点按一个空格子</string>
+    <string name="button_access_point">Wi-Fi (%1$d)</string>
+    <string name="button_cell_tower">基站 (%1$d)</string>
+    <string name="hint_access_point">点按接入点可切换信道 · 长按切换到 5 GHz（%1$d）</string>
+    <string name="hint_channel">%1$s：信道 %2$d</string>
+    <plurals name="hint_channel_interference">
+        <item quantity="other">%1$s：信道 %2$d · 与 %3$d 个邻居互相干扰</item>
+    </plurals>
+    <string name="hint_5ghz">%1$s 现在使用 5 GHz（半径 1）</string>
+    <string name="wifi_error_already_5ghz">已经是 5 GHz</string>
+    <string name="wifi_error_no_budget">预算不足，5 GHz 需要 %1$d</string>
+    <string name="hint_map_grew">城镇在扩张：边缘出现了新格子</string>
+    <string name="server_error_max_level">数据中心已是最高等级</string>
+    <string name="server_error_no_budget">预算不足，升级需要 %1$d</string>
+    <string name="server_error_no_space">数据中心需要服务器旁有 2×2 个空格子</string>
+    <string name="incident_excavator_warning">挖掘机！%1$d 秒后挖断</string>
+    <string name="incident_outage_warning">即将停电：%1$s 将在 %2$d 秒后断电</string>
+    <string name="incident_cut">电缆被挖断：点按花 %1$d 修复 · %2$d 秒后自动恢复</string>
+    <string name="incident_outage">停电：%1$s 还要断电 %2$d 秒</string>
+    <string name="repair_error_no_budget">预算不足，修复需要 %1$d</string>
+    <string name="hint_repaired">电缆已修复</string>
+    <plurals name="hud_vouchers">
+        <item quantity="other">%1$d 张服务器券 · 点按一台服务器</item>
+    </plurals>
+
+    <!-- Names of game objects -->
+    <string name="service_mail">邮件</string>
+    <string name="service_call">通话</string>
+    <string name="service_gaming">游戏</string>
+    <string name="service_streaming">流媒体</string>
+    <string name="service_video_call">视频通话</string>
+    <string name="service_camera_upload">摄像头上传</string>
+    <string name="service_cloud_backup">云备份</string>
+    <string name="device_pc">电脑</string>
+    <string name="device_phone">电话</string>
+    <string name="device_laptop">笔记本</string>
+    <string name="device_console">游戏机</string>
+    <string name="device_smartphone">智能手机</string>
+    <string name="device_tv">智能电视</string>
+    <string name="device_tablet">平板</string>
+    <string name="device_watch">智能手表</string>
+    <string name="device_camera">监控摄像头</string>
+    <string name="device_smart_home">智能家居中枢</string>
+    <string name="cable_isdn">ISDN</string>
+    <string name="cable_dsl">DSL</string>
+    <string name="cable_coax">同轴</string>
+    <string name="cable_fiber">光纤</string>
+    <string name="cable_short_isdn">ISDN</string>
+    <string name="cable_short_dsl">DSL</string>
+    <string name="cable_short_coax">同轴</string>
+    <string name="cable_short_fiber">光纤</string>
+    <string name="node_router">路由器</string>
+    <string name="node_access_point">Wi-Fi 接入点</string>
+    <string name="node_cell_tower">移动基站</string>
+    <string name="node_server">%1$s服务器</string>
+
+    <!-- Week news and cable feedback -->
+    <string name="news_with_year">%1$d年 · %2$s</string>
+    <string name="news_items">新增：%1$s</string>
+    <string name="list_separator">"、"</string>
+    <string name="drag_cost">%1$s · %2$d</string>
+    <string name="connect_error_same_node">同一个节点</string>
+    <string name="connect_error_already_connected">已经连接</string>
+    <string name="connect_error_not_invented">%1$s 还没有发明</string>
+    <string name="connect_error_ports_full">%1$s：端口已满</string>
+    <string name="connect_error_no_budget">预算不足</string>
+
+    <!-- Week rewards -->
+    <string name="reward_prompt">本周收入：+%1$d · 点按一张卡片领取额外奖励</string>
+    <string name="reward_amount_plus">+%1$d</string>
+    <string name="reward_amount_voucher">免费</string>
+    <string name="reward_budget_title">预算</string>
+    <string name="reward_budget_desc">用于新电缆和升级</string>
+    <string name="reward_routers_title">路由器</string>
+    <string name="reward_routers_desc">为你的网络分流的 6 口分配器</string>
+    <string name="reward_voucher_title">服务器券</string>
+    <string name="reward_voucher_desc">下一次服务器升级免费</string>
+    <string name="reward_access_point_title">Wi-Fi 接入点</string>
+    <string name="reward_access_point_desc">无需电缆即可连接附近最多 4 台设备</string>
+    <string name="reward_cell_tower_title">移动基站</string>
+    <string name="reward_cell_tower_desc">覆盖范围大，但只服务智能手机、平板和手表</string>
+
+    <!-- Menus -->
+    <string name="menu_tagline">为你的城镇铺设网络——从 ISDN 到光纤</string>
+    <string name="menu_play">开始游戏</string>
+    <string name="menu_continue">继续游戏</string>
+    <string name="menu_settings">设置</string>
+    <string name="menu_best">最高分：%1$d</string>
+    <string name="pause_title">已暂停</string>
+    <string name="pause_status">%1$s  ·  %2$s</string>
+    <string name="menu_resume">继续</string>
+    <string name="menu_restart">重新开始</string>
+    <string name="menu_main">主菜单</string>
+    <string name="menu_back">返回</string>
+    <string name="settings_sound">声音</string>
+    <string name="settings_haptics">振动</string>
+    <string name="settings_overview">平面视图</string>
+    <string name="settings_free_rotation">自由旋转</string>
+    <string name="settings_colorblind">色盲辅助</string>
+    <string name="settings_language">语言跟随系统设置</string>
+
+    <!-- Game over -->
+    <string name="game_over_title">网络过载</string>
+    <string name="game_over_best">最高分：%1$d</string>
+    <string name="game_over_assisted">使用了额外帮助，不计入最高分和排行榜 · 最高分：%1$d</string>
+    <string name="game_over_new_best">新纪录！</string>
+    <string name="game_over_again">再玩一次</string>
+
+    <!-- Sceneries -->
+    <string name="scenery_title">选择场景</string>
+    <string name="scenery_river_town">河畔小镇</string>
+    <string name="scenery_metropolis">大都市</string>
+    <string name="scenery_island_harbor">海岛与港口</string>
+    <string name="scenery_mountain_village">山村</string>
+    <string name="scenery_future_2030">未来 2030</string>
+    <string name="scenery_river_town_desc">一条河 · 适合入门</string>
+    <string name="scenery_metropolis_desc">两条河 · 高楼干扰信号</string>
+    <string name="scenery_island_harbor_desc">水域广阔 · 海底电缆与无线</string>
+    <string name="scenery_mountain_village_desc">山脉阻挡信号 · 山口造价高</string>
+    <string name="scenery_future_2030_desc">所有设备都用 6G · 轨道上的服务器</string>
+    <string name="scenery_from_year">%1$d 年起</string>
+    <string name="scenery_not_played">尚未游玩</string>
+    <plurals name="scenery_progress">
+        <item quantity="other">%1$,d / %2$,d 个数据包</item>
+    </plurals>
+    <string name="scenery_progress_in">（%1$s）</string>
+    <string name="scenery_shop">在商店购买</string>
+    <string name="scenery_shop_pack">单独购买或合集</string>
+    <plurals name="scenery_hint_score">
+        <item quantity="other">在%2$s送达 %1$,d 个数据包，或购买此场景</item>
+    </plurals>
+    <string name="scenery_hint_no_shop">商店暂时无法访问</string>
+
+    <!-- Tutorial -->
+    <string name="tutorial_kicker">教程 · %1$d/%2$d</string>
+    <string name="tutorial_skip">跳过</string>
+    <string name="tutorial_play">开始游戏</string>
+    <string name="tutorial_pause">教程 · 第 %1$d/%2$d 步</string>
+    <string name="settings_tutorial">观看教程</string>
+    <string name="tutorial_cable_title">铺设电缆</string>
+    <string name="tutorial_cable_text">电脑想发送一封邮件。用手指从电脑拖到邮件服务器。</string>
+    <string name="tutorial_router_title">放置路由器</string>
+    <string name="tutorial_router_text">设备只有 2 个端口，路由器有 6 个。点按下方的“路由器”，再点按电话旁边的空格子。</string>
+    <string name="tutorial_router_connect_text">现在把两部电话和通话服务器连到路由器上，由它来分配通话。</string>
+    <string name="tutorial_bandwidth_title">带宽</string>
+    <string name="tutorial_bandwidth_text">1998 年：电视想看流媒体。把它连到流媒体服务器。</string>
+    <string name="tutorial_bandwidth_narrow_text">太窄了！流媒体需要带宽 %1$d，ISDN 只能承载 %2$d。在下方选择 DSL，它能承载 %3$d。</string>
+    <string name="tutorial_bandwidth_upgrade_text">现在点按 ISDN 电缆，把它升级为 DSL。你只需支付差价。</string>
+    <string name="tutorial_ping_title">延迟</string>
+    <string name="tutorial_ping_text">2010 年：电脑想玩网络游戏。游戏需要低延迟，往返最多 %1$d 毫秒。把电脑连到游戏服务器。</string>
+    <string name="tutorial_ping_slow_text">延迟 %1$d 毫秒：玩游戏太慢了（最多 %2$d 毫秒）。只有光纤够快。选择光纤，然后点按电缆。</string>
+    <string name="tutorial_overload_title">过载</string>
+    <plurals name="tutorial_overload_text">
+        <item quantity="other">一台没有连接的新电脑！等待中的请求达到 %1$d 个时，红色圆环开始填充。圆环填满，游戏就结束了。快把电脑连上！</item>
+    </plurals>
+    <string name="tutorial_done_title">完成！</string>
+    <string name="tutorial_done_text">你已经掌握了基础。提示：点按服务器可以升级，点按电缆两次可以拆除，暂停时时间停止，但你可以继续建设。玩得开心！</string>
+    <!-- Monetization (docs/PLAN.md 5.1) -->
+    <string name="menu_remove_ads">去除广告 · %1$s</string>
+    <string name="settings_privacy">隐私</string>
+    <string name="settings_privacy_policy">隐私政策</string>
+    <string name="game_over_continue_ad">继续 · 观看视频</string>
+    <string name="game_over_continue">继续游戏</string>
+    <string name="reward_bonus_router_ad">路由器 +1 · 观看视频</string>
+    <string name="reward_bonus_router">额外 +1 路由器</string>
+    <string name="hint_bonus_router">路由器 +1</string>
+    <string name="hint_continued">过载圆环已清空 · 每局一次</string>
+    <string name="scenery_pack_buy">全部场景 · %1$s</string>
+
+    <!-- Controls feedback -->
+    <string name="hud_paused">已暂停 · 你可以继续建设</string>
+    <string name="hint_cable_info">%1$s：带宽 %2$d · 每格 %3$s 毫秒 · 每格 %4$d</string>
+    <string name="hint_cable_too_narrow">对%1$s来说太窄</string>
+    <string name="hint_cable_upgraded">电缆已升级为%1$s · −%2$d</string>
+    <string name="cable_error_no_budget">预算不足，升级需要 %1$d</string>
+    <string name="hint_cable_remove">%1$s电缆 · 再次点按即可拆除（+%2$d）</string>
+    <string name="hint_cable_removed">电缆已拆除，退还：+%1$d</string>
+    <string name="place_error_no_stock">%1$s库存不足</string>
+    <string name="place_error_locked">这个格子尚未开放</string>
+    <string name="place_error_occupied">这个格子已被占用</string>
+    <string name="place_error_terrain">只能放在空地上</string>
+    <string name="hint_router_pick_up">未接电缆的路由器 · 再次点按放回库存</string>
+    <string name="hint_router_picked_up">路由器已放回库存</string>
+    <string name="server_tier">%1$d 级</string>
+    <string name="server_tier_data_center">数据中心</string>
+    <string name="hint_server_preview">%1$s → %2$s，花费 %3$d · 再次点按</string>
+    <string name="hint_server_preview_voucher">%1$s → %2$s，使用服务器券 · 再次点按</string>
+    <string name="hint_server_upgraded">%1$s 现在是：%2$s</string>
+    <string name="hint_server_busy">%1$s忙不过来了：点按升级</string>
+    <string name="hint_radio_reward">新增：%1$s——可作为每周奖励获得</string>
+    <string name="hint_service_needs">%1$s需要带宽 %2$d</string>
+    <string name="hint_service_needs_ping">%1$s需要带宽 %2$d，延迟最多 %3$d 毫秒</string>
+    <string name="device_wants">%1$s想要：%2$s</string>
+    <string name="problem_no_route">%1$s：%2$s——没有通往服务器的路径</string>
+    <string name="problem_too_narrow">%1$s：%2$s——没有足够宽的电缆（带宽 %3$d）</string>
+    <string name="problem_ping">%1$s：%2$s——延迟 %3$d 毫秒，允许 %4$d 毫秒</string>
+    <string name="problem_jam">%1$s：%2$s——拥堵，电缆或服务器已满</string>
+    <string name="game_over_no_route">%1$s 无法连到 %2$s 服务器</string>
+    <string name="game_over_too_narrow">%1$s 的 %2$s 需要更宽的电缆</string>
+    <string name="game_over_ping">%1$s 的 %2$s 延迟 %3$d 毫秒，上限 %4$d 毫秒</string>
+    <string name="game_over_jam">%1$s 的 %2$s 被网络拥堵卡住了</string>
+    <string name="drag_too_narrow">%1$s需要带宽 %2$d</string>
+    <string name="drag_ping">%1$s：延迟 %2$d/%3$d 毫秒</string>
+    <string name="incident_more">%1$s · 另有 %2$d 个</string>
+    <!-- Accessibility (TalkBack) descriptions of the canvas-drawn HUD, docs/TOP100.md A7 -->
+    <string name="a11y_menu">菜单</string>
+    <string name="a11y_pause">暂停时间</string>
+    <string name="a11y_compass">将地图转回北方</string>
+    <string name="a11y_recap" tools:ignore="PluralsCandidate">延时回放：你的网络从第 %1$d 周到第 %2$d 周</string>
+    <string name="a11y_router">放置路由器（库存：%1$d）</string>
+    <string name="a11y_access_point">放置 Wi-Fi 接入点（库存：%1$d）</string>
+    <string name="a11y_cell_tower">放置移动基站（库存：%1$d）</string>
+    <string name="a11y_cable">%1$s电缆，每格价格：%2$d</string>
+    <string name="a11y_locked">已锁定</string>
+    <string name="a11y_map">地图 · 节点：%1$d · 电缆：%2$d。从一个节点拖到另一个节点即可铺设电缆。</string>
+    <!-- Retention (docs/TOP100.md C1, C2, C4, C5): daily challenge, achievements, modes, cosmetics -->
+    <string name="menu_daily">每日挑战</string>
+    <string name="menu_achievements">成就</string>
+    <string name="daily_title">每日挑战</string>
+    <string name="daily_scenery">%1$s · %2$s</string>
+    <string name="daily_rule">今日规则：%1$s——%2$s</string>
+    <plurals name="daily_goal">
+        <item quantity="other">送达 %1$d 个数据包，今天就计入你的连续记录</item>
+    </plurals>
+    <string name="daily_done">今日已完成 · 今日最高：%1$,d</string>
+    <plurals name="daily_streak">
+        <item quantity="other">连续 %1$d 天 · 纪录：%2$d 天</item>
+    </plurals>
+    <string name="daily_no_streak">还没有连续记录 · 今天就玩第一局吧</string>
+    <plurals name="daily_footer">
+        <item quantity="other">所有人相同 · %1$d 小时后更新挑战</item>
+    </plurals>
+    <string name="daily_start">出发</string>
+    <string name="a11y_cable_free">%1$s电缆，免费</string>
+    <string name="hint_cable_info_free">%1$s：带宽 %2$d · 每格 %3$s 毫秒</string>
+    <string name="hint_cable_upgraded_free">电缆已升级为%1$s</string>
+    <string name="hint_cable_remove_free">%1$s电缆 · 再次点按即可拆除</string>
+    <string name="hint_cable_removed_free">电缆已拆除</string>
+    <string name="hint_daily_expired">这项每日挑战的日期已过（UTC）：本局不再计入连续记录和今日最高分。新的挑战正在主菜单等你。</string>
+    <string name="daily_pause">每日挑战 · %1$s</string>
+    <plurals name="toast_daily_counted">
+        <item quantity="other">每日挑战完成 · 连续 %1$d 天</item>
+    </plurals>
+    <string name="game_over_daily_best">今日最高：%1$,d</string>
+    <string name="rule_tight_budget">紧缩预算</string>
+    <string name="rule_tight_budget_desc">初始资金更少，每周只有 40</string>
+    <string name="rule_rush_hour">高峰时段</string>
+    <string name="rule_rush_hour_desc">设备请求更频繁</string>
+    <string name="rule_fiber_day">光纤日</string>
+    <string name="rule_fiber_day_desc">所有电缆一开始就已发明</string>
+    <string name="rule_few_routers">路由器稀缺</string>
+    <string name="rule_few_routers_desc">开局只有一台路由器</string>
+    <string name="rule_storm">暴风雨</string>
+    <string name="rule_storm_desc">挖掘机和停电来得更早、更频繁</string>
+    <string name="rule_wide_land">广阔大地</string>
+    <string name="rule_wide_land_desc">地图开局就大两圈</string>
+    <string name="rule_crowd">人潮</string>
+    <string name="rule_crowd_desc">新设备更多，但过载增长更慢</string>
+
+    <string name="mode_normal">普通</string>
+    <string name="mode_endless">无尽</string>
+    <string name="mode_creative">创造</string>
+    <string name="mode_pill">模式：%1$s</string>
+    <string name="mode_endless_desc">无尽：没有游戏结束——过载只会拖慢周边</string>
+    <string name="mode_creative_desc">创造：自由建设，预算无限，一切都已发明</string>
+    <string name="pause_mode">%1$s · %2$s</string>
+    <string name="hud_resources_unlimited">预算 ∞  ·  路由器 ∞</string>
+    <string name="button_router_unlimited">路由器 (∞)</string>
+    <string name="button_access_point_unlimited">Wi-Fi (∞)</string>
+    <string name="button_cell_tower_unlimited">基站 (∞)</string>
+    <string name="a11y_unlimited">无限</string>
+    <string name="hint_endless_jam">%1$s 过载：附近设备的请求变慢了</string>
+    <string name="menu_best_endless">无尽最高：%1$,d</string>
+
+    <string name="achievements_title">成就与任务</string>
+    <string name="achievements_count" tools:ignore="PluralsCandidate">已达成 %1$d / %2$d</string>
+    <string name="ach_progress">%1$,d / %2$,d</string>
+    <string name="ach_reached">已达成</string>
+    <string name="ach_open">未达成</string>
+    <string name="ach_reward_skin">奖励：电缆皮肤“%1$s”</string>
+    <string name="ach_reward_theme">奖励：配色主题“%1$s”</string>
+    <string name="toast_achievement">成就：%1$s</string>
+    <string name="toast_new_skin">新电缆皮肤“%1$s” · 可在设置中更换</string>
+    <string name="toast_new_theme">新配色主题“%1$s” · 可在设置中更换</string>
+    <string name="ach_delivered_1">第一个数据包</string>
+    <string name="ach_delivered_100">邮递员</string>
+    <string name="ach_delivered_1000">分拣中心</string>
+    <string name="ach_delivered_10000">骨干网</string>
+    <string name="ach_game_100">四通八达</string>
+    <string name="ach_game_300">交通枢纽</string>
+    <string name="ach_game_600">网络运营商</string>
+    <string name="ach_game_1000">大都市服务商</string>
+    <string name="ach_week_5">坚持不懈</string>
+    <string name="ach_week_10">在线十周</string>
+    <string name="ach_week_15">全天候运行</string>
+    <string name="ach_cables_10">扛线工</string>
+    <string name="ach_cables_100">土木工程师</string>
+    <string name="ach_cables_500">线缆乱麻</string>
+    <string name="ach_fiber_1">光速</string>
+    <string name="ach_fiber_25">光纤之乡</string>
+    <string name="ach_upgrades_10">升级达人</string>
+    <string name="ach_routers_5">分配器</string>
+    <string name="ach_routers_50">路由器森林</string>
+    <string name="ach_server_1">性能提升</string>
+    <string name="ach_server_20">服务器农场</string>
+    <string name="ach_data_center_1">数据中心</string>
+    <string name="ach_access_points_3">消灭信号盲区</string>
+    <string name="ach_cell_towers_3">信号满格</string>
+    <string name="ach_repairs_5">抢修队</string>
+    <string name="ach_games_1">失败是成功之母</string>
+    <string name="ach_games_10">常客</string>
+    <string name="ach_games_50">网络老兵</string>
+    <string name="ach_weeks_50">在线数十年</string>
+    <string name="ach_sceneries_3">环游世界</string>
+    <string name="ach_streaming_500">电影之夜</string>
+    <string name="ach_daily_1">今日工作</string>
+    <string name="ach_daily_10">日常习惯</string>
+    <string name="ach_streak_3">连续三天</string>
+    <string name="ach_streak_7">连续一周</string>
+    <string name="ach_endless_12">永远在线</string>
+    <string name="ach_creative_1">自由建设</string>
+    <string name="ach_second_chance_1">第二次机会</string>
+    <string name="ach_budget_300">精打细算</string>
+    <plurals name="ach_desc_delivered">
+        <item quantity="other">累计送达 %1$,d 个数据包</item>
+    </plurals>
+    <plurals name="ach_desc_best_game">
+        <item quantity="other">在一局中送达 %1$,d 个数据包</item>
+    </plurals>
+    <plurals name="ach_desc_best_week">
+        <item quantity="other">在一局中坚持 %1$d 周</item>
+    </plurals>
+    <plurals name="ach_desc_cables">
+        <item quantity="other">铺设 %1$,d 条电缆</item>
+    </plurals>
+    <plurals name="ach_desc_fiber">
+        <item quantity="other">铺设或升级 %1$d 条光纤</item>
+    </plurals>
+    <plurals name="ach_desc_cable_upgrades">
+        <item quantity="other">升级 %1$d 条电缆</item>
+    </plurals>
+    <plurals name="ach_desc_routers">
+        <item quantity="other">放置 %1$d 台路由器</item>
+    </plurals>
+    <plurals name="ach_desc_access_points">
+        <item quantity="other">放置 %1$d 个 Wi-Fi 接入点</item>
+    </plurals>
+    <plurals name="ach_desc_cell_towers">
+        <item quantity="other">建造 %1$d 座移动基站</item>
+    </plurals>
+    <plurals name="ach_desc_server_upgrades">
+        <item quantity="other">升级服务器 %1$d 次</item>
+    </plurals>
+    <plurals name="ach_desc_data_centers">
+        <item quantity="other">建造 %1$d 座数据中心</item>
+    </plurals>
+    <plurals name="ach_desc_repairs">
+        <item quantity="other">修复 %1$d 条被挖断的电缆</item>
+    </plurals>
+    <plurals name="ach_desc_games_finished">
+        <item quantity="other">完整玩完 %1$d 局</item>
+    </plurals>
+    <plurals name="ach_desc_weeks_total">
+        <item quantity="other">累计游玩 %1$d 周</item>
+    </plurals>
+    <plurals name="ach_desc_sceneries">
+        <item quantity="other">在 %1$d 个不同场景中游玩</item>
+    </plurals>
+    <plurals name="ach_desc_streaming">
+        <item quantity="other">送达 %1$,d 次流媒体</item>
+    </plurals>
+    <plurals name="ach_desc_daily_done">
+        <item quantity="other">完成 %1$d 次每日挑战</item>
+    </plurals>
+    <plurals name="ach_desc_best_streak">
+        <item quantity="other">连续 %1$d 天完成每日挑战</item>
+    </plurals>
+    <plurals name="ach_desc_endless_best_week">
+        <item quantity="other">在无尽模式中到达第 %1$d 周</item>
+    </plurals>
+    <plurals name="ach_desc_creative_games">
+        <item quantity="other">以创造模式开始 %1$d 局</item>
+    </plurals>
+    <plurals name="ach_desc_second_chances">
+        <item quantity="other">游戏结束后继续游戏 %1$d 次</item>
+    </plurals>
+    <plurals name="ach_desc_richest">
+        <item quantity="other">同时拥有 %1$,d 预算</item>
+    </plurals>
+
+    <string name="settings_cable_skin">电缆：%1$s</string>
+    <string name="settings_color_theme">主题：%1$s</string>
+    <string name="settings_appearance">外观</string>
+    <string name="settings_cosmetics_unlocked">已解锁：皮肤 %1$d/%2$d · 主题 %3$d/%4$d</string>
+    <string name="skin_classic">经典</string>
+    <string name="skin_copper">铜色</string>
+    <string name="skin_neon">霓虹</string>
+    <string name="skin_pastel">粉彩</string>
+    <string name="skin_gold">金色</string>
+    <string name="theme_meadow">草地</string>
+    <string name="theme_autumn">秋天</string>
+    <string name="theme_winter">冬天</string>
+    <string name="theme_desert">沙漠</string>
+    <!-- Play Games, rating and sharing (docs/TOP100.md C3, C6, D2) -->
+    <string name="menu_leaderboards">排行榜</string>
+    <string name="game_over_share">分享网络</string>
+    <string name="share_chooser">分享你的网络</string>
+    <plurals name="share_text">
+        <item quantity="other">我在%1$s的网络：送达 %2$s 个数据包，一路发展到 %3$d 年。你能超过我吗？#MiniNetworks</item>
+    </plurals>
+    <plurals name="share_card_packets">
+        <item quantity="other">个数据包已送达</item>
+    </plurals>
+    <string name="share_card_date">%1$d 年 · 第 %2$d 周</string>
+    <string name="share_card_daily">每日挑战 · %1$s</string>
+    <string name="share_card_tagline">你能超越我的网络吗？</string>
+    <plurals name="cloud_save_description">
+        <item quantity="other">已送达 %d 个数据包</item>
+    </plurals>
+
+    <string name="age_gate_title">出生日期</string>
+    <string name="age_gate_message">请选择你的出生日期。它只保存在此设备上，用于确定可以展示哪些广告。</string>
+    <string name="age_gate_day">日</string>
+    <string name="age_gate_month">月</string>
+    <string name="age_gate_year">年</string>
+    <string name="age_gate_exit">退出</string>
+    <string name="age_gate_invalid">请选择有效的出生日期。</string>
+    <string name="age_gate_minimum">Mini Networks 适合 13 岁及以上的玩家。</string>
+    <!-- Test builds only (docs/PLAY_AUTORELEASE.md): unlock paid content for Play reviewers. -->
+    <string name="reviewer_access">审核访问</string>
+    <string name="reviewer_access_hint">审核代码</string>
+    <string name="reviewer_access_unlock">解锁</string>
+    <string name="reviewer_access_enabled">已启用审核访问</string>
+    <string name="reviewer_access_invalid">审核代码无效</string>
+</resources>

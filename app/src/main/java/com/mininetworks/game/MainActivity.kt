@@ -1,6 +1,7 @@
 package com.mininetworks.game
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.res.Configuration
 import android.graphics.Color
 import android.os.Build
@@ -15,11 +16,14 @@ import android.content.ActivityNotFoundException
 import android.util.Log
 import com.mininetworks.game.games.GamesIds
 import com.mininetworks.game.games.PlayGameServices
+import com.mininetworks.game.monetization.AgeGate
+import com.mininetworks.game.monetization.AgeGateDialog
 import com.mininetworks.game.monetization.PlayMonetization
 import com.mininetworks.game.review.PlayReviewPrompt
 import com.mininetworks.game.share.ShareSheet
 import com.mininetworks.game.ui.GameView
 import java.io.File
+import java.time.LocalDate
 
 class MainActivity : Activity() {
 
@@ -40,17 +44,34 @@ class MainActivity : Activity() {
         gameView = GameView(this)
         gameView.onExit = ::finish
         gameView.onBackHandlingChanged = ::setBackHandling
+        gameView.onShare = ::share
+        setContentView(gameView)
+        // Recreated after all (process death, or a change not listed in the manifest's configChanges): go on from the
+        // autosave in the pause menu instead of starting over on the main menu.
+        savedInstanceState?.let(gameView::restoreState)
+        hideSystemBars()
+        if (BuildConfig.PLAY_MONETIZATION || BuildConfig.PLAY_SERVICES) {
+            val birthDate = AgeGate.savedBirthDate(this)
+            if (birthDate == null) showAgeGate() else startOnlineServices(AgeGate.band(birthDate, LocalDate.now()))
+        }
+    }
+
+    /** No advertising, UMP, Billing or Play Games SDK is started before the neutral age screen is answered. */
+    private fun showAgeGate() {
+        AgeGateDialog(this, onAnswer = ::startOnlineServices).show()
+    }
+
+    private fun startOnlineServices(ageBand: AgeGate.Band) {
         if (BuildConfig.PLAY_MONETIZATION) {
-            // Returns at once: consent runs on the main thread (the UMP SDK wants that), billing setup on GameIo.
-            monetization = PlayMonetization(this).also {
+            monetization = PlayMonetization(this, ageBand).also {
                 gameView.monetization = it
                 it.start()
             }
         }
         if (BuildConfig.PLAY_SERVICES) {
-            // Play Games only with real ids (docs/RELEASE.md 11); the SDK is initialized here, not by its provider.
+            // Play Games only with real ids (docs/RELEASE.md 11).
             val ids = GamesIds(resources)
-            if (ids.configured) {
+            if (ageBand == AgeGate.Band.ADULT && ids.configured) {
                 games = PlayGameServices(this, ids).also {
                     gameView.gameServices = it
                     it.start()
@@ -58,12 +79,6 @@ class MainActivity : Activity() {
             }
             gameView.reviewPrompt = PlayReviewPrompt(this)
         }
-        gameView.onShare = ::share
-        setContentView(gameView)
-        // Recreated after all (process death, or a change not listed in the manifest's configChanges): go on from the
-        // autosave in the pause menu instead of starting over on the main menu.
-        savedInstanceState?.let(gameView::restoreState)
-        hideSystemBars()
     }
 
     /**

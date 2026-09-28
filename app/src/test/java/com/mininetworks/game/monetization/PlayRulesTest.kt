@@ -53,8 +53,21 @@ class PlayRulesTest {
 
     @Test
     fun finishedFlowAddsToWhatIsOwned() {
-        val outcome = PlayRules.addBought(setOf(Entitlements.REMOVE_ADS), listOf(purchase(Entitlements.SCENERY_PACK), purchase("x", State.PENDING)))
+        val outcome = PlayRules.addBought(
+            setOf(Entitlements.REMOVE_ADS),
+            setOf(Entitlements.SCENERY_PACK),
+            listOf(purchase(Entitlements.SCENERY_PACK), purchase("x", State.PENDING)),
+        )
         assertEquals(setOf(Entitlements.REMOVE_ADS, Entitlements.SCENERY_PACK), outcome.owned)
         assertEquals(listOf("token-${Entitlements.SCENERY_PACK}"), outcome.acknowledge)
+        assertEquals("the paid pack is no longer pending", setOf("x"), outcome.pending)
+    }
+
+    @Test
+    fun pendingPurchasesAreRememberedButNotOwned() {
+        val outcome = PlayRules.reconcile(listOf(purchase(Entitlements.REMOVE_ADS, State.PENDING), purchase(Entitlements.SCENERY_PACK)))
+        assertEquals(setOf(Entitlements.SCENERY_PACK), outcome.owned)
+        assertEquals(setOf(Entitlements.REMOVE_ADS), outcome.pending)
+        assertFalse("never acknowledged while pending", "token-${Entitlements.REMOVE_ADS}" in outcome.acknowledge)
     }
 }

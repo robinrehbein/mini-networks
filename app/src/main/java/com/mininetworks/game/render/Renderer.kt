@@ -41,6 +41,8 @@ class DragPreview(
     val detail: String? = null,
     /** True if [detail] is a warning (too narrow, ping too high); drawn in the alarm color. */
     val detailWarning: Boolean = false,
+    /** The finger's path in world space, oldest first, drawn as a fading touch trail behind the pointer. */
+    val trail: List<Vec2> = emptyList(),
 )
 
 /**
@@ -110,13 +112,13 @@ interface Renderer {
      */
     fun fitArea(world: World, animate: Boolean) {
         updateLimits(world)
-        camera.fit(frame(world), animate, atLeast = readableScale)
+        camera.fit(frame(world), animate, atLeast = framingMinScale(world))
     }
 
     /** Call when the unlocked area grew: widens the limits and, unless the player moved the view, follows the area. */
     fun onAreaChanged(world: World) {
         updateLimits(world)
-        if (camera.followsArea) camera.fit(frame(world), animate = true, atLeast = readableScale)
+        if (camera.followsArea) camera.fit(frame(world), animate = true, atLeast = framingMinScale(world))
     }
 
     /**
@@ -124,21 +126,41 @@ interface Renderer {
      * player moved the view) when something new lies outside the view, e.g. a device on an empty corner of the map.
      */
     fun onContentChanged(world: World) {
-        if (!camera.isTall || !camera.followsArea) return
+        if (!camera.followsArea) return
         val content = contentBounds(world) ?: return
-        if (!camera.shows(content)) camera.fit(frame(world), animate = true, atLeast = readableScale)
+        if (!camera.shows(content)) camera.fit(frame(world), animate = true, atLeast = framingMinScale(world))
     }
 
     /**
-     * What the automatic framing shows: the unlocked area; in a portrait view its full height, but across only the
-     * width of what is built on it ([contentBounds]), so the view zooms in towards the height without cutting off any
-     * node. Map corners without nodes may lie outside; the player pans there.
+     * The zoom the automatic framing does not go below: [readableScale]; but in a portrait view, whose width is the
+     * scarce direction, never so far in that a built node would be pushed off the side of the screen.
+     */
+    fun framingMinScale(world: World): Float {
+        if (!camera.isTall) return readableScale
+        val content = contentBounds(world) ?: return readableScale
+        return minOf(readableScale, camera.fitScale(content))
+    }
+
+    /**
+     * What the automatic framing shows: the unlocked area while nothing is built; in a portrait view its full height,
+     * but across only the width of what is built on it ([contentBounds]), so the view zooms in towards the height
+     * without cutting off any node; in landscape every node plus the middle [CORE_FRACTION] of the area. Map corners
+     * without nodes may lie outside; the player pans there.
      */
     fun frame(world: World): MapRect {
         val area = mapBounds(world.unlocked)
-        if (!camera.isTall) return area
         val c = contentBounds(world) ?: return area
-        return MapRect(c.left, area.top, c.right, area.bottom)
+        // Portrait: as tall as the area, but centred on the built network, so it sits in the middle of the screen
+        // instead of wherever the middle of the area happens to be.
+        if (camera.isTall) return MapRect(c.left, c.centerY - area.height / 2f, c.right, c.centerY + area.height / 2f)
+        // Landscape: the built network plus the middle of the area. The iso area is a diamond, so fitting its whole box
+        // left half the screen as empty corners and locked ground; its empty tips may now lie outside (docs/TOP100.md B4).
+        val hx = area.width * CORE_FRACTION / 2f
+        val hy = area.height * CORE_FRACTION / 2f
+        return MapRect(
+            minOf(c.left, area.centerX - hx), minOf(c.top, area.centerY - hy),
+            maxOf(c.right, area.centerX + hx), maxOf(c.bottom, area.centerY + hy),
+        )
     }
 
     /**
@@ -213,12 +235,14 @@ interface Renderer {
         /** Angles the zoom-out limit is worked out for; the widest one counts. */
         val LIMIT_ANGLES = floatArrayOf(0f, 30f, 45f, 60f, 90f, 120f, 135f, 150f)
         const val ZOOM_OUT_SLACK = 0.9f
-        const val ZOOM_IN_COLS = 6
-        const val ZOOM_IN_ROWS = 4
+        const val ZOOM_IN_COLS = 4
+        const val ZOOM_IN_ROWS = 3
         /** Zoom factor of [focusOn]. */
-        const val FOCUS_ZOOM = 1.6f
+        const val FOCUS_ZOOM = 2f
         /** Room around [contentBounds], in widths of one drawn cell. */
         const val CONTENT_MARGIN = 0.15f
+        /** Share of the area's width and height a landscape [frame] always shows around its middle. */
+        const val CORE_FRACTION = 0.45f
     }
 }
 
@@ -232,6 +256,7 @@ object ProblemBadges {
     private val bodyP = fill(ALARM)
     private val inkP = stroke(0xFFFFFFFF.toInt())
     private val inkFill = fill(0xFFFFFFFF.toInt())
+    private val shadowP = fill(0x40000000)
     private val path = Path()
 
     /** True for the problems that get a badge. */
@@ -245,6 +270,9 @@ object ProblemBadges {
 
     /** A badge of radius [r] pixels around ([x], [y]). */
     fun draw(canvas: Canvas, problem: RouteProblem, x: Float, y: Float, r: Float) {
+        // A white plate and a soft shadow lift the badge off the busy map, so it reads at phone size.
+        canvas.drawCircle(x, y + r * 0.18f, r * 1.28f, shadowP)
+        canvas.drawCircle(x, y, r * 1.28f, inkFill)
         canvas.drawCircle(x, y, r, bodyP)
         inkP.strokeWidth = r * 0.16f
         canvas.drawCircle(x, y, r, inkP)
@@ -473,7 +501,12 @@ object CableStyles {
         Style(fiber, W_FIBER, fiberCore, CORE_FIBER),
     )
 
-    private val CLASSIC = skin(0xFF9AA3AD.toInt(), 0xFF39424E.toInt(), null, 0xFF2F2A26.toInt(), 0xFF9C8B7A.toInt(), 0xFFF28C28.toInt(), 0xFFFFE2B8.toInt())
+    /**
+     * The default skin gives every technology its own hue, not just another grey (slate-grey ISDN, dark enough to hold on pale ground, teal DSL,
+     * wine-red coax, orange fiber), so the HUD chips and the map read apart at a glance. DSL and coax stay dark so
+     * packets show on them; a dark outline and a white halo ([IsoRenderer]) lift them off the green grass.
+     */
+    private val CLASSIC = skin(0xFF8F9CAE.toInt(), 0xFF134E48.toInt(), null, 0xFF6A1F3F.toInt(), 0xFFF2B8CE.toInt(), 0xFFF28C28.toInt(), 0xFFFFE2B8.toInt())
     private val COPPER = skin(0xFFC4A07E.toInt(), 0xFF5E3620.toInt(), null, 0xFF3A2519.toInt(), 0xFFD08A52.toInt(), 0xFFD9A441.toInt(), 0xFFFFF0C2.toInt())
     private val NEON = skin(0xFF7ED3E6.toInt(), 0xFF262A50.toInt(), 0xFF8F6BFF.toInt(), 0xFF16181F.toInt(), 0xFFFF4FA3.toInt(), 0xFF3EE68A.toInt(), 0xFFE8FFF1.toInt())
     private val PASTEL = skin(0xFFB9C3D3.toInt(), 0xFF4A4C48.toInt(), 0xFFC9B8E8.toInt(), 0xFF1C191E.toInt(), 0xFFE9C6D6.toInt(), 0xFFF3A6B8.toInt(), 0xFFFFE6EE.toInt())
@@ -519,7 +552,8 @@ class DashCache(private val steps: Int = 24) {
  */
 object RadioStyles {
     const val INTERFERENCE = 0xFFD7263D.toInt()
-    private const val TOWER = 0xFF6B7785.toInt()
+    /** Cell towers in a deep teal, apart from the Wi-Fi channel hues (judge panel: grey coverage read as a smudge). */
+    private const val TOWER = 0xFF0E8C7F.toInt()
 
     fun color(n: Node): Int = when (n.channel) {
         0 -> TOWER
@@ -568,19 +602,58 @@ object IncidentStyles {
  */
 class DeviceIcons {
     private val ink = 0xFF262B33.toInt()
-    private val screen = 0xFFDCE6EF.toInt()
+    /** A lit screen in sky blue with a glare, so devices read as glowing gadgets rather than line icons (judge panel). */
+    private val screen = 0xFF4FA8E8.toInt()
+    private val glare = 0x66FFFFFF
+    /** The side of a device, offset down-right under its face: a little volume to match the extruded buildings. */
+    private val side = 0xFF8E9AA8.toInt()
+    /**
+     * Where a device's side shows, as a share of its half size: down right on a flat map; the iso map turns its
+     * devices to the viewer's left front wall and sets this back and up, so the side reads as the device's thickness.
+     */
+    var depthX = 0.12f
+    var depthY = 0.16f
     private val body = fill(0xFFFFFFFF.toInt())
     private val line = stroke(ink)
     private val solid = fill(ink)
     private val rect = RectF()
     private val path = Path()
+    private val shine = Path()
 
-    private fun box(l: Float, t: Float, r: Float, b: Float, radius: Float, fillColor: Int = 0xFFFFFFFF.toInt(), s: Float) {
+    private fun box(l: Float, t: Float, r: Float, b: Float, radius: Float, fillColor: Int = 0xFFFFFFFF.toInt(), s: Float, depth: Boolean = true) {
+        if (depth) {
+            rect.set(l + s * depthX, t + s * depthY, r + s * depthX, b + s * depthY)
+            body.color = side
+            canvas.drawRoundRect(rect, radius, radius, body)
+        }
         rect.set(l, t, r, b)
         body.color = fillColor
         canvas.drawRoundRect(rect, radius, radius, body)
+        if (fillColor == screen) glareOn(l, t, r, b)
         line.strokeWidth = s * 0.16f
         canvas.drawRoundRect(rect, radius, radius, line)
+    }
+
+    /** A diagonal glare over the upper left of the screen ([l], [t], [r], [b]). */
+    private fun glareOn(l: Float, t: Float, r: Float, b: Float) {
+        val w = r - l; val h = b - t
+        shine.reset()
+        shine.moveTo(l + w * 0.18f, t); shine.lineTo(l + w * 0.5f, t)
+        shine.lineTo(l + w * 0.08f, t + h); shine.lineTo(l - w * 0.24f, t + h); shine.close()
+        canvas.save()
+        canvas.clipRect(l, t, r, b)
+        body.color = glare
+        canvas.drawPath(shine, body)
+        canvas.restore()
+    }
+
+    /** [p] offset down-right in the side colour, under a shape drawn from a path. */
+    private fun pathDepth(p: Path, s: Float) {
+        canvas.save()
+        canvas.translate(s * depthX, s * depthY)
+        body.color = side
+        canvas.drawPath(p, body)
+        canvas.restore()
     }
 
     private lateinit var canvas: Canvas
@@ -600,6 +673,7 @@ class DeviceIcons {
                 path.reset()
                 path.moveTo(x - s * 0.8f, y + s * 0.8f); path.lineTo(x - s * 0.55f, y - s * 0.1f)
                 path.lineTo(x + s * 0.55f, y - s * 0.1f); path.lineTo(x + s * 0.8f, y + s * 0.8f); path.close()
+                pathDepth(path, s)
                 body.color = 0xFFFFFFFF.toInt(); canvas.drawPath(path, body)
                 line.strokeWidth = s * 0.16f; canvas.drawPath(path, line)
                 line.strokeWidth = s * 0.3f
@@ -621,6 +695,7 @@ class DeviceIcons {
             Device.SMARTPHONE -> {
                 box(x - s * 0.52f, y - s, x + s * 0.52f, y + s, s * 0.2f, 0xFFFFFFFF.toInt(), s)
                 rect.set(x - s * 0.34f, y - s * 0.72f, x + s * 0.34f, y + s * 0.6f); body.color = screen; canvas.drawRect(rect, body)
+                glareOn(x - s * 0.34f, y - s * 0.72f, x + s * 0.34f, y + s * 0.6f)
                 canvas.drawCircle(x, y + s * 0.8f, s * 0.07f, solid)
             }
             Device.TV -> {
@@ -632,11 +707,12 @@ class DeviceIcons {
             Device.TABLET -> {
                 box(x - s, y - s * 0.72f, x + s, y + s * 0.72f, s * 0.18f, 0xFFFFFFFF.toInt(), s)
                 rect.set(x - s * 0.72f, y - s * 0.5f, x + s * 0.62f, y + s * 0.5f); body.color = screen; canvas.drawRect(rect, body)
+                glareOn(x - s * 0.72f, y - s * 0.5f, x + s * 0.62f, y + s * 0.5f)
                 canvas.drawCircle(x + s * 0.82f, y, s * 0.06f, solid)
             }
             Device.WATCH -> {
                 box(x - s * 0.32f, y - s, x + s * 0.32f, y + s, s * 0.1f, 0xFFB9C2CC.toInt(), s)
-                box(x - s * 0.58f, y - s * 0.58f, x + s * 0.58f, y + s * 0.58f, s * 0.2f, screen, s)
+                box(x - s * 0.58f, y - s * 0.58f, x + s * 0.58f, y + s * 0.58f, s * 0.2f, screen, s, depth = false)
                 line.strokeWidth = s * 0.12f
                 canvas.drawLine(x, y, x, y - s * 0.3f, line)
                 canvas.drawLine(x, y, x + s * 0.22f, y, line)
@@ -649,7 +725,7 @@ class DeviceIcons {
                 canvas.save()
                 canvas.rotate(-15f, x, y - s * 0.3f)
                 box(x - s * 0.95f, y - s * 0.62f, x + s * 0.55f, y + s * 0.02f, s * 0.14f, 0xFFFFFFFF.toInt(), s)
-                box(x - s * 1.15f, y - s * 0.52f, x - s * 0.85f, y - s * 0.08f, s * 0.06f, screen, s * 0.8f)
+                box(x - s * 1.15f, y - s * 0.52f, x - s * 0.85f, y - s * 0.08f, s * 0.06f, screen, s * 0.8f, depth = false)
                 canvas.restore()
                 body.color = 0xFFE4572E.toInt()
                 canvas.drawCircle(x + s * 0.2f, y - s * 0.62f, s * 0.1f, body)
@@ -660,6 +736,7 @@ class DeviceIcons {
                 path.moveTo(x, y - s * 0.95f); path.lineTo(x + s * 0.95f, y - s * 0.1f); path.lineTo(x + s * 0.72f, y - s * 0.1f)
                 path.lineTo(x + s * 0.72f, y + s * 0.85f); path.lineTo(x - s * 0.72f, y + s * 0.85f); path.lineTo(x - s * 0.72f, y - s * 0.1f)
                 path.lineTo(x - s * 0.95f, y - s * 0.1f); path.close()
+                pathDepth(path, s)
                 body.color = 0xFFFFFFFF.toInt(); canvas.drawPath(path, body)
                 line.strokeWidth = s * 0.16f; canvas.drawPath(path, line)
                 line.strokeWidth = s * 0.12f
@@ -764,7 +841,7 @@ class DeviceIcons {
             val wn = s * 0.55f * (1.25f - f)
             canvas.drawLine(x - wn, yn, x + w, yy, line)
         }
-        for (side in listOf(-1f, 1f)) box(x + side * s * 0.32f - s * 0.12f, top + s * 0.2f, x + side * s * 0.32f + s * 0.12f, top + s * 0.62f, s * 0.05f, 0xFFFFFFFF.toInt(), s * 0.6f)
+        for (side in listOf(-1f, 1f)) box(x + side * s * 0.32f - s * 0.12f, top + s * 0.2f, x + side * s * 0.32f + s * 0.12f, top + s * 0.62f, s * 0.05f, 0xFFFFFFFF.toInt(), s * 0.6f, depth = false)
         body.color = if (sin(time * 2.5f) > 0f) 0xFFE4572E.toInt() else 0xFF8A3A2A.toInt()
         canvas.drawCircle(x, top, s * 0.13f, body)
     }
@@ -799,14 +876,14 @@ class DeviceIcons {
         canvas = c
         line.color = ink
         // Tracks: a rounded belt with three wheels.
-        box(x - s, y + s * 0.45f, x + s * 0.35f, y + s * 0.85f, s * 0.2f, IncidentStyles.EXCAVATOR_DARK, s * 0.7f)
+        box(x - s, y + s * 0.45f, x + s * 0.35f, y + s * 0.85f, s * 0.2f, IncidentStyles.EXCAVATOR_DARK, s * 0.7f, depth = false)
         for (i in 0 until 3) {
             body.color = 0xFF9AA3AD.toInt()
             canvas.drawCircle(x - s * 0.78f + i * s * 0.45f, y + s * 0.65f, s * 0.11f, body)
         }
         // Cab and engine.
-        box(x - s * 0.95f, y + s * 0.05f, x + s * 0.25f, y + s * 0.45f, s * 0.08f, IncidentStyles.EXCAVATOR, s * 0.7f)
-        box(x - s * 0.55f, y - s * 0.6f, x + s * 0.2f, y + s * 0.1f, s * 0.1f, IncidentStyles.EXCAVATOR, s * 0.7f)
+        box(x - s * 0.95f, y + s * 0.05f, x + s * 0.25f, y + s * 0.45f, s * 0.08f, IncidentStyles.EXCAVATOR, s * 0.7f, depth = false)
+        box(x - s * 0.55f, y - s * 0.6f, x + s * 0.2f, y + s * 0.1f, s * 0.1f, IncidentStyles.EXCAVATOR, s * 0.7f, depth = false)
         rect.set(x - s * 0.38f, y - s * 0.45f, x + s * 0.08f, y - s * 0.08f)
         body.color = screen
         canvas.drawRect(rect, body)
@@ -826,5 +903,92 @@ class DeviceIcons {
         path.lineTo(bx + s * 0.1f, by + s * 0.2f); path.lineTo(bx - s * 0.25f, by + s * 0.12f); path.close()
         body.color = IncidentStyles.EXCAVATOR_DARK
         canvas.drawPath(path, body)
+    }
+}
+
+/**
+ * How a cable being dragged looks in every style: a soft glow in the cable's color under the preview line, a fading
+ * touch trail along the finger's path with a contact ring at the pointer, and the price (or the reason it cannot be
+ * built) in a speech bubble held well above the finger, so it never sits on a building's roof or under the thumb.
+ */
+object DragJuice {
+    private val glowP = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
+    private val dotP = fill(0)
+    private val ringP = stroke(0)
+    private val bubbleP = fill(0xF7FFFFFF.toInt())
+    private val shadowP = fill(0x2E000000)
+    private val textP = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = android.graphics.Typeface.DEFAULT_BOLD; textAlign = Paint.Align.CENTER }
+    private val tail = Path()
+    private val rect = RectF()
+
+    /** The glow under a preview line [path] of stroke width [width] pixels in [color]. */
+    fun glow(canvas: Canvas, path: Path, color: Int, width: Float) {
+        glowP.color = color and 0xFFFFFF or 0x38000000
+        glowP.strokeWidth = width * 3.2f
+        canvas.drawPath(path, glowP)
+        glowP.color = color and 0xFFFFFF or 0x5C000000
+        glowP.strokeWidth = width * 1.9f
+        canvas.drawPath(path, glowP)
+    }
+
+    /** The finger's trail through the screen points [xs]/[ys] (oldest first) and the contact ring at the last one. */
+    fun trail(canvas: Canvas, xs: FloatArray, ys: FloatArray, color: Int, density: Float) {
+        val n = xs.size
+        if (n == 0) return
+        for (i in 0 until n) {
+            val t = (i + 1f) / n
+            dotP.color = 0xFFFFFF or ((t * t * 150f).toInt() shl 24)
+            canvas.drawCircle(xs[i], ys[i], (2.5f + 5.5f * t) * density, dotP)
+        }
+        val x = xs[n - 1]; val y = ys[n - 1]
+        dotP.color = 0x8CFFFFFF.toInt()
+        canvas.drawCircle(x, y, 17f * density, dotP)
+        ringP.color = color; ringP.strokeWidth = 3f * density
+        canvas.drawCircle(x, y, 17f * density, ringP)
+        ringP.color = color and 0xFFFFFF or 0x55000000; ringP.strokeWidth = 2f * density
+        canvas.drawCircle(x, y, 26f * density, ringP)
+    }
+
+    /**
+     * The bubble with [label] (and a smaller [detail] line) whose tail points at ([x], [y]), its bottom [lift] pixels
+     * above that point; [size] is the label's text size.
+     */
+    fun bubble(
+        canvas: Canvas, label: String, detail: String?, x: Float, y: Float, lift: Float, size: Float, density: Float,
+        labelColor: Int, detailColor: Int, accent: Int,
+    ) {
+        textP.textSize = size
+        val w1 = textP.measureText(label)
+        val detailSize = size * 0.78f
+        textP.textSize = detailSize
+        val w2 = detail?.let { textP.measureText(it) } ?: 0f
+        val padX = size * 0.75f
+        val padY = size * 0.5f
+        val w = maxOf(w1, w2) + 2 * padX
+        val h = size * 1.15f + (if (detail != null) detailSize * 1.25f else 0f) + 2 * padY
+        val bottom = y - lift
+        val cx = x.coerceIn(w / 2f + 8 * density, canvas.width - w / 2f - 8 * density)
+        rect.set(cx - w / 2f, bottom - h, cx + w / 2f, bottom)
+        val r = minOf(h / 2f, size * 0.9f)
+        rect.offset(0f, 3f * density)
+        canvas.drawRoundRect(rect, r, r, shadowP)
+        rect.offset(0f, -3f * density)
+        tail.reset()
+        val tx = x.coerceIn(rect.left + r, rect.right - r)
+        tail.moveTo(tx - size * 0.45f, bottom - 1f)
+        tail.lineTo(tx, bottom + size * 0.5f)
+        tail.lineTo(tx + size * 0.45f, bottom - 1f)
+        tail.close()
+        canvas.drawPath(tail, bubbleP)
+        canvas.drawRoundRect(rect, r, r, bubbleP)
+        ringP.color = accent; ringP.strokeWidth = 2.5f * density
+        canvas.drawRoundRect(rect, r, r, ringP)
+        textP.textSize = size; textP.color = labelColor
+        val base = rect.top + padY + size * 0.9f
+        canvas.drawText(label, cx, base, textP)
+        detail?.let {
+            textP.textSize = detailSize; textP.color = detailColor
+            canvas.drawText(it, cx, base + detailSize * 1.25f, textP)
+        }
     }
 }

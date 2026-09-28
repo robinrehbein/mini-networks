@@ -16,6 +16,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import kotlin.math.abs
 import kotlin.math.hypot
 
 /** Both styles project through their [Camera]: round trips, fitting the unlocked area, growth and touch targets. */
@@ -87,6 +88,74 @@ class RendererCameraTest {
         }
         val corner = w.addClient(Device.LAPTOP, a.left, a.bottom - 1)
         for (r in renderers(w, 1080, 2400)) {
+            r.onContentChanged(w)
+            repeat(200) { r.camera.step(0.05f) }
+            val m = r.toMap(corner.footprintCenter)
+            assertTrue("${r.name} glides out to a device on the corner", r.camera.shows(MapRect(m.x, m.y, m.x, m.y)))
+        }
+    }
+
+    /**
+     * Portrait only happens on large screens (OrientationPolicy: smallest width 600 dp and up). There the iso board,
+     * twice as wide as high, is framed by the width, so a band of sky stays above and below it; but every tile is at
+     * least as large in dp as on a landscape phone, the format the game is designed for, so devices stay as easy to
+     * hit. Zooming further to the height would push nodes at the sides off the screen.
+     */
+    @Test
+    fun portraitTabletsShowTilesAtLeastAsLargeAsALandscapePhone() {
+        fun tileDp(width: Int, height: Int, density: Float): Float {
+            val world = Scenes.hud()
+            val r = IsoRenderer()
+            r.density = density
+            r.layout(width, height, world, ViewInsets(8f * density, 60f * density, 8f * density, 140f * density))
+            if (r.camera.isTall) assertTrue("${width}x$height shows every node", r.camera.shows(r.contentBounds(world)!!))
+            return r.mapBounds(CellRect(0, 0, 1, 1)).width * r.camera.scale / density
+        }
+        val phone = tileDp(2400, 1080, 3f)
+        for ((w, h, d) in listOf(Triple(1600, 2560, 2f), Triple(1200, 1920, 1.5f), Triple(1600, 2000, 2f))) {
+            val tablet = tileDp(w, h, d)
+            assertTrue("${w}x$h at $d: tile $tablet dp, phone $phone dp", tablet >= phone)
+        }
+    }
+
+    /**
+     * A portrait phone window (split screen, docs/screenshots/portrait-game.png): the built network sits in the middle
+     * of the space between the HUD rows, not low with empty ground above it, and no device is cut off at the sides,
+     * even where the readable zoom would be larger than the width allows.
+     */
+    @Test
+    fun portraitPhoneCentresTheNetworkAndKeepsEveryDeviceOnScreen() {
+        val world = Scenes.hud()
+        val d = 3f
+        val insets = ViewInsets(8f * d, 60f * d, 8f * d, 140f * d)
+        for (r in listOf(IsoRenderer(), FlatRenderer())) {
+            r.density = d
+            r.layout(1080, 2400, world, insets)
+            val content = r.contentBounds(world)!!
+            assertTrue("${r.javaClass.simpleName} shows every node", r.camera.shows(content))
+            val midY = insets.top + (2400f - insets.top - insets.bottom) / 2f
+            val y = r.camera.toScreenY(content.centerY)
+            assertTrue("${r.javaClass.simpleName}: network centre at $y, view centre $midY", abs(y - midY) < 30f)
+            val x = r.camera.toScreenX(content.centerX)
+            assertTrue("${r.javaClass.simpleName}: centred across, $x", abs(x - 540f) < 30f)
+        }
+    }
+
+    /** docs/TOP100.md B4: in landscape the built network fills the view instead of the whole diamond of the area. */
+    @Test
+    fun landscapeFramingZoomsOnTheNetworkButKeepsEveryNode() {
+        val w = World(seed = 2L, spawnInitialNodes = false)
+        val a = w.unlocked
+        val mid = a.center
+        w.addClient(Device.PC, mid.x.toInt() - 1, mid.y.toInt())
+        w.addClient(Device.PHONE, mid.x.toInt() + 1, mid.y.toInt() - 1)
+        for (r in renderers(w)) {
+            val plainFit = r.camera.fitScale(r.mapBounds(a))
+            assertTrue("${r.name} zooms in on the built middle", r.camera.scale > plainFit * 1.2f)
+            assertTrue("${r.name} shows every node", r.camera.shows(r.contentBounds(w)!!))
+        }
+        val corner = w.addClient(Device.LAPTOP, a.left, a.bottom - 1)
+        for (r in renderers(w)) {
             r.onContentChanged(w)
             repeat(200) { r.camera.step(0.05f) }
             val m = r.toMap(corner.footprintCenter)

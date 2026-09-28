@@ -68,11 +68,29 @@ class PerformanceTest {
         assertTrue("600 steps took ${best / 1_000_000} ms", best < LIMIT_NANOS)
     }
 
+    /**
+     * docs/TOP100.md section 4: 600 steps of the large stress world (at least 150 nodes) take at most 250 ms on the
+     * JVM, best of [MEASURED_RUNS] after a warm-up.
+     */
+    @Test
+    fun sixHundredStepsOfAHundredFiftyNodeWorldStayWithinTarget() {
+        val nodes = StressWorld.buildLarge().nodes.size
+        assertTrue("nodes: $nodes", nodes >= 150)
+        repeat(WARMUP_RUNS) { run(StressWorld::buildLarge) }
+        val runs = List(MEASURED_RUNS) { run(StressWorld::buildLarge) }
+        val best = runs.minOf { it.nanos }
+        println(
+            "PerformanceTest: $STEPS steps of the large stress world ($nodes nodes) took %.1f ms (best of $MEASURED_RUNS)"
+                .format(Locale.ROOT, best / 1e6),
+        )
+        assertTrue("600 steps with $nodes nodes took ${best / 1_000_000} ms", best <= TARGET_150_NANOS)
+    }
+
     private class Run(val nanos: Long, val bytes: Long)
 
     /** Time and heap allocation of [STEPS] updates of a fresh stress world. */
-    private fun run(): Run {
-        val w = StressWorld.build()
+    private fun run(build: (Long) -> World = StressWorld::build): Run {
+        val w = build(1L)
         val bytes = allocatedBytes()
         val start = System.nanoTime()
         repeat(STEPS) { w.update(STEP) }
@@ -93,5 +111,7 @@ class PerformanceTest {
         const val MEASURED_RUNS = 3
         /** 0.5 s for 10 s of play: about 40× the time measured on a laptop (docs/PLAN.md), so slow machines pass too. */
         const val LIMIT_NANOS = 500_000_000L
+        /** docs/TOP100.md section 4: 150 nodes, 600 steps, at most 250 ms on the JVM. */
+        const val TARGET_150_NANOS = 250_000_000L
     }
 }

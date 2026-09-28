@@ -64,6 +64,24 @@ class BalancingTest {
         }
     }
 
+    /**
+     * No progression wall: every score unlock is reachable in an ordinary good run. Its target lies at or below the
+     * balanced bot's median score in the scenery before it, so at least half of the bot's games get there
+     * (docs/BALANCING.md, "Freischalt-Ziele").
+     */
+    @Test
+    fun scoreUnlocksAreWithinReachOfAMedianRun() {
+        for (s in Scenarios.all) {
+            val unlock = s.unlock as? Unlock.Score ?: continue
+            val before = Scenarios.byId(unlock.after)!!
+            val scores = scoresOf(balanced, before)
+            val median = median(scores)
+            assertTrue("${s.id}: target ${unlock.packets} above the median $median of ${before.id}", unlock.packets <= median)
+            val reached = scores.count { it >= unlock.packets }
+            assertTrue("${s.id}: only $reached of ${scores.size} bot games reach ${unlock.packets}", reached * 2 >= scores.size)
+        }
+    }
+
     @Test
     fun report() {
         assumeTrue("set BALANCING_REPORT=1 to rewrite docs/BALANCING.md", System.getProperty("balancing.report") != null)

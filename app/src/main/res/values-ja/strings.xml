@@ -1,0 +1,446 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- HUD -->
+    <string name="hud_date">%1$d年 · 第%2$d週</string>
+    <plurals name="hud_delivered">
+        <item quantity="other">%1$dパケット</item>
+    </plurals>
+    <string name="hud_resources">予算 %1$d  ·  ルーター %2$d</string>
+    <string name="hud_clock_day">昼 · %1$s</string>
+    <string name="hud_clock_night">夜 · %1$s · バックアップ %2$s</string>
+    <string name="button_router">ルーター (%1$d)</string>
+    <string name="hint_place_router">空いているマスをタップ</string>
+    <string name="button_access_point">Wi-Fi (%1$d)</string>
+    <string name="button_cell_tower">基地局 (%1$d)</string>
+    <string name="hint_access_point">アクセスポイントをタップでチャンネル変更 · 長押しで5 GHz（%1$d）</string>
+    <string name="hint_channel">%1$s：チャンネル%2$d</string>
+    <plurals name="hint_channel_interference">
+        <item quantity="other">%1$s：チャンネル%2$d · 近くの%3$d台と干渉中</item>
+    </plurals>
+    <string name="hint_5ghz">%1$sは5 GHzになりました（範囲1）</string>
+    <string name="wifi_error_already_5ghz">すでに5 GHzです</string>
+    <string name="wifi_error_no_budget">予算不足：5 GHzには%1$d必要です</string>
+    <string name="hint_map_grew">町が広がりました：外側に新しいマス</string>
+    <string name="server_error_max_level">データセンターが最高レベルです</string>
+    <string name="server_error_no_budget">予算不足：強化には%1$d必要です</string>
+    <string name="server_error_no_space">データセンターにはサーバーの周りに2×2の空きマスが必要です</string>
+    <string name="incident_excavator_warning">ショベルカー！%1$d秒後に切断</string>
+    <string name="incident_outage_warning">停電の恐れ：%2$d秒後に%1$sが止まります</string>
+    <string name="incident_cut">ケーブル切断：タップで修理（%1$d）· %2$d秒後に自然復旧</string>
+    <string name="incident_outage">停電中：%1$sはあと%2$d秒停止</string>
+    <string name="repair_error_no_budget">予算不足：修理には%1$d必要です</string>
+    <string name="hint_repaired">ケーブルを修理しました</string>
+    <plurals name="hud_vouchers">
+        <item quantity="other">サーバー無料券 %1$d枚 · サーバーをタップ</item>
+    </plurals>
+
+    <!-- Names of game objects -->
+    <string name="service_mail">メール</string>
+    <string name="service_call">通話</string>
+    <string name="service_gaming">ゲーム</string>
+    <string name="service_streaming">動画配信</string>
+    <string name="service_video_call">ビデオ通話</string>
+    <string name="service_camera_upload">カメラ映像</string>
+    <string name="service_cloud_backup">クラウドバックアップ</string>
+    <string name="device_pc">PC</string>
+    <string name="device_phone">電話</string>
+    <string name="device_laptop">ノートPC</string>
+    <string name="device_console">ゲーム機</string>
+    <string name="device_smartphone">スマホ</string>
+    <string name="device_tv">スマートTV</string>
+    <string name="device_tablet">タブレット</string>
+    <string name="device_watch">スマートウォッチ</string>
+    <string name="device_camera">防犯カメラ</string>
+    <string name="device_smart_home">スマートホームハブ</string>
+    <string name="cable_isdn">ISDN</string>
+    <string name="cable_dsl">DSL</string>
+    <string name="cable_coax">同軸</string>
+    <string name="cable_fiber">光ファイバー</string>
+    <string name="cable_short_isdn">ISDN</string>
+    <string name="cable_short_dsl">DSL</string>
+    <string name="cable_short_coax">同軸</string>
+    <string name="cable_short_fiber">光</string>
+    <string name="node_router">ルーター</string>
+    <string name="node_access_point">Wi-Fiアクセスポイント</string>
+    <string name="node_cell_tower">携帯基地局</string>
+    <string name="node_server">%1$sサーバー</string>
+
+    <!-- Week news and cable feedback -->
+    <string name="news_with_year">%1$d年 · %2$s</string>
+    <string name="news_items">新登場：%1$s</string>
+    <string name="list_separator">"、"</string>
+    <string name="drag_cost">%1$s · %2$d</string>
+    <string name="connect_error_same_node">同じノードです</string>
+    <string name="connect_error_already_connected">すでに接続済み</string>
+    <string name="connect_error_not_invented">%1$sはまだ発明されていません</string>
+    <string name="connect_error_ports_full">%1$s：ポートがいっぱいです</string>
+    <string name="connect_error_no_budget">予算が足りません</string>
+
+    <!-- Week rewards -->
+    <string name="reward_prompt">今週の収入：+%1$d · カードをタップしてボーナスを選択</string>
+    <string name="reward_amount_plus">+%1$d</string>
+    <string name="reward_amount_voucher">無料</string>
+    <string name="reward_budget_title">予算</string>
+    <string name="reward_budget_desc">新しいケーブルや強化に使えます</string>
+    <string name="reward_routers_title">ルーター</string>
+    <string name="reward_routers_desc">ネットワークをつなぐ6ポートの分配器</string>
+    <string name="reward_voucher_title">サーバー無料券</string>
+    <string name="reward_voucher_desc">次のサーバー強化が無料に</string>
+    <string name="reward_access_point_title">Wi-Fiアクセスポイント</string>
+    <string name="reward_access_point_desc">近くの端末に最大4台までケーブルなしで接続</string>
+    <string name="reward_cell_tower_title">携帯基地局</string>
+    <string name="reward_cell_tower_desc">広い範囲をカバー、ただしスマホ・タブレット・ウォッチ専用</string>
+
+    <!-- Menus -->
+    <string name="menu_tagline">町をケーブルでつなごう ― ISDNから光ファイバーまで</string>
+    <string name="menu_play">プレイ</string>
+    <string name="menu_continue">つづきから</string>
+    <string name="menu_settings">設定</string>
+    <string name="menu_best">ベスト：%1$d</string>
+    <string name="pause_title">一時停止</string>
+    <string name="pause_status">%1$s  ·  %2$s</string>
+    <string name="menu_resume">再開</string>
+    <string name="menu_restart">やり直す</string>
+    <string name="menu_main">メインメニュー</string>
+    <string name="menu_back">戻る</string>
+    <string name="settings_sound">サウンド</string>
+    <string name="settings_haptics">振動</string>
+    <string name="settings_overview">フラット表示</string>
+    <string name="settings_free_rotation">自由回転</string>
+    <string name="settings_colorblind">色覚サポート</string>
+    <string name="settings_language">言語は端末の設定に従います</string>
+
+    <!-- Game over -->
+    <string name="game_over_title">ネットワーク過負荷</string>
+    <string name="game_over_best">ベスト：%1$d</string>
+    <string name="game_over_assisted">特典を使ったため、ベストとランキングには記録されません・ベスト：%1$d</string>
+    <string name="game_over_new_best">新記録！</string>
+    <string name="game_over_again">もう一度</string>
+
+    <!-- Sceneries -->
+    <string name="scenery_title">ステージを選ぶ</string>
+    <string name="scenery_river_town">川辺の町</string>
+    <string name="scenery_metropolis">大都市</string>
+    <string name="scenery_island_harbor">島と港</string>
+    <string name="scenery_mountain_village">山あいの村</string>
+    <string name="scenery_future_2030">未来2030</string>
+    <string name="scenery_river_town_desc">川がひとつ · 入門向け</string>
+    <string name="scenery_metropolis_desc">川がふたつ · 高層ビルが電波をさえぎる</string>
+    <string name="scenery_island_harbor_desc">水が多い · 海底ケーブルと無線</string>
+    <string name="scenery_mountain_village_desc">山が電波をさえぎる · 峠越えは高くつく</string>
+    <string name="scenery_future_2030_desc">すべての端末に6G · 軌道上のサーバー</string>
+    <string name="scenery_from_year">%1$d年から</string>
+    <string name="scenery_not_played">未プレイ</string>
+    <plurals name="scenery_progress">
+        <item quantity="other">%1$,d / %2$,dパケット</item>
+    </plurals>
+    <string name="scenery_progress_in">（%1$s）</string>
+    <string name="scenery_shop">ショップで購入</string>
+    <string name="scenery_shop_pack">単品またはセット</string>
+    <plurals name="scenery_hint_score">
+        <item quantity="other">%2$sで%1$,dパケット配達するか、このステージを購入</item>
+    </plurals>
+    <string name="scenery_hint_no_shop">現在ショップに接続できません</string>
+
+    <!-- Tutorial -->
+    <string name="tutorial_kicker">チュートリアル · %1$d/%2$d</string>
+    <string name="tutorial_skip">スキップ</string>
+    <string name="tutorial_play">プレイ</string>
+    <string name="tutorial_pause">チュートリアル · ステップ%1$d/%2$d</string>
+    <string name="settings_tutorial">チュートリアルを見る</string>
+    <string name="tutorial_cable_title">ケーブルを引こう</string>
+    <string name="tutorial_cable_text">PCがメールを送りたがっています。PCからメールサーバーまで指でなぞりましょう。</string>
+    <string name="tutorial_router_title">ルーターを置こう</string>
+    <string name="tutorial_router_text">端末のポートは2つだけ、ルーターなら6つ。下の「ルーター」をタップして、電話の近くの空きマスをタップしましょう。</string>
+    <string name="tutorial_router_connect_text">次に、2台の電話と通話サーバーをルーターにつなぎましょう。ルーターが通話を振り分けます。</string>
+    <string name="tutorial_bandwidth_title">帯域</string>
+    <string name="tutorial_bandwidth_text">1998年：テレビが動画を見たがっています。動画配信サーバーにつなぎましょう。</string>
+    <string name="tutorial_bandwidth_narrow_text">帯域が足りません！動画配信には帯域%1$dが必要ですが、ISDNは%2$dしか運べません。下でDSLを選びましょう。DSLなら%3$d運べます。</string>
+    <string name="tutorial_bandwidth_upgrade_text">ISDNケーブルをタップしてDSLにアップグレードしましょう。支払うのは差額だけです。</string>
+    <string name="tutorial_ping_title">Ping</string>
+    <string name="tutorial_ping_text">2010年：PCがオンラインゲームをしたがっています。ゲームには短いPingが必要で、往復%1$dミリ秒以内です。PCをゲームサーバーにつなぎましょう。</string>
+    <string name="tutorial_ping_slow_text">Ping %1$dミリ秒：ゲームには遅すぎます（上限%2$dミリ秒）。十分に速いのは光ファイバーだけ。光ファイバーを選んでケーブルをタップしましょう。</string>
+    <string name="tutorial_overload_title">過負荷</string>
+    <plurals name="tutorial_overload_text">
+        <item quantity="other">つながっていない新しいPCです！待ちのリクエストが%1$d件になると赤いリングがたまり始め、リングが一周するとゲームオーバー。PCをつなぎましょう！</item>
+    </plurals>
+    <string name="tutorial_done_title">できました！</string>
+    <string name="tutorial_done_text">基本はばっちりです。ヒント：サーバーをタップで強化、ケーブルを2回タップで撤去。一時停止中は時間が止まり、そのまま建設を続けられます。楽しんでください！</string>
+    <!-- Monetization (docs/PLAN.md 5.1) -->
+    <string name="menu_remove_ads">広告を削除 · %1$s</string>
+    <string name="settings_privacy">プライバシー</string>
+    <string name="settings_privacy_policy">プライバシーポリシー</string>
+    <string name="game_over_continue_ad">続ける · 動画を見る</string>
+    <string name="game_over_continue">プレイを続ける</string>
+    <string name="reward_bonus_router_ad">ルーター+1 · 動画を見る</string>
+    <string name="reward_bonus_router">ルーターを1台追加</string>
+    <string name="hint_bonus_router">ルーター+1</string>
+    <string name="hint_continued">過負荷リングをリセット · 1プレイにつき1回</string>
+    <string name="scenery_pack_buy">全ステージ · %1$s</string>
+
+    <!-- Controls feedback -->
+    <string name="hud_paused">一時停止中 · 建設は続けられます</string>
+    <string name="hint_cable_info">%1$s：帯域%2$d · 1マスあたり%3$sミリ秒 · 1マスあたり%4$d</string>
+    <string name="hint_cable_too_narrow">%1$sには細すぎます</string>
+    <string name="hint_cable_upgraded">ケーブルを%1$sに強化 · −%2$d</string>
+    <string name="cable_error_no_budget">予算不足：強化には%1$d必要です</string>
+    <string name="hint_cable_remove">%1$sケーブル · もう一度タップで撤去（+%2$d）</string>
+    <string name="hint_cable_removed">ケーブルを撤去、払い戻し：+%1$d</string>
+    <string name="place_error_no_stock">%1$sの在庫がありません</string>
+    <string name="place_error_locked">このマスはまだ開放されていません</string>
+    <string name="place_error_occupied">このマスはすでに使われています</string>
+    <string name="place_error_terrain">空いている陸地にのみ置けます</string>
+    <string name="hint_router_pick_up">ケーブルなしのルーター · もう一度タップで在庫に戻す</string>
+    <string name="hint_router_picked_up">ルーターを在庫に戻しました</string>
+    <string name="server_tier">レベル%1$d</string>
+    <string name="server_tier_data_center">データセンター</string>
+    <string name="hint_server_preview">%1$s → %2$s（%3$d）· もう一度タップ</string>
+    <string name="hint_server_preview_voucher">%1$s → %2$s（無料券）· もう一度タップ</string>
+    <string name="hint_server_upgraded">%1$sが%2$sになりました</string>
+    <string name="hint_server_busy">%1$sが処理しきれません：タップで強化</string>
+    <string name="hint_radio_reward">新登場：%1$s ― 週のボーナスで手に入ります</string>
+    <string name="hint_service_needs">%1$sには帯域%2$dが必要です</string>
+    <string name="hint_service_needs_ping">%1$sには帯域%2$dとPing %3$dミリ秒以内が必要です</string>
+    <string name="device_wants">%1$s：%2$sを要求</string>
+    <string name="problem_no_route">%1$s：%2$s ― サーバーへの経路がありません</string>
+    <string name="problem_too_narrow">%1$s：%2$s ― 帯域の足りるケーブルがありません（帯域%3$d）</string>
+    <string name="problem_ping">%1$s：%2$s ― Ping %3$dミリ秒、上限%4$dミリ秒</string>
+    <string name="problem_jam">%1$s：%2$s ― 渋滞中、ケーブルかサーバーが満杯</string>
+    <string name="game_over_no_route">%1$sは%2$sサーバーにつながらなかった</string>
+    <string name="game_over_too_narrow">%1$sの%2$sには、もっと太いケーブルが必要だった</string>
+    <string name="game_over_ping">%1$sの%2$sが遅延：%3$d ms（上限%4$d ms）</string>
+    <string name="game_over_jam">%1$sの%2$sが渋滞で詰まった</string>
+    <string name="drag_too_narrow">%1$sには帯域%2$dが必要</string>
+    <string name="drag_ping">%1$s：Ping %2$d/%3$dミリ秒</string>
+    <string name="incident_more">%1$s · ほか%2$d件</string>
+    <!-- Accessibility (TalkBack) descriptions of the canvas-drawn HUD, docs/TOP100.md A7 -->
+    <string name="a11y_menu">メニュー</string>
+    <string name="a11y_pause">時間を止める</string>
+    <string name="a11y_compass">地図を北向きに戻す</string>
+    <string name="a11y_recap" tools:ignore="PluralsCandidate">タイムラプス：第%1$d週から第%2$d週までのネットワーク</string>
+    <string name="a11y_router">ルーターを置く（在庫：%1$d）</string>
+    <string name="a11y_access_point">Wi-Fiアクセスポイントを置く（在庫：%1$d）</string>
+    <string name="a11y_cell_tower">携帯基地局を置く（在庫：%1$d）</string>
+    <string name="a11y_cable">%1$sケーブル、1マスあたりの価格：%2$d</string>
+    <string name="a11y_locked">ロック中</string>
+    <string name="a11y_map">地図 · ノード：%1$d · ケーブル：%2$d。ノードからノードへなぞるとケーブルを引けます。</string>
+    <!-- Retention (docs/TOP100.md C1, C2, C4, C5): daily challenge, achievements, modes, cosmetics -->
+    <string name="menu_daily">デイリーチャレンジ</string>
+    <string name="menu_achievements">実績</string>
+    <string name="daily_title">デイリーチャレンジ</string>
+    <string name="daily_scenery">%1$s · %2$s</string>
+    <string name="daily_rule">今日のルール：%1$s ― %2$s</string>
+    <plurals name="daily_goal">
+        <item quantity="other">%1$dパケット配達すると、今日が連続記録にカウントされます</item>
+    </plurals>
+    <string name="daily_done">今日はクリア済み · 今日のベスト：%1$,d</string>
+    <plurals name="daily_streak">
+        <item quantity="other">連続%1$d日 · 最高記録：%2$d日</item>
+    </plurals>
+    <string name="daily_no_streak">連続記録はまだありません · 今日最初のラウンドをプレイしよう</string>
+    <plurals name="daily_footer">
+        <item quantity="other">全員共通 · 次のチャレンジまであと%1$d時間</item>
+    </plurals>
+    <string name="daily_start">スタート</string>
+    <string name="a11y_cable_free">%1$sケーブル、無料</string>
+    <string name="hint_cable_info_free">%1$s：帯域%2$d · 1マスあたり%3$sミリ秒</string>
+    <string name="hint_cable_upgraded_free">ケーブルを%1$sに強化</string>
+    <string name="hint_cable_remove_free">%1$sケーブル · もう一度タップで撤去</string>
+    <string name="hint_cable_removed_free">ケーブルを撤去しました</string>
+    <string name="hint_daily_expired">このデイリーチャレンジの日付は終わりました（UTC）。このラウンドは連続記録と今日のベストに数えられません。新しいチャレンジがメインメニューで待っています。</string>
+    <string name="daily_pause">デイリーチャレンジ · %1$s</string>
+    <plurals name="toast_daily_counted">
+        <item quantity="other">デイリーチャレンジ達成 · 連続%1$d日</item>
+    </plurals>
+    <string name="game_over_daily_best">今日のベスト：%1$,d</string>
+    <string name="rule_tight_budget">緊縮予算</string>
+    <string name="rule_tight_budget_desc">初期予算が少なく、週の収入は40だけ</string>
+    <string name="rule_rush_hour">ラッシュアワー</string>
+    <string name="rule_rush_hour_desc">端末のリクエストが増える</string>
+    <string name="rule_fiber_day">光ファイバーの日</string>
+    <string name="rule_fiber_day_desc">最初からすべてのケーブルが使える</string>
+    <string name="rule_few_routers">ルーター不足</string>
+    <string name="rule_few_routers_desc">最初のルーターは1台だけ</string>
+    <string name="rule_storm">荒天</string>
+    <string name="rule_storm_desc">ショベルカーと停電が早く、頻繁にやってくる</string>
+    <string name="rule_wide_land">広い大地</string>
+    <string name="rule_wide_land_desc">地図が2周り大きい状態で始まる</string>
+    <string name="rule_crowd">大混雑</string>
+    <string name="rule_crowd_desc">新しい端末が増えるが、過負荷はゆっくりたまる</string>
+
+    <string name="mode_normal">ノーマル</string>
+    <string name="mode_endless">エンドレス</string>
+    <string name="mode_creative">クリエイティブ</string>
+    <string name="mode_pill">モード：%1$s</string>
+    <string name="mode_endless_desc">エンドレス：ゲームオーバーなし ― 過負荷は周辺を遅くするだけ</string>
+    <string name="mode_creative_desc">クリエイティブ：自由に建設、予算無制限、すべて発明済み</string>
+    <string name="pause_mode">%1$s · %2$s</string>
+    <string name="hud_resources_unlimited">予算 ∞  ·  ルーター ∞</string>
+    <string name="button_router_unlimited">ルーター (∞)</string>
+    <string name="button_access_point_unlimited">Wi-Fi (∞)</string>
+    <string name="button_cell_tower_unlimited">基地局 (∞)</string>
+    <string name="a11y_unlimited">無制限</string>
+    <string name="hint_endless_jam">%1$sが過負荷です：近くの端末のリクエストがゆっくりになります</string>
+    <string name="menu_best_endless">エンドレスのベスト：%1$,d</string>
+
+    <string name="achievements_title">実績とミッション</string>
+    <string name="achievements_count" tools:ignore="PluralsCandidate">%1$d / %2$d 達成</string>
+    <string name="ach_progress">%1$,d / %2$,d</string>
+    <string name="ach_reached">達成</string>
+    <string name="ach_open">未達成</string>
+    <string name="ach_reward_skin">報酬：ケーブルスキン「%1$s」</string>
+    <string name="ach_reward_theme">報酬：カラーテーマ「%1$s」</string>
+    <string name="toast_achievement">実績解除：%1$s</string>
+    <string name="toast_new_skin">新しいケーブルスキン「%1$s」· 設定から変更できます</string>
+    <string name="toast_new_theme">新しいカラーテーマ「%1$s」· 設定から変更できます</string>
+    <string name="ach_delivered_1">はじめてのパケット</string>
+    <string name="ach_delivered_100">郵便屋さん</string>
+    <string name="ach_delivered_1000">配送センター</string>
+    <string name="ach_delivered_10000">バックボーン</string>
+    <string name="ach_game_100">つながり上手</string>
+    <string name="ach_game_300">交差点</string>
+    <string name="ach_game_600">通信事業者</string>
+    <string name="ach_game_1000">大都市のプロバイダー</string>
+    <string name="ach_week_5">粘り強さ</string>
+    <string name="ach_week_10">10週間オンライン</string>
+    <string name="ach_week_15">24時間稼働</string>
+    <string name="ach_cables_10">ケーブル運び</string>
+    <string name="ach_cables_100">土木作業員</string>
+    <string name="ach_cables_500">ケーブルのジャングル</string>
+    <string name="ach_fiber_1">光の速さ</string>
+    <string name="ach_fiber_25">光ファイバーの国</string>
+    <string name="ach_upgrades_10">アップグレーダー</string>
+    <string name="ach_routers_5">分配の達人</string>
+    <string name="ach_routers_50">ルーターの森</string>
+    <string name="ach_server_1">パワーアップ</string>
+    <string name="ach_server_20">サーバーファーム</string>
+    <string name="ach_data_center_1">データセンター</string>
+    <string name="ach_access_points_3">圏外ゼロ</string>
+    <string name="ach_cell_towers_3">電波良好</string>
+    <string name="ach_repairs_5">保守サービス</string>
+    <string name="ach_games_1">失敗は成功のもと</string>
+    <string name="ach_games_10">常連さん</string>
+    <string name="ach_games_50">ネットワークの古参</string>
+    <string name="ach_weeks_50">何十年もオンライン</string>
+    <string name="ach_sceneries_3">世界を巡る</string>
+    <string name="ach_streaming_500">映画の夜</string>
+    <string name="ach_daily_1">今日のお仕事</string>
+    <string name="ach_daily_10">毎日の習慣</string>
+    <string name="ach_streak_3">3日連続</string>
+    <string name="ach_streak_7">1週間連続</string>
+    <string name="ach_endless_12">どこまでもオンライン</string>
+    <string name="ach_creative_1">自由建設</string>
+    <string name="ach_second_chance_1">セカンドチャンス</string>
+    <string name="ach_budget_300">倹約家</string>
+    <plurals name="ach_desc_delivered">
+        <item quantity="other">合計%1$,dパケットを配達する</item>
+    </plurals>
+    <plurals name="ach_desc_best_game">
+        <item quantity="other">1回のプレイで%1$,dパケットを配達する</item>
+    </plurals>
+    <plurals name="ach_desc_best_week">
+        <item quantity="other">1回のプレイで%1$d週間もちこたえる</item>
+    </plurals>
+    <plurals name="ach_desc_cables">
+        <item quantity="other">ケーブルを%1$,d本引く</item>
+    </plurals>
+    <plurals name="ach_desc_fiber">
+        <item quantity="other">光ファイバーを%1$d本引くか強化する</item>
+    </plurals>
+    <plurals name="ach_desc_cable_upgrades">
+        <item quantity="other">ケーブルを%1$d本強化する</item>
+    </plurals>
+    <plurals name="ach_desc_routers">
+        <item quantity="other">ルーターを%1$d台置く</item>
+    </plurals>
+    <plurals name="ach_desc_access_points">
+        <item quantity="other">Wi-Fiアクセスポイントを%1$d台置く</item>
+    </plurals>
+    <plurals name="ach_desc_cell_towers">
+        <item quantity="other">携帯基地局を%1$d基建てる</item>
+    </plurals>
+    <plurals name="ach_desc_server_upgrades">
+        <item quantity="other">サーバーを%1$d回強化する</item>
+    </plurals>
+    <plurals name="ach_desc_data_centers">
+        <item quantity="other">データセンターを%1$d棟建てる</item>
+    </plurals>
+    <plurals name="ach_desc_repairs">
+        <item quantity="other">切断されたケーブルを%1$d本修理する</item>
+    </plurals>
+    <plurals name="ach_desc_games_finished">
+        <item quantity="other">%1$d回最後までプレイする</item>
+    </plurals>
+    <plurals name="ach_desc_weeks_total">
+        <item quantity="other">合計%1$d週間プレイする</item>
+    </plurals>
+    <plurals name="ach_desc_sceneries">
+        <item quantity="other">%1$d種類のステージをプレイする</item>
+    </plurals>
+    <plurals name="ach_desc_streaming">
+        <item quantity="other">動画配信を%1$,d回届ける</item>
+    </plurals>
+    <plurals name="ach_desc_daily_done">
+        <item quantity="other">デイリーチャレンジを%1$d回達成する</item>
+    </plurals>
+    <plurals name="ach_desc_best_streak">
+        <item quantity="other">デイリーチャレンジを%1$d日連続で達成する</item>
+    </plurals>
+    <plurals name="ach_desc_endless_best_week">
+        <item quantity="other">エンドレスモードで第%1$d週に到達する</item>
+    </plurals>
+    <plurals name="ach_desc_creative_games">
+        <item quantity="other">クリエイティブモードを%1$d回始める</item>
+    </plurals>
+    <plurals name="ach_desc_second_chances">
+        <item quantity="other">ゲームオーバー後に%1$d回プレイを続ける</item>
+    </plurals>
+    <plurals name="ach_desc_richest">
+        <item quantity="other">予算を一度に%1$,d貯める</item>
+    </plurals>
+
+    <string name="settings_cable_skin">ケーブル：%1$s</string>
+    <string name="settings_color_theme">テーマ：%1$s</string>
+    <string name="settings_appearance">見た目</string>
+    <string name="settings_cosmetics_unlocked">解除済み：スキン %1$d/%2$d · テーマ %3$d/%4$d</string>
+    <string name="skin_classic">クラシック</string>
+    <string name="skin_copper">カッパー</string>
+    <string name="skin_neon">ネオン</string>
+    <string name="skin_pastel">パステル</string>
+    <string name="skin_gold">ゴールド</string>
+    <string name="theme_meadow">草原</string>
+    <string name="theme_autumn">秋</string>
+    <string name="theme_winter">冬</string>
+    <string name="theme_desert">砂漠</string>
+    <!-- Play Games, rating and sharing (docs/TOP100.md C3, C6, D2) -->
+    <string name="menu_leaderboards">ランキング</string>
+    <string name="game_over_share">ネットワークを共有</string>
+    <string name="share_chooser">ネットワークを共有</string>
+    <plurals name="share_text">
+        <item quantity="other">%1$sで作ったネットワーク：%2$sパケットを配達、%3$d年まで到達。これを超えられる？ #MiniNetworks</item>
+    </plurals>
+    <plurals name="share_card_packets">
+        <item quantity="other">パケット配達</item>
+    </plurals>
+    <string name="share_card_date">%1$d年 · 第%2$d週</string>
+    <string name="share_card_daily">デイリーチャレンジ · %1$s</string>
+    <string name="share_card_tagline">私のネットワークを超えられる？</string>
+    <plurals name="cloud_save_description">
+        <item quantity="other">%dパケット配達</item>
+    </plurals>
+
+    <string name="age_gate_title">生年月日</string>
+    <string name="age_gate_message">生年月日を選んでください。この端末内にのみ保存され、表示できる広告の判定に使われます。</string>
+    <string name="age_gate_day">日</string>
+    <string name="age_gate_month">月</string>
+    <string name="age_gate_year">年</string>
+    <string name="age_gate_exit">終了</string>
+    <string name="age_gate_invalid">有効な生年月日を選んでください。</string>
+    <string name="age_gate_minimum">Mini Networksは13歳以上の方を対象としています。</string>
+    <!-- Test builds only (docs/PLAY_AUTORELEASE.md): unlock paid content for Play reviewers. -->
+    <string name="reviewer_access">審査用アクセス</string>
+    <string name="reviewer_access_hint">審査コード</string>
+    <string name="reviewer_access_unlock">解除</string>
+    <string name="reviewer_access_enabled">審査用アクセスを有効にしました</string>
+    <string name="reviewer_access_invalid">審査コードが無効です</string>
+</resources>

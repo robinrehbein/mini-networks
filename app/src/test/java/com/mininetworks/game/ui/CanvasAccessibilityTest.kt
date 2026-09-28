@@ -91,10 +91,8 @@ class CanvasAccessibilityTest {
         val bounds = android.graphics.Rect()
         play.getBoundsInScreen(bounds)
         assertTrue("bounds as drawn: $bounds", bounds.width() > 0 && bounds.height() >= 48 * 3)
-        // "Continue" without a save is shown but disabled: no click.
-        val cont = info("menu:CONTINUE")
-        assertFalse(cont.isEnabled)
-        assertFalse(click("menu:CONTINUE"))
+        // "Continue" without a save is hidden, not greyed out (a disabled grey pill looked broken).
+        assertFalse(a11y.nodes.any { it.key == "menu:CONTINUE" })
 
         assertTrue(click("menu:PLAY"))
         frame()

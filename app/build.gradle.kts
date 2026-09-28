@@ -24,14 +24,39 @@ val playServicesInDebug = monetizationProperty("mininetworks.playServicesInDebug
 /** games-ids.xml still holds the placeholders of the repo (docs/RELEASE.md 11): Play Games then stays off at runtime. */
 val gamesIdsArePlaceholders = file("src/main/res/values/games-ids.xml").readText().contains(">TODO_")
 
-// Version scheme (docs/RELEASE.md): versionName is MAJOR.MINOR.PATCH, versionCode = MAJOR * 10000 + MINOR * 100 + PATCH,
-// so every new name uploads with a higher code. CI may pass -Pmininetworks.versionCode=<n> to upload a rebuild of the same name.
-val appVersionName = "0.9.0"
-val appVersionCode = (findProperty("mininetworks.versionCode") as String?)?.toInt()
-    ?: appVersionName.split('.').map(String::toInt).let { (major, minor, patch) ->
-        require(minor < 100 && patch < 100) { "versionName $appVersionName: MINOR and PATCH must stay below 100" }
-        major * 10000 + minor * 100 + patch
-    }
+// Release channel and version scheme (docs/RELEASE.md 1): ONE monotonic versionCode for every upload, local or CI.
+//   semantic   = MAJOR * 10000 + MINOR * 100 + PATCH  (0.9.2 -> 902, 1.0.0 -> 10000)
+//   testing    = semantic * 1000 + buildNumber (0..998)  CI uploads to internal/closed testing, name "0.9.2-test.<n>"
+//   production = semantic * 1000 + 999                   the store build, above every test build of its version and
+//                                                        below every test build of the next one
+// -Pmininetworks.channel=testing with -Pmininetworks.buildNumber=<n> makes a test build; everything else is production.
+val appVersionName = (findProperty("mininetworks.versionName") as String?) ?: "0.9.2"
+val releaseChannel = (findProperty("mininetworks.channel") as String?) ?: "production"
+require(releaseChannel == "production" || releaseChannel == "testing") { "mininetworks.channel must be production or testing" }
+val testBuildNumber = (findProperty("mininetworks.buildNumber") as String?)?.toInt()
+require((releaseChannel == "testing") == (testBuildNumber != null)) { "mininetworks.buildNumber goes with (and only with) mininetworks.channel=testing" }
+require(testBuildNumber == null || testBuildNumber in 0..998) { "mininetworks.buildNumber must be 0..998 (999 is the production build)" }
+val semanticVersion = appVersionName.split('.').map(String::toInt).let { (major, minor, patch) ->
+    require(minor < 100 && patch < 100) { "versionName $appVersionName: MINOR and PATCH must stay below 100" }
+    major * 10000 + minor * 100 + patch
+}
+val appVersionCode = semanticVersion * 1000 + (testBuildNumber ?: 999)
+val appVersionNameShown = if (testBuildNumber != null) "$appVersionName-test.$testBuildNumber" else appVersionName
+// Reviewer access (docs/PLAY_AUTORELEASE.md): a code that unlocks paid content for Play's reviewers without a purchase.
+// Only a testing-channel build may carry it; a production build with the variable set fails here, so the store bundle
+// can never contain it. Testing builds are never promoted to production (docs/RELEASE.md 1).
+val reviewerAccessCode = System.getenv("MININETWORKS_REVIEW_ACCESS_CODE") ?: ""
+require(reviewerAccessCode.matches(Regex("[A-Za-z0-9-]*"))) { "Reviewer access code must be alphanumeric" }
+require(reviewerAccessCode.isEmpty() || releaseChannel == "testing") {
+    "MININETWORKS_REVIEW_ACCESS_CODE is set, but this is a production build: the reviewer code may only go into " +
+        "-Pmininetworks.channel=testing builds (docs/RELEASE.md 1). Unset it for the store bundle."
+}
+
+/** Prints the versionCode and versionName of this configuration, for CI (play-release.yml) to check the upload. */
+tasks.register("printVersion") {
+    val line = "$appVersionCode $appVersionNameShown"
+    doLast { println(line) }
+}
 
 // Upload key (docs/RELEASE.md): only from Gradle properties (-P, ~/.gradle/gradle.properties) or environment variables,
 // never from a file in the repo. Without all four values, release builds are signed with the debug key so that
@@ -50,14 +75,15 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.mininetworks.game"
+        applicationId = "de.robinrehbein.mininetworks"
         minSdk = 26
         targetSdk = 36
         versionCode = appVersionCode
-        versionName = appVersionName
+        versionName = appVersionNameShown
         manifestPlaceholders["admobAppId"] = admobAppId
         buildConfigField("String", "ADMOB_INTERSTITIAL_ID", "\"$admobInterstitialId\"")
         buildConfigField("String", "ADMOB_REWARDED_ID", "\"$admobRewardedId\"")
+        buildConfigField("String", "REVIEW_ACCESS_CODE", "\"$reviewerAccessCode\"")
     }
 
     buildFeatures {
@@ -110,6 +136,12 @@ android {
         unitTests.isIncludeAndroidResources = true
         unitTests.all { test ->
             test.systemProperty("screenshots.dir", rootDir.resolve("docs/screenshots").absolutePath)
+            // Store listing assets (docs/TOP100.md F3): StoreScreenshotTest renders into docs/store/; more languages with -Pstore.locales=fr,ja,…
+            test.systemProperty("store.dir", rootDir.resolve("docs/store").absolutePath)
+            (findProperty("store.locales") as String?)?.let { test.systemProperty("store.locales", it) }
+            // Quicker iterations on the store art: -Pstore.only=en renders one language, -Pstore.devices=phone,phone-portrait some devices.
+            (findProperty("store.only") as String?)?.let { test.systemProperty("store.only", it) }
+            (findProperty("store.devices") as String?)?.let { test.systemProperty("store.devices", it) }
             test.systemProperty("sounds.dir", projectDir.resolve("src/main/res/raw").absolutePath)
             System.getenv("REGENERATE_SOUNDS")?.let { test.systemProperty("sounds.regenerate", it) }
             // Optional: point Robolectric at pre-downloaded android-all jars (CI / sandboxed containers).

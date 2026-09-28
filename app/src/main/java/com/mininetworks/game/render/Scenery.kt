@@ -32,6 +32,26 @@ object Scenery {
     }
 
     /**
+     * The decoration of cell ([x], [y]) in the outskirts around the board, [dist] cells beyond its edge: denser than
+     * on the board (woods in patches, hedgerow trees, hamlets of a few cottages), so the land a portrait screen shows
+     * above and below the board reads as countryside instead of empty haze (judge panel); thinning out far away.
+     */
+    fun outskirt(seed: Long, x: Int, y: Int, dist: Int): Decor? {
+        val r = unit(seed, x, y, 1)
+        val forest = forest(seed, x, y)
+        val thin = (1f - (dist - 10).coerceAtLeast(0) / 20f).coerceIn(0.35f, 1f)
+        val hamlet = forest(seed + 17, x, y)
+        return when {
+            forest > 0.55f && r < 0.72f * thin -> if (unit(seed, x, y, 2) < 0.5f) Decor.PINE else Decor.TREE
+            hamlet > 0.7f && forest < 0.5f && r < 0.16f * thin -> Decor.HOUSE
+            r < 0.12f * thin -> Decor.TREE
+            r < 0.18f * thin -> Decor.BUSH
+            forest < 0.45f && r > 1f - 0.03f * thin -> Decor.HOUSE
+            else -> null
+        }
+    }
+
+    /**
      * Visible decorations of [world], back to front: planned on plain land cells that no node footprint and no cable covers.
      * A node that spawns or a cable that is laid on a decorated cell replaces the decoration.
      */

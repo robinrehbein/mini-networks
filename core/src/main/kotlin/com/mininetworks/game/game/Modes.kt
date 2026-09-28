@@ -65,10 +65,11 @@ data class DailyChallenge(val day: Long, val seed: Long, val scenario: Scenario,
 
     /**
      * True if a run of this challenge with [delivered] packets counts for [streak] at [epochMillis]: on its own day
-     * only, with at least [STREAK_PACKETS] packets, and once per day.
+     * only, with at least [STREAK_PACKETS] packets, once per day, and never an [assisted][World.assisted] run (only an
+     * old save can hold one; a daily challenge offers no extras).
      */
-    fun countsFor(streak: DailyStreak, delivered: Int, epochMillis: Long) =
-        isToday(epochMillis) && delivered >= STREAK_PACKETS && !streak.counted(day)
+    fun countsFor(streak: DailyStreak, delivered: Int, epochMillis: Long, assisted: Boolean = false) =
+        !assisted && isToday(epochMillis) && delivered >= STREAK_PACKETS && !streak.counted(day)
 
     /** What "play again" starts at [epochMillis]: this challenge on its own day, afterwards the new day's one. */
     fun again(epochMillis: Long) = if (isToday(epochMillis)) this else at(epochMillis)

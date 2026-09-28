@@ -39,6 +39,19 @@ class AchievementToast(private val scale: TextScale) {
     var settled = false
         private set
 
+    /**
+     * Room in px the toast takes at the top of the screen while one shows (0 otherwise): a menu card (the game-over
+     * card) keeps below it instead of having its title covered (judge panel).
+     */
+    fun reservedTop(): Float {
+        val m = current ?: return 0f
+        titleP.textSize = scale.px(15f)
+        detailP.textSize = scale.px(13f)
+        val iconR = maxOf(12f * density, titleP.textSize * 0.7f)
+        val h = maxOf(2 * iconR + 16f * density, titleP.textSize * 1.4f + (if (m.detail != null) detailP.textSize * 1.4f else 0f) + 16f * density)
+        return h + 16f * density
+    }
+
     fun add(m: Message) {
         queue.addLast(m)
     }

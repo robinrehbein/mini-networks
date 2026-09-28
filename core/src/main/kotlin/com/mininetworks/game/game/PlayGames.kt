@@ -23,10 +23,12 @@ object Leaderboards {
     /**
      * What the game over of [world] submits at [nowMillis]: a normal game to its scenery's board, a daily challenge to
      * the daily board as long as its UTC day lasts (the same rule as its local best, C1). Endless games have no game
-     * over, creative games build for free, the tutorial and a game without a single delivery submit nothing.
+     * over, creative games build for free, the tutorial and a game without a single delivery submit nothing. Neither
+     * does an [assisted][World.assisted] run (continued after a game over or with a bonus router): the boards compare
+     * only games played by the same rules, whatever a player watched or bought.
      */
     fun forGameOver(world: World, nowMillis: Long): LeaderboardScore? {
-        if (world.guided || !world.gameOver || world.delivered <= 0) return null
+        if (world.guided || !world.gameOver || world.delivered <= 0 || world.assisted) return null
         val daily = world.daily
         return when {
             daily != null -> if (daily.isToday(nowMillis)) LeaderboardScore(DAILY, world.delivered.toLong(), dayTag(daily.day)) else null

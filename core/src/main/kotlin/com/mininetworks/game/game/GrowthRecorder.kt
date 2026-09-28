@@ -12,7 +12,7 @@ package com.mininetworks.game.game
  */
 class GrowthRecorder {
     /** One node as the time-lapse draws it. */
-    data class NodeMark(val x: Int, val y: Int, val kind: NodeKind, val service: Service?, val level: Int, val size: Int)
+    data class NodeMark(val x: Int, val y: Int, val kind: NodeKind, val service: Service?, val level: Int, val size: Int, val device: Device? = null)
 
     /** One cable: its technology and the cell centres it runs through. */
     data class CableMark(val type: CableType, val points: List<Vec2>)
@@ -71,7 +71,7 @@ class GrowthRecorder {
         week = w.week,
         delivered = w.delivered,
         unlocked = w.unlocked,
-        nodes = w.nodes.map { NodeMark(it.footprint[0].x, it.footprint[0].y, it.kind, it.service, it.level, if (it.isDataCenter) 2 else 1) },
+        nodes = w.nodes.map { NodeMark(it.footprint[0].x, it.footprint[0].y, it.kind, it.service, it.level, if (it.isDataCenter) 2 else 1, it.device) },
         cables = w.cables.map { CableMark(it.type, it.layout.waypoints) },
     )
 

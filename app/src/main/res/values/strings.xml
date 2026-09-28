@@ -29,7 +29,7 @@
     <string name="server_error_max_level">Rechenzentrum ist die höchste Stufe</string>
     <string name="server_error_no_budget">Zu wenig Budget, Aufrüsten kostet %1$d</string>
     <string name="server_error_no_space">Rechenzentrum braucht 2×2 freie Felder am Server</string>
-    <string name="incident_excavator_warning">Bagger im Anmarsch: Kabel wird in %1$d s gekappt</string>
+    <string name="incident_excavator_warning">Bagger! Kabel gekappt in %1$d s</string>
     <string name="incident_outage_warning">Stromausfall droht: %1$s fällt in %2$d s aus</string>
     <string name="incident_cut">Kabel gekappt: antippen = reparieren für %1$d · von selbst in %2$d s</string>
     <string name="incident_outage">Stromausfall: %1$s noch %2$d s ohne Strom</string>
@@ -60,8 +60,12 @@
     <string name="device_smart_home">Smart-Home-Hub</string>
     <string name="cable_isdn">ISDN</string>
     <string name="cable_dsl">DSL</string>
-    <string name="cable_coax">TV-Kabel</string>
+    <string name="cable_coax">Koax</string>
     <string name="cable_fiber">Glasfaser</string>
+    <string name="cable_short_isdn">ISDN</string>
+    <string name="cable_short_dsl">DSL</string>
+    <string name="cable_short_coax">Koax</string>
+    <string name="cable_short_fiber">Faser</string>
     <string name="node_router">Router</string>
     <string name="node_access_point">WLAN-Access-Point</string>
     <string name="node_cell_tower">Mobilfunkmast</string>
@@ -94,7 +98,7 @@
     <string name="reward_cell_tower_desc">Großer Funkradius, aber nur für Smartphone, Tablet und Uhr</string>
 
     <!-- Menus -->
-    <string name="menu_tagline">Vernetze die Stadt – von 1995 bis heute</string>
+    <string name="menu_tagline">Verkabel deine Stadt – von ISDN bis Glasfaser</string>
     <string name="menu_play">Spielen</string>
     <string name="menu_continue">Fortsetzen</string>
     <string name="menu_settings">Einstellungen</string>
@@ -114,11 +118,8 @@
 
     <!-- Game over -->
     <string name="game_over_title">Netz überlastet</string>
-    <plurals name="game_over_stats">
-        <item quantity="one">%1$d Paket zugestellt · Woche %2$d</item>
-        <item quantity="other">%1$d Pakete zugestellt · Woche %2$d</item>
-    </plurals>
     <string name="game_over_best">Bestwert: %1$d</string>
+    <string name="game_over_assisted">Mit Extras gespielt, zählt nicht für Bestwert und Bestenliste · Bestwert: %1$d</string>
     <string name="game_over_new_best">Neuer Bestwert!</string>
     <string name="game_over_again">Nochmal</string>
 
@@ -140,9 +141,9 @@
         <item quantity="one">%1$,d / %2$,d Paket</item>
         <item quantity="other">%1$,d / %2$,d Pakete</item>
     </plurals>
-    <string name="scenery_progress_in">in %1$s</string>
-    <string name="scenery_shop">Im Shop</string>
-    <string name="scenery_shop_pack">einzeln oder im Paket</string>
+    <string name="scenery_progress_in">in %1$s zum Freischalten</string>
+    <string name="scenery_shop">Im Shop freischalten</string>
+    <string name="scenery_shop_pack">Einzeln oder im Paket</string>
     <plurals name="scenery_hint_score">
         <item quantity="one">Erreiche %1$,d Paket in %2$s oder kaufe die Szenerie</item>
         <item quantity="other">Erreiche %1$,d Pakete in %2$s oder kaufe die Szenerie</item>
@@ -177,6 +178,7 @@
     <!-- Monetization (docs/PLAN.md 5.1) -->
     <string name="menu_remove_ads">Werbefrei · %1$s</string>
     <string name="settings_privacy">Datenschutz</string>
+    <string name="settings_privacy_policy">Datenschutzerklärung</string>
     <string name="game_over_continue_ad">Weiterspielen · Video ansehen</string>
     <string name="game_over_continue">Weiterspielen</string>
     <string name="reward_bonus_router_ad">+1 Router · Video ansehen</string>
@@ -213,11 +215,15 @@
     <string name="problem_too_narrow">%1$s: %2$s – kein Kabel breit genug (Bandbreite %3$d)</string>
     <string name="problem_ping">%1$s: %2$s – Ping %3$d ms, erlaubt %4$d ms</string>
     <string name="problem_jam">%1$s: %2$s – Stau, Kabel oder Server zu voll</string>
+    <string name="game_over_no_route">%1$s erreichte keinen %2$s-Server</string>
+    <string name="game_over_too_narrow">%1$s brauchte ein breiteres Kabel für %2$s</string>
+    <string name="game_over_ping">%2$s auf %1$s ruckelte: %3$d ms statt höchstens %4$d ms</string>
+    <string name="game_over_jam">%1$s steckte im Datenstau fest (%2$s)</string>
     <string name="drag_too_narrow">%1$s braucht Bandbreite %2$d</string>
     <string name="drag_ping">%1$s: Ping %2$d/%3$d ms</string>
     <string name="incident_countdown" translatable="false">%1$d s</string>
     <string name="hint_two_parts" translatable="false">%1$s · %2$s</string>
-    <string name="incident_more">%1$s (+%2$d)</string>
+    <string name="incident_more">%1$s · +%2$d weitere</string>
     <!-- Accessibility (TalkBack) descriptions of the canvas-drawn HUD, docs/TOP100.md A7 -->
     <string name="a11y_menu">Menü</string>
     <string name="a11y_pause">Uhr anhalten</string>
@@ -462,4 +468,19 @@
         <item quantity="one">%d Paket zugestellt</item>
         <item quantity="other">%d Pakete zugestellt</item>
     </plurals>
+
+    <string name="age_gate_title">Geburtsdatum</string>
+    <string name="age_gate_message">Bitte wähle dein Geburtsdatum. Es bleibt auf diesem Gerät und bestimmt, welche Anzeigen angezeigt werden dürfen.</string>
+    <string name="age_gate_day">Tag</string>
+    <string name="age_gate_month">Monat</string>
+    <string name="age_gate_year">Jahr</string>
+    <string name="age_gate_exit">Beenden</string>
+    <string name="age_gate_invalid">Bitte wähle ein gültiges Geburtsdatum.</string>
+    <string name="age_gate_minimum">Mini Networks ist für Spieler ab 13 Jahren.</string>
+    <!-- Test builds only (docs/PLAY_AUTORELEASE.md): unlock paid content for Play reviewers. -->
+    <string name="reviewer_access">Prüferzugang</string>
+    <string name="reviewer_access_hint">Prüfercode</string>
+    <string name="reviewer_access_unlock">Freischalten</string>
+    <string name="reviewer_access_enabled">Prüferzugang aktiviert</string>
+    <string name="reviewer_access_invalid">Ungültiger Prüfercode</string>
 </resources>

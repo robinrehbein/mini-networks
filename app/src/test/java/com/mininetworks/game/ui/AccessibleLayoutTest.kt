@@ -106,9 +106,9 @@ class AccessibleLayoutTest {
         view.drawSnapshot(Canvas(bmp), view.currentWorld, bmp.width, bmp.height, time = 1.3f, screen = Screen.DAILY)
         check(size, "daily", view.accessibilityLayer.nodes, expectedActions = 2)
         val game = FormFactorScreenshotTest.busyHud()
-        // Settings: sound, haptics, appearance, tutorial, privacy, back; appearance: three switches, skin, theme, back;
+        // Settings: sound, haptics, appearance, tutorial, privacy choices, privacy policy, back;
         // game over: again, share (docs/TOP100.md D2), main menu.
-        for ((screen, actions) in listOf(Screen.PAUSED to 4, Screen.SETTINGS to 6, Screen.APPEARANCE to 6, Screen.GAME_OVER to 3)) {
+        for ((screen, actions) in listOf(Screen.PAUSED to 4, Screen.SETTINGS to 7, Screen.APPEARANCE to 6, Screen.GAME_OVER to 3)) {
             bmp.eraseColor(0)
             view.drawSnapshot(Canvas(bmp), game, bmp.width, bmp.height, time = 1.3f, style = "Iso", screen = screen)
             check(size, screen.name, view.accessibilityLayer.nodes, expectedActions = actions)
@@ -121,8 +121,8 @@ class AccessibleLayoutTest {
      */
     @Test
     fun settingsLabelsAreNeverCutInEveryFormat() = everywhere { size, german, bmp ->
-        // German and English, each with the longest cosmetic names unlocked and picked.
-        for (lang in listOf("de", "en")) {
+        // Every language (docs/TOP100.md F1), each with the longest cosmetic names unlocked and picked.
+        for (lang in LANGUAGES) {
             RuntimeEnvironment.setQualifiers("+$lang")
             val view = if (lang == "de") german else GameView(app).also { it.accessibilityLayer.forceActive = true }
             view.monetization = FakeMonetization(privacyOptionsRequired = true)
@@ -144,6 +144,79 @@ class AccessibleLayoutTest {
             Cosmetic.reset()
         }
         RuntimeEnvironment.setQualifiers("+de")
+    }
+
+    /**
+     * docs/TOP100.md F1: no label of the main menu, the daily challenge's card, the pause menu and the game-over card is
+     * cut with "…" in any of the 12 languages, in every format at normal text size.
+     */
+    @Test
+    fun menuLabelsAreNeverCutInAnyLanguage() {
+        val cuts = ArrayList<String>()
+        for (lang in LANGUAGES) for (size in sizes) {
+            RuntimeEnvironment.setQualifiers("$lang-${size.qualifiers}")
+            val view = GameView(app)
+            view.accessibilityLayer.forceActive = true
+            view.monetization = FakeMonetization(prices = mapOf(Entitlements.REMOVE_ADS to "2,99 €"), privacyOptionsRequired = true)
+            view.gameServices = FakeGameServices()
+            val bmp = Bitmap.createBitmap(size.width, size.height, Bitmap.Config.ARGB_8888)
+            val game = FormFactorScreenshotTest.busyHud()
+            for (screen in listOf(null, Screen.DAILY, Screen.PAUSED, Screen.GAME_OVER)) {
+                // The daily card's footer counts the hours to the next challenge; check the shortest and the longest
+                // wording (1 hour, 5 hours, 23 hours) instead of whatever the real clock says right now.
+                val clocks = if (screen == Screen.DAILY) DAILY_FOOTER_CLOCKS else listOf(null)
+                for (clock in clocks) {
+                    if (clock != null) view.wallClock = { clock }
+                    bmp.eraseColor(0)
+                    val world = if (screen == null || screen == Screen.DAILY) view.currentWorld else game
+                    view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 1.3f, style = "Iso", screen = screen)
+                    view.accessibilityLayer.nodes.filter { it.shortened }.forEach { cuts += "$lang, ${size.id}, ${screen ?: "MAIN"}: ${it.text}" }
+                }
+            }
+        }
+        RuntimeEnvironment.setQualifiers("de")
+        assertTrue("labels cut with …:\n${cuts.joinToString("\n")}", cuts.isEmpty())
+    }
+
+    /**
+     * The game-over card on a 360 dp high phone (the two-part card with the time-lapse): the reason for the loss, the
+     * key learning moment of a run, stays at least [MIN_REASON_SP] sp and the entries at least [MIN_ENTRY_SP] sp in
+     * every language, also with the longest list of entries ("continue" offered). The picture gives way first.
+     */
+    @Test
+    fun gameOverCardKeepsReasonAndEntriesReadableOnLowPhones() {
+        val problems = ArrayList<String>()
+        for (size in sizes.filter { it.id.startsWith("phone-") && !it.id.endsWith("portrait") }) for (lang in LANGUAGES) {
+            RuntimeEnvironment.setQualifiers("$lang-${size.qualifiers}")
+            val view = lostGameView(app) { it.accessibilityLayer.forceActive = true }
+            view.monetization = FakeMonetization()
+            val bmp = Bitmap.createBitmap(size.width, size.height, Bitmap.Config.ARGB_8888)
+            screen = RectF(0f, 0f, size.width.toFloat(), size.height.toFloat())
+            view.drawSnapshot(Canvas(bmp), view.currentWorld, bmp.width, bmp.height, time = 1.3f, screen = null)
+            val nodes = view.accessibilityLayer.nodes
+            // Again, continue, share, main menu.
+            check("${size.id}, $lang", "game over", nodes, expectedActions = 4)
+            val density = app.resources.displayMetrics.density
+            val lines = nodes.single { it.key == "menu:lines" }
+            assertTrue("$lang: no loss reason on the card", view.currentWorld.failure != null && lines.text.isNotEmpty())
+            if (lines.textPx / density < MIN_REASON_SP) problems += "${size.id}, $lang: reason at ${lines.textPx / density} sp"
+            for (b in nodes.filter { it.key.startsWith("menu:") && it.kind == UiNode.Kind.BUTTON }) {
+                if (b.textPx / density < MIN_ENTRY_SP) problems += "${size.id}, $lang: ${b.text} at ${b.textPx / density} sp"
+                if (b.shortened) problems += "${size.id}, $lang: ${b.text} cut with …"
+            }
+            val picture = nodes.firstOrNull { it.key == "menu:picture" }
+            if (picture == null) {
+                problems += "${size.id}, $lang: no time-lapse"
+            } else {
+                // The time-lapse spans the text pane: no empty band above the title's height or below the last entry.
+                val title = nodes.single { it.key == "menu:title" }
+                val lastEntry = nodes.filter { it.key.startsWith("menu:") && it.kind == UiNode.Kind.BUTTON }.maxOf { it.bounds.bottom }
+                if (picture.bounds.top > title.bounds.top + density) problems += "${size.id}, $lang: time-lapse starts below the title"
+                if (picture.bounds.bottom < lastEntry - density) problems += "${size.id}, $lang: time-lapse ends above the last entry"
+            }
+        }
+        RuntimeEnvironment.setQualifiers("de")
+        assertTrue(problems.joinToString("\n"), problems.isEmpty())
     }
 
     @Test
@@ -194,6 +267,42 @@ class AccessibleLayoutTest {
         SettingsStore(app).tutorialSeen = true
     }
 
+    /**
+     * docs/TOP100.md F1: in every language the HUD (with the paused banner and a long hint), the week reward and the
+     * tutorial keep their elements apart, inside the screen and at least 48 dp, in every format at text size 1.0 and 2.0.
+     */
+    @Test
+    fun hudRewardAndTutorialStayApartInEveryLanguage() {
+        for (lang in LANGUAGES) {
+            RuntimeEnvironment.setQualifiers(lang)
+            everywhere { size, view, bmp ->
+                val where = "$lang, $size"
+                val world = FormFactorScreenshotTest.busyHud()
+                view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 1.3f, style = "Iso")
+                check(where, "hud", view.accessibilityLayer.nodes.filter { it.key != "hud:map" }, expectedActions = 9)
+                view.accessibilityLayer.performAction(view.accessibilityLayer.idOf("hud:pause"), android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK, null)
+                view.accessibilityLayer.performAction(view.accessibilityLayer.idOf("hud:cable:FIBER"), android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK, null)
+                view.advance(0f)
+                view.drawCurrent(Canvas(bmp))
+                check(where, "hud-paused", view.accessibilityLayer.nodes.filter { it.key != "hud:map" }, expectedActions = 9)
+                val reward = GameView(app).also { it.accessibilityLayer.forceActive = true; it.monetization = FakeMonetization(owned = mutableSetOf(Entitlements.REMOVE_ADS)) }
+                bmp.eraseColor(0)
+                reward.drawSnapshot(Canvas(bmp), FormFactorScreenshotTest.rewardWorld(), bmp.width, bmp.height, time = 1.3f, style = "Iso")
+                check(where, "reward", reward.accessibilityLayer.nodes, expectedActions = 4)
+                SettingsStore(app).tutorialSeen = false
+                val tutorial = GameView(app).also { it.accessibilityLayer.forceActive = true }
+                val w = tutorial.currentTutorial!!.world
+                bmp.eraseColor(0)
+                tutorial.drawSnapshot(Canvas(bmp), w, bmp.width, bmp.height, time = 0.3f, screen = null)
+                tutorial.advance(0.5f)
+                tutorial.drawCurrent(Canvas(bmp))
+                check(where, "tutorial", tutorial.accessibilityLayer.nodes.filter { it.key != "hud:map" }, expectedActions = 5)
+                SettingsStore(app).tutorialSeen = true
+            }
+        }
+        RuntimeEnvironment.setQualifiers("de")
+    }
+
     /** Runs [body] with a fresh view for every size at font scale 1.0 and 2.0. */
     private fun everywhere(body: (String, GameView, Bitmap) -> Unit) {
         for (size in sizes) for (font in listOf(1f, 2f)) {
@@ -211,7 +320,19 @@ class AccessibleLayoutTest {
     private var screen = RectF()
 
     private companion object {
+        private const val DAY = 86_400_000L
+        private const val HOUR = 3_600_000L
+
+        /** Wall clocks 1, 5 and 23 hours before the next UTC day: every plural form and the widest number. */
+        val DAILY_FOOTER_CLOCKS = listOf(20_000 * DAY + 23 * HOUR, 20_000 * DAY + 19 * HOUR, 20_000 * DAY + 1 * HOUR)
+
         val HEADER = setOf("achievement:back", "achievement:title", "achievement:count")
+        /** Resource qualifiers of the 12 languages (docs/TOP100.md F1). */
+        val LANGUAGES = listOf("de", "en", "fr", "es", "it", "pt-rBR", "pl", "nl", "tr", "ja", "ko", "zh-rCN")
+        /** Smallest size of the loss reason on the game-over card, in sp at font scale 1. */
+        const val MIN_REASON_SP = 12f
+        /** Smallest label size of the game-over card's entries, in sp at font scale 1. */
+        const val MIN_ENTRY_SP = 14f
     }
 
     private fun check(size: String, what: String, nodes: List<UiNode>, expectedActions: Int, offScreenOk: (String) -> Boolean = { false }) {
@@ -238,5 +359,4 @@ class AccessibleLayoutTest {
                 fail("$size, $what: ${nodes[i].key} $a overlaps ${nodes[j].key} $b")
             }
         }
-    }
-}
+    }}

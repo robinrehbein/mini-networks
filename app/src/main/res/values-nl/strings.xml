@@ -1,0 +1,481 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- HUD -->
+    <string name="hud_date">%1$d · Week %2$d</string>
+    <plurals name="hud_delivered">
+        <item quantity="one">%1$d pakket</item>
+        <item quantity="other">%1$d pakketten</item>
+    </plurals>
+    <string name="hud_resources">Budget %1$d  ·  Routers %2$d</string>
+    <string name="hud_clock_day">Dag · %1$s</string>
+    <string name="hud_clock_night">Nacht · %1$s · back-ups om %2$s</string>
+    <string name="button_router">Router (%1$d)</string>
+    <string name="hint_place_router">Tik op een vrij vak</string>
+    <string name="button_access_point">Wifi (%1$d)</string>
+    <string name="button_cell_tower">Mast (%1$d)</string>
+    <string name="hint_access_point">Tik op het accesspoint om van kanaal te wisselen · houd vast voor 5 GHz (%1$d)</string>
+    <string name="hint_channel">%1$s: kanaal %2$d</string>
+    <plurals name="hint_channel_interference">
+        <item quantity="one">%1$s: kanaal %2$d · stoort met %3$d buur</item>
+        <item quantity="other">%1$s: kanaal %2$d · stoort met %3$d buren</item>
+    </plurals>
+    <string name="hint_5ghz">%1$s zendt nu op 5 GHz (bereik 1)</string>
+    <string name="wifi_error_already_5ghz">Zendt al op 5 GHz</string>
+    <string name="wifi_error_no_budget">Te weinig budget, 5 GHz kost %1$d</string>
+    <string name="hint_map_grew">De stad groeit: nieuwe vakken aan de rand</string>
+    <string name="server_error_max_level">Het datacenter is het hoogste niveau</string>
+    <string name="server_error_no_budget">Te weinig budget, upgraden kost %1$d</string>
+    <string name="server_error_no_space">Een datacenter heeft 2×2 vrije vakken bij de server nodig</string>
+    <string name="incident_excavator_warning">Graafmachine! Kabel stuk over %1$d s</string>
+    <string name="incident_outage_warning">Stroomstoring dreigt: %1$s valt uit over %2$d s</string>
+    <string name="incident_cut">Kabel geknipt: tik om te repareren voor %1$d · vanzelf over %2$d s</string>
+    <string name="incident_outage">Stroomstoring: %1$s nog %2$d s zonder stroom</string>
+    <string name="repair_error_no_budget">Te weinig budget, repareren kost %1$d</string>
+    <string name="hint_repaired">Kabel gerepareerd</string>
+    <plurals name="hud_vouchers">
+        <item quantity="one">%1$d serverbon · tik op een server</item>
+        <item quantity="other">%1$d serverbonnen · tik op een server</item>
+    </plurals>
+
+    <!-- Names of game objects -->
+    <string name="service_mail">Mail</string>
+    <string name="service_call">Bellen</string>
+    <string name="service_gaming">Gaming</string>
+    <string name="service_streaming">Streaming</string>
+    <string name="service_video_call">Videobellen</string>
+    <string name="service_camera_upload">Camera-upload</string>
+    <string name="service_cloud_backup">Cloudback-up</string>
+    <string name="device_pc">Pc</string>
+    <string name="device_phone">Telefoon</string>
+    <string name="device_laptop">Laptop</string>
+    <string name="device_console">Console</string>
+    <string name="device_smartphone">Smartphone</string>
+    <string name="device_tv">Smart-tv</string>
+    <string name="device_tablet">Tablet</string>
+    <string name="device_watch">Smartwatch</string>
+    <string name="device_camera">Beveiligingscamera</string>
+    <string name="device_smart_home">Smarthomehub</string>
+    <string name="cable_isdn">ISDN</string>
+    <string name="cable_dsl">DSL</string>
+    <string name="cable_coax">Coax</string>
+    <string name="cable_fiber">Glasvezel</string>
+    <string name="cable_short_isdn">ISDN</string>
+    <string name="cable_short_dsl">DSL</string>
+    <string name="cable_short_coax">Coax</string>
+    <string name="cable_short_fiber">Glas</string>
+    <string name="node_router">Router</string>
+    <string name="node_access_point">Wifi-accesspoint</string>
+    <string name="node_cell_tower">Zendmast</string>
+    <string name="node_server">Server voor %1$s</string>
+
+    <!-- Week news and cable feedback -->
+    <string name="news_with_year">%1$d · %2$s</string>
+    <string name="news_items">Nieuw: %1$s</string>
+    <string name="list_separator">", "</string>
+    <string name="drag_cost">%1$s · %2$d</string>
+    <string name="connect_error_same_node">Zelfde knooppunt</string>
+    <string name="connect_error_already_connected">Al verbonden</string>
+    <string name="connect_error_not_invented">%1$s is nog niet uitgevonden</string>
+    <string name="connect_error_ports_full">%1$s: alle poorten bezet</string>
+    <string name="connect_error_no_budget">Budget reikt niet</string>
+
+    <!-- Week rewards -->
+    <string name="reward_prompt">Weekloon: +%1$d · Tik op een kaart voor een extraatje</string>
+    <string name="reward_amount_plus">+%1$d</string>
+    <string name="reward_amount_voucher">Gratis</string>
+    <string name="reward_budget_title">Budget</string>
+    <string name="reward_budget_desc">Voor nieuwe kabels en upgrades</string>
+    <string name="reward_routers_title">Routers</string>
+    <string name="reward_routers_desc">Verdelers met 6 poorten voor je netwerk</string>
+    <string name="reward_voucher_title">Serverbon</string>
+    <string name="reward_voucher_desc">Je volgende serverupgrade is gratis</string>
+    <string name="reward_access_point_title">Wifi-accesspoint</string>
+    <string name="reward_access_point_desc">Verbindt draadloos tot 4 apparaten in de buurt</string>
+    <string name="reward_cell_tower_title">Zendmast</string>
+    <string name="reward_cell_tower_desc">Groot bereik, maar alleen voor smartphones, tablets en horloges</string>
+
+    <!-- Menus -->
+    <string name="menu_tagline">Verbind je stad – van ISDN tot glasvezel</string>
+    <string name="menu_play">Spelen</string>
+    <string name="menu_continue">Verder</string>
+    <string name="menu_settings">Instellingen</string>
+    <string name="menu_best">Record: %1$d</string>
+    <string name="pause_title">Pauze</string>
+    <string name="pause_status">%1$s  ·  %2$s</string>
+    <string name="menu_resume">Hervatten</string>
+    <string name="menu_restart">Opnieuw</string>
+    <string name="menu_main">Hoofdmenu</string>
+    <string name="menu_back">Terug</string>
+    <string name="settings_sound">Geluid</string>
+    <string name="settings_haptics">Trillen</string>
+    <string name="settings_overview">Plat overzicht</string>
+    <string name="settings_free_rotation">Vrij draaien</string>
+    <string name="settings_colorblind">Kleurenblindmodus</string>
+    <string name="settings_language">De taal volgt de systeemtaal</string>
+
+    <!-- Game over -->
+    <string name="game_over_title">Netwerk overbelast</string>
+    <string name="game_over_best">Record: %1$d</string>
+    <string name="game_over_assisted">Gespeeld met extraatjes, telt niet voor record en ranglijst · Record: %1$d</string>
+    <string name="game_over_new_best">Nieuw record!</string>
+    <string name="game_over_again">Nog een keer</string>
+
+    <!-- Sceneries -->
+    <string name="scenery_title">Kies een landschap</string>
+    <string name="scenery_river_town">Rivierstadje</string>
+    <string name="scenery_metropolis">Metropool</string>
+    <string name="scenery_island_harbor">Eiland en haven</string>
+    <string name="scenery_mountain_village">Bergdorp</string>
+    <string name="scenery_future_2030">Toekomst 2030</string>
+    <string name="scenery_river_town_desc">Eén rivier · om te beginnen</string>
+    <string name="scenery_metropolis_desc">Twee rivieren · hoogbouw stoort de radio</string>
+    <string name="scenery_island_harbor_desc">Veel water · zeekabel en radio</string>
+    <string name="scenery_mountain_village_desc">Bergen blokkeren radio · dure passen</string>
+    <string name="scenery_future_2030_desc">6G voor alles · servers in een baan om de aarde</string>
+    <string name="scenery_from_year">vanaf %1$d</string>
+    <string name="scenery_not_played">Nog niet gespeeld</string>
+    <plurals name="scenery_progress">
+        <item quantity="one">%1$,d / %2$,d pakket</item>
+        <item quantity="other">%1$,d / %2$,d pakketten</item>
+    </plurals>
+    <string name="scenery_progress_in">in %1$s</string>
+    <string name="scenery_shop">In de winkel</string>
+    <string name="scenery_shop_pack">los of in de bundel</string>
+    <plurals name="scenery_hint_score">
+        <item quantity="one">Bezorg %1$,d pakket in %2$s of koop dit landschap</item>
+        <item quantity="other">Bezorg %1$,d pakketten in %2$s of koop dit landschap</item>
+    </plurals>
+    <string name="scenery_hint_no_shop">De winkel is nu niet bereikbaar</string>
+
+    <!-- Tutorial -->
+    <string name="tutorial_kicker">TUTORIAL · %1$d/%2$d</string>
+    <string name="tutorial_skip">Overslaan</string>
+    <string name="tutorial_play">Spelen</string>
+    <string name="tutorial_pause">Tutorial · stap %1$d/%2$d</string>
+    <string name="settings_tutorial">Tutorial bekijken</string>
+    <string name="tutorial_cable_title">Leg een kabel</string>
+    <string name="tutorial_cable_text">De pc wil een mail versturen. Sleep met je vinger van de pc naar de mailserver.</string>
+    <string name="tutorial_router_title">Plaats een router</string>
+    <string name="tutorial_router_text">Een apparaat heeft maar 2 poorten, een router 6. Tik onderaan op ‘Router’ en dan op een vrij vak bij de telefoons.</string>
+    <string name="tutorial_router_connect_text">Verbind nu beide telefoons en de belserver met de router. Die verdeelt de gesprekken.</string>
+    <string name="tutorial_bandwidth_title">Bandbreedte</string>
+    <string name="tutorial_bandwidth_text">1998: de tv wil streamen. Verbind hem met de streamingserver.</string>
+    <string name="tutorial_bandwidth_narrow_text">Te smal! Streaming heeft bandbreedte %1$d nodig, ISDN draagt maar %2$d. Kies onderaan DSL, dat draagt %3$d.</string>
+    <string name="tutorial_bandwidth_upgrade_text">Tik nu op de ISDN-kabel om hem naar DSL te upgraden. Je betaalt alleen het verschil.</string>
+    <string name="tutorial_ping_title">Ping</string>
+    <string name="tutorial_ping_text">2010: de pc wil online gamen. Gaming vraagt een korte ping, heen en terug hooguit %1$d ms. Verbind de pc met de gameserver.</string>
+    <string name="tutorial_ping_slow_text">Ping %1$d ms: te traag om te gamen (hooguit %2$d ms). Alleen glasvezel is snel genoeg. Kies glasvezel en tik op de kabel.</string>
+    <string name="tutorial_overload_title">Overbelasting</string>
+    <plurals name="tutorial_overload_text">
+        <item quantity="one">Een nieuwe pc zonder aansluiting! Vanaf %1$d wachtend verzoek loopt een rode ring vol. Is hij rond, dan is het spel voorbij. Sluit de pc aan!</item>
+        <item quantity="other">Een nieuwe pc zonder aansluiting! Vanaf %1$d wachtende verzoeken loopt een rode ring vol. Is hij rond, dan is het spel voorbij. Sluit de pc aan!</item>
+    </plurals>
+    <string name="tutorial_done_title">Gelukt!</string>
+    <string name="tutorial_done_text">Je kent de basis. Tips: tik op een server om hem te upgraden, tik twee keer op een kabel om hem weg te halen, en pauze zet de klok stil terwijl je verder bouwt. Veel plezier!</string>
+    <!-- Monetization (docs/PLAN.md 5.1) -->
+    <string name="menu_remove_ads">Reclamevrij · %1$s</string>
+    <string name="settings_privacy">Privacy</string>
+    <string name="settings_privacy_policy">Privacybeleid</string>
+    <string name="game_over_continue_ad">Doorspelen · video bekijken</string>
+    <string name="game_over_continue">Doorspelen</string>
+    <string name="reward_bonus_router_ad">+1 router · video bekijken</string>
+    <string name="reward_bonus_router">+1 extra router</string>
+    <string name="hint_bonus_router">+1 router</string>
+    <string name="hint_continued">Overbelastingsringen leeg · één keer per spel</string>
+    <string name="scenery_pack_buy">Alle landschappen · %1$s</string>
+
+    <!-- Controls feedback -->
+    <string name="hud_paused">Pauze · bouw gerust verder</string>
+    <string name="hint_cable_info">%1$s: bandbreedte %2$d · %3$s ms per vak · %4$d per vak</string>
+    <string name="hint_cable_too_narrow">te smal voor %1$s</string>
+    <string name="hint_cable_upgraded">Kabel geüpgraded naar %1$s · −%2$d</string>
+    <string name="cable_error_no_budget">Te weinig budget, upgraden kost %1$d</string>
+    <string name="hint_cable_remove">%1$s-kabel · tik nog eens om weg te halen (+%2$d)</string>
+    <string name="hint_cable_removed">Kabel weggehaald, terug: +%1$d</string>
+    <string name="place_error_no_stock">Geen voorraad meer: %1$s</string>
+    <string name="place_error_locked">Dit vak is nog niet vrijgegeven</string>
+    <string name="place_error_occupied">Dit vak is al bezet</string>
+    <string name="place_error_terrain">Alleen op vrij land</string>
+    <string name="hint_router_pick_up">Router zonder kabels · tik nog eens om hem terug op voorraad te leggen</string>
+    <string name="hint_router_picked_up">Router terug op voorraad</string>
+    <string name="server_tier">niveau %1$d</string>
+    <string name="server_tier_data_center">datacenter</string>
+    <string name="hint_server_preview">%1$s → %2$s voor %3$d · tik nog eens</string>
+    <string name="hint_server_preview_voucher">%1$s → %2$s met een bon · tik nog eens</string>
+    <string name="hint_server_upgraded">%1$s nu: %2$s</string>
+    <string name="hint_server_busy">%1$s kan het niet bijbenen: tik om te upgraden</string>
+    <string name="hint_radio_reward">Nieuw: %1$s – te winnen als weekbeloning</string>
+    <string name="hint_service_needs">%1$s heeft bandbreedte %2$d nodig</string>
+    <string name="hint_service_needs_ping">%1$s heeft bandbreedte %2$d nodig en een ping van hooguit %3$d ms</string>
+    <string name="device_wants">%1$s wil: %2$s</string>
+    <string name="problem_no_route">%1$s: %2$s – geen weg naar een server</string>
+    <string name="problem_too_narrow">%1$s: %2$s – geen kabel breed genoeg (bandbreedte %3$d)</string>
+    <string name="problem_ping">%1$s: %2$s – ping %3$d ms, toegestaan %4$d ms</string>
+    <string name="problem_jam">%1$s: %2$s – file, kabels of server te vol</string>
+    <string name="game_over_no_route">%1$s bereikte geen %2$s-server</string>
+    <string name="game_over_too_narrow">%1$s had een bredere kabel nodig voor %2$s</string>
+    <string name="game_over_ping">%2$s op %1$s haperde: %3$d ms, max %4$d ms</string>
+    <string name="game_over_jam">%1$s kwam vast te zitten in een datafile (%2$s)</string>
+    <string name="drag_too_narrow">%1$s heeft bandbreedte %2$d nodig</string>
+    <string name="drag_ping">%1$s: ping %2$d/%3$d ms</string>
+    <string name="incident_more">%1$s · +%2$d meer</string>
+    <!-- Accessibility (TalkBack) descriptions of the canvas-drawn HUD, docs/TOP100.md A7 -->
+    <string name="a11y_menu">Menu</string>
+    <string name="a11y_pause">Klok stilzetten</string>
+    <string name="a11y_compass">Kaart terugdraaien naar het noorden</string>
+    <string name="a11y_recap" tools:ignore="PluralsCandidate">Timelapse: je netwerk van week %1$d tot week %2$d</string>
+    <string name="a11y_router">Router plaatsen (op voorraad: %1$d)</string>
+    <string name="a11y_access_point">Wifi-accesspoint plaatsen (op voorraad: %1$d)</string>
+    <string name="a11y_cell_tower">Zendmast plaatsen (op voorraad: %1$d)</string>
+    <string name="a11y_cable">Kabel %1$s, prijs per vak: %2$d</string>
+    <string name="a11y_locked">vergrendeld</string>
+    <string name="a11y_map">Kaart · knooppunten: %1$d · kabels: %2$d. Leg kabels door van knooppunt naar knooppunt te slepen.</string>
+    <!-- Retention (docs/TOP100.md C1, C2, C4, C5): daily challenge, achievements, modes, cosmetics -->
+    <string name="menu_daily">Dagopdracht</string>
+    <string name="menu_achievements">Prestaties</string>
+    <string name="daily_title">Dagopdracht</string>
+    <string name="daily_scenery">%1$s · %2$s</string>
+    <string name="daily_rule">Regel van de dag: %1$s – %2$s</string>
+    <plurals name="daily_goal">
+        <item quantity="one">Bezorg %1$d pakket, dan telt de dag mee voor je reeks</item>
+        <item quantity="other">Bezorg %1$d pakketten, dan telt de dag mee voor je reeks</item>
+    </plurals>
+    <string name="daily_done">Vandaag gehaald · record vandaag: %1$,d</string>
+    <plurals name="daily_streak">
+        <item quantity="one">Reeks: %1$d dag · record: %2$d</item>
+        <item quantity="other">Reeks: %1$d dagen · record: %2$d</item>
+    </plurals>
+    <string name="daily_no_streak">Nog geen reeks · speel vandaag je eerste ronde</string>
+    <plurals name="daily_footer">
+        <item quantity="one">Voor iedereen gelijk · nieuwe opdracht over %1$d uur</item>
+        <item quantity="other">Voor iedereen gelijk · nieuwe opdracht over %1$d uur</item>
+    </plurals>
+    <string name="daily_start">Aan de slag</string>
+    <string name="a11y_cable_free">Kabel %1$s, gratis</string>
+    <string name="hint_cable_info_free">%1$s: bandbreedte %2$d · %3$s ms per vak</string>
+    <string name="hint_cable_upgraded_free">Kabel geüpgraded naar %1$s</string>
+    <string name="hint_cable_remove_free">%1$s-kabel · tik nog eens om weg te halen</string>
+    <string name="hint_cable_removed_free">Kabel weggehaald</string>
+    <string name="hint_daily_expired">De dag van deze dagopdracht is voorbij (UTC): deze ronde telt niet meer mee voor je reeks en het dagrecord. De nieuwe opdracht wacht in het hoofdmenu.</string>
+    <string name="daily_pause">Dagopdracht · %1$s</string>
+    <plurals name="toast_daily_counted">
+        <item quantity="one">Dagopdracht gehaald · reeks: %1$d dag</item>
+        <item quantity="other">Dagopdracht gehaald · reeks: %1$d dagen</item>
+    </plurals>
+    <string name="game_over_daily_best">Record vandaag: %1$,d</string>
+    <string name="rule_tight_budget">Krap budget</string>
+    <string name="rule_tight_budget_desc">minder startgeld, maar 40 per week</string>
+    <string name="rule_rush_hour">Spitsuur</string>
+    <string name="rule_rush_hour_desc">apparaten vragen vaker</string>
+    <string name="rule_fiber_day">Glasvezeldag</string>
+    <string name="rule_fiber_day_desc">alle kabels zijn meteen uitgevonden</string>
+    <string name="rule_few_routers">Weinig routers</string>
+    <string name="rule_few_routers_desc">maar één router bij de start</string>
+    <string name="rule_storm">Noodweer</string>
+    <string name="rule_storm_desc">graafmachines en stroomstoringen komen eerder en vaker</string>
+    <string name="rule_wide_land">Weids land</string>
+    <string name="rule_wide_land_desc">de kaart begint twee ringen groter</string>
+    <string name="rule_crowd">Drukte</string>
+    <string name="rule_crowd_desc">meer nieuwe apparaten, maar overbelasting loopt trager op</string>
+
+    <string name="mode_normal">Normaal</string>
+    <string name="mode_endless">Eindeloos</string>
+    <string name="mode_creative">Creatief</string>
+    <string name="mode_pill">Modus: %1$s</string>
+    <string name="mode_endless_desc">Eindeloos: geen game over – overbelasting remt alleen de buurt af</string>
+    <string name="mode_creative_desc">Creatief: vrij bouwen, onbeperkt budget, alles uitgevonden</string>
+    <string name="pause_mode">%1$s · %2$s</string>
+    <string name="hud_resources_unlimited">Budget ∞  ·  Routers ∞</string>
+    <string name="button_router_unlimited">Router (∞)</string>
+    <string name="button_access_point_unlimited">Wifi (∞)</string>
+    <string name="button_cell_tower_unlimited">Mast (∞)</string>
+    <string name="a11y_unlimited">onbeperkt</string>
+    <string name="hint_endless_jam">%1$s is overbelast: apparaten in de buurt vragen nu trager</string>
+    <string name="menu_best_endless">Record eindeloos: %1$,d</string>
+
+    <string name="achievements_title">Prestaties en missies</string>
+    <string name="achievements_count" tools:ignore="PluralsCandidate">%1$d / %2$d behaald</string>
+    <string name="ach_progress">%1$,d / %2$,d</string>
+    <string name="ach_reached">Behaald</string>
+    <string name="ach_open">nog open</string>
+    <string name="ach_reward_skin">Beloning: kabelskin %1$s</string>
+    <string name="ach_reward_theme">Beloning: kleurthema %1$s</string>
+    <string name="toast_achievement">Prestatie: %1$s</string>
+    <string name="toast_new_skin">Nieuw: kabelskin %1$s · in de instellingen</string>
+    <string name="toast_new_theme">Nieuw: kleurthema %1$s · in de instellingen</string>
+    <string name="ach_delivered_1">Eerste pakket</string>
+    <string name="ach_delivered_100">Postbode</string>
+    <string name="ach_delivered_1000">Sorteercentrum</string>
+    <string name="ach_delivered_10000">Backbone</string>
+    <string name="ach_game_100">Goed verbonden</string>
+    <string name="ach_game_300">Knooppunt</string>
+    <string name="ach_game_600">Netbeheerder</string>
+    <string name="ach_game_1000">Provider van de grote stad</string>
+    <string name="ach_week_5">Doorzetter</string>
+    <string name="ach_week_10">Tien weken online</string>
+    <string name="ach_week_15">Altijd aan</string>
+    <string name="ach_cables_10">Kabelsjouwer</string>
+    <string name="ach_cables_100">Grondwerker</string>
+    <string name="ach_cables_500">Kabelspaghetti</string>
+    <string name="ach_fiber_1">Lichtsnelheid</string>
+    <string name="ach_fiber_25">Glasvezelland</string>
+    <string name="ach_upgrades_10">Upgrader</string>
+    <string name="ach_routers_5">Verdeler</string>
+    <string name="ach_routers_50">Routerbos</string>
+    <string name="ach_server_1">Meer vermogen</string>
+    <string name="ach_server_20">Serverpark</string>
+    <string name="ach_data_center_1">Datacenter</string>
+    <string name="ach_access_points_3">Dode hoeken weg</string>
+    <string name="ach_cell_towers_3">In de lucht</string>
+    <string name="ach_repairs_5">Storingsdienst</string>
+    <string name="ach_games_1">Al doende leert men</string>
+    <string name="ach_games_10">Vaste gast</string>
+    <string name="ach_games_50">Netwerkveteraan</string>
+    <string name="ach_weeks_50">Decennia online</string>
+    <string name="ach_sceneries_3">Wereldreiziger</string>
+    <string name="ach_streaming_500">Filmavond</string>
+    <string name="ach_daily_1">Dagwerk</string>
+    <string name="ach_daily_10">Dagelijkse routine</string>
+    <string name="ach_streak_3">Drie op rij</string>
+    <string name="ach_streak_7">Een week op rij</string>
+    <string name="ach_endless_12">Eindeloos online</string>
+    <string name="ach_creative_1">Vrij bouwen</string>
+    <string name="ach_second_chance_1">Tweede kans</string>
+    <string name="ach_budget_300">Spaarvarken</string>
+    <plurals name="ach_desc_delivered">
+        <item quantity="one">Bezorg je eerste pakket</item>
+        <item quantity="other">Bezorg in totaal %1$,d pakketten</item>
+    </plurals>
+    <plurals name="ach_desc_best_game">
+        <item quantity="one">Bezorg %1$,d pakket in één spel</item>
+        <item quantity="other">Bezorg %1$,d pakketten in één spel</item>
+    </plurals>
+    <plurals name="ach_desc_best_week">
+        <item quantity="one">Houd het %1$d week vol in één spel</item>
+        <item quantity="other">Houd het %1$d weken vol in één spel</item>
+    </plurals>
+    <plurals name="ach_desc_cables">
+        <item quantity="one">Leg %1$,d kabel</item>
+        <item quantity="other">Leg %1$,d kabels</item>
+    </plurals>
+    <plurals name="ach_desc_fiber">
+        <item quantity="one">Leg je eerste glasvezelkabel</item>
+        <item quantity="other">Leg of upgrade %1$d glasvezelkabels</item>
+    </plurals>
+    <plurals name="ach_desc_cable_upgrades">
+        <item quantity="one">Upgrade %1$d kabel</item>
+        <item quantity="other">Upgrade %1$d kabels</item>
+    </plurals>
+    <plurals name="ach_desc_routers">
+        <item quantity="one">Plaats %1$d router</item>
+        <item quantity="other">Plaats %1$d routers</item>
+    </plurals>
+    <plurals name="ach_desc_access_points">
+        <item quantity="one">Plaats %1$d wifi-accesspoint</item>
+        <item quantity="other">Plaats %1$d wifi-accesspoints</item>
+    </plurals>
+    <plurals name="ach_desc_cell_towers">
+        <item quantity="one">Plaats %1$d zendmast</item>
+        <item quantity="other">Plaats %1$d zendmasten</item>
+    </plurals>
+    <plurals name="ach_desc_server_upgrades">
+        <item quantity="one">Upgrade een server</item>
+        <item quantity="other">Upgrade %1$d keer een server</item>
+    </plurals>
+    <plurals name="ach_desc_data_centers">
+        <item quantity="one">Bouw een datacenter</item>
+        <item quantity="other">Bouw %1$d datacenters</item>
+    </plurals>
+    <plurals name="ach_desc_repairs">
+        <item quantity="one">Repareer %1$d geknipte kabel</item>
+        <item quantity="other">Repareer %1$d geknipte kabels</item>
+    </plurals>
+    <plurals name="ach_desc_games_finished">
+        <item quantity="one">Speel een spel tot het einde</item>
+        <item quantity="other">Speel %1$d spellen tot het einde</item>
+    </plurals>
+    <plurals name="ach_desc_weeks_total">
+        <item quantity="one">Speel in totaal %1$d week</item>
+        <item quantity="other">Speel in totaal %1$d weken</item>
+    </plurals>
+    <plurals name="ach_desc_sceneries">
+        <item quantity="one">Speel %1$d landschap</item>
+        <item quantity="other">Speel %1$d verschillende landschappen</item>
+    </plurals>
+    <plurals name="ach_desc_streaming">
+        <item quantity="one">Bezorg %1$,d stream</item>
+        <item quantity="other">Bezorg %1$,d streams</item>
+    </plurals>
+    <plurals name="ach_desc_daily_done">
+        <item quantity="one">Haal een dagopdracht</item>
+        <item quantity="other">Haal %1$d dagopdrachten</item>
+    </plurals>
+    <plurals name="ach_desc_best_streak">
+        <item quantity="one">Haal de dagopdracht %1$d dag op rij</item>
+        <item quantity="other">Haal de dagopdracht %1$d dagen op rij</item>
+    </plurals>
+    <plurals name="ach_desc_endless_best_week">
+        <item quantity="one">Bereik week %1$d in de eindeloze modus</item>
+        <item quantity="other">Bereik week %1$d in de eindeloze modus</item>
+    </plurals>
+    <plurals name="ach_desc_creative_games">
+        <item quantity="one">Start een spel in de creatieve modus</item>
+        <item quantity="other">Start %1$d spellen in de creatieve modus</item>
+    </plurals>
+    <plurals name="ach_desc_second_chances">
+        <item quantity="one">Speel door na een game over</item>
+        <item quantity="other">Speel %1$d keer door na een game over</item>
+    </plurals>
+    <plurals name="ach_desc_richest">
+        <item quantity="one">Heb %1$,d budget tegelijk</item>
+        <item quantity="other">Heb %1$,d budget tegelijk</item>
+    </plurals>
+
+    <string name="settings_cable_skin">Kabels: %1$s</string>
+    <string name="settings_color_theme">Thema: %1$s</string>
+    <string name="settings_appearance">Weergave</string>
+    <string name="settings_cosmetics_unlocked">Vrijgespeeld: skins %1$d/%2$d · thema’s %3$d/%4$d</string>
+    <string name="skin_classic">Klassiek</string>
+    <string name="skin_copper">Koper</string>
+    <string name="skin_neon">Neon</string>
+    <string name="skin_pastel">Pastel</string>
+    <string name="skin_gold">Goud</string>
+    <string name="theme_meadow">Weide</string>
+    <string name="theme_autumn">Herfst</string>
+    <string name="theme_winter">Winter</string>
+    <string name="theme_desert">Woestijn</string>
+    <!-- Play Games, rating and sharing (docs/TOP100.md C3, C6, D2) -->
+    <string name="menu_leaderboards">Ranglijsten</string>
+    <string name="game_over_share">Netwerk delen</string>
+    <string name="share_chooser">Deel je netwerk</string>
+    <plurals name="share_text">
+        <item quantity="one">Mijn netwerk in %1$s: %2$s pakket bezorgd, tot in %3$d. Kun jij meer? #MiniNetworks</item>
+        <item quantity="other">Mijn netwerk in %1$s: %2$s pakketten bezorgd, tot in %3$d. Kun jij meer? #MiniNetworks</item>
+    </plurals>
+    <plurals name="share_card_packets">
+        <item quantity="one">pakket bezorgd</item>
+        <item quantity="other">pakketten bezorgd</item>
+    </plurals>
+    <string name="share_card_date">Jaar %1$d · Week %2$d</string>
+    <string name="share_card_daily">Dagopdracht · %1$s</string>
+    <string name="share_card_tagline">Kun jij mijn netwerk verslaan?</string>
+    <plurals name="cloud_save_description">
+        <item quantity="one">%d pakket bezorgd</item>
+        <item quantity="other">%d pakketten bezorgd</item>
+    </plurals>
+
+    <string name="age_gate_title">Geboortedatum</string>
+    <string name="age_gate_message">Kies je geboortedatum. Die blijft op dit apparaat en bepaalt welke advertenties getoond mogen worden.</string>
+    <string name="age_gate_day">Dag</string>
+    <string name="age_gate_month">Maand</string>
+    <string name="age_gate_year">Jaar</string>
+    <string name="age_gate_exit">Afsluiten</string>
+    <string name="age_gate_invalid">Kies een geldige geboortedatum.</string>
+    <string name="age_gate_minimum">Mini Networks is voor spelers van 13 jaar en ouder.</string>
+    <!-- Test builds only (docs/PLAY_AUTORELEASE.md): unlock paid content for Play reviewers. -->
+    <string name="reviewer_access">Toegang voor reviewers</string>
+    <string name="reviewer_access_hint">Reviewcode</string>
+    <string name="reviewer_access_unlock">Ontgrendelen</string>
+    <string name="reviewer_access_enabled">Toegang voor reviewers ingeschakeld</string>
+    <string name="reviewer_access_invalid">Ongeldige reviewcode</string>
+</resources>

@@ -4,8 +4,10 @@
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="sharedpref" path="monetization.xml" />
+        <exclude domain="sharedpref" path="age_gate.xml" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="sharedpref" path="monetization.xml" />
+        <exclude domain="sharedpref" path="age_gate.xml" />
     </device-transfer>
 </data-extraction-rules>

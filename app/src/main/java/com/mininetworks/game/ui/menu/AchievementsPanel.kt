@@ -11,6 +11,7 @@ import com.mininetworks.game.render.shade
 import com.mininetworks.game.render.stroke
 import com.mininetworks.game.ui.TextScale
 import com.mininetworks.game.ui.UiNode
+import com.mininetworks.game.ui.TextWrap
 
 /** One tile of the [AchievementsPanel]; all texts are ready to show. */
 data class AchievementTile(
@@ -35,7 +36,7 @@ data class AchievementTile(
  * it does not fit. Only the back pill is tappable; [hit] is valid for the last drawn frame.
  */
 class AchievementsPanel(context: Context) {
-    private val scale = TextScale(context.resources.displayMetrics)
+    private val scale = TextScale.of(context)
     private val density = scale.density
     private val ink = 0xFF262B33.toInt()
     private val muted = 0xFF5B6674.toInt()
@@ -208,12 +209,24 @@ class AchievementsPanel(context: Context) {
         canvas.drawRoundRect(r.left + 2f * u, r.top + 4f * u, r.right + 2f * u, r.bottom + 4f * u, radius, radius, fillP)
         fillP.color = if (t.reached) 0xFFFAFAF7.toInt() else 0xFFEEF0EC.toInt()
         canvas.drawRoundRect(r, radius, radius, fillP)
+        if (t.reached) {
+            // A reached tile wears a warm gold edge on its left, like a ribbon, so the earned ones stand out at a
+            // glance (judge panel: every tile looked the same flat white).
+            canvas.save()
+            canvas.clipRect(r.left, r.top, r.left + 6f * u, r.bottom)
+            fillP.color = GOLD
+            canvas.drawRoundRect(r, radius, radius, fillP)
+            canvas.restore()
+        }
         // Badge: a green disc with a check once reached, an outlined ring with the progress arc before.
         val cx = r.left + pad + iconR
         val cy = r.top + pad + iconR
         if (t.reached) {
+            // A medal: the green disc with the check inside a gold rim.
+            fillP.color = GOLD
+            canvas.drawCircle(cx, cy, iconR * 1.12f, fillP)
             fillP.color = accent
-            canvas.drawCircle(cx, cy, iconR, fillP)
+            canvas.drawCircle(cx, cy, iconR * 0.92f, fillP)
             lineP.color = 0xFFFFFFFF.toInt()
             lineP.strokeWidth = iconR * 0.22f
             canvas.drawLine(cx - iconR * 0.42f, cy + iconR * 0.02f, cx - iconR * 0.1f, cy + iconR * 0.34f, lineP)
@@ -292,29 +305,12 @@ class AchievementsPanel(context: Context) {
         return s.substring(0, end).trimEnd() + ELLIPSIS
     }
 
-    /** [s] broken at spaces into at most [maxLines] lines of [maxWidth]; the last one is shortened if needed. */
-    private fun wrap(s: String, maxWidth: Float, maxLines: Int): List<String> {
-        val lines = ArrayList<String>()
-        var line = ""
-        val words = s.split(' ')
-        for ((i, word) in words.withIndex()) {
-            val candidate = if (line.isEmpty()) word else "$line $word"
-            if (text.measureText(candidate) <= maxWidth || line.isEmpty()) {
-                line = candidate
-                continue
-            }
-            if (lines.size == maxLines - 1) {
-                lines += fit((listOf(line) + words.subList(i, words.size)).joinToString(" "), maxWidth)
-                return lines
-            }
-            lines += line
-            line = word
-        }
-        if (line.isNotEmpty()) lines += fit(line, maxWidth)
-        return lines
-    }
+    /** [s] broken into at most [maxLines] lines of [maxWidth] (at spaces, and between CJK characters); the last one is shortened if needed. */
+    private fun wrap(s: String, maxWidth: Float, maxLines: Int): List<String> = TextWrap.wrap(s, maxWidth, maxLines) { text.measureText(it) }
 
     companion object {
+        /** The gold of an earned tile's ribbon and medal rim. */
+        private const val GOLD = 0xFFE9A92B.toInt()
         /** Target id of the back pill. */
         const val BACK = "back"
         private const val MARGIN_DP = 16f

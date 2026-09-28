@@ -19,6 +19,7 @@ import com.mininetworks.game.render.shade
 import com.mininetworks.game.render.stroke
 import com.mininetworks.game.ui.TextScale
 import com.mininetworks.game.ui.UiNode
+import com.mininetworks.game.ui.TextWrap
 
 /** One card of the [SceneryPicker]; all texts are ready to show. */
 data class SceneryCard(
@@ -33,16 +34,20 @@ data class SceneryCard(
     val progress: Float?,
     /** Said by screen readers for a locked card ("locked"), null for an unlocked one. */
     val lockedLabel: String? = null,
+    /** A scenery sold in the shop: its second status line (the price) shows on a price badge. */
+    val buy: Boolean = false,
+    /** The scenery's own colour for the frame around its preview. */
+    val tint: Int = 0xFF9BB58D.toInt(),
 )
 
 /**
  * The scenery select screen, drawn on the game canvas in the look of the menu cards: a title with a back pill and one
  * card per scenery with an isometric preview of its start map, its era and what makes it special. Locked cards are
- * greyed out with a padlock and show how to unlock them. While the store sells the pack, a pill at the top right buys
+ * shown in colour with a small lock badge and say how to unlock them. While the store sells the pack, a pill at the top right buys
  * it. [hit] maps a tap to a scenery id, [BACK] or [PACK]; it is valid for the last drawn frame.
  */
 class SceneryPicker(context: Context) {
-    private val scale = TextScale(context.resources.displayMetrics)
+    private val scale = TextScale.of(context)
     private val density = scale.density
     private val ink = 0xFF262B33.toInt()
     private val muted = 0xFF5B6674.toInt()
@@ -52,8 +57,12 @@ class SceneryPicker(context: Context) {
     private val lineP = stroke(0)
     private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ink }
     private val greyed = Paint(Paint.FILTER_BITMAP_FLAG).apply {
-        colorFilter = ColorMatrixColorFilter(ColorMatrix().apply { setSaturation(0.1f) })
-        alpha = 150
+        // Locked sceneries stay in colour (they are what the player plays towards), only a touch softer.
+        // Softer and paler than the playable ones (judge panel: every card looked equally playable), still in colour.
+        colorFilter = ColorMatrixColorFilter(ColorMatrix().apply {
+            setSaturation(0.45f)
+            postConcat(ColorMatrix(floatArrayOf(0.82f, 0f, 0f, 0f, 40f, 0f, 0.82f, 0f, 0f, 40f, 0f, 0f, 0.82f, 0f, 40f, 0f, 0f, 0f, 1f, 0f)))
+        })
     }
     private val bitmapP = Paint(Paint.FILTER_BITMAP_FLAG)
     private val clip = Path()
@@ -84,6 +93,17 @@ class SceneryPicker(context: Context) {
     /** Scrolls the card row by [dx] px (positive shows cards further right). */
     fun scrollBy(dx: Float) {
         scroll = (scroll + dx).coerceIn(0f, maxScroll)
+    }
+
+    /** Width of one card plus its gap in px while the row scrolls: what [NEXT] and [PREV] move by. */
+    private var step = 0f
+
+    /** Scrolls the row by one card towards [NEXT] or [PREV]; snaps so a card's left edge meets the row's. */
+    fun page(id: String) {
+        if (step <= 0f) return
+        val dir = if (id == NEXT) 1 else -1
+        val target = (kotlin.math.round(scroll / step) + dir) * step
+        scroll = target.coerceIn(0f, maxScroll)
     }
 
     /** Scrolls so that the card of scenery [id] is fully visible (screen readers moving their focus onto it). */
@@ -162,7 +182,11 @@ class SceneryPicker(context: Context) {
             cardW = widthFor(cols).coerceAtMost(maxCard)
             if (hDp / heightFor(cols, cardW) < MIN_GRID_SCALE) {
                 cols = cards.size
-                cardW = minCard.coerceAtMost(wDp - 2 * MARGIN_DP)
+                // As many whole cards as fit, plus a third of the next one peeking in at the edge: the row visibly
+                // goes on (judge panel: the fifth card was simply cut off at 200 % text).
+                val vis = wDp - 2 * MARGIN_DP
+                val whole = (cards.size - 1 downTo 1).firstOrNull { n -> (vis - n * GAP_DP) / (n + PEEK) >= minCard } ?: 1
+                cardW = ((vis - whole * GAP_DP) / (whole + PEEK)).coerceAtMost(maxCard).coerceAtMost(vis)
                 scrolling = true
             }
         }
@@ -170,13 +194,14 @@ class SceneryPicker(context: Context) {
         val wrapped = rows > 1
         val metrics = CardText(cardW, ratio)
         val cardH = metrics.heightDp + SLAB_DP
-        val naturalH = heightFor(cols, cardW)
+        val naturalH = heightFor(cols, cardW) + if (scrolling) DOTS_DP else 0f
         val s = minOf(1f, hDp / naturalH)
         val u = density * s
         val rowW = (cols * cardW + (cols - 1) * GAP_DP) * u
         viewLeft = safe.left + MARGIN_DP * u
         viewWidth = areaW - 2 * MARGIN_DP * u
         maxScroll = if (scrolling) (rowW - viewWidth).coerceAtLeast(0f) else 0f
+        step = if (scrolling) (cardW + GAP_DP) * u else 0f
         scroll = scroll.coerceIn(0f, maxScroll)
         val left = if (scrolling) viewLeft - scroll else safe.left + (areaW - rowW) / 2f
         // Pills and title span the row, or the visible area while the row scrolls.
@@ -249,7 +274,11 @@ class SceneryPicker(context: Context) {
             targets += bounds to card.scenario.id
             drawnNodes += UiNode("scenery:${card.scenario.id}", RectF(bounds), cardText(card), UiNode.Kind.BUTTON)
         }
-        val lastBottom = gridTop + (rows * cardH + (rows - 1) * ROW_GAP_DP) * u
+        var lastBottom = gridTop + (rows * cardH + (rows - 1) * ROW_GAP_DP) * u
+        if (maxScroll > 0f) {
+            scrollCues(canvas, gridTop, gridTop + (cardH - SLAB_DP) * u, u, cards.size)
+            lastBottom += DOTS_DP * u
+        }
         hint?.let {
             text.textAlign = Paint.Align.CENTER
             text.typeface = Typeface.DEFAULT_BOLD
@@ -258,6 +287,59 @@ class SceneryPicker(context: Context) {
             val baseline = lastBottom + text.textSize * 1.5f
             canvas.drawText(fit(it, areaW - 2 * MARGIN_DP * u), width / 2f, baseline, text)
             drawnNodes += UiNode("scenery:hint", RectF(safe.left, baseline - text.textSize, width - safe.right, baseline + text.textSize * 0.3f), it, UiNode.Kind.TEXT)
+        }
+    }
+
+    private val fadeP = Paint()
+    private val chevron = Path()
+
+    /**
+     * Shows that the row scrolls: the cards fade out at an edge with more behind it, a round arrow button there pages
+     * by one card ([NEXT], [PREV]), and dots under the row say which part of it is on screen.
+     */
+    private fun scrollCues(canvas: Canvas, top: Float, bottom: Float, u: Float, count: Int) {
+        val fade = 36f * u
+        val bg = 0xF3F1EC
+        val right = viewLeft + viewWidth
+        val size = TOUCH_DP * density
+        // Level with the previews, clear of the card texts.
+        val cy = top + (bottom - top) * 0.22f
+        for (dir in listOf(-1, 1)) {
+            val more = if (dir > 0) scroll < maxScroll - 1f else scroll > 1f
+            if (!more) continue
+            val edge = if (dir > 0) right + MARGIN_DP * u else viewLeft - MARGIN_DP * u
+            val inner = edge - dir * (fade + MARGIN_DP * u)
+            fadeP.shader = android.graphics.LinearGradient(inner, 0f, edge, 0f, bg or 0x00000000, bg or (0xF0 shl 24), android.graphics.Shader.TileMode.CLAMP)
+            canvas.drawRect(minOf(inner, edge), top - 4f * u, maxOf(inner, edge), bottom + SLAB_DP * u + 8f * u, fadeP)
+            val cx = if (dir > 0) right - size / 2f else viewLeft + size / 2f
+            fillP.color = 0x33000000
+            canvas.drawCircle(cx, cy + 3f * u, size / 2f, fillP)
+            fillP.color = 0xFFFFFFFF.toInt()
+            canvas.drawCircle(cx, cy, size / 2f, fillP)
+            lineP.color = ink
+            lineP.strokeWidth = 3.5f * u
+            lineP.strokeCap = Paint.Cap.ROUND
+            lineP.strokeJoin = Paint.Join.ROUND
+            val a = size * 0.13f
+            chevron.reset()
+            chevron.moveTo(cx - dir * a * 0.6f, cy - a * 1.2f)
+            chevron.lineTo(cx + dir * a * 0.7f, cy)
+            chevron.lineTo(cx - dir * a * 0.6f, cy + a * 1.2f)
+            canvas.drawPath(chevron, lineP)
+            // First in the list, so the arrow wins over the card under it.
+            targets.add(0, RectF(cx - size / 2f, cy - size / 2f, cx + size / 2f, cy + size / 2f) to if (dir > 0) NEXT else PREV)
+        }
+        // Page dots: one per card, the ones on screen filled.
+        val dotR = 4f * u
+        val gap = 14f * u
+        val y = bottom + SLAB_DP * u + DOTS_DP * u * 0.6f
+        val x0 = viewLeft + viewWidth / 2f - (count - 1) * gap / 2f
+        val first = scroll / step
+        val shown = viewWidth / step
+        for (i in 0 until count) {
+            val on = i + 0.5f >= first && i + 0.5f <= first + shown
+            fillP.color = if (on) ink else 0x55262B33
+            canvas.drawCircle(x0 + i * gap, y, if (on) dotR * 1.15f else dotR, fillP)
         }
     }
 
@@ -270,15 +352,21 @@ class SceneryPicker(context: Context) {
         val radius = 16f * u
         fillP.color = 0x26000000
         canvas.drawRoundRect(r.left + 4f * u, r.top + 12f * u, r.right + 4f * u, r.bottom + 12f * u, radius, radius, fillP)
-        fillP.color = if (card.unlocked) 0xFFD5DAD2.toInt().shade(-0.1f) else 0xFFD9DBD8.toInt()
+        fillP.color = 0xFFD5DAD2.toInt().shade(-0.1f)
         canvas.drawRoundRect(r.left, r.top + SLAB_DP * u, r.right, r.bottom + SLAB_DP * u, radius, radius, fillP)
         r.offset(0f, sink)
-        fillP.color = if (card.unlocked) 0xFFFAFAF7.toInt() else 0xFFF1F2EE.toInt()
+        fillP.color = 0xFFFAFAF7.toInt()
         canvas.drawRoundRect(r, radius, radius, fillP)
 
         val pad = 8f * u
         val inner = r.width() - 2 * pad
         val preview = RectF(r.left + pad, r.top + pad, r.right - pad, r.top + pad + inner * m.ratio)
+        // A header in the scenery's colour frames the preview (judge panel: plain white cards), muted while locked.
+        fillP.color = if (card.unlocked) card.tint else card.tint.shade(0.35f)
+        canvas.save()
+        canvas.clipRect(r.left, r.top, r.right, preview.bottom + pad * 0.5f)
+        canvas.drawRoundRect(r, radius, radius, fillP)
+        canvas.restore()
         val bmp = previewOf(card.scenario, preview.width().toInt().coerceAtLeast(1), preview.height().toInt().coerceAtLeast(1))
         canvas.save()
         clip.reset()
@@ -286,27 +374,31 @@ class SceneryPicker(context: Context) {
         canvas.clipPath(clip)
         canvas.drawBitmap(bmp, null, preview, if (card.unlocked) bitmapP else greyed)
         canvas.restore()
-        if (!card.unlocked) padlock(canvas, preview.centerX(), preview.centerY(), preview.height() * 0.22f)
+        // A small lock badge in the corner instead of a big padlock over the picture.
+        if (!card.unlocked) {
+            val size = maxOf(preview.height() * 0.13f, 9f * u)
+            padlock(canvas, preview.right - size * 1.35f - 5f * u, preview.top + size * 1.35f + 5f * u, size)
+        }
 
         val cx = r.centerX()
         var y = preview.bottom + pad
         text.textAlign = Paint.Align.CENTER
         text.typeface = Typeface.DEFAULT_BOLD
-        text.color = if (card.unlocked) ink else muted
+        text.color = ink
         text.textSize = m.name * s
         text.textSize = maxOf(MIN_NAME_SP * u, minOf(m.name * s, m.name * s * inner / text.measureText(card.name)))
         y += m.name * s
         canvas.drawText(fit(card.name, inner), cx, y, text)
         y += m.name * s * 0.3f
         text.textSize = m.era * s
-        text.color = if (card.unlocked) accent.shade(-0.2f) else muted
+        text.color = accent.shade(-0.2f)
         y += m.era * s * 1.1f
         canvas.drawText(fit(card.era, inner), cx, y, text)
         y += m.era * s * 0.25f
         text.typeface = Typeface.DEFAULT
         text.color = muted
-        text.textSize = m.desc * s
-        for (line in wrap(card.description, inner, 2)) {
+        // Long descriptions and status lines (longer languages, narrow cards) shrink a little before they are cut.
+        for (line in shrinkWrap(card.description, inner, m.desc * s, 2)) {
             y += m.desc * s * 1.3f
             canvas.drawText(line, cx, y - m.desc * s * 0.25f, text)
         }
@@ -315,9 +407,22 @@ class SceneryPicker(context: Context) {
         text.typeface = Typeface.DEFAULT_BOLD
         text.textSize = m.status * s
         text.color = if (card.unlocked) ink else muted
-        for (line in card.status.take(2)) {
+        for ((i, line) in card.status.take(2).withIndex()) {
             y += m.status * s * 1.3f
-            canvas.drawText(fit(line, inner), cx, y - m.status * s * 0.3f, text)
+            val shown = shrinkWrap(line, inner - (if (card.buy && i == 1) 20f * u else 0f), m.status * s, 1).first()
+            if (card.buy && i == 1) {
+                // The price (or "alone or in the pack") on a gold badge: buying reads apart from playing towards it.
+                val w = text.measureText(shown) + 20f * u
+                val h = m.status * s * 1.35f
+                val top = y - m.status * s * 1.05f
+                fillP.color = 0xFFF2B705.toInt().shade(-0.25f)
+                canvas.drawRoundRect(cx - w / 2f, top + 2f * u, cx + w / 2f, top + h + 2f * u, h / 2f, h / 2f, fillP)
+                fillP.color = 0xFFFFC21A.toInt()
+                canvas.drawRoundRect(cx - w / 2f, top, cx + w / 2f, top + h, h / 2f, h / 2f, fillP)
+                text.color = ink
+                text.typeface = Typeface.DEFAULT_BOLD
+            }
+            canvas.drawText(shown, cx, y - m.status * s * 0.3f, text)
             text.typeface = Typeface.DEFAULT
         }
         card.progress?.let { p ->
@@ -333,7 +438,9 @@ class SceneryPicker(context: Context) {
 
     /** A white padlock on a dark disc. */
     private fun padlock(canvas: Canvas, cx: Float, cy: Float, size: Float) {
-        fillP.color = 0xCC262B33.toInt()
+        fillP.color = 0xFFFFFFFF.toInt()
+        canvas.drawCircle(cx, cy, size * 1.55f, fillP)
+        fillP.color = 0xFF14303F.toInt()
         canvas.drawCircle(cx, cy, size * 1.35f, fillP)
         fillP.color = 0xFFFFFFFF.toInt()
         val w = size * 0.95f
@@ -381,6 +488,20 @@ class SceneryPicker(context: Context) {
         }
     }
 
+    /**
+     * [s] in at most [maxLines] lines of [maxWidth]: at text size [size], or smaller down to [MIN_SHRINK] of it until
+     * nothing has to be cut; only then the last line ends with an ellipsis. Leaves the text paint at the size used.
+     */
+    private fun shrinkWrap(s: String, maxWidth: Float, size: Float, maxLines: Int): List<String> {
+        var t = size
+        while (true) {
+            text.textSize = t
+            val lines = wrap(s, maxWidth, maxLines)
+            if (lines.none { it.endsWith(ELLIPSIS) } || t <= size * MIN_SHRINK) return lines
+            t = maxOf(size * MIN_SHRINK, t * 0.95f)
+        }
+    }
+
     /** [s], shortened with an ellipsis if it is wider than [maxWidth] in the current text paint. */
     private fun fit(s: String, maxWidth: Float): String {
         if (text.measureText(s) <= maxWidth) return s
@@ -389,27 +510,8 @@ class SceneryPicker(context: Context) {
         return s.substring(0, end).trimEnd() + ELLIPSIS
     }
 
-    /** [s] broken at spaces into at most [maxLines] lines of [maxWidth]; the last one is shortened if needed. */
-    private fun wrap(s: String, maxWidth: Float, maxLines: Int): List<String> {
-        val lines = ArrayList<String>()
-        var line = ""
-        val words = s.split(' ')
-        for ((i, word) in words.withIndex()) {
-            val candidate = if (line.isEmpty()) word else "$line $word"
-            if (text.measureText(candidate) <= maxWidth || line.isEmpty()) {
-                line = candidate
-                continue
-            }
-            if (lines.size == maxLines - 1) {
-                lines += fit((listOf(line) + words.subList(i, words.size)).joinToString(" "), maxWidth)
-                return lines
-            }
-            lines += line
-            line = word
-        }
-        if (line.isNotEmpty()) lines += fit(line, maxWidth)
-        return lines
-    }
+    /** [s] broken into at most [maxLines] lines of [maxWidth] (at spaces, and between CJK characters); the last one is shortened if needed. */
+    private fun wrap(s: String, maxWidth: Float, maxLines: Int): List<String> = TextWrap.wrap(s, maxWidth, maxLines) { text.measureText(it) }
 
     companion object {
         /** Target id of the back pill. */
@@ -418,7 +520,16 @@ class SceneryPicker(context: Context) {
         const val PACK = "pack"
         /** Target id of the pill that switches the game mode. */
         const val MODE = "mode"
+        /** Target ids of the arrow buttons of a scrolling row. */
+        const val NEXT = "next"
+        const val PREV = "prev"
+        /** Share of a card that peeks in at the edge of a scrolling row. */
+        private const val PEEK = 0.3f
+        /** Room for the page dots under a scrolling row. */
+        private const val DOTS_DP = 18f
         private const val PREVIEW_SEED = 11L
+        /** Smallest share of their size that card texts shrink to before they are cut with an ellipsis. */
+        private const val MIN_SHRINK = 0.8f
         private const val MARGIN_DP = 16f
         private const val GAP_DP = 10f
         private const val MAX_CARD_W_DP = 180f
@@ -435,7 +546,7 @@ class SceneryPicker(context: Context) {
         private const val MIN_GRID_SCALE = 0.8f
         /** The start block fills the preview a bit beyond its edges. */
         private const val PREVIEW_ZOOM = 1.5f
-        private const val MIN_NAME_SP = 12f
+        private const val MIN_NAME_SP = 10f
         private const val ELLIPSIS = "…"
     }
 }

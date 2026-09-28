@@ -3,22 +3,12 @@ package com.mininetworks.game.monetization
 import android.app.Activity
 import android.os.Handler
 import android.os.Looper
-import com.android.billingclient.api.AcknowledgePurchaseParams
-import com.android.billingclient.api.BillingClient
-import com.android.billingclient.api.BillingClientStateListener
-import com.android.billingclient.api.BillingFlowParams
-import com.android.billingclient.api.BillingResult
-import com.android.billingclient.api.PendingPurchasesParams
-import com.android.billingclient.api.ProductDetails
-import com.android.billingclient.api.Purchase
-import com.android.billingclient.api.PurchasesUpdatedListener
-import com.android.billingclient.api.QueryProductDetailsParams
-import com.android.billingclient.api.QueryPurchasesParams
 import com.google.android.gms.ads.AdError
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.FullScreenContentCallback
 import com.google.android.gms.ads.LoadAdError
 import com.google.android.gms.ads.MobileAds
+import com.google.android.gms.ads.RequestConfiguration
 import com.google.android.gms.ads.interstitial.InterstitialAd
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
 import com.google.android.gms.ads.rewarded.RewardedAd
@@ -28,7 +18,6 @@ import com.google.android.ump.ConsentRequestParameters
 import com.google.android.ump.UserMessagingPlatform
 import com.mininetworks.game.BuildConfig
 import com.mininetworks.game.data.GameIo
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.concurrent.thread
@@ -40,18 +29,30 @@ import kotlin.concurrent.thread
  *
  * [start] first asks UMP for the consent status and shows the form where it is required (EEA, UK); the Mobile Ads SDK
  * is only initialized and ads are only requested once [ConsentInformation.canRequestAds] is true, and never while
- * "remove ads" is owned. Owned products are kept in [MonetizationStore], so they work offline, and re-queried from Play
- * at every start and every [refresh] (from `onResume`, which also catches promo codes and pending purchases finished
- * outside the app): the answer replaces the stored set, so refunds disappear. New purchases are acknowledged, otherwise
+ * "remove ads" is owned. Purchases are handled by [Purchases] over a [PlayBillingGateway]: owned products are kept in
+ * [MonetizationStore], so they work offline, and re-queried from Play at every start and every [refresh] (from
+ * `onResume`, which also catches promo codes and pending purchases finished outside the app): the answer replaces the
+ * stored set, so refunds disappear and purchases come back after a reinstall. New purchases are acknowledged, otherwise
  * Play refunds them after three days. Ad unit ids come from [BuildConfig] (Google's test ids unless real ones are
  * configured, see app/build.gradle.kts).
  */
-class PlayMonetization(private val activity: Activity) : Monetization, PurchasesUpdatedListener {
+class PlayMonetization(private val activity: Activity, private val ageBand: AgeGate.Band) : Monetization {
     private val main = Handler(Looper.getMainLooper())
+    private val reviewerPrefs by lazy { activity.getSharedPreferences("reviewer_access", Activity.MODE_PRIVATE) }
+    // Read on the GameIo thread in [start] (disk work, docs/TOP100.md A3), before consent and ads start; false until then.
+    @Volatile private var reviewerAccess = false
+    val reviewerAccessAvailable get() = BuildConfig.REVIEW_ACCESS_CODE.isNotEmpty() && !reviewerAccess
+
+    fun unlockReviewerAccess(code: String): Boolean {
+        if (BuildConfig.REVIEW_ACCESS_CODE.isEmpty() || code.trim() != BuildConfig.REVIEW_ACCESS_CODE) return false
+        reviewerPrefs.edit().putBoolean("unlocked", true).apply()
+        reviewerAccess = true
+        interstitial.set(null)
+        rewarded.set(null)
+        return true
+    }
     // Created on the GameIo thread in [start]: reading the stored products is disk work (docs/TOP100.md A3).
     private val store by lazy { MonetizationStore(activity) }
-    @Volatile private var owned: Set<String> = emptySet()
-    private val details = ConcurrentHashMap<String, ProductDetails>()
     // Main thread only: the UMP SDK wants its calls there. First used in [gatherConsent].
     private val consent: ConsentInformation by lazy { UserMessagingPlatform.getConsentInformation(activity) }
     @Volatile private var privacyRequired = false
@@ -64,19 +65,18 @@ class PlayMonetization(private val activity: Activity) : Monetization, Purchases
     private var loadingRewarded = false
     private var retryPending = false
     @Volatile private var closed = false
-    @Volatile private var connecting = false
 
-    /** Set on the GameIo thread by [start]; until then every billing call does nothing (a purchase says "not now"). */
-    @Volatile private var billing: BillingClient? = null
+    /** Set on the GameIo thread by [start]; until then nothing is owned and a purchase says "not now". */
+    @Volatile private var purchases: Purchases? = null
+    private val owned get() = purchases?.owned ?: emptySet()
 
-    override val adsRemoved get() = Entitlements.REMOVE_ADS in owned
+    override val adsRemoved get() = reviewerAccess || Entitlements.REMOVE_ADS in owned
     override val rewardedReady get() = !adsRemoved && rewarded.get() != null
     override val privacyOptionsRequired get() = privacyRequired
 
-    override fun ownsScenery(sceneryId: String) = Entitlements.ownsScenery(owned, sceneryId)
+    override fun ownsScenery(sceneryId: String) = reviewerAccess || Entitlements.ownsScenery(owned, sceneryId)
 
-    override fun price(productId: String): String? =
-        if (productId in owned) null else details[productId]?.oneTimePurchaseOfferDetails?.formattedPrice
+    override fun price(productId: String): String? = purchases?.price(productId)
 
     /**
      * Call once from `onCreate`; returns at once. On the GameIo thread: the products owned at the last check are read
@@ -84,15 +84,24 @@ class PlayMonetization(private val activity: Activity) : Monetization, Purchases
      * start. The consent step waits for the stored products so a player who removed ads never has the ads SDK started.
      */
     fun start() {
+        // Configure age protection before UMP or the Mobile Ads SDK can issue a request. We conservatively treat
+        // everyone under 18 as a child because 13–17-year-olds count as children in some Play markets.
+        val configuration = MobileAds.getRequestConfiguration().toBuilder()
+        if (ageBand == AgeGate.Band.TEEN) {
+            @Suppress("DEPRECATION")
+            configuration.setTagForChildDirectedTreatment(RequestConfiguration.TAG_FOR_CHILD_DIRECTED_TREATMENT_TRUE)
+            @Suppress("DEPRECATION")
+            configuration.setTagForUnderAgeOfConsent(RequestConfiguration.TAG_FOR_UNDER_AGE_OF_CONSENT_TRUE)
+            configuration.setMaxAdContentRating(RequestConfiguration.MAX_AD_CONTENT_RATING_G)
+        }
+        MobileAds.setRequestConfiguration(configuration.build())
         GameIo.execute {
-            owned = store.owned
+            if (!closed && reviewerPrefs.getBoolean("unlocked", false)) reviewerAccess = true
             if (!closed) {
-                billing = BillingClient.newBuilder(activity)
-                    .setListener(this)
-                    .enablePendingPurchases(PendingPurchasesParams.newBuilder().enableOneTimeProducts().build())
-                    .enableAutoServiceReconnection()
-                    .build()
-                connectBilling()
+                val p = Purchases(PlayBillingGateway(activity), store)
+                p.onOwnedChanged = ::ownedChanged
+                purchases = p
+                p.start()
             }
             main.post { if (!closed) gatherConsent() }
         }
@@ -103,33 +112,7 @@ class PlayMonetization(private val activity: Activity) : Monetization, Purchases
      * failed. Call from `onResume`.
      */
     fun refresh() {
-        val billing = billing ?: return
-        if (closed) return
-        if (!billing.isReady) {
-            connectBilling()
-            return
-        }
-        queryPurchases()
-        if (details.isEmpty()) queryProducts()
-    }
-
-    private fun connectBilling() {
-        val billing = billing ?: return
-        if (closed || connecting) return
-        connecting = true
-        billing.startConnection(object : BillingClientStateListener {
-            override fun onBillingSetupFinished(result: BillingResult) {
-                connecting = false
-                if (result.responseCode != BillingClient.BillingResponseCode.OK) return
-                queryPurchases()
-                queryProducts()
-            }
-
-            // Calls reconnect on their own (enableAutoServiceReconnection); a failed setup is retried by refresh().
-            override fun onBillingServiceDisconnected() {
-                connecting = false
-            }
-        })
+        if (!closed) purchases?.refresh()
     }
 
     /** Ends the billing connection and drops pending retries; call from `onDestroy`. */
@@ -137,13 +120,15 @@ class PlayMonetization(private val activity: Activity) : Monetization, Purchases
         closed = true
         main.removeCallbacksAndMessages(null)
         // After the setup task of [start], should that still be queued.
-        GameIo.execute { billing?.endConnection() }
+        GameIo.execute { purchases?.close() }
     }
 
     // ---------------------------------------------------------------- consent and ads
 
     private fun gatherConsent() {
-        val params = ConsentRequestParameters.Builder().build()
+        val params = ConsentRequestParameters.Builder()
+            .setTagForUnderAgeOfConsent(ageBand == AgeGate.Band.TEEN)
+            .build()
         consent.requestConsentInfoUpdate(
             activity, params,
             {
@@ -272,75 +257,11 @@ class PlayMonetization(private val activity: Activity) : Monetization, Purchases
 
     // ---------------------------------------------------------------- billing
 
-    override fun purchase(productId: String): Boolean {
-        val billing = billing ?: return false
-        if (productId in owned || !billing.isReady) return false
-        val product = details[productId] ?: return false
-        main.post {
-            val params = BillingFlowParams.ProductDetailsParams.newBuilder().setProductDetails(product)
-            product.oneTimePurchaseOfferDetails?.offerToken?.let(params::setOfferToken)
-            val flow = BillingFlowParams.newBuilder().setProductDetailsParamsList(listOf(params.build())).build()
-            billing.launchBillingFlow(activity, flow)
-        }
-        return true
-    }
+    override fun purchase(productId: String): Boolean = purchases?.purchase(productId) ?: false
 
-    override fun onPurchasesUpdated(result: BillingResult, purchases: List<Purchase>?) {
-        when (result.responseCode) {
-            BillingClient.BillingResponseCode.OK -> if (purchases != null) {
-                apply(PlayRules.addBought(owned, purchases.map(::info)))
-            }
-            // Owned on another device or from before a reinstall: ask Play what is owned instead of staying locked.
-            BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED -> queryPurchases()
-        }
-    }
-
-    /** What Play says is owned now replaces the stored set; pending purchases do not count yet. */
-    private fun queryPurchases() {
-        val billing = billing ?: return
-        val params = QueryPurchasesParams.newBuilder().setProductType(BillingClient.ProductType.INAPP).build()
-        billing.queryPurchasesAsync(params) { result, purchases ->
-            if (result.responseCode != BillingClient.BillingResponseCode.OK) return@queryPurchasesAsync
-            apply(PlayRules.reconcile(purchases.map(::info)))
-        }
-    }
-
-    private fun apply(outcome: PurchaseOutcome) {
-        setOwned(outcome.owned)
-        outcome.acknowledge.forEach(::acknowledge)
-    }
-
-    private fun info(p: Purchase) = PurchaseInfo(
-        p.products,
-        when (p.purchaseState) {
-            Purchase.PurchaseState.PURCHASED -> PurchaseInfo.State.PURCHASED
-            Purchase.PurchaseState.PENDING -> PurchaseInfo.State.PENDING
-            else -> PurchaseInfo.State.OTHER
-        },
-        p.isAcknowledged,
-        p.purchaseToken,
-    )
-
-    private fun queryProducts() {
-        val billing = billing ?: return
-        val products = Entitlements.PRODUCTS.map {
-            QueryProductDetailsParams.Product.newBuilder().setProductId(it).setProductType(BillingClient.ProductType.INAPP).build()
-        }
-        val params = QueryProductDetailsParams.newBuilder().setProductList(products).build()
-        billing.queryProductDetailsAsync(params) { result, found ->
-            if (result.responseCode != BillingClient.BillingResponseCode.OK) return@queryProductDetailsAsync
-            for (d in found.productDetailsList) details[d.productId] = d
-        }
-    }
-
-    private fun acknowledge(token: String) {
-        billing?.acknowledgePurchase(AcknowledgePurchaseParams.newBuilder().setPurchaseToken(token).build()) { }
-    }
-
-    private fun setOwned(products: Set<String>) {
-        owned = products
-        store.owned = products
-        if (adsRemoved) {
+    /** Play answered what is owned: without ads once "remove ads" is owned, otherwise the ads SDK may start. */
+    private fun ownedChanged(products: Set<String>) {
+        if (Entitlements.REMOVE_ADS in products) {
             interstitial.set(null)
             rewarded.set(null)
         } else {

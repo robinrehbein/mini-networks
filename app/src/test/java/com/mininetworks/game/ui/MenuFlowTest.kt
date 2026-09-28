@@ -444,10 +444,18 @@ class MenuFlowTest {
         assertEquals("Glasfaser", Texts(app).cable(CableType.FIBER))
     }
 
+    /** A language the game is not translated into (docs/TOP100.md F1 has 12) gets the default, German. */
     @Test
-    @Config(qualifiers = "fr")
+    @Config(qualifiers = "ru")
     fun otherLanguagesFallBackToGerman() {
         assertEquals("Spielen", app.getString(R.string.menu_play))
+    }
+
+    @Test
+    @Config(qualifiers = "fr")
+    fun frenchFollowsTheSystemLanguage() {
+        assertEquals("Jouer", app.getString(R.string.menu_play))
+        assertEquals("Fibre", Texts(app).cable(CableType.FIBER))
     }
 
     @Test

@@ -26,7 +26,7 @@
     <string name="server_error_max_level">The data center is the top tier</string>
     <string name="server_error_no_budget">Not enough budget, the upgrade costs %1$d</string>
     <string name="server_error_no_space">A data center needs 2×2 free cells at the server</string>
-    <string name="incident_excavator_warning">Excavator on its way: cable cut in %1$d s</string>
+    <string name="incident_excavator_warning">Excavator! Cable cut in %1$d s</string>
     <string name="incident_outage_warning">Power cut ahead: %1$s goes dark in %2$d s</string>
     <string name="incident_cut">Cable cut: tap to repair for %1$d · fixes itself in %2$d s</string>
     <string name="incident_outage">Power cut: %1$s dark for %2$d s</string>
@@ -59,6 +59,10 @@
     <string name="cable_dsl">DSL</string>
     <string name="cable_coax">Coax</string>
     <string name="cable_fiber">Fiber</string>
+    <string name="cable_short_isdn">ISDN</string>
+    <string name="cable_short_dsl">DSL</string>
+    <string name="cable_short_coax">Coax</string>
+    <string name="cable_short_fiber">Fiber</string>
     <string name="node_router">Router</string>
     <string name="node_access_point">Wi-Fi access point</string>
     <string name="node_cell_tower">Cell tower</string>
@@ -91,7 +95,7 @@
     <string name="reward_cell_tower_desc">Wide radio range, but only for smartphones, tablets and watches</string>
 
     <!-- Menus -->
-    <string name="menu_tagline">Wire up the town – from 1995 to today</string>
+    <string name="menu_tagline">Wire your town – from ISDN to fiber</string>
     <string name="menu_play">Play</string>
     <string name="menu_continue">Continue</string>
     <string name="menu_settings">Settings</string>
@@ -111,11 +115,8 @@
 
     <!-- Game over -->
     <string name="game_over_title">Network overloaded</string>
-    <plurals name="game_over_stats">
-        <item quantity="one">%1$d packet delivered · week %2$d</item>
-        <item quantity="other">%1$d packets delivered · week %2$d</item>
-    </plurals>
     <string name="game_over_best">Best: %1$d</string>
+    <string name="game_over_assisted">Played with extras, not counted for best or leaderboards · Best: %1$d</string>
     <string name="game_over_new_best">New best!</string>
     <string name="game_over_again">Play again</string>
 
@@ -137,9 +138,9 @@
         <item quantity="one">%1$,d / %2$,d packet</item>
         <item quantity="other">%1$,d / %2$,d packets</item>
     </plurals>
-    <string name="scenery_progress_in">in %1$s</string>
-    <string name="scenery_shop">In the shop</string>
-    <string name="scenery_shop_pack">alone or in the pack</string>
+    <string name="scenery_progress_in">in %1$s to unlock</string>
+    <string name="scenery_shop">Unlock in the shop</string>
+    <string name="scenery_shop_pack">Alone or in the pack</string>
     <plurals name="scenery_hint_score">
         <item quantity="one">Deliver %1$,d packet in %2$s or buy this scenery</item>
         <item quantity="other">Deliver %1$,d packets in %2$s or buy this scenery</item>
@@ -174,6 +175,7 @@
     <!-- Monetization (docs/PLAN.md 5.1) -->
     <string name="menu_remove_ads">Remove ads · %1$s</string>
     <string name="settings_privacy">Privacy</string>
+    <string name="settings_privacy_policy">Privacy policy</string>
     <string name="game_over_continue_ad">Continue · watch a video</string>
     <string name="game_over_continue">Continue</string>
     <string name="reward_bonus_router_ad">+1 router · watch a video</string>
@@ -210,9 +212,13 @@
     <string name="problem_too_narrow">%1$s: %2$s – no cable wide enough (bandwidth %3$d)</string>
     <string name="problem_ping">%1$s: %2$s – ping %3$d ms, allowed %4$d ms</string>
     <string name="problem_jam">%1$s: %2$s – jammed, cables or server too full</string>
+    <string name="game_over_no_route">%1$s couldn’t reach a %2$s server</string>
+    <string name="game_over_too_narrow">%1$s needed a wider cable for %2$s</string>
+    <string name="game_over_ping">%2$s on %1$s lagged: %3$d ms, max %4$d ms</string>
+    <string name="game_over_jam">%1$s got stuck in a data jam (%2$s)</string>
     <string name="drag_too_narrow">%1$s needs bandwidth %2$d</string>
     <string name="drag_ping">%1$s: ping %2$d/%3$d ms</string>
-    <string name="incident_more">%1$s (+%2$d)</string>
+    <string name="incident_more">%1$s · +%2$d more</string>
     <!-- Accessibility (TalkBack) descriptions of the canvas-drawn HUD, docs/TOP100.md A7 -->
     <string name="a11y_menu">Menu</string>
     <string name="a11y_pause">Pause the clock</string>
@@ -457,4 +463,19 @@
         <item quantity="one">%d packet delivered</item>
         <item quantity="other">%d packets delivered</item>
     </plurals>
+
+    <string name="age_gate_title">Date of birth</string>
+    <string name="age_gate_message">Choose your date of birth. It stays on this device and determines which ads may be shown.</string>
+    <string name="age_gate_day">Day</string>
+    <string name="age_gate_month">Month</string>
+    <string name="age_gate_year">Year</string>
+    <string name="age_gate_exit">Exit</string>
+    <string name="age_gate_invalid">Choose a valid date of birth.</string>
+    <string name="age_gate_minimum">Mini Networks is for players aged 13 and older.</string>
+    <!-- Test builds only (docs/PLAY_AUTORELEASE.md): unlock paid content for Play reviewers. -->
+    <string name="reviewer_access">Reviewer access</string>
+    <string name="reviewer_access_hint">Review code</string>
+    <string name="reviewer_access_unlock">Unlock</string>
+    <string name="reviewer_access_enabled">Reviewer access enabled</string>
+    <string name="reviewer_access_invalid">Invalid review code</string>
 </resources>

@@ -6,14 +6,25 @@ Umgebungsvariablen (CI-Secrets). `.gitignore` schließt `*.jks`, `*.keystore` un
 
 ## 1. Versionen
 
-- `versionName` steht in `app/build.gradle.kts` (`appVersionName`) als `MAJOR.MINOR.PATCH`, zurzeit `0.9.0`
-  (Release-Kandidat für den internen Test).
-- `versionCode = MAJOR × 10000 + MINOR × 100 + PATCH` (0.9.0 → 900, 1.0.0 → 10000, 1.2.3 → 10203). MINOR und PATCH
-  bleiben unter 100, sonst bricht der Build ab. Jede neue Version im Play Store braucht einen höheren Code, also vor
-  jedem Upload mindestens PATCH erhöhen.
-- Muss derselbe Name noch einmal hochgeladen werden (z. B. nur neu signiert), überschreibt CI den Code:
-  `-Pmininetworks.versionCode=901`.
-- Debug-Builds heißen `0.9.0-debug`.
+Ein einziges, monoton steigendes Schema für **jeden** Upload, lokal wie aus CI (`app/build.gradle.kts`). Play-Versionscodes
+gelten global pro App, also müssen Test- und Produktions-Builds in dieselbe Reihenfolge passen:
+
+- `versionName` steht in `app/build.gradle.kts` (`appVersionName`) als `MAJOR.MINOR.PATCH`, zurzeit `0.9.2`.
+  MINOR und PATCH bleiben unter 100, sonst bricht der Build ab. `semantic = MAJOR × 10000 + MINOR × 100 + PATCH`
+  (0.9.2 → 902, 1.0.0 → 10000).
+- **Test-Build** (`-Pmininetworks.channel=testing -Pmininetworks.buildNumber=<n>`, n = 0…998; CI nimmt
+  `run_number mod 999`): `versionCode = semantic × 1000 + n`, Name `0.9.2-test.<n>` (z. B. 902017).
+- **Produktions-Build** (Standard, ohne diese Properties): `versionCode = semantic × 1000 + 999`, Name `0.9.2`
+  (0.9.2 → 902999, 1.0.0 → 10000999). Er liegt über allen Test-Builds seiner Version und unter allen Test-Builds der
+  nächsten. Die frühere CI-Reihe `100000 + run_number` liegt unter 902000, bleibt also darunter.
+- Vor jeder neuen Produktionsversion PATCH (oder MINOR/MAJOR) erhöhen. `tools/publish_play.py` bricht ab, wenn ein
+  Test-Code nicht über allen Codes auf Play liegt (nach 999 CI-Läufen mit demselben Namen): dann ebenfalls PATCH erhöhen.
+- **Nie einen Test-Build in die Produktion hochstufen.** Test-Builds können den Prüferzugang enthalten
+  (`MININETWORKS_REVIEW_ACCESS_CODE`, docs/PLAY_AUTORELEASE.md), der Premium-Inhalte ohne Play-Kauf freischaltet.
+  Die Produktion bekommt immer ein eigenes `bundleRelease` ohne Channel-Property; ist dabei
+  `MININETWORKS_REVIEW_ACCESS_CODE` gesetzt, bricht Gradle ab, ein Store-Bundle kann den Code also nie enthalten.
+  Am Namen erkennbar: Test-Builds enden auf `-test.<n>`, ihr Code nicht auf 999.
+- `./gradlew -q :app:printVersion` (mit denselben Properties) zeigt Code und Namen; Debug-Builds heißen `0.9.2-debug`.
 
 ## 2. Upload-Schlüssel anlegen (einmalig)
 
@@ -80,11 +91,20 @@ keytool -printcert -jarfile app/build/outputs/bundle/release/app-release.aab   #
   minifizierter Build startet, Spielstand speichern → App beenden → Fortsetzen lädt ihn (Serializer nach R8),
   Einwilligungsformular erscheint (EWR-Gerät oder UMP-Debug-Geografie), Test-Interstitial nach der 4. Partie,
   Rewarded „Weiterspielen“, Testkauf „Werbefrei“ mit einem Lizenztester, 60 fps in einer vollen Partie (offen aus P4.2).
+- **Billing-Testmodus auf dem Gerät (E2, T7):** Im Code ist der Ablauf gegen ein nachgebautes Play-Konto getestet
+  (`PurchasesTest` mit `FakeBillingGateway`: Kauf, Szenerie-Paket, ausstehende Zahlung, Bestätigen, Wiederherstellen
+  nach Neuinstallation). Mit einem Lizenztester auf dem internen Test-Track zusätzlich einmal von Hand:
+  1. „Werbefrei“ mit der Testkarte „Immer genehmigt“ kaufen → kein Interstitial mehr, „Weiterspielen“ ohne Video.
+  2. „Alle Szenerien“ kaufen → Bergdorf und Zukunft 2030 spielbar.
+  3. Einen Kauf mit „Langsame Testkarte, wird nach einigen Minuten genehmigt“ → bis zur Genehmigung nicht freigeschaltet
+     und nicht erneut kaufbar, danach freigeschaltet (auch wenn die App zwischendurch geschlossen war).
+  4. App deinstallieren und neu installieren → beim ersten Start ist alles wieder da (Abfrage `queryPurchasesAsync`).
+  5. In der Play Console → Bestellungen: Die Käufe sind bestätigt (nicht nach 3 Tagen erstattet).
 
 ## 5. Play Console einrichten
 
 1. **App anlegen:** Name „Mini Networks“ (bzw. der endgültige Name aus `app_name`), Standardsprache Deutsch (de-DE),
-   Typ **Spiel**, **kostenlos**. Paketname `com.mininetworks.game` (lässt sich später nicht ändern).
+   Typ **Spiel**, **kostenlos**. Paketname `de.robinrehbein.mininetworks` (lässt sich später nicht ändern).
 2. **Play App Signing** annehmen (Standard) und beim ersten Upload das mit dem Upload-Schlüssel signierte AAB hochladen.
 3. **Interner Test:** Track „Interner Test“, Testerliste (E-Mail-Adressen des Teams), AAB hochladen, Versionshinweise
    (DE + EN), veröffentlichen, Opt-in-Link an die Tester.
@@ -103,10 +123,13 @@ keytool -printcert -jarfile app/build/outputs/bundle/release/app-release.aab   #
 
    Produkte lassen sich erst anlegen, wenn ein AAB mit der Billing-Berechtigung hochgeladen ist (Schritt 3).
    Die Preise zeigt die App so an, wie Play sie liefert; im Code steht kein Preis.
-6. **Store-Eintrag:** Texte, Grafiken und Screenshot-Plan in `docs/store-listing.md`; Kategorie **Spiele → Strategie**
+6. **Store-Eintrag:** Texte in 12 Sprachen, Screenshots, Feature-Grafik und Trailer-Storyboard in `docs/store/`
+   (Übersicht `docs/store/README.md`; ältere Planung in `docs/store-listing.md`); Kategorie **Spiele → Strategie**
    (Alternative: Puzzle), Tags z. B. „Simulation“, „Casual“. Kontakt-E-Mail und Website eintragen.
-7. **Datenschutzerklärung:** `docs/privacy-policy.md` (DE/EN) mit echtem Verantwortlichen füllen, auf einer öffentlichen
-   Seite (Website, GitHub Pages) veröffentlichen und die URL im Store-Eintrag **und** in der UMP-Nachricht eintragen.
+7. **Datenschutzerklärung:** veröffentlicht unter https://robinrehbein.github.io/mini-networks/privacy/ (Deutsch und
+   Englisch auf einer Seite; Quelle `docs/privacy-policy-web.md`, bauen mit `python3 tools/build_privacy_page.py`,
+   ausführlich in `docs/privacy-policy.md`). Diese URL im Store-Eintrag **und** in der UMP-Nachricht eintragen. Kommt
+   ein SDK dazu, beide Fassungen anpassen (`StoreListingTest.thePublishedPrivacyPageCoversEverySdkInGermanAndEnglish`).
 8. **App-Inhalte** (Richtlinie → App-Inhalte): Datenschutzerklärung, Werbung („Ja, enthält Werbung“), App-Zugriff
    („Alle Funktionen ohne Anmeldung verfügbar“), Einstufung (Abschnitt 7), Zielgruppe (Abschnitt 8),
    Datensicherheit (Abschnitt 9), Behörden-App: Nein, Finanzfunktionen: Keine, Gesundheit: Nein, Nachrichten-App: Nein.
@@ -118,15 +141,17 @@ keytool -printcert -jarfile app/build/outputs/bundle/release/app-release.aab   #
 2. Zwei Anzeigenblöcke: **Interstitial** → `mininetworks.admob.interstitialId`, **Rewarded** (Belohnung z. B. „1 ×
    Weiterspielen“, der Wert wird im Spiel nicht ausgewertet) → `mininetworks.admob.rewardedId`.
 3. **Datenschutz & Mitteilungen:** eine **DSGVO-Nachricht** (EWR, UK, Schweiz) für die App erstellen und veröffentlichen,
-   Datenschutz-URL eintragen, Sprachen DE + EN. Ohne veröffentlichte Nachricht zeigt UMP kein Formular und in der EU
+   Datenschutz-URL eintragen, Sprachen: die 12 der App (docs/TOP100.md F1). Ohne veröffentlichte Nachricht zeigt UMP kein Formular und in der EU
    gibt es keine Werbung. Optional eine Nachricht für US-Bundesstaaten (Datenschutzgesetze der Staaten).
    Den Knopf „Datenschutz“ im Spiel (Einstellungen) zeigt die App nur, wenn UMP ihn verlangt.
 4. **app-ads.txt:** die von AdMob angezeigte Zeile in `https://<entwickler-website>/app-ads.txt` ablegen; dieselbe
    Website als Entwickler-Website im Play Store eintragen.
 5. Eigene Testgeräte in AdMob registrieren (Einstellungen → Testgeräte), damit echte Anzeigen im internen Test nicht
    angeklickt werden (Kontosperre wegen ungültiger Klicks).
-6. Die App sagt nichts zur Zielgruppe (kein `tagForChildDirectedTreatment`); das passt nur, solange die Zielgruppe
-   ab 13 Jahren ist (Abschnitt 8).
+6. Die neutrale Geburtsdatumsabfrage läuft vor UMP, Billing, Play Games und Mobile Ads. Für 13- bis 17-Jährige setzt
+   die App Child- und Under-Age-of-Consent-Kennzeichnung sowie die Anzeigen-Einstufung G vor der Initialisierung
+   des Werbe-SDKs. Die UMP-Anfrage ist ebenfalls als minderjährig gekennzeichnet. Google Play Games startet nur für
+   Erwachsene.
 
 ## 7. Inhaltseinstufung (IARC-Fragebogen)
 
@@ -147,18 +172,25 @@ Erwartetes Ergebnis: USK 0 / PEGI 3 / ESRB Everyone (mit Hinweisen „In-Game Pu
 
 ## 8. Zielgruppe
 
-Empfehlung: **13–15, 16–17 und 18+** ankreuzen, **nicht** unter 13, und „App ist nicht speziell auf Kinder
-ausgerichtet“. Grund: Mit Kindern als Zielgruppe gilt die Familienrichtlinie (nur „Families“-zertifizierte
-Werbenetzwerke, Kennzeichnung kindgerechter Anfragen, keine personalisierte Werbung) – das ist im Code nicht umgesetzt.
-Das Spiel darf in Grafik und Store-Texten nicht gezielt Kinder ansprechen (tut es nicht).
+In der Play Console sind **13–15, 16–17 und 18+** gewählt, nicht unter 13. Je nach Land zählen Jugendliche in
+diesen Gruppen als Kinder. Die App fragt das Geburtsdatum neutral ab, startet vor der Antwort keine Werbe- oder
+Spiele-SDKs, sperrt den Zugang unter 13 und behandelt 13- bis 17-Jährige bei AdMob konservativ als Kinder.
+Vor einer Änderung der Zielgruppe oder der Werbe-SDKs die Familienrichtlinie erneut prüfen.
 
 ## 9. Datensicherheit (Data safety)
 
-Grundlage: Was die App **selbst** verarbeitet, bleibt auf dem Gerät (Spielstand, Bestwerte, Einstellungen, bekannte
-Käufe; keine eigenen Server, kein Analytics, kein Crash-Reporting). Zu erklären sind die SDKs: **Google Mobile Ads**
-(mit UMP) und **Google Play Billing**. Die Antworten folgen Googles Hinweisen zum Mobile Ads SDK; vor dem Absenden mit
-der aktuellen Fassung von „Google Mobile Ads SDK – Datensicherheit“ und „Play Billing – Datensicherheit“ abgleichen,
-die Google für seine SDKs pflegt.
+Grundlage: Was die App **selbst** verarbeitet, bleibt auf dem Gerät (Spielstand, Bestwerte, Statistiken, Einstellungen,
+bekannte Käufe; keine eigenen Server, kein Analytics, kein Crash-Reporting). Zu erklären sind die SDKs, die im
+Release-Build stecken (Stand T8, abgeglichen mit `app/build.gradle.kts` und dem gemergten Release-Manifest,
+docs/TOP100.md F5):
+
+| SDK (Version) | Wann aktiv | Daten an Google | Quelle zum Abgleich |
+|---|---|---|---|
+| Google Mobile Ads 25.2.0 + UMP 4.0.0 | kostenlose Version; nach „Werbefrei“ ab dem nächsten Start nicht mehr (`PlayRules.canInitializeAds`) | ja, siehe Tabelle | developers.google.com/admob/android/privacy/play-data-disclosure |
+| Google Play Billing 9.1.0 | immer (Käufe, Wiederherstellen) | Kaufabwicklung durch Google Play | developer.android.com/google/play/billing (Data safety) |
+| Play Games Services v2 22.1.0 | nur mit echten IDs in `games-ids.xml` und Play-Spiele-Profil (Abschnitt 11) | ja, siehe Tabelle | developer.android.com/games/pgs/data-collection |
+| Play In-App Review 2.0.2 | höchstens alle 30 Tage nach einem guten Moment (`ReviewPolicy`) | nichts von der App; Google zeigt nur seinen Dialog, Bewertung geht direkt an Play | Google Play SDK Index (com.google.android.play:review) |
+| AndroidX Core 1.15 (FileProvider), ProfileInstaller 1.4.1 | Teilen bzw. Installation | keine (lokal) | – |
 
 **Allgemein**
 
@@ -166,41 +198,44 @@ die Google für seine SDKs pflegt.
 |---|---|
 | Erhebt oder teilt die App Nutzerdaten der erforderlichen Typen? | Ja |
 | Werden alle Daten bei der Übertragung verschlüsselt? | Ja (die SDKs nutzen HTTPS) |
-| Können Nutzer das Löschen ihrer Daten beantragen? | Nein – wir halten keine Daten; Werbe-ID zurücksetzen/löschen geht in den Android-Einstellungen, der Spielstand verschwindet mit „App-Daten löschen“ bzw. der Deinstallation. (Falls die Console einen Weg verlangt: Kontakt-E-Mail der Datenschutzerklärung.) |
+| Können Nutzer das Löschen ihrer Daten beantragen? | Ja, über Google: Werbe-ID in den Android-Einstellungen zurücksetzen/löschen, Play-Spiele-Daten über das Play-Spiele-Profil bzw. Google-Konto; der Spielstand verschwindet mit „App-Daten löschen“ bzw. der Deinstallation. Kontakt-E-Mail der Datenschutzerklärung für Fragen. |
 | Unabhängige Sicherheitsprüfung (MASA) | Nein |
 
-**Datentypen** (alle: *erhoben* und *geteilt* durch das Mobile Ads SDK an Google; nicht optional, außer wo vermerkt;
-verarbeitet flüchtig: Nein)
+**Datentypen** (verarbeitet flüchtig: Nein)
 
-| Datentyp | Zweck |
-|---|---|
-| Standort → Ungefährer Standort (aus der IP-Adresse) | Werbung oder Marketing, Analysen, Betrugsprävention/Sicherheit/Compliance |
-| Geräte- oder andere IDs (Werbe-ID, App-Set-ID) | Werbung oder Marketing, Analysen, Betrugsprävention/Sicherheit/Compliance |
-| App-Aktivität → App-Interaktionen (Anzeigen gesehen/angetippt) | Werbung oder Marketing, Analysen, Betrugsprävention/Sicherheit/Compliance |
-| App-Informationen und Leistung → Absturzprotokolle, Diagnosen (des SDK) | Analysen, Betrugsprävention/Sicherheit/Compliance |
+| Datentyp | Durch | Erhoben / geteilt | Optional | Zweck |
+|---|---|---|---|---|
+| Standort → Ungefährer Standort (aus der IP-Adresse) | Mobile Ads | erhoben, geteilt | nein | Werbung oder Marketing, Analysen, Betrugsprävention/Sicherheit/Compliance |
+| Geräte- oder andere IDs (Werbe-ID, App-Set-ID) | Mobile Ads | erhoben, geteilt | nein | Werbung oder Marketing, Analysen, Betrugsprävention/Sicherheit/Compliance |
+| App-Aktivität → App-Interaktionen (Anzeigen gesehen/angetippt) | Mobile Ads | erhoben, geteilt | nein | Werbung oder Marketing, Analysen, Betrugsprävention/Sicherheit/Compliance |
+| App-Informationen und Leistung → Absturzprotokolle, Diagnosen (des SDK) | Mobile Ads | erhoben, geteilt | nein | Analysen, Betrugsprävention/Sicherheit/Compliance |
+| Persönliche Daten → Nutzer-IDs (Spieler-ID, Gamertag, Avatar) | Play Games Services | erhoben | ja (nur mit Play-Spiele-Profil) | App-Funktionalität, Kontoverwaltung |
+| App-Aktivität → Sonstige Aktionen (freigeschaltete Erfolge, Bestenlisten-Punkte) | Play Games Services | erhoben | ja | App-Funktionalität |
+| App-Aktivität → Sonstige nutzergenerierte Inhalte (Cloud-Spielstand „progress“: Statistiken, Bestwerte, Tagesserie) | Play Games Services | erhoben | ja | App-Funktionalität |
 
-**Nicht erhoben:** Name, E-Mail, Konten, Kontakte, Fotos, Dateien, Nachrichten, Gesundheit, genauer Standort,
-Finanzdaten. **Kaufverlauf:** Die App kennt nur die Produkt-IDs gekaufter Artikel und speichert sie lokal; die
-Zahlung wickelt Google Play ab (keine Angabe als „erhoben“, solange nichts davon an uns oder Dritte geht – mit Googles
-aktueller Billing-Anleitung abgleichen).
+**Nicht erhoben:** Name, E-Mail, Kontakte, Fotos/Videos, Dateien, Nachrichten, Gesundheit, genauer Standort,
+Finanzdaten. **Kaufverlauf:** Die App kennt nur die Produkt-IDs gekaufter Artikel und speichert sie lokal; die Zahlung
+wickelt Google Play ab (keine Angabe als „erhoben“, solange nichts davon an uns oder Dritte geht – mit Googles aktueller
+Billing-Anleitung abgleichen). **In-App-Review:** keine eigene Angabe; die App erfährt nicht, ob bewertet wurde.
+**Teilen (D2):** Das Bild bleibt im App-Cache und geht nur über das System-Teilen-Menü an die gewählte App
+(FileProvider, Lese-Berechtigung, keine Speicher-Berechtigung) – das ist eine Aktion des Nutzers, kein Erheben.
+Play Games gilt als „erhoben“ (Daten gehen an Google als Anbieter des Dienstes), nicht als „geteilt“; vor dem
+Absenden mit Googles Seite „Prepare for Google Play's data disclosure requirements“ (Play Games Services) abgleichen.
+Solange `games-ids.xml` Platzhalter enthält, startet kein Play-Games-Code (Abschnitt 11) – dann entfallen die drei
+Play-Games-Zeilen.
 
 Mit „Werbefrei“ startet die App das Mobile Ads SDK nicht mehr (ab dem nächsten App-Start; `PlayRules.canInitializeAds`),
-die Angaben oben gelten also für Spieler ohne diesen Kauf. Die lokal gemerkten Käufe (`monetization`-Einstellungen) sind
+die Werbe-Zeilen gelten also für Spieler ohne diesen Kauf. Die lokal gemerkten Käufe (`monetization`-Einstellungen) sind
 von Backup und Geräteumzug ausgenommen (`res/xml/data_extraction_rules.xml`, `backup_rules.xml`): Besitz kommt immer
 von Google Play.
 
-**Play Games Services und In-App-Review (ab T5, docs/TOP100.md C2, C3, C6, D1):** Solange `games-ids.xml` Platzhalter
-enthält (Abschnitt 11), läuft kein Play-Games-Code. Mit echten IDs meldet Play Games den Spieler automatisch an; dann
-gehen an Google: Spieler-ID/Spielername (Konto: „Persönliche Daten → Nutzer-IDs“), freigeschaltete Erfolge,
-Bestenlisten-Punkte und der Cloud-Spielstand (Statistiken, Bestwerte, Tagesserie; „App-Aktivität → Sonstige
-nutzergenerierte Inhalte/Spielfortschritt“, Zweck „App-Funktionalität“). Vor dem Absenden mit Googles „Play Games
-Services – Datensicherheit“ abgleichen. Die In-App-Review-API überträgt nichts Eigenes der App (Google zeigt nur seinen
-Bewertungsdialog). Teilen (D2) legt ein PNG im App-Cache ab und gibt es nur über das System-Teilen-Menü mit
-Lese-Berechtigung für die gewählte App weiter (FileProvider, keine Speicher-Berechtigung).
-
-Berechtigungen im Release-Manifest (aus den SDKs): `INTERNET`, `ACCESS_NETWORK_STATE`, `com.google.android.gms.permission.AD_ID`,
-`ACCESS_ADSERVICES_AD_ID`/`_ATTRIBUTION`/`_TOPICS` (Privacy Sandbox), `com.android.vending.BILLING`, `WAKE_LOCK`,
-`FOREGROUND_SERVICE`. Die Frage „Verwendet die App die Werbe-ID?“ ist daher mit **Ja, Werbung oder Marketing** zu beantworten.
+Berechtigungen im gemergten Release-Manifest (`app/build/intermediates/merged_manifests/release/.../AndroidManifest.xml`,
+geprüft in T8): `INTERNET`, `ACCESS_NETWORK_STATE`, `WAKE_LOCK`, `FOREGROUND_SERVICE` (SDKs),
+`com.google.android.gms.permission.AD_ID`, `ACCESS_ADSERVICES_AD_ID`/`_ATTRIBUTION`/`_TOPICS` (Mobile Ads, Privacy
+Sandbox), `com.android.vending.BILLING` (Billing) und die interne Signatur-Berechtigung
+`com.mininetworks.game.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` (AndroidX Core, nur für die eigene App). Keine
+Standort-, Kontakt-, Kamera-, Mikrofon- oder Speicher-Berechtigung. Die Frage „Verwendet die App die Werbe-ID?“ ist
+daher mit **Ja, Werbung oder Marketing** zu beantworten.
 
 ## 10. Checkliste vor dem ersten Upload
 
@@ -220,7 +255,10 @@ Berechtigungen im Release-Manifest (aus den SDKs): `INTERNET`, `ACCESS_NETWORK_S
       (profgen liegt in `cmdline-tools/latest/bin`)
 - [ ] Datenschutzerklärung veröffentlicht, URL in Play Console und UMP-Nachricht
 - [ ] In-App-Produkte angelegt und aktiv, Lizenztester eingetragen
-- [ ] Store-Eintrag DE + EN, Icon 512 px (`docs/screenshots/store-icon-512.png`), Feature-Grafik, Screenshots
+- [ ] Store-Eintrag in 12 Sprachen (`docs/store/<sprache>.md`), Icon 512 px (`docs/screenshots/store-icon-512.png`), Feature-Grafik (je Sprache `docs/store/feature-graphic/<sprache>.png`; `docs/store/feature-graphic.png` ist die Standardgrafik mit englischer Tagline, nur Rückfall), Screenshots (`docs/store/screenshots/`)
+- [ ] Store-Bilder und Feature-Grafiken der übrigen 10 Sprachen erzeugt und je Eintrag hochgeladen:
+      `ROBOLECTRIC_DEPS_DIR=/opt/robolectric ./gradlew testDebugUnitTest --tests '*StoreScreenshotTest*' -Pstore.locales=fr,es,it,pt-rBR,pl,nl,tr,ja,ko,zh-rCN`
+      (nicht eingecheckt, ≈ 80 MB PNG; ohne sie zeigt Play dort die deutschen bzw. englischen Bilder)
 - [ ] Geräte-Checks aus Abschnitt 4 im internen Test bestanden
 
 ## 11. Play Games Services (Erfolge, Bestenlisten, Cloud-Spielstand)
