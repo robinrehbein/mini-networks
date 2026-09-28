@@ -31,6 +31,15 @@ class World(
     val daily: DailyChallenge? = null,
 ) {
     object Tuning {
+        /** Cell towers handed out in the week mobile radio is invented ([RadioType.CELL]). */
+        const val FIRST_CELL_TOWERS = 1
+
+        /**
+         * First week a [Reward.CELL_TOWER] is offered. Two weeks after the tower itself: an extra reward in the pool from
+         * week 5 displaced the others and made island_harbor harder than mountain_village (docs/BALANCING.md G1).
+         */
+        const val CELL_TOWER_REWARD_WEEK = 7
+
         const val WEEK_SECONDS = 45f
         const val FIRST_YEAR = 1995
         /**
@@ -279,6 +288,9 @@ class World(
             scenario.startYear + eraYear(week) - eraYear(scenario.startWeek)
         }
 
+    /** The calendar year of era [week] in this game, e.g. when a later invention comes; see [year]. */
+    fun yearOfWeek(week: Int) = scenario.startYear + eraYear(week) - eraYear(scenario.startWeek)
+
     /** Weeks played in this game, 1 in the scenario's start week: pacing, growth and incidents follow this. */
     val weeksPlayed get() = week - scenario.startWeek + 1
     val unlockedCables get() = CableType.entries.filter(::invented)
@@ -286,6 +298,11 @@ class World(
 
     /** True if cable technology [t] can be laid: invented by now, or always in creative mode and on a fiber day. */
     fun invented(t: CableType) = unlimited || rule == DailyRule.FIBER_DAY || t.unlockWeek <= week
+
+    fun invented(g: CellGeneration) = unlimited || g.unlockWeek <= week
+
+    /** The generation a cell tower built now sends with. */
+    fun newestCellGeneration() = CellGeneration.entries.last { it == CellGeneration.G3 || invented(it) }
 
     /** True if [cost] can be paid now; always in creative mode. */
     fun canPay(cost: Int) = unlimited || cost <= budget
@@ -392,6 +409,7 @@ class World(
         n.requestTimer = 2f + rng.nextFloat() * 3f
         if (kind == NodeKind.SERVER && ScenarioRule.ORBITAL_SERVERS in scenario.rules) n.level = 2
         if (kind == NodeKind.ACCESS_POINT) n.channel = Wifi.CHANNELS_2_4_GHZ.first()
+        if (kind == NodeKind.CELL_TOWER) n.cellGeneration = newestCellGeneration()
         n.index = nodeList.size
         nodeList += n
         if (service != null && service !in availableServices) availableServices = availableServices + service
@@ -735,7 +753,7 @@ class World(
         when (it) {
             Reward.SERVER_VOUCHER -> nodes.any(::canGrow)
             Reward.ACCESS_POINT -> week >= RadioType.WLAN.unlockWeek
-            Reward.CELL_TOWER -> week >= RadioType.CELL.unlockWeek
+            Reward.CELL_TOWER -> week >= Tuning.CELL_TOWER_REWARD_WEEK
             else -> true
         }
     }
@@ -873,7 +891,7 @@ class World(
     /** Shared capacity of radio [n] after interference ([Wifi.reduced]); 0 for other nodes. */
     fun radioCapacity(n: Node): Int {
         val type = n.radio ?: return 0
-        return Wifi.reduced(type.capacity, interferers(n).size)
+        return Wifi.reduced(n.cellGeneration?.capacity ?: type.capacity, interferers(n).size)
     }
 
     /** How many clients radio [n] links at once after interference, or null for no limit (and for other nodes). */
@@ -906,6 +924,29 @@ class World(
         ap.fiveGhz = true
         ap.channel = Wifi.CHANNELS_5_GHZ.first()
         ap.upgradedAt = time
+        networkChanged()
+        return true
+    }
+
+    /** Null when [tower] can move to its next [CellGeneration], otherwise the reason. */
+    fun cellUpgradeError(tower: Node): CellUpgradeError? {
+        val next = tower.cellGeneration?.next
+        return when {
+            tower.kind != NodeKind.CELL_TOWER -> CellUpgradeError.NOT_A_CELL_TOWER
+            next == null -> CellUpgradeError.NEWEST
+            !invented(next) -> CellUpgradeError.NOT_INVENTED
+            !canPay(next.upgradeCost) -> CellUpgradeError.NO_BUDGET
+            else -> null
+        }
+    }
+
+    /** Moves [tower] to its next generation for that generation's [CellGeneration.upgradeCost]. */
+    fun upgradeCell(tower: Node): Boolean {
+        if (gameOver || cellUpgradeError(tower) != null) return false
+        val next = tower.cellGeneration!!.next!!
+        pay(next.upgradeCost)
+        tower.cellGeneration = next
+        tower.upgradedAt = time
         networkChanged()
         return true
     }
@@ -1522,6 +1563,7 @@ class World(
             Device.entries.filter { it.unlockWeek in weeks },
             emptyList(),
             RadioType.entries.filter { it.unlockWeek in weeks },
+            CellGeneration.entries.filter { it.unlockWeek in weeks && it.unlockWeek > RadioType.CELL.unlockWeek },
         )
         lastNewsTime = time
         forgetRoutes()
@@ -1541,8 +1583,13 @@ class World(
             ?: if (WeekSchedule.randomServer(week)) Service.entries[rng.nextInt(Service.entries.size)] else null
         val newServers = if (server != null && spawnServer(server)) listOf(server) else emptyList()
         val newRadios = if (unlimited) emptyList() else WeekSchedule.radios(week)
-        if (newCables.isNotEmpty() || newDevices.isNotEmpty() || newServers.isNotEmpty() || newRadios.isNotEmpty()) {
-            lastNews = WeekNews(year, newCables, newDevices, newServers, newRadios)
+        val newGenerations = if (unlimited) emptyList() else WeekSchedule.cellGenerations(week)
+        // Mobile radio comes with the smartphone: one 3G tower as a gift, more are won from Tuning.CELL_TOWER_REWARD_WEEK.
+        if (!unlimited && RadioType.CELL in newRadios) cellTowersAvailable += Tuning.FIRST_CELL_TOWERS
+        if (newCables.isNotEmpty() || newDevices.isNotEmpty() || newServers.isNotEmpty() || newRadios.isNotEmpty() ||
+            newGenerations.isNotEmpty()
+        ) {
+            lastNews = WeekNews(year, newCables, newDevices, newServers, newRadios, newGenerations)
             lastNewsTime = time
         }
     }
@@ -1580,6 +1627,7 @@ class World(
             NodeSnapshot(
                 it.id, it.kind, it.device, it.service, it.cellX, it.cellY, it.footprint, it.pending.toList(),
                 it.overload, it.level, it.tokens, it.requestTimer, it.dispatchCooldown, it.channel, it.fiveGhz,
+                it.cellGeneration,
             )
         },
         cables = cables.map { CableSnapshot(it.a.id, it.b.id, it.type, it.cost, it.layout.waypoints.map(::cellOf), it.waterCells) },
@@ -1700,6 +1748,7 @@ class World(
                     dispatchCooldown = n.dispatchCooldown
                     channel = n.channel
                     fiveGhz = n.fiveGhz
+                    cellGeneration = if (n.kind == NodeKind.CELL_TOWER) n.cellGeneration ?: CellGeneration.LEGACY else null
                 }
                 require(byId.put(n.id, node) == null) { "duplicate node id ${n.id}" }
                 node.index = w.nodeList.size

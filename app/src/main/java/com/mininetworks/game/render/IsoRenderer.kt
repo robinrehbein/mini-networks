@@ -923,7 +923,7 @@ class IsoRenderer : Renderer {
         when (n.kind) {
             NodeKind.SERVER -> if (n.isDataCenter) groundShadow(c, f.x, f.y, 1.86f, 1.4f) else groundShadow(c, f.x, f.y, 0.78f, n.level * 0.72f)
             NodeKind.CLIENT -> groundShadow(c, f.x, f.y, 0.5f, 0.45f)
-            NodeKind.ROUTER -> groundShadow(c, f.x, f.y, 0.4f, 0.35f)
+            NodeKind.ROUTER -> groundShadow(c, f.x, f.y, 0.66f, 0.42f)
             NodeKind.ACCESS_POINT -> groundShadow(c, f.x, f.y, 0.36f, 0.45f)
             NodeKind.CELL_TOWER -> {
                 groundShadow(c, f.x, f.y, 0.56f, 0.1f)
@@ -1425,10 +1425,43 @@ class IsoRenderer : Renderer {
             NodeKind.ROUTER -> {
                 val dark = world.isDark(n)
                 val warning = world.incidents.any { it.node === n && !it.struck }
-                // A slate-blue plinth sets routers apart from the white device plinths: they relay, they want nothing.
-                box(canvas, x, y, 0.5f, 0.2f, if (dark) DARK_TOP else ROUTER_TOP, if (dark) DARK_SIDE else ROUTER_SIDE)
-                icons.router(canvas, sx(x, y), sy(x, y, 0.2f) - tw * 0.1f, maxOf(tw * 0.22f, ICON_MIN_DP * density), time, warning, dark)
-                if (dark || warning) powerBadge(canvas, sx(x, y), sy(x, y, 0.2f) - tw * 0.48f, dark, time)
+                // Routers are network gear like the servers, not devices: a low block of the same build (light
+                // walls, colored roof) in the network's slate blue, a row of port lights on every wall facing the
+                // viewer, two antennas on the back corners and a floating sign with the network tree (playtest:
+                // the white plinth with a small icon read as one more end device).
+                val top = if (dark) DARK_TOP else ROUTER_TOP
+                val h = 0.42f
+                box(canvas, x, y, 0.66f, h, top, if (dark) DARK_SIDE else 0xFFE9ECEF.toInt())
+                for (f in 0 until 4) {
+                    val nx = FACES[4 * f]; val ny = FACES[4 * f + 1]
+                    if (!wallPatch(x, y, 0.33f, 0.33f, f, -0.26f, 0.26f, 0.08f, h - 0.1f)) continue
+                    fillP.color = litWall(RACK_FRONT, nx, ny); canvas.drawPath(path, fillP)
+                    for (i in 0 until 4) {
+                        val u = -0.2f + i * 0.12f
+                        fillP.color = when {
+                            dark -> 0xFF3A4350.toInt()
+                            warning -> if (sin(time * 17f + i * 2.1f) > 0f) IncidentStyles.WARNING else 0xFF56606C.toInt()
+                            sin(time * 6f + i * 1.3f + x + f) > -0.1f -> 0xFF7CF29A.toInt()
+                            else -> 0xFF56606C.toInt()
+                        }
+                        wallPatch(x, y, 0.33f, 0.33f, f, u, u + 0.07f, 0.14f, h - 0.16f)
+                        canvas.drawPath(path, fillP)
+                    }
+                }
+                val order = sortedByDepth(ROOF_MAST, x, y)
+                strokeP.color = 0xFF56606C.toInt(); strokeP.strokeWidth = maxOf(1.5f, tw * 0.028f)
+                strokeP.strokeCap = Paint.Cap.ROUND
+                // The side corners (depth 2nd and 3rd), so neither antenna hides behind the sign.
+                for (k in 1..2) {
+                    val mx = x + ROOF_MAST[2 * order[k]] * 0.95f; val my = y + ROOF_MAST[2 * order[k] + 1] * 0.95f
+                    canvas.drawLine(sx(mx, my), sy(mx, my, h), sx(mx, my), sy(mx, my, h + 0.4f), strokeP)
+                }
+                strokeP.strokeCap = Paint.Cap.BUTT
+                val badge = maxOf(tw * 0.14f, SIGN_MIN_DP * 0.85f * density)
+                val signY = sy(x, y, h) - badge * 1.25f
+                fillP.color = 0x30000000; canvas.drawCircle(sx(x, y) + badge * 0.12f, signY + badge * 0.18f, badge, fillP)
+                ServiceGlyphs.networkSign(canvas, sx(x, y), signY, badge, if (dark) 0xFF56606C.toInt() else ROUTER_SIDE, ROUTER_SIDE)
+                if (dark || warning) powerBadge(canvas, sx(x, y) + badge * 1.6f, signY, dark, time)
             }
             NodeKind.ACCESS_POINT -> {
                 val dark = world.isDark(n)
@@ -1438,7 +1471,7 @@ class IsoRenderer : Renderer {
                 if (!dark) channelBadge(canvas, n, sx(x, y) + tw * 0.22f, sy(x, y, 0.3f) - tw * 0.2f, world.interferers(n).isNotEmpty())
                 if (dark || warning) powerBadge(canvas, sx(x, y) - tw * 0.2f, sy(x, y, 0.3f) - tw * 0.3f, dark, time)
             }
-            NodeKind.CELL_TOWER -> drawCellTower(canvas, x, y, time)
+            NodeKind.CELL_TOWER -> drawCellTower(canvas, n, x, y, time)
         }
     }
 
@@ -1599,8 +1632,11 @@ class IsoRenderer : Renderer {
         canvas.drawText(n.channel.toString(), bx, by + labelP.textSize * 0.36f, labelP)
     }
 
-    /** A lattice mast on a concrete foot: four legs meet at the top, braces between them, antenna panels and a light. */
-    private fun drawCellTower(canvas: Canvas, x: Float, y: Float, time: Float) {
+    /**
+     * A lattice mast on a concrete foot: four legs meet at the top, braces between them, antenna panels and a light;
+     * the generation sign ([CellBadges]) hangs beside the mast.
+     */
+    private fun drawCellTower(canvas: Canvas, n: Node, x: Float, y: Float, time: Float) {
         box(canvas, x, y, 0.56f, 0.08f, 0xFFCBD2D9.toInt(), 0xFFB9C2CC.toInt())
         val base = 0.08f
         val height = 2.1f
@@ -1636,6 +1672,10 @@ class IsoRenderer : Renderer {
         }
         fillP.color = if (sin(time * 2.5f) > 0f) 0xFFE4572E.toInt() else 0xFF8A3A2A.toInt()
         canvas.drawCircle(sx(x, y), sy(x, y, top + 0.05f), tw * 0.04f, fillP)
+        n.cellGeneration?.let {
+            val r = maxOf(tw * 0.09f, SIGN_MIN_DP * 0.75f * density)
+            CellBadges.draw(canvas, it, sx(x, y) + r * 2.2f, sy(x, y, base + height * 0.45f), r)
+        }
     }
 
     /** Tier 4: a wide, low hall over the 2×2 footprint with rack LEDs on both visible walls and cooling on the roof. */

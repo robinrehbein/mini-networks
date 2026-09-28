@@ -463,4 +463,9 @@
     <string name="legend_too_narrow_desc">이 서비스에 맞는 대역폭의 길이 없어요. 더 넓은 케이블을 까세요.</string>
     <string name="legend_ping_title">너무 느림</string>
     <string name="legend_ping_desc">길이 너무 길어 핑이 맞지 않아요. 더 짧게 또는 빠른 케이블로 연결하세요.</string>
+    <string name="news_cell_generation">모바일 %1$s</string>
+    <string name="hint_cell_tower">기지국이 %1$s로 송출 중 · 새 세대가 나오면 탭해서 업그레이드</string>
+    <string name="cell_error_newest">이미 최신 세대입니다</string>
+    <string name="cell_error_not_invented">%1$s는 %2$d년에 나옵니다</string>
+    <string name="legend_cell_tower_desc">스마트폰·태블릿·워치 전용 · 3G → 4G/LTE → 5G: 탭하면 업그레이드, 용량 증가·핑 감소</string>
 </resources>

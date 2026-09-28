@@ -498,4 +498,9 @@
     <string name="legend_too_narrow_desc">Hiçbir yolun bu hizmet için yeterli bant genişliği yok. Daha geniş kablo çek.</string>
     <string name="legend_ping_title">Çok yavaş</string>
     <string name="legend_ping_desc">Yol, hizmetin pingi için çok uzun. Daha kısa ya da daha hızlı kabloyla bağla.</string>
+    <string name="news_cell_generation">Mobil %1$s</string>
+    <string name="hint_cell_tower">Baz istasyonu %1$s yayınlıyor · yeni nesil gelince yükseltmek için dokun</string>
+    <string name="cell_error_newest">Zaten en yeni nesil</string>
+    <string name="cell_error_not_invented">%1$s, %2$d yılında gelir</string>
+    <string name="legend_cell_tower_desc">Yalnızca akıllı telefon, tablet ve saat · 3G → 4G/LTE → 5G: yükseltmek için dokun, daha fazla kapasite, daha düşük ping</string>
 </resources>

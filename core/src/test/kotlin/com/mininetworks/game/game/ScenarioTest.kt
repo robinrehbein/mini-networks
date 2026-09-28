@@ -153,7 +153,8 @@ class ScenarioTest {
         w.advanceToNextWeek()
         assertEquals(2007, w.year)
         assertEquals(2, w.weeksPlayed)
-        assertEquals(RadioType.WLAN, w.lastNews!!.radios.single())
+        assertEquals(listOf(RadioType.WLAN, RadioType.CELL), w.lastNews!!.radios)
+        assertEquals("the first 3G tower comes as a gift", 2, w.cellTowersAvailable)
         assertEquals(2007, w.lastNews!!.year)
 
         val future = World(Scenarios.FUTURE, seed = 3L)

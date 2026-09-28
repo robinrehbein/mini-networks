@@ -340,17 +340,78 @@ class WirelessTest {
     }
 
     @Test
-    fun weekFiveAnnouncesWlanAndWeekSevenTheCellTower() {
+    fun weekFiveAnnouncesWlanAndThe3gTowerAndLaterWeeksTheNewGenerations() {
         val w = World(cols = 16, rows = 10, seed = 1L, spawnInitialNodes = false)
         w.jumpToWeek(4)
+        assertEquals(0, w.cellTowersAvailable)
         w.advanceToNextWeek()
-        assertEquals(listOf(RadioType.WLAN), w.lastNews!!.radios)
+        assertEquals(listOf(RadioType.WLAN, RadioType.CELL), w.lastNews!!.radios)
+        assertEquals(emptyList<CellGeneration>(), w.lastNews!!.cellGenerations)
+        assertEquals("one tower comes with mobile radio", World.Tuning.FIRST_CELL_TOWERS, w.cellTowersAvailable)
+        assertEquals(CellGeneration.G3, w.newestCellGeneration())
         w.chooseReward(0)
         w.advanceToNextWeek()
         assertEquals(emptyList<RadioType>(), w.lastNews!!.radios)
-        w.chooseReward(0)
+        assertEquals(listOf(CellGeneration.G4), w.lastNews!!.cellGenerations)
+        w.jumpToWeek(8)
+        w.rewardOffer?.let { w.chooseReward(0) }
         w.advanceToNextWeek()
-        assertEquals(listOf(RadioType.CELL), w.lastNews!!.radios)
+        assertEquals(listOf(CellGeneration.G5), w.lastNews!!.cellGenerations)
+    }
+
+    @Test
+    fun aTowerSendsWithTheNewestGenerationAndIsUpgradedStepByStep() {
+        val w = World(cols = 16, rows = 10, seed = 1L, spawnInitialNodes = false)
+        w.jumpToWeek(5)
+        val tower = w.addRadio(RadioType.CELL, 3, 3)
+        val phone = w.addClient(Device.SMARTPHONE, 5, 3)
+        assertEquals(CellGeneration.G3, tower.cellGeneration)
+        assertEquals(CellGeneration.G3.capacity, w.radioCapacity(tower))
+        assertEquals(CellGeneration.G3.latencyMs, w.radioLinks.single { it.device === phone }.latencyMs, 0f)
+        assertEquals("4G is not invented yet", CellUpgradeError.NOT_INVENTED, w.cellUpgradeError(tower))
+        assertFalse(w.upgradeCell(tower))
+
+        w.jumpToWeek(6)
+        assertEquals(CellGeneration.G4, w.newestCellGeneration())
+        val budget = w.budget
+        assertNull(w.cellUpgradeError(tower))
+        assertTrue(w.upgradeCell(tower))
+        assertEquals(CellGeneration.G4, tower.cellGeneration)
+        assertEquals(budget - CellGeneration.G4.upgradeCost, w.budget)
+        assertEquals(CellGeneration.G4.capacity, w.radioCapacity(tower))
+        assertEquals(CellGeneration.G4.latencyMs, w.radioLinks.single { it.device === phone }.latencyMs, 0f)
+        assertEquals(w.time, tower.upgradedAt, 0f)
+        assertEquals(CellUpgradeError.NOT_INVENTED, w.cellUpgradeError(tower))
+
+        w.jumpToWeek(9)
+        assertEquals("a new tower starts with 5G", CellGeneration.G5, w.addRadio(RadioType.CELL, 10, 6).cellGeneration)
+        w.grant(CellGeneration.G5.upgradeCost - 1 - w.budget)
+        assertEquals(CellUpgradeError.NO_BUDGET, w.cellUpgradeError(tower))
+        w.grant(1)
+        assertTrue(w.upgradeCell(tower))
+        assertEquals(CellGeneration.G5, tower.cellGeneration)
+        assertEquals(CellUpgradeError.NEWEST, w.cellUpgradeError(tower))
+        assertEquals(CellUpgradeError.NOT_A_CELL_TOWER, w.cellUpgradeError(phone))
+    }
+
+    @Test
+    fun theNewestGenerationCannotBeUpgraded() {
+        val w = World(cols = 16, rows = 10, seed = 1L, spawnInitialNodes = false)
+        w.jumpToWeek(9)
+        val tower = w.addRadio(RadioType.CELL, 3, 3)
+        assertEquals(CellGeneration.G5, tower.cellGeneration)
+        assertEquals(CellUpgradeError.NEWEST, w.cellUpgradeError(tower))
+    }
+
+    @Test
+    fun theGenerationSurvivesASaveAndOldSavesGet4g() {
+        val w = World(cols = 16, rows = 10, seed = 1L, spawnInitialNodes = false)
+        w.jumpToWeek(5)
+        val tower = w.addRadio(RadioType.CELL, 3, 3)
+        val loaded = World.restore(w.snapshot())
+        assertEquals(CellGeneration.G3, loaded.nodes.single { it.id == tower.id }.cellGeneration)
+        val old = World.restore(w.snapshot().let { s -> s.copy(nodes = s.nodes.map { it.copy(cellGeneration = null) }) })
+        assertEquals(CellGeneration.LEGACY, old.nodes.single { it.id == tower.id }.cellGeneration)
     }
 
     @Test

@@ -20,13 +20,42 @@ enum class RadioType(
     private val mobileOnly: Boolean,
 ) {
     WLAN(NodeKind.ACCESS_POINT, 1.5f, 4, 4, 5f, 2.6f, 5, mobileOnly = false),
-    CELL(NodeKind.CELL_TOWER, 3f, 8, null, 15f, 3.2f, 7, mobileOnly = true),
+    CELL(NodeKind.CELL_TOWER, 3f, 8, null, 15f, 3.2f, 5, mobileOnly = true),
     ;
 
     fun serves(d: Device) = !mobileOnly || d.mobile
 
     companion object {
         fun of(kind: NodeKind): RadioType? = entries.firstOrNull { it.kind == kind }
+    }
+}
+
+/**
+ * Mobile radio generations of a cell tower. A tower sends with the newest generation invented when it is built
+ * ([World.newestCellGeneration]); an older one is upgraded one generation at a time for [upgradeCost]
+ * ([World.upgradeCell]). [capacity] and [latencyMs] replace the tower's [RadioType.CELL] values. [label] is the short
+ * sign on the tower, [longLabel] the name in the week news; both read the same in every language.
+ * 2G is left out: the first mobile devices come in 2007 (week 5), together with 3G.
+ */
+enum class CellGeneration(
+    val label: String,
+    val longLabel: String,
+    val capacity: Int,
+    val latencyMs: Float,
+    val unlockWeek: Int,
+    val upgradeCost: Int,
+) {
+    G3("3G", "3G", 3, 35f, 5, 0),
+    G4("4G", "4G/LTE", 8, 15f, 6, 8),
+    G5("5G", "5G", 14, 6f, 9, 12),
+    ;
+
+    /** The generation after this one, or null for the newest. */
+    val next get() = entries.getOrNull(ordinal + 1)
+
+    companion object {
+        /** Towers of saves from before the generations sent with the old cell tower values, which are 4G's. */
+        val LEGACY = G4
     }
 }
 
@@ -59,7 +88,7 @@ class RadioLink(val radio: Node, val device: Node, override val capacity: Int) :
     override val b get() = device
     val type = requireNotNull(radio.radio) { "not a radio node" }
     override val length = hypot(device.center.x - radio.center.x, device.center.y - radio.center.y)
-    override val latencyMs get() = type.latencyMs
+    override val latencyMs get() = radio.cellGeneration?.latencyMs ?: type.latencyMs
     override val speed get() = type.speed
     override val medium get() = radio
 

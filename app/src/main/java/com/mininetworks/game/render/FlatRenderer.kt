@@ -200,7 +200,13 @@ class FlatRenderer : Renderer {
                     labelP.color = RadioStyles.color(n); labelP.textSize = r * (if (n.channel >= 10) 1.0f else 1.2f)
                     canvas.drawText(n.channel.toString(), bx, by + labelP.textSize * 0.36f, labelP)
                 }
-                NodeKind.CELL_TOWER -> icons.cellTower(canvas, nx, ny, cell * 0.34f, time)
+                NodeKind.CELL_TOWER -> {
+                    icons.cellTower(canvas, nx, ny, cell * 0.34f, time)
+                    n.cellGeneration?.let {
+                        val r = maxOf(cell * 0.12f, CHANNEL_BADGE_MIN_DP * 0.8f * density)
+                        CellBadges.draw(canvas, it, nx + cell * 0.44f, ny - cell * 0.3f, r)
+                    }
+                }
                 NodeKind.SERVER -> if (n.isDataCenter) {
                     icons.dataCenter(
                         canvas, n.service!!, world.serverBusy(n), screenX(n.footprintCenter.x, n.footprintCenter.y),

@@ -463,4 +463,9 @@
     <string name="legend_too_narrow_desc">このサービスに十分な帯域の道がありません。太いケーブルを引きましょう。</string>
     <string name="legend_ping_title">遅すぎ</string>
     <string name="legend_ping_desc">道が長すぎて Ping が間に合いません。短く、または速いケーブルでつなぎましょう。</string>
+    <string name="news_cell_generation">モバイル %1$s</string>
+    <string name="hint_cell_tower">基地局は%1$sで通信中 · 新しい世代が登場したらタップでアップグレード</string>
+    <string name="cell_error_newest">すでに最新の世代です</string>
+    <string name="cell_error_not_invented">%1$sは%2$d年に登場</string>
+    <string name="legend_cell_tower_desc">スマホ・タブレット・時計専用 · 3G → 4G/LTE → 5G：タップでアップグレード、容量アップ・Ping低下</string>
 </resources>

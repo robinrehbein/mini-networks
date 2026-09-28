@@ -533,4 +533,9 @@
     <string name="legend_too_narrow_desc">Ningún camino tiene ancho de banda suficiente para este servicio. Tiende un cable más ancho.</string>
     <string name="legend_ping_title">Demasiado lento</string>
     <string name="legend_ping_desc">El camino es demasiado largo para el ping del servicio. Conéctalo más corto o con un cable más rápido.</string>
+    <string name="news_cell_generation">Red móvil %1$s</string>
+    <string name="hint_cell_tower">La antena emite en %1$s · tócala para mejorarla cuando llegue una nueva generación</string>
+    <string name="cell_error_newest">Ya usa la generación más nueva</string>
+    <string name="cell_error_not_invented">%1$s llega en %2$d</string>
+    <string name="legend_cell_tower_desc">Solo smartphone, tableta y reloj · 3G → 4G/LTE → 5G: tócala para mejorar, más capacidad y menos ping</string>
 </resources>

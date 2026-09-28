@@ -119,6 +119,9 @@ enum class CableUpgradeError { NOT_AN_UPGRADE, NOT_INVENTED, NO_BUDGET }
 /** Why an access point cannot switch to 5 GHz. */
 enum class WifiUpgradeError { NOT_AN_ACCESS_POINT, ALREADY_5_GHZ, NO_BUDGET }
 
+/** Why a cell tower cannot move to its next [CellGeneration]. */
+enum class CellUpgradeError { NOT_A_CELL_TOWER, NEWEST, NOT_INVENTED, NO_BUDGET }
+
 /** Why a router or radio cannot go on a cell: none in stock, outside the unlocked block, taken, or not plain land. */
 enum class PlaceError { NO_STOCK, LOCKED, OCCUPIED, TERRAIN }
 
@@ -152,6 +155,8 @@ data class WeekNews(
     val devices: List<Device>,
     val servers: List<Service>,
     val radios: List<RadioType> = emptyList(),
+    /** Mobile generations invented after the cell tower itself (the tower's first one comes with it). */
+    val cellGenerations: List<CellGeneration> = emptyList(),
 )
 
 class Node(
@@ -180,7 +185,7 @@ class Node(
         }
 
     /**
-     * [World.time] of the last upgrade (a server tier, an access point switched to 5 GHz), for the upgrade effect;
+     * [World.time] of the last upgrade (a server tier, an access point switched to 5 GHz, a cell tower's generation), for the upgrade effect;
      * minus infinity if none. Not saved: effects only play for what happens on screen.
      */
     var upgradedAt = Float.NEGATIVE_INFINITY
@@ -216,6 +221,10 @@ class Node(
 
     /** True once an access point was switched to 5 GHz: more channels, smaller [radius]. */
     var fiveGhz = false
+        internal set
+
+    /** Mobile generation a cell tower sends with; null for every other node. */
+    var cellGeneration: CellGeneration? = null
         internal set
 
     /** Reach of a radio node in cells, measured between cell centers; 0 for other nodes. */

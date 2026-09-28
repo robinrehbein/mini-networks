@@ -118,7 +118,8 @@ class Texts(private val context: Context) {
 
     /** "New: DSL, Laptop" and, with [withYear], "1998 · New: DSL, Laptop". */
     fun news(n: WeekNews, withYear: Boolean): String {
-        val items = n.cables.map(::cable) + n.devices.map(::device) + n.servers.map(::server) + n.radios.map(::radio)
+        val items = n.cables.map(::cable) + n.devices.map(::device) + n.servers.map(::server) + n.radios.map(::radio) +
+            n.cellGenerations.map { context.getString(R.string.news_cell_generation, it.longLabel) }
         val text = context.getString(R.string.news_items, items.joinToString(context.getString(R.string.list_separator)))
         return if (withYear) context.getString(R.string.news_with_year, n.year, text) else text
     }
