@@ -12,6 +12,29 @@ PACKAGE = "de.robinrehbein.mininetworks"
 SCOPES = ["https://www.googleapis.com/auth/androidpublisher"]
 
 
+def highest_version_code(tracks: list) -> int:
+    """The highest versionCode released on any track (production included), 0 when there is none."""
+    codes = [
+        int(code)
+        for track in tracks
+        for release in track.get("releases", [])
+        for code in release.get("versionCodes", [])
+    ]
+    return max(codes, default=0)
+
+
+def check_version_code(version_code: int, tracks: list) -> None:
+    """docs/RELEASE.md 1: one monotonic scheme; test builds never end in 999, which belongs to production."""
+    if version_code % 1000 == 999:
+        raise ValueError(f"{version_code} is a production versionCode; CI only uploads testing-channel builds")
+    highest = highest_version_code(tracks)
+    if version_code <= highest:
+        raise ValueError(
+            f"versionCode {version_code} is not above {highest} already on Play: raise PATCH of versionName "
+            "(app/build.gradle.kts) so the next test builds start in a new block"
+        )
+
+
 def main() -> None:
     bundle = Path(os.environ["PLAY_BUNDLE"])
     if not bundle.is_file():
@@ -27,13 +50,12 @@ def main() -> None:
     edits = service.edits()
     edit_id = edits.insert(packageName=PACKAGE, body={}).execute()["id"]
 
-    tracks = {
-        item["track"] for item in edits.tracks()
-        .list(packageName=PACKAGE, editId=edit_id).execute().get("tracks", [])
-    }
+    listed = edits.tracks().list(packageName=PACKAGE, editId=edit_id).execute().get("tracks", [])
+    tracks = {item["track"] for item in listed}
     required = {"internal", closed_track}
     if not required.issubset(tracks):
         raise RuntimeError(f"Missing Play test track(s): {sorted(required - tracks)}")
+    check_version_code(version_code, listed)
 
     uploaded = edits.bundles().upload(
         packageName=PACKAGE,

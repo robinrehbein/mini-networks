@@ -465,9 +465,17 @@
     </plurals>
 
     <string name="age_gate_title">Doğum tarihi</string>
-    <string name="age_gate_message">Doğum tarihinizi girin. Bu bilgi yalnızca bu cihazda saklanır ve gösterilebilecek reklamları belirler.</string>
-    <string name="age_gate_date_hint">YYYY-AA-GG</string>
+    <string name="age_gate_message">Doğum tarihini seç. Bu cihazda kalır ve hangi reklamların gösterilebileceğini belirler.</string>
+    <string name="age_gate_day">Gün</string>
+    <string name="age_gate_month">Ay</string>
+    <string name="age_gate_year">Yıl</string>
     <string name="age_gate_exit">Çıkış</string>
-    <string name="age_gate_invalid">YYYY-AA-GG biçiminde geçerli bir tarih girin.</string>
+    <string name="age_gate_invalid">Geçerli bir doğum tarihi seç.</string>
     <string name="age_gate_minimum">Mini Networks, 13 yaş ve üzerindeki oyuncular içindir.</string>
+    <!-- Test builds only (docs/PLAY_AUTORELEASE.md): unlock paid content for Play reviewers. -->
+    <string name="reviewer_access">İnceleyici erişimi</string>
+    <string name="reviewer_access_hint">İnceleme kodu</string>
+    <string name="reviewer_access_unlock">Kilidi aç</string>
+    <string name="reviewer_access_enabled">İnceleyici erişimi etkinleştirildi</string>
+    <string name="reviewer_access_invalid">Geçersiz inceleme kodu</string>
 </resources>

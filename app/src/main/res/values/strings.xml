@@ -470,9 +470,17 @@
     </plurals>
 
     <string name="age_gate_title">Geburtsdatum</string>
-    <string name="age_gate_message">Bitte gib dein Geburtsdatum ein. Es bleibt auf diesem Gerät und bestimmt, welche Anzeigen angezeigt werden dürfen.</string>
-    <string name="age_gate_date_hint">JJJJ-MM-TT</string>
+    <string name="age_gate_message">Bitte wähle dein Geburtsdatum. Es bleibt auf diesem Gerät und bestimmt, welche Anzeigen angezeigt werden dürfen.</string>
+    <string name="age_gate_day">Tag</string>
+    <string name="age_gate_month">Monat</string>
+    <string name="age_gate_year">Jahr</string>
     <string name="age_gate_exit">Beenden</string>
-    <string name="age_gate_invalid">Bitte gib ein gültiges Datum als JJJJ-MM-TT ein.</string>
+    <string name="age_gate_invalid">Bitte wähle ein gültiges Geburtsdatum.</string>
     <string name="age_gate_minimum">Mini Networks ist für Spieler ab 13 Jahren.</string>
+    <!-- Test builds only (docs/PLAY_AUTORELEASE.md): unlock paid content for Play reviewers. -->
+    <string name="reviewer_access">Prüferzugang</string>
+    <string name="reviewer_access_hint">Prüfercode</string>
+    <string name="reviewer_access_unlock">Freischalten</string>
+    <string name="reviewer_access_enabled">Prüferzugang aktiviert</string>
+    <string name="reviewer_access_invalid">Ungültiger Prüfercode</string>
 </resources>

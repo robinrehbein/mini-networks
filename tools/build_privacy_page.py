@@ -33,7 +33,12 @@ for block in SOURCE.read_text(encoding="utf-8").strip().split("\n\n"):
         first_title = False
         blocks.append(f"<h1{anchor}>{inline(block[2:])}</h1>")
     elif block.startswith("## "):
-        blocks.append(f"<h2>{inline(block[3:])}</h2>")
+        # "## Heading {#anchor}" gives the heading an id, so links like /privacy/#deletion keep working.
+        heading = re.fullmatch(r"(.*?)\s*\{#([A-Za-z0-9-]+)\}", block[3:])
+        if heading:
+            blocks.append(f'<h2 id="{heading.group(2)}">{inline(heading.group(1))}</h2>')
+        else:
+            blocks.append(f"<h2>{inline(block[3:])}</h2>")
     else:
         blocks.append(f"<p>{inline(block)}</p>")
 

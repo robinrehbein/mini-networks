@@ -535,9 +535,17 @@
     </plurals>
 
     <string name="age_gate_title">Data urodzenia</string>
-    <string name="age_gate_message">Podaj datę urodzenia. Pozostaje ona na tym urządzeniu i określa, jakie reklamy mogą być wyświetlane.</string>
-    <string name="age_gate_date_hint">RRRR-MM-DD</string>
+    <string name="age_gate_message">Wybierz datę urodzenia. Zostaje na tym urządzeniu i decyduje, jakie reklamy mogą być wyświetlane.</string>
+    <string name="age_gate_day">Dzień</string>
+    <string name="age_gate_month">Miesiąc</string>
+    <string name="age_gate_year">Rok</string>
     <string name="age_gate_exit">Zamknij</string>
-    <string name="age_gate_invalid">Podaj poprawną datę w formacie RRRR-MM-DD.</string>
+    <string name="age_gate_invalid">Wybierz prawidłową datę urodzenia.</string>
     <string name="age_gate_minimum">Mini Networks jest przeznaczone dla graczy od 13 lat.</string>
+    <!-- Test builds only (docs/PLAY_AUTORELEASE.md): unlock paid content for Play reviewers. -->
+    <string name="reviewer_access">Dostęp dla recenzentów</string>
+    <string name="reviewer_access_hint">Kod recenzenta</string>
+    <string name="reviewer_access_unlock">Odblokuj</string>
+    <string name="reviewer_access_enabled">Dostęp dla recenzentów włączony</string>
+    <string name="reviewer_access_invalid">Nieprawidłowy kod recenzenta</string>
 </resources>

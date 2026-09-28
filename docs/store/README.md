@@ -42,13 +42,14 @@ Play Games optional, Werbung nur zwischen Partien, „Werbefrei“ und Szenerien
 - Eine Vorlage für alle Bilder, je Motiv eigene Tönung: das Spiel randlos, die kurze Überschrift (Nunito Black) mit
   einem kurzen Akzentstrich auf einem Verlauf, der in die Karte übergeht; Motive mit HUD, Dialog oder Collage hängen
   unter einem schmalen Band in derselben Tönung. Nur Bild 1 trägt das App-Icon.
-- Motive: 1 lebendige Stadt (wenige Anfragen, ein Gerät läuft voll), 2 Kabel ziehen mit Finger und Preis, 3 Bagger
-  und Stromausfall, 4 Überlastung im echten Spielbild mit HUD (glaubwürdiges Budget, pulsierender roter Schein,
-  Alarmwelle), 5 Funk (Abdeckung mit Signalwellen, Server ganz im Bild), 6 Wochen-Belohnung im warmen Spotlight mit
-  Konfetti nur am Rand, 7 gedrehte Stadt 2030 mit kleinem Dreh-Abzeichen in der Ecke, 8 fünf Szenerien, jede auf ihr
-  Merkmal gerahmt (Türme, Meer, Berge) mit Namens-Pille am unteren Rand.
-- `screenshots/phone-portrait/<sprache>/`: 1080 × 1920 für das Hochformat-Karussell von Play, alle Motive außer 6
-  (die zwei Belohnungskarten brauchen Breite).
+- Motive (Dateien `01-town`, `02-drag`, `03-incidents`, `04-overload`, `05-wireless`, `06-network`, `07-rotation`,
+  `08-sceneries`): 1 lebendige Stadt (wenige Anfragen, ein Gerät läuft voll), 2 Kabel ziehen mit Finger und Preis,
+  3 Bagger und Stromausfall, 4 Überlastung im echten Spielbild mit HUD, 5 Funk (Abdeckung mit Signalwellen, Server ganz
+  im Bild), 6 großes Netz: die Metropole spät im Spiel mit Paketen in jeder Kabelfarbe, 7 gedrehte Stadt 2030 mit
+  kleinem Dreh-Abzeichen in der Ecke, 8 fünf Szenerien, jede auf ihr Merkmal gerahmt (Türme, Meer, Berge) mit
+  Namens-Pille am unteren Rand. Beschriftungen: `StoreScreenshotTest` (`CAPTIONS`).
+- `screenshots/phone-portrait/<sprache>/`: 1080 × 1920 für das Hochformat-Karussell von Play, alle 8 Motive
+  (`01-town.png` … `08-sceneries.png`), jeweils für das Hochformat neu gerahmt.
 - Trailer: `trailer.md`.
 
 Erzeugen:

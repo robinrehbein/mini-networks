@@ -430,9 +430,17 @@
     </plurals>
 
     <string name="age_gate_title">出生日期</string>
-    <string name="age_gate_message">请输入出生日期。此信息仅保存在本设备上，用于确定可展示的广告。</string>
-    <string name="age_gate_date_hint">YYYY-MM-DD</string>
+    <string name="age_gate_message">请选择你的出生日期。它只保存在此设备上，用于确定可以展示哪些广告。</string>
+    <string name="age_gate_day">日</string>
+    <string name="age_gate_month">月</string>
+    <string name="age_gate_year">年</string>
     <string name="age_gate_exit">退出</string>
-    <string name="age_gate_invalid">请按 YYYY-MM-DD 格式输入有效日期。</string>
+    <string name="age_gate_invalid">请选择有效的出生日期。</string>
     <string name="age_gate_minimum">Mini Networks 适合 13 岁及以上的玩家。</string>
+    <!-- Test builds only (docs/PLAY_AUTORELEASE.md): unlock paid content for Play reviewers. -->
+    <string name="reviewer_access">审核访问</string>
+    <string name="reviewer_access_hint">审核代码</string>
+    <string name="reviewer_access_unlock">解锁</string>
+    <string name="reviewer_access_enabled">已启用审核访问</string>
+    <string name="reviewer_access_invalid">审核代码无效</string>
 </resources>

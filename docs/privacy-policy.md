@@ -12,7 +12,7 @@
 >
 > *Published version: https://robinrehbein.github.io/mini-networks/privacy/ (German and English). Not legal advice.*
 
-Stand / Last updated: 27.09.2026
+Stand / Last updated: 28.09.2026
 
 ---
 
@@ -28,12 +28,19 @@ Robin Rehbein, Stiegelstraße 26, 71701 Schwieberdingen, Deutschland, E-Mail: he
 Mini Networks ist ein Offline-Spiel. Wir betreiben **keine eigenen Server**, haben **keine Benutzerkonten** und
 nutzen **keine eigene Analyse oder Absturzmeldung**. Personenbezogene Daten verarbeiten nur die unten genannten
 Dienste von Google: Werbung (Abschnitt 4), In-App-Käufe (5), die optionalen Google Play Spiele-Dienste für Erfolge,
-Bestenlisten und Cloud-Speicherstand (6) und die Bewertungsanfrage von Google Play (7). Das Spiel ist ohne Konto und
-ohne Internet vollständig spielbar.
+Bestenlisten und Cloud-Speicherstand (6) und die Bewertungsanfrage von Google Play (7). Die kostenlosen Inhalte sind
+ohne Konto und ohne Internet spielbar; zusätzliche Szenerien erfordern einen Kauf über Google Play.
+
+**Altersabfrage:** Vor dem Start der Google-Dienste fragt die App neutral nach deinem Geburtsdatum (Tag, Monat und Jahr
+zum Auswählen). Das Datum bleibt nur im privaten App-Speicher deines Geräts und wird von der App weder an uns noch an
+Google gesendet. Die App berechnet daraus, ob du mindestens 13 oder 18 Jahre alt bist. Unter 13 lässt sich das Spiel
+nicht starten; gespeichert wird dann nicht das Datum, sondern nur, dass die Altersgrenze nicht erreicht ist. Für 13- bis
+17-Jährige werden Werbe- und Einwilligungsanfragen gegenüber Google als minderjährig gekennzeichnet und Anzeigen auf
+allgemein geeignete Inhalte begrenzt; die Google Play Spiele-Dienste (6) starten nur für Volljährige.
 
 ### 3. Daten auf deinem Gerät
 
-Die App speichert auf deinem Gerät: den Spielstand, deine Bestwerte je Szenerie und Modus, deine Einstellungen (Ton,
+Die App speichert auf deinem Gerät: dein Geburtsdatum aus der Altersabfrage (Abschnitt 2), den Spielstand, deine Bestwerte je Szenerie und Modus, deine Einstellungen (Ton,
 Haptik, Darstellung, Kabel-Skin, Farbthema, Tutorial gesehen), Spielstatistiken für Erfolge (z. B. zugestellte Pakete,
 gelegte Kabel), die Serie und den Tagesbestwert der Tagesaufgabe, welche Produkte du gekauft hast, einen Zähler der
 beendeten Partien (damit Werbung höchstens jede dritte Partie erscheint) und wann zuletzt um eine Bewertung gebeten
@@ -88,6 +95,7 @@ Spieldaten deines Profils für dieses Spiel. Zweck: die Funktionen Erfolge, Best
 Spielfortschritt. Rechtsgrundlage: Vertragserfüllung bzw. die Nutzung der von dir gewünschten Funktion (Art. 6 Abs. 1
 lit. b DSGVO). Löschen: Play-Spiele-Profil (https://play.google.com/games/profile) bzw. Google-Konto. Es gilt die
 Datenschutzerklärung von Google: https://policies.google.com/privacy
+Diese Dienste starten nur für volljährige Spieler (Altersabfrage, Abschnitt 2).
 
 ### 7. Bewertungsanfrage (Google Play In-App Review)
 
@@ -104,7 +112,8 @@ Die App richtet sich nicht an Kinder unter 13 Jahren.
 Du hast das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung, Datenübertragbarkeit,
 Widerspruch (Art. 15–21 DSGVO) und auf Widerruf erteilter Einwilligungen mit Wirkung für die Zukunft. Da wir selbst
 keine Daten über dich speichern, richten sich Anfragen zu Werbe-, Kauf- und Play-Spiele-Daten in der Regel an Google; wir helfen gern
-unter der oben genannten Adresse. Du kannst dich bei einer Datenschutz-Aufsichtsbehörde beschweren, z. B. beim
+unter der oben genannten Adresse. **Daten löschen:** Anfrage an hello@robinrehbein.de mit dem Betreff „Mini Networks
+Datenlöschung“ (Einzelheiten unter https://robinrehbein.github.io/mini-networks/privacy/#deletion). Du kannst dich bei einer Datenschutz-Aufsichtsbehörde beschweren, z. B. beim
 Landesbeauftragten für den Datenschutz und die Informationsfreiheit Baden-Württemberg.
 
 ### 10. Änderungen
@@ -125,11 +134,19 @@ Robin Rehbein, Stiegelstraße 26, 71701 Schwieberdingen, Germany, e-mail: hello@
 Mini Networks is an offline game. We run **no servers of our own**, have **no user accounts** and use **no analytics
 or crash reporting of our own**. Personal data is processed only by the Google services listed below: ads (section 4),
 in-app purchases (5), the optional Google Play Games services for achievements, leaderboards and cloud save (6), and
-Google Play's rating prompt (7). The game is fully playable without an account and without internet.
+Google Play's rating prompt (7). The free content is playable without an account or internet connection; additional
+sceneries require a Google Play purchase.
+
+**Age screen:** Before Google services start, the app neutrally asks for your date of birth (day, month and year to
+pick). The date stays in the app's private storage on your device and is not sent by the app to us or Google. The app
+uses it to determine whether you are at least 13 or 18 years old. Players under 13 cannot start the game; the app then
+stores only that the minimum age is not reached, not the date. For ages 13–17, ad and consent requests to Google are
+marked for underage treatment and ads are limited to general-audience content; Google Play Games services (6) start only
+for adults.
 
 ### 3. Data on your device
 
-The app stores on your device: your saved game, your best scores per scenery and mode, your settings (sound, haptics,
+The app stores on your device: your date of birth from the age screen (section 2), your saved game, your best scores per scenery and mode, your settings (sound, haptics,
 display, cable skin, color theme, tutorial seen), game statistics for achievements (e.g. packets delivered, cables
 laid), the daily challenge streak and best score of the day, which products you bought, a count of finished games (so
 ads appear at most every third game) and when the app last asked for a rating. This data is not sent to us (for the
@@ -178,6 +195,7 @@ running game). The app only receives this game data of your profile for this gam
 leaderboards and progress across devices. Legal basis: performance of a contract / the feature you use (Art. 6(1)(b)
 GDPR). Deletion: your Play Games profile (https://play.google.com/games/profile) or Google account. Google's privacy
 policy applies: https://policies.google.com/privacy
+These services start only for adult players (age screen, section 2).
 
 ### 7. Rating prompt (Google Play In-App Review)
 
@@ -194,6 +212,8 @@ The app is not directed at children under 13.
 You have the right to access, rectification, erasure, restriction of processing, data portability and to object
 (Art. 15–21 GDPR), and to withdraw consent at any time with effect for the future. As we do not store data about you
 ourselves, requests about ad, purchase or Play Games data are usually for Google; we are happy to help at the address above.
+**Delete your data:** email hello@robinrehbein.de with the subject "Mini Networks data deletion" (details at
+https://robinrehbein.github.io/mini-networks/privacy/#deletion-en).
 You may lodge a complaint with a data protection supervisory authority, e.g. the State Commissioner for Data Protection and Freedom of Information of Baden-Württemberg.
 
 ### 10. Changes

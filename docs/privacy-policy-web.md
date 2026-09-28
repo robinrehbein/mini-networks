@@ -24,7 +24,11 @@ Postanschrift: Stiegelstraße 26, 71701 Schwieberdingen, Deutschland
 
 ## Mini Networks – Überblick
 
-Mini Networks ist ein Android-Spiel ohne eigenes Benutzerkonto, ohne eigene Server und ohne eigene Analyse- oder Absturzmeldedienste. Personenbezogene Daten verarbeiten nur die folgenden Dienste von Google: Werbung (Google AdMob mit der User Messaging Platform), In-App-Käufe (Google Play Billing), die optionalen Google Play Spiele-Dienste (Erfolge, Bestenlisten, Cloud-Speicherstand) und die Bewertungsanfrage von Google Play (In-App Review). Das Spiel ist ohne Konto und ohne Internet vollständig spielbar.
+Mini Networks ist ein Android-Spiel ohne eigenes Benutzerkonto, ohne eigene Server und ohne eigene Analyse- oder Absturzmeldedienste. Personenbezogene Daten verarbeiten nur die folgenden Dienste von Google: Werbung (Google AdMob mit der User Messaging Platform), In-App-Käufe (Google Play Billing), die optionalen Google Play Spiele-Dienste (Erfolge, Bestenlisten, Cloud-Speicherstand) und die Bewertungsanfrage von Google Play (In-App Review). Die kostenlosen Inhalte sind ohne Konto und ohne Internet spielbar; zusätzliche Szenerien erfordern einen Kauf über Google Play.
+
+## Mini Networks – Altersabfrage
+
+Vor dem Start der Google-Dienste fragt die App neutral nach Ihrem Geburtsdatum (Tag, Monat und Jahr zum Auswählen). Dieses Datum bleibt ausschließlich im privaten App-Speicher Ihres Geräts und wird von der App nicht an mich oder Google gesendet. Die App berechnet daraus, ob Sie mindestens 13 oder 18 Jahre alt sind. Unter 13 Jahren lässt sich das Spiel nicht starten; die App speichert dann nicht das Datum, sondern nur, dass die Altersgrenze nicht erreicht ist. Für 13- bis 17-Jährige werden Werbe- und Einwilligungsanfragen gegenüber Google als minderjährig gekennzeichnet und Anzeigen auf allgemein geeignete Inhalte begrenzt. Sie können das lokal gespeicherte Datum durch Löschen der App-Daten oder Deinstallation entfernen.
 
 ## Mini Networks – lokale Spieldaten
 
@@ -44,11 +48,19 @@ Optionale Käufe, etwa „Werbefrei“ und zusätzliche Szenerien, werden über 
 
 ## Mini Networks – Google Play Spiele-Dienste (optional)
 
+Diese optionalen Dienste werden nur für volljährige Spieler gestartet, wenn sie für Mini Networks eingerichtet sind.
+
 Erfolge, Bestenlisten und der Cloud-Speicherstand laufen über die Google Play Spiele-Dienste (Google Ireland Limited). Wenn Sie auf Ihrem Gerät ein Play-Spiele-Profil haben, meldet Android Sie automatisch an; ohne Profil oder Internet funktioniert das Spiel ohne diese Funktionen. Dabei verarbeitet Google Ihre Spieler-ID und Ihr Play-Spiele-Profil (Gamertag, Avatar; die Sichtbarkeit legen Sie in Play Spiele fest), freigeschaltete Erfolge, Punktzahlen für die Bestenlisten der Szenerien und der Tagesaufgabe sowie den Cloud-Speicherstand mit Ihren Spielstatistiken, Bestwerten, der Tagesserie und dem Tagesbestwert (nicht die laufende Partie). Die App erhält von Google nur diese Spieldaten Ihres Profils für dieses Spiel; ich erhalte sie nicht. Zweck sind die von Ihnen genutzten Funktionen Erfolge, Bestenlisten und geräteübergreifender Spielfortschritt; Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO. Löschen können Sie diese Daten über Ihr [Play-Spiele-Profil](https://play.google.com/games/profile) bzw. Ihr Google-Konto. Es gilt die [Google-Datenschutzerklärung](https://policies.google.com/privacy).
 
 ## Mini Networks – Bewertungsanfrage
 
 Nach einem guten Moment, etwa einem neuen Bestwert, kann die App höchstens alle 30 Tage den Bewertungsdialog von Google Play (In-App Review) anzeigen. Ob er erscheint, entscheidet Google Play. Bewertung und Rezension geben Sie direkt bei Google Play ab; die App erfährt nicht, ob und wie Sie bewertet haben. Es gilt die [Google-Datenschutzerklärung](https://policies.google.com/privacy).
+
+## Mini Networks – Daten löschen {#deletion}
+
+Für eine Löschanfrage schreiben Sie an [hello@robinrehbein.de](mailto:hello@robinrehbein.de?subject=Mini%20Networks%20Datenl%C3%B6schung) mit dem Betreff „Mini Networks Datenlöschung“. Nennen Sie, welche Daten betroffen sind. Es gibt kein Mini-Networks-Konto und keinen eigenen Server mit Spielerdaten. Lokale Spielstände, Einstellungen und Kaufberechtigungen löschen Sie unter Android → Apps → Mini Networks → Speicher → Daten löschen oder durch Deinstallation. Dadurch wird ein Kauf bei Google Play nicht rückgängig gemacht.
+
+Die Android-Werbe-ID können Sie in den Android-Datenschutzeinstellungen zurücksetzen oder löschen. Falls Google Play Spiele für Ihr Gerät aktiviert ist, löschen Sie dort gespeicherte Spielerdaten über Ihr [Play-Spiele-Profil](https://play.google.com/games/profile) oder Ihr Google-Konto. Daten zu Käufen, Anzeigen und Play-Spielen verarbeitet Google eigenständig; für deren Löschung und Aufbewahrungsfristen gelten die [Google-Datenschutzhinweise](https://policies.google.com/privacy). Eine Anfrage per E-Mail kann ich für die Daten bearbeiten, für die ich verantwortlich bin, und Sie für Google-Daten an den zuständigen Dienst verweisen.
 
 ## Kinder
 
@@ -84,7 +96,11 @@ Controller: Robin Rehbein, [hello@robinrehbein.de](mailto:hello@robinrehbein.de)
 
 ## Mini Networks – overview
 
-Mini Networks is an Android game without user accounts, servers, analytics or crash reporting of its own. Personal data is processed only by these Google services: ads (Google AdMob with the User Messaging Platform), in-app purchases (Google Play Billing), the optional Google Play Games services (achievements, leaderboards, cloud save) and Google Play's rating prompt (In-App Review). The game is fully playable without an account and without internet.
+Mini Networks is an Android game without user accounts, servers, analytics or crash reporting of its own. Personal data is processed only by these Google services: ads (Google AdMob with the User Messaging Platform), in-app purchases (Google Play Billing), the optional Google Play Games services (achievements, leaderboards, cloud save) and Google Play's rating prompt (In-App Review). The free content is playable without an account or internet connection; additional sceneries require a Google Play purchase.
+
+## Mini Networks – age screen
+
+Before Google services start, the app neutrally asks for your date of birth (day, month and year to pick). The date stays in the app's private storage on your device and is not sent by the app to me or Google. The app uses it to determine whether you are at least 13 or 18 years old. Players under 13 cannot start the game; the app then stores only that the minimum age is not reached, not the date. For ages 13–17, ad and consent requests to Google are marked for underage treatment and ads are limited to general-audience content. You can remove the stored date by clearing the app's data or uninstalling it.
 
 ## Mini Networks – data on your device
 
@@ -104,11 +120,19 @@ Optional purchases such as "Remove ads" and additional sceneries are handled by 
 
 ## Mini Networks – Google Play Games services (optional)
 
+These optional services start only for adult players when configured for Mini Networks.
+
 Achievements, leaderboards and the cloud save use Google Play Games services (Google Ireland Limited). If you have a Play Games profile on your device, Android signs you in automatically; without a profile or internet the game works without these features. Google then processes your player ID and Play Games profile (gamertag, avatar; you choose its visibility in Play Games), unlocked achievements, scores for the leaderboards of the sceneries and the daily challenge, and the cloud save with your game statistics, best scores, daily streak and best score of the day (not the running game). The app only receives this game data of your profile for this game; I do not receive it. The purpose is the features you use (achievements, leaderboards, progress across devices); the legal basis is Art. 6(1)(b) GDPR. You can delete this data through your [Play Games profile](https://play.google.com/games/profile) or your Google account. The [Google privacy policy](https://policies.google.com/privacy) applies.
 
 ## Mini Networks – rating prompt
 
 After a good moment, such as a new best score, the app may show Google Play's rating dialog (In-App Review), at most every 30 days. Google Play decides whether it appears. You rate and review directly with Google Play; the app does not learn whether or how you rated. The [Google privacy policy](https://policies.google.com/privacy) applies.
+
+## Mini Networks – delete your data {#deletion-en}
+
+To request deletion, email [hello@robinrehbein.de](mailto:hello@robinrehbein.de?subject=Mini%20Networks%20data%20deletion) with the subject “Mini Networks data deletion” and say which data you mean. Mini Networks has no account or server storing player data. You can remove local saves, settings and stored purchase entitlements in Android → Apps → Mini Networks → Storage → Clear data, or by uninstalling the app. This does not cancel a Google Play purchase.
+
+You can reset or delete the Android advertising ID in Android privacy settings. If Google Play Games is enabled for your device, delete saved game data through your [Play Games profile](https://play.google.com/games/profile) or Google account. Google independently processes purchase, advertising and Play Games data; its [privacy policy](https://policies.google.com/privacy) governs deletion and retention. I can handle email requests for data under my control and direct you to the appropriate Google service for Google-controlled data.
 
 ## Children
 

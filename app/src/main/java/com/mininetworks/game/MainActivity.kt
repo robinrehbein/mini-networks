@@ -14,10 +14,10 @@ import android.window.OnBackInvokedCallback
 import android.window.OnBackInvokedDispatcher
 import android.content.ActivityNotFoundException
 import android.util.Log
-import android.widget.EditText
 import com.mininetworks.game.games.GamesIds
 import com.mininetworks.game.games.PlayGameServices
 import com.mininetworks.game.monetization.AgeGate
+import com.mininetworks.game.monetization.AgeGateDialog
 import com.mininetworks.game.monetization.PlayMonetization
 import com.mininetworks.game.review.PlayReviewPrompt
 import com.mininetworks.game.share.ShareSheet
@@ -58,40 +58,7 @@ class MainActivity : Activity() {
 
     /** No advertising, UMP, Billing or Play Games SDK is started before the neutral age screen is answered. */
     private fun showAgeGate() {
-        val input = EditText(this).apply {
-            hint = getString(R.string.age_gate_date_hint)
-            setSingleLine(true)
-        }
-        val dialog = AlertDialog.Builder(this)
-            .setTitle(R.string.age_gate_title)
-            .setMessage(R.string.age_gate_message)
-            .setView(input)
-            .setPositiveButton(android.R.string.ok, null)
-            .setNegativeButton(R.string.age_gate_exit) { _, _ -> finish() }
-            .setCancelable(false)
-            .create()
-        dialog.show()
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-            val birthDate = AgeGate.parse(input.text.toString(), LocalDate.now())
-            if (birthDate == null) {
-                input.error = getString(R.string.age_gate_invalid)
-                return@setOnClickListener
-            }
-            val band = AgeGate.band(birthDate, LocalDate.now())
-            if (band == AgeGate.Band.UNDER_13) {
-                dialog.dismiss()
-                AlertDialog.Builder(this)
-                    .setTitle(R.string.age_gate_title)
-                    .setMessage(R.string.age_gate_minimum)
-                    .setPositiveButton(R.string.age_gate_exit) { _, _ -> finish() }
-                    .setCancelable(false)
-                    .show()
-                return@setOnClickListener
-            }
-            AgeGate.save(this, birthDate)
-            dialog.dismiss()
-            startOnlineServices(band)
-        }
+        AgeGateDialog(this, onAnswer = ::startOnlineServices).show()
     }
 
     private fun startOnlineServices(ageBand: AgeGate.Band) {

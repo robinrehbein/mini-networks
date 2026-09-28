@@ -465,9 +465,17 @@
     </plurals>
 
     <string name="age_gate_title">Geboortedatum</string>
-    <string name="age_gate_message">Vul je geboortedatum in. Deze blijft op dit apparaat en bepaalt welke advertenties getoond mogen worden.</string>
-    <string name="age_gate_date_hint">JJJJ-MM-DD</string>
+    <string name="age_gate_message">Kies je geboortedatum. Die blijft op dit apparaat en bepaalt welke advertenties getoond mogen worden.</string>
+    <string name="age_gate_day">Dag</string>
+    <string name="age_gate_month">Maand</string>
+    <string name="age_gate_year">Jaar</string>
     <string name="age_gate_exit">Afsluiten</string>
-    <string name="age_gate_invalid">Vul een geldige datum in als JJJJ-MM-DD.</string>
+    <string name="age_gate_invalid">Kies een geldige geboortedatum.</string>
     <string name="age_gate_minimum">Mini Networks is voor spelers van 13 jaar en ouder.</string>
+    <!-- Test builds only (docs/PLAY_AUTORELEASE.md): unlock paid content for Play reviewers. -->
+    <string name="reviewer_access">Toegang voor reviewers</string>
+    <string name="reviewer_access_hint">Reviewcode</string>
+    <string name="reviewer_access_unlock">Ontgrendelen</string>
+    <string name="reviewer_access_enabled">Toegang voor reviewers ingeschakeld</string>
+    <string name="reviewer_access_invalid">Ongeldige reviewcode</string>
 </resources>

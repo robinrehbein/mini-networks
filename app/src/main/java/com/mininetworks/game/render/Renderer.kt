@@ -112,13 +112,13 @@ interface Renderer {
      */
     fun fitArea(world: World, animate: Boolean) {
         updateLimits(world)
-        camera.fit(frame(world), animate, atLeast = readableScale)
+        camera.fit(frame(world), animate, atLeast = framingMinScale(world))
     }
 
     /** Call when the unlocked area grew: widens the limits and, unless the player moved the view, follows the area. */
     fun onAreaChanged(world: World) {
         updateLimits(world)
-        if (camera.followsArea) camera.fit(frame(world), animate = true, atLeast = readableScale)
+        if (camera.followsArea) camera.fit(frame(world), animate = true, atLeast = framingMinScale(world))
     }
 
     /**
@@ -128,7 +128,17 @@ interface Renderer {
     fun onContentChanged(world: World) {
         if (!camera.followsArea) return
         val content = contentBounds(world) ?: return
-        if (!camera.shows(content)) camera.fit(frame(world), animate = true, atLeast = readableScale)
+        if (!camera.shows(content)) camera.fit(frame(world), animate = true, atLeast = framingMinScale(world))
+    }
+
+    /**
+     * The zoom the automatic framing does not go below: [readableScale]; but in a portrait view, whose width is the
+     * scarce direction, never so far in that a built node would be pushed off the side of the screen.
+     */
+    fun framingMinScale(world: World): Float {
+        if (!camera.isTall) return readableScale
+        val content = contentBounds(world) ?: return readableScale
+        return minOf(readableScale, camera.fitScale(content))
     }
 
     /**
@@ -140,7 +150,9 @@ interface Renderer {
     fun frame(world: World): MapRect {
         val area = mapBounds(world.unlocked)
         val c = contentBounds(world) ?: return area
-        if (camera.isTall) return MapRect(c.left, area.top, c.right, area.bottom)
+        // Portrait: as tall as the area, but centred on the built network, so it sits in the middle of the screen
+        // instead of wherever the middle of the area happens to be.
+        if (camera.isTall) return MapRect(c.left, c.centerY - area.height / 2f, c.right, c.centerY + area.height / 2f)
         // Landscape: the built network plus the middle of the area. The iso area is a diamond, so fitting its whole box
         // left half the screen as empty corners and locked ground; its empty tips may now lie outside (docs/TOP100.md B4).
         val hx = area.width * CORE_FRACTION / 2f

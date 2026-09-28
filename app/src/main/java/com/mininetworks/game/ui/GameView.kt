@@ -2312,7 +2312,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 if (monetization.privacyOptionsRequired) MenuItem.Button(MenuAction.PRIVACY, context.getString(R.string.settings_privacy)) else null,
                 MenuItem.Button(MenuAction.PRIVACY_POLICY, context.getString(R.string.settings_privacy_policy), link = true),
                 if ((monetization as? PlayMonetization)?.reviewerAccessAvailable == true)
-                    MenuItem.Button(MenuAction.REVIEW_ACCESS, "Reviewer access", link = true) else null,
+                    MenuItem.Button(MenuAction.REVIEW_ACCESS, context.getString(R.string.reviewer_access), link = true) else null,
                 MenuItem.Button(MenuAction.BACK, context.getString(R.string.menu_back)),
             ),
             footer = context.getString(R.string.settings_language),
@@ -2510,14 +2510,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private fun showReviewerAccessDialog() {
         val play = monetization as? PlayMonetization ?: return
         post {
-            val input = EditText(context).apply { hint = "Review code"; isSingleLine = true }
+            val input = EditText(context).apply { hint = context.getString(R.string.reviewer_access_hint); isSingleLine = true }
             AlertDialog.Builder(context)
-                .setTitle("Reviewer access")
+                .setTitle(R.string.reviewer_access)
                 .setView(input)
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Unlock") { _, _ ->
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(R.string.reviewer_access_unlock) { _, _ ->
                     val unlocked = play.unlockReviewerAccess(input.text.toString())
-                    Toast.makeText(context, if (unlocked) "Review access enabled" else "Invalid review code", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, if (unlocked) R.string.reviewer_access_enabled else R.string.reviewer_access_invalid, Toast.LENGTH_SHORT).show()
                 }
                 .show()
         }

@@ -16,6 +16,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import kotlin.math.abs
 import kotlin.math.hypot
 
 /** Both styles project through their [Camera]: round trips, fitting the unlocked area, growth and touch targets. */
@@ -114,6 +115,29 @@ class RendererCameraTest {
         for ((w, h, d) in listOf(Triple(1600, 2560, 2f), Triple(1200, 1920, 1.5f), Triple(1600, 2000, 2f))) {
             val tablet = tileDp(w, h, d)
             assertTrue("${w}x$h at $d: tile $tablet dp, phone $phone dp", tablet >= phone)
+        }
+    }
+
+    /**
+     * A portrait phone window (split screen, docs/screenshots/portrait-game.png): the built network sits in the middle
+     * of the space between the HUD rows, not low with empty ground above it, and no device is cut off at the sides,
+     * even where the readable zoom would be larger than the width allows.
+     */
+    @Test
+    fun portraitPhoneCentresTheNetworkAndKeepsEveryDeviceOnScreen() {
+        val world = Scenes.hud()
+        val d = 3f
+        val insets = ViewInsets(8f * d, 60f * d, 8f * d, 140f * d)
+        for (r in listOf(IsoRenderer(), FlatRenderer())) {
+            r.density = d
+            r.layout(1080, 2400, world, insets)
+            val content = r.contentBounds(world)!!
+            assertTrue("${r.javaClass.simpleName} shows every node", r.camera.shows(content))
+            val midY = insets.top + (2400f - insets.top - insets.bottom) / 2f
+            val y = r.camera.toScreenY(content.centerY)
+            assertTrue("${r.javaClass.simpleName}: network centre at $y, view centre $midY", abs(y - midY) < 30f)
+            val x = r.camera.toScreenX(content.centerX)
+            assertTrue("${r.javaClass.simpleName}: centred across, $x", abs(x - 540f) < 30f)
         }
     }
 

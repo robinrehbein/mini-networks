@@ -500,9 +500,17 @@
     </plurals>
 
     <string name="age_gate_title">Date de naissance</string>
-    <string name="age_gate_message">Saisissez votre date de naissance. Elle reste sur cet appareil et détermine les annonces qui peuvent être affichées.</string>
-    <string name="age_gate_date_hint">AAAA-MM-JJ</string>
+    <string name="age_gate_message">Choisis ta date de naissance. Elle reste sur cet appareil et détermine quelles publicités peuvent être affichées.</string>
+    <string name="age_gate_day">Jour</string>
+    <string name="age_gate_month">Mois</string>
+    <string name="age_gate_year">Année</string>
     <string name="age_gate_exit">Quitter</string>
-    <string name="age_gate_invalid">Saisissez une date valide au format AAAA-MM-JJ.</string>
+    <string name="age_gate_invalid">Choisis une date de naissance valide.</string>
     <string name="age_gate_minimum">Mini Networks est réservé aux joueurs de 13 ans et plus.</string>
+    <!-- Test builds only (docs/PLAY_AUTORELEASE.md): unlock paid content for Play reviewers. -->
+    <string name="reviewer_access">Accès examinateur</string>
+    <string name="reviewer_access_hint">Code d\'examen</string>
+    <string name="reviewer_access_unlock">Débloquer</string>
+    <string name="reviewer_access_enabled">Accès examinateur activé</string>
+    <string name="reviewer_access_invalid">Code d\'examen non valide</string>
 </resources>

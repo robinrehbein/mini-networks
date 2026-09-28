@@ -75,15 +75,27 @@ jobs:
           printf '%s' "$PLAY_UPLOAD_KEYSTORE_BASE64" | base64 --decode > "$keyfile"
           chmod 600 "$keyfile"
           echo "MININETWORKS_UPLOAD_STORE_FILE=$keyfile" >> "$GITHUB_ENV"
-          echo "PLAY_VERSION_CODE=$((100000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
-          echo "PLAY_VERSION_NAME=0.9.2-r${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+          # docs/RELEASE.md 1: test builds get semantic * 1000 + (run_number mod 999); 999 is kept for the production
+          # build of the same versionName. publish_play.py refuses a code that is not above every code on Play.
+          echo "PLAY_BUILD_NUMBER=$((GITHUB_RUN_NUMBER % 999))" >> "$GITHUB_ENV"
 
-      - name: Test and build signed bundle
+      - name: Production builds refuse the reviewer code
         shell: bash
         run: |
-          ./gradlew --no-daemon testDebugUnitTest lintDebug bundleRelease \
-            "-Pmininetworks.versionCode=$PLAY_VERSION_CODE" \
-            "-Pmininetworks.versionName=$PLAY_VERSION_NAME" \
+          if ./gradlew --no-daemon -q help 2> "$RUNNER_TEMP/production-check.log"; then
+            echo "A production configuration accepted MININETWORKS_REVIEW_ACCESS_CODE" >&2
+            exit 1
+          fi
+          grep -q "MININETWORKS_REVIEW_ACCESS_CODE is set, but this is a production build" "$RUNNER_TEMP/production-check.log"
+
+      - name: Test and build signed test bundle
+        shell: bash
+        run: |
+          testing=("-Pmininetworks.channel=testing" "-Pmininetworks.buildNumber=$PLAY_BUILD_NUMBER")
+          read -r code name < <(./gradlew --no-daemon -q "${testing[@]}" :app:printVersion | tail -n 1)
+          echo "PLAY_VERSION_CODE=$code" >> "$GITHUB_ENV"
+          echo "PLAY_VERSION_NAME=$name" >> "$GITHUB_ENV"
+          ./gradlew --no-daemon testDebugUnitTest lintDebug bundleRelease "${testing[@]}" \
             "-Pmininetworks.admob.appId=$PLAY_ADMOB_APP_ID" \
             "-Pmininetworks.admob.interstitialId=$PLAY_ADMOB_INTERSTITIAL_ID" \
             "-Pmininetworks.admob.rewardedId=$PLAY_ADMOB_REWARDED_ID"

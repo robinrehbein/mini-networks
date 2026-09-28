@@ -6,14 +6,25 @@ Umgebungsvariablen (CI-Secrets). `.gitignore` schließt `*.jks`, `*.keystore` un
 
 ## 1. Versionen
 
-- `versionName` steht in `app/build.gradle.kts` (`appVersionName`) als `MAJOR.MINOR.PATCH`, zurzeit `0.9.2`
-  (Release-Kandidat für den internen Test).
-- `versionCode = MAJOR × 10000 + MINOR × 100 + PATCH` (0.9.0 → 900, 1.0.0 → 10000, 1.2.3 → 10203). MINOR und PATCH
-  bleiben unter 100, sonst bricht der Build ab. Jede neue Version im Play Store braucht einen höheren Code, also vor
-  jedem Upload mindestens PATCH erhöhen.
-- Muss derselbe Name noch einmal hochgeladen werden (z. B. nur neu signiert), überschreibt CI den Code:
-  `-Pmininetworks.versionCode=902`.
-- Debug-Builds heißen `0.9.2-debug`.
+Ein einziges, monoton steigendes Schema für **jeden** Upload, lokal wie aus CI (`app/build.gradle.kts`). Play-Versionscodes
+gelten global pro App, also müssen Test- und Produktions-Builds in dieselbe Reihenfolge passen:
+
+- `versionName` steht in `app/build.gradle.kts` (`appVersionName`) als `MAJOR.MINOR.PATCH`, zurzeit `0.9.2`.
+  MINOR und PATCH bleiben unter 100, sonst bricht der Build ab. `semantic = MAJOR × 10000 + MINOR × 100 + PATCH`
+  (0.9.2 → 902, 1.0.0 → 10000).
+- **Test-Build** (`-Pmininetworks.channel=testing -Pmininetworks.buildNumber=<n>`, n = 0…998; CI nimmt
+  `run_number mod 999`): `versionCode = semantic × 1000 + n`, Name `0.9.2-test.<n>` (z. B. 902017).
+- **Produktions-Build** (Standard, ohne diese Properties): `versionCode = semantic × 1000 + 999`, Name `0.9.2`
+  (0.9.2 → 902999, 1.0.0 → 10000999). Er liegt über allen Test-Builds seiner Version und unter allen Test-Builds der
+  nächsten. Die frühere CI-Reihe `100000 + run_number` liegt unter 902000, bleibt also darunter.
+- Vor jeder neuen Produktionsversion PATCH (oder MINOR/MAJOR) erhöhen. `tools/publish_play.py` bricht ab, wenn ein
+  Test-Code nicht über allen Codes auf Play liegt (nach 999 CI-Läufen mit demselben Namen): dann ebenfalls PATCH erhöhen.
+- **Nie einen Test-Build in die Produktion hochstufen.** Test-Builds können den Prüferzugang enthalten
+  (`MININETWORKS_REVIEW_ACCESS_CODE`, docs/PLAY_AUTORELEASE.md), der Premium-Inhalte ohne Play-Kauf freischaltet.
+  Die Produktion bekommt immer ein eigenes `bundleRelease` ohne Channel-Property; ist dabei
+  `MININETWORKS_REVIEW_ACCESS_CODE` gesetzt, bricht Gradle ab, ein Store-Bundle kann den Code also nie enthalten.
+  Am Namen erkennbar: Test-Builds enden auf `-test.<n>`, ihr Code nicht auf 999.
+- `./gradlew -q :app:printVersion` (mit denselben Properties) zeigt Code und Namen; Debug-Builds heißen `0.9.2-debug`.
 
 ## 2. Upload-Schlüssel anlegen (einmalig)
 

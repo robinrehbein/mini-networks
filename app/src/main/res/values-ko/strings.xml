@@ -430,9 +430,17 @@
     </plurals>
 
     <string name="age_gate_title">생년월일</string>
-    <string name="age_gate_message">생년월일을 입력하세요. 이 정보는 기기에만 저장되며 표시할 수 있는 광고를 결정하는 데 사용됩니다.</string>
-    <string name="age_gate_date_hint">YYYY-MM-DD</string>
+    <string name="age_gate_message">생년월일을 선택하세요. 이 기기에만 저장되며 표시할 수 있는 광고를 정하는 데 사용됩니다.</string>
+    <string name="age_gate_day">일</string>
+    <string name="age_gate_month">월</string>
+    <string name="age_gate_year">연도</string>
     <string name="age_gate_exit">종료</string>
-    <string name="age_gate_invalid">YYYY-MM-DD 형식의 올바른 날짜를 입력하세요.</string>
+    <string name="age_gate_invalid">올바른 생년월일을 선택하세요.</string>
     <string name="age_gate_minimum">Mini Networks는 만 13세 이상을 위한 게임입니다.</string>
+    <!-- Test builds only (docs/PLAY_AUTORELEASE.md): unlock paid content for Play reviewers. -->
+    <string name="reviewer_access">심사자 액세스</string>
+    <string name="reviewer_access_hint">심사 코드</string>
+    <string name="reviewer_access_unlock">잠금 해제</string>
+    <string name="reviewer_access_enabled">심사자 액세스가 활성화되었습니다</string>
+    <string name="reviewer_access_invalid">잘못된 심사 코드</string>
 </resources>

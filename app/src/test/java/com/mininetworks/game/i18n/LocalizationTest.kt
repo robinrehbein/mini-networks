@@ -115,6 +115,23 @@ class LocalizationTest {
         }
     }
 
+    /**
+     * UI text lives only in strings.xml: no dialog title, message, button, hint, toast or menu entry in the app's code
+     * is a string literal (lint's HardcodedText only looks at layouts, and the game has none).
+     */
+    @Test
+    fun noUiTextIsHardCodedInTheCode() {
+        val src = listOf(File("src/main/java"), File("app/src/main/java")).first { it.isDirectory }
+        val literalUi = Regex(
+            "(?:setTitle|setMessage|setPositiveButton|setNegativeButton|setNeutralButton|makeText\\([^,]+,|hint\\s*=|text\\s*=|" +
+                "MenuItem\\.(?:Button|Toggle)\\([^,]+,)\\s*\\(?\\s*(?:if \\([^)]*\\)\\s*)?\"[^\"]*[A-Za-z][^\"]*\""
+        )
+        val found = src.walkTopDown().filter { it.extension == "kt" }.flatMap { file ->
+            file.readLines().mapIndexedNotNull { i, line -> if (literalUi.containsMatchIn(line)) "${file.name}:${i + 1}: ${line.trim()}" else null }
+        }.toList()
+        assertTrue("hard-coded UI text:\n${found.joinToString("\n")}", found.isEmpty())
+    }
+
     /** The format arguments of [text] as "index:conversion", sorted; "%d" counts as argument 1. */
     private fun args(text: String): List<String> =
         Regex("%(?:(\\d+)\\$)?[-#+ 0,(]*\\d*(?:\\.\\d+)?([a-zA-Z])").findAll(text)

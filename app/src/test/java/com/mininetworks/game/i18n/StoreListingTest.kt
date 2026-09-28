@@ -77,4 +77,51 @@ class StoreListingTest {
             if (gradle.contains(dependency)) assertTrue("$dependency ships, so the page names $named", german.contains(named))
         }
     }
+
+    /**
+     * docs/privacy/index.html is exactly what tools/build_privacy_page.py makes from docs/privacy-policy-web.md, so a
+     * rebuild can never drop a disclosure that only lived in the HTML. The body is rendered here the same way as the
+     * script does (blocks split at blank lines, "# "/"## " headings with an optional {#anchor}, [text](url) links, HTML
+     * escaping of & < > " '), and compared with the checked-in page.
+     */
+    @Test
+    fun thePublishedPrivacyPageIsBuiltFromItsSource() {
+        val docs = store.parentFile
+        val page = File(docs, "privacy/index.html").readText()
+        val source = File(docs, "privacy-policy-web.md").readText()
+        fun esc(t: String) = t.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&#x27;")
+        val link = Regex("\\[([^]]+)\\]\\(([^)]+)\\)")
+        fun inline(t: String): String {
+            val out = StringBuilder()
+            var at = 0
+            for (m in link.findAll(t)) {
+                out.append(esc(t.substring(at, m.range.first)))
+                out.append("<a href=\"${esc(m.groupValues[2])}\">${esc(m.groupValues[1])}</a>")
+                at = m.range.last + 1
+            }
+            return out.append(esc(t.substring(at))).toString()
+        }
+        var firstTitle = true
+        val blocks = source.trim().split("\n\n").map { block ->
+            when {
+                block.trim() == "---" -> "</section>\n<section lang=\"en\" id=\"en\">"
+                block.startsWith("# ") -> "<h1${if (firstTitle) " id=\"top\"" else ""}>${inline(block.substring(2))}</h1>".also { firstTitle = false }
+                block.startsWith("## ") -> Regex("(.*?)\\s*\\{#([A-Za-z0-9-]+)\\}").matchEntire(block.substring(3))
+                    ?.let { "<h2 id=\"${it.groupValues[2]}\">${inline(it.groupValues[1])}</h2>" }
+                    ?: "<h2>${inline(block.substring(3))}</h2>"
+                else -> "<p>${inline(block)}</p>"
+            }
+        }
+        val body = page.substringAfter("<section lang=\"de\">\n").substringBefore("\n</section>\n</main>")
+        assertEquals("docs/privacy/index.html is out of date: run python3 tools/build_privacy_page.py", blocks.joinToString("\n"), body)
+        // The disclosures the Play Console relies on: the age screen, the deletion anchor, Play Games only for adults.
+        for (needed in listOf("Altersabfrage", "age screen", "id=\"deletion\"", "id=\"deletion-en\"", "nur für volljährige", "only for adult")) {
+            assertTrue("privacy page covers $needed", page.contains(needed))
+        }
+        // The long form says the same about the date of birth and deletion.
+        val policy = File(docs, "privacy-policy.md").readText()
+        for (needed in listOf("Geburtsdatum", "date of birth", "Datenlöschung", "data deletion", "nur für volljährige", "only for adult")) {
+            assertTrue("privacy-policy.md covers $needed", policy.contains(needed))
+        }
+    }
 }
