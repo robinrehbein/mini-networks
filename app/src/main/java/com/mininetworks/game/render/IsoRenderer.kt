@@ -2,9 +2,11 @@ package com.mininetworks.game.render
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
+import android.graphics.Shader
 import android.graphics.Typeface
 import com.mininetworks.game.game.Cable
 import com.mininetworks.game.game.Cell
@@ -347,19 +349,22 @@ class IsoRenderer : Renderer {
 
     /** Shadow at ([gx], [gy]) and the packet shape at ([gx], [py]), radius [r]. */
     private fun paintPacket(canvas: Canvas, service: Service, isResponse: Boolean, r: Float, gx: Float, gy: Float, py: Float) {
-        oval.set(gx - r * 1.3f, gy - r * 0.65f, gx + r * 1.3f, gy + r * 0.65f)
-        fillP.color = 0x2E000000; canvas.drawOval(oval, fillP)
+        // The shadow falls to the lower right of the packet, like every other shadow on the board.
+        val cx = gx + r * 0.3f; val cy = gy + r * 0.12f
+        oval.set(cx - r * 1.1f, cy - r * 0.55f, cx + r * 1.1f, cy + r * 0.55f)
+        fillP.color = 0x30000000; canvas.drawOval(oval, fillP)
         if (isResponse) {
-            // Responses: smaller, white with an outline in the service color.
-            fillP.color = 0xFFFFFFFF.toInt(); Shapes.draw(canvas, service.shape, gx, py, r * 0.8f, fillP)
-            strokeP.color = ServiceColors.of(service); strokeP.strokeWidth = r * 0.34f
-            Shapes.draw(canvas, service.shape, gx, py, r * 0.8f, strokeP)
+            // Responses: smaller, white with a thick outline in the service color.
+            val rr = r * 0.8f
+            fillP.color = 0xFFFFFFFF.toInt(); Shapes.draw(canvas, service.shape, gx, py, rr, fillP)
+            strokeP.color = ServiceColors.of(service); strokeP.strokeWidth = rr * 0.42f
+            Shapes.draw(canvas, service.shape, gx, py, rr, strokeP)
         } else {
-            // Requests: filled, with a light rim so they stay visible on dark cables.
+            // Requests: a filled token with a white sticker rim, so the shape stays readable on dark cables and grass.
+            strokeP.color = 0xFFFFFFFF.toInt(); strokeP.strokeWidth = r * 0.55f
+            Shapes.draw(canvas, service.shape, gx, py, r, strokeP)
             fillP.color = ServiceColors.of(service)
             Shapes.draw(canvas, service.shape, gx, py, r, fillP)
-            strokeP.color = 0xFFFFFFFF.toInt(); strokeP.strokeWidth = r * 0.28f
-            Shapes.draw(canvas, service.shape, gx, py, r, strokeP)
         }
     }
 
@@ -410,10 +415,11 @@ class IsoRenderer : Renderer {
         sprites[index]?.let { return it }
         val r = packetRadius(p.size)
         val lift = sy(0f, 0f, 0.35f) - sy(0f, 0f)
-        // Room for the widest shape with its stroke (the plus and the diamond reach 1.2 r, the rim adds 0.14 r).
-        val half = kotlin.math.ceil(r * 1.45f).toInt() + 2
+        // Room for the widest shape with its rim (the plus and the diamond reach 1.2 r, the rim adds 0.28 r) and the
+        // shadow cast to the right.
+        val half = kotlin.math.ceil(r * 1.6f).toInt() + 2
         val above = kotlin.math.ceil(-lift).toInt() + half
-        val below = maxOf(kotlin.math.ceil(r * 0.65f).toInt() + 2, half - kotlin.math.floor(-lift).toInt())
+        val below = maxOf(kotlin.math.ceil(r * 0.75f).toInt() + 2, half - kotlin.math.floor(-lift).toInt())
         val bmp = Bitmap.createBitmap(2 * half, above + below, Bitmap.Config.ARGB_8888)
         val gx = half + phaseX.toFloat() / SPRITE_PHASES; val gy = above + phaseY.toFloat() / SPRITE_PHASES
         paintPacket(Canvas(bmp), p.service, p.isResponse, r, gx, gy, gy + lift)
@@ -525,25 +531,30 @@ class IsoRenderer : Renderer {
     }
 
     private fun drawGround(c: Canvas, world: World, map: Long) {
-        c.drawColor(pal.background)
+        drawBackdrop(c)
         val open = world.unlocked
         val seed = world.seed
         // The land the board was cut from, a step lower and hazy: fills the screen around the board, so a phone never
         // shows the board floating in an empty pale void (judge panel).
         drawOutskirts(c, world, front = false)
+        drawBoardShadow(c, world)
         for (y in 0 until world.rows) for (x in 0 until world.cols) {
             quad(x.toFloat(), y.toFloat(), 1f, 1f, 0f)
+            // The checkerboard marks the grid where cables go; on water and on locked land it is kept faint so the
+            // river reads as one body of water and the area still to unlock stays calm.
             val even = (x + y) % 2 == 0
+            val soft = if (even) SOFT_CHECKER else 1f - SOFT_CHECKER
             val locked = !open.contains(x, y)
             val base = when (world.terrainAt(x, y)) {
-                Terrain.WATER -> if (locked) (if (even) lockedWaterA else lockedWaterB) else if (even) waterA else waterB
+                Terrain.WATER -> if (locked) blend(lockedWaterA, lockedWaterB, 0.5f) else blend(waterA, waterB, soft)
                 Terrain.MOUNTAIN -> (if (even) ROCK_A else ROCK_B).let { if (locked) wash(it) else it }
                 Terrain.HIGH_RISE -> (if (even) PAVEMENT_A else PAVEMENT_B).let { if (locked) wash(it) else it }
-                Terrain.LAND -> if (locked) (if (even) lockedLandA else lockedLandB) else if (even) landA else landB
+                Terrain.LAND -> if (locked) blend(lockedLandA, lockedLandB, soft) else if (even) landA else landB
             }
             fillP.color = base.shade(Scenery.tileVariation(seed, x, y) * TILE_VARIATION)
             c.drawPath(path, fillP)
         }
+        drawShores(c, world)
         // Board edges give the "toy on a table" look: the ones facing the viewer at the current angle.
         val w = world.cols.toFloat(); val h = world.rows.toFloat()
         for (e in BOARD_EDGES.indices step 6) {
@@ -656,6 +667,71 @@ class IsoRenderer : Renderer {
         c.save(); c.translate(w / 2f, h / 2f)
         c.drawRect(-w / 2f, -h / 2f, w / 2f, h / 2f, vignette)
         c.restore()
+    }
+
+    /**
+     * The table the board stands on: a calm vertical gradient of the theme's background, lighter towards the top, so
+     * the space around the board (tall on a portrait phone) reads as soft daylight rather than an empty fill.
+     */
+    private fun drawBackdrop(c: Canvas) {
+        val h = c.height.toFloat()
+        if (backdropHeight != h || backdropColor != pal.background) {
+            backdropHeight = h
+            backdropColor = pal.background
+            backdropP.shader = LinearGradient(
+                0f, 0f, 0f, maxOf(h, 1f),
+                pal.background.shade(0.5f), pal.background.shade(-0.035f), Shader.TileMode.CLAMP,
+            )
+        }
+        c.drawPaint(backdropP)
+    }
+
+    private val backdropP = Paint()
+    private var backdropHeight = Float.NaN
+    private var backdropColor = 0
+
+    /** The board's soft shadow on the table, cast to the lower right like every other shadow. */
+    private fun drawBoardShadow(c: Canvas, world: World) {
+        val w = world.cols.toFloat(); val h = world.rows.toFloat()
+        val dx = unturnX(0.9f, 0.35f); val dy = unturnY(0.9f, 0.35f)
+        for (pass in BOARD_SHADOW_SPREAD.indices) {
+            val e = BOARD_SHADOW_SPREAD[pass]
+            quad(dx - e, dy - e, w + 2 * e, h + 2 * e, -0.5f)
+            fillP.color = BOARD_SHADOW_ALPHA shl 24
+            c.drawPath(path, fillP)
+        }
+    }
+
+    /**
+     * Banks where water meets land: the water lies a little lower, so the bank on its far side shows as a short earth
+     * wall with a bright waterline, and the near side gets a thin light rim. Which banks show follows the turned map.
+     */
+    private fun drawShores(c: Canvas, world: World) {
+        val open = world.unlocked
+        strokeP.strokeWidth = tw * 0.022f
+        for (y in 0 until world.rows) for (x in 0 until world.cols) {
+            if (world.terrainAt(x, y) != Terrain.WATER) continue
+            val lit = open.contains(x, y)
+            for (k in 0 until 4) {
+                val nx = NEIGHBOURS[2 * k]; val ny = NEIGHBOURS[2 * k + 1]
+                val ox = x + nx; val oy = y + ny
+                if (ox < 0 || oy < 0 || ox >= world.cols || oy >= world.rows) continue
+                if (world.terrainAt(ox, oy) == Terrain.WATER) continue
+                // The edge between this cell and its neighbour.
+                val ax = x + if (nx > 0) 1f else 0f; val ay = y + if (ny > 0) 1f else 0f
+                val bx = if (nx != 0) ax else ax + 1f; val by = if (ny != 0) ay else ay + 1f
+                val bank = if (lit) landB.shade(BANK_SHADE) else wash(landB.shade(BANK_SHADE))
+                if (facing(-nx.toFloat(), -ny.toFloat())) {
+                    poly(ax, ay, 0f, bx, by, 0f, bx, by, -BANK_DEPTH, ax, ay, -BANK_DEPTH)
+                    fillP.color = bank; c.drawPath(path, fillP)
+                    strokeP.color = if (lit) FOAM else FOAM_LOCKED
+                    c.drawLine(sx(ax, ay), sy(ax, ay, -BANK_DEPTH), sx(bx, by), sy(bx, by, -BANK_DEPTH), strokeP)
+                } else {
+                    strokeP.color = if (lit) FOAM else FOAM_LOCKED
+                    c.drawLine(sx(ax, ay), sy(ax, ay), sx(bx, by), sy(bx, by), strokeP)
+                }
+            }
+        }
     }
 
     /**
@@ -813,7 +889,18 @@ class IsoRenderer : Renderer {
     /** Tufts of grass and a few flowers on some bare land cells. */
     private fun drawGrass(c: Canvas, seed: Long, x: Int, y: Int, open: Boolean) {
         val r = Scenery.unit(seed, x, y, 4)
-        if (r > 0.34f) return
+        if (r > 0.34f) {
+            // Bare cells get two faint specks of soil, a quiet texture that keeps big meadows from looking flat.
+            if (r > 0.7f) return
+            fillP.color = (if (open) landB else lockedLandB).shade(-0.07f)
+            for (i in 0 until 2) {
+                val px = x + 0.15f + 0.7f * Scenery.unit(seed, x, y, 40 + i)
+                val py = y + 0.15f + 0.7f * Scenery.unit(seed, x, y, 42 + i)
+                oval.set(sx(px, py) - tw * 0.03f, sy(px, py) - th * 0.03f, sx(px, py) + tw * 0.03f, sy(px, py) + th * 0.03f)
+                c.drawOval(oval, fillP)
+            }
+            return
+        }
         val px = x + 0.2f + 0.6f * Scenery.unit(seed, x, y, 5)
         val py = y + 0.2f + 0.6f * Scenery.unit(seed, x, y, 6)
         val gx = sx(px, py); val gy = sy(px, py)
@@ -1142,13 +1229,22 @@ class IsoRenderer : Renderer {
         radios.clear()
         for (n in world.nodes) if (n.radius > 0f && !world.isDark(n)) radios += n
         if (radios.isEmpty()) return
+        // A tinted disc per radio with a soft glow inside its rim and a crisp border with a light halo outside, so
+        // the reach stays clear on grass, water and under other discs.
+        val rim = maxOf(tw * 0.028f, RADIO_RIM_MIN_DP * density)
         for (n in radios) {
             val col = RadioStyles.color(n)
             groundEllipse(n.center, n.radius)
             // A clearly tinted disc with a crisp rim (judge panel: thin grey outlines vanished at thumbnail size).
+            // A soft glow inside the rim and a light halo outside it keep the reach clear on grass, water and under
+            // other discs.
             fillP.color = col and 0x00FFFFFF or 0x2E000000; canvas.drawOval(oval, fillP)
-            strokeP.color = 0xCCFFFFFF.toInt(); strokeP.strokeWidth = maxOf(3f * density, tw * 0.05f); canvas.drawOval(oval, strokeP)
-            strokeP.color = col; strokeP.strokeWidth = maxOf(2f * density, tw * 0.028f); canvas.drawOval(oval, strokeP)
+            val glow = tw * 0.16f
+            oval.inset(glow / 2f, glow / 4f)
+            strokeP.color = col and 0x00FFFFFF or 0x26000000; strokeP.strokeWidth = glow; canvas.drawOval(oval, strokeP)
+            groundEllipse(n.center, n.radius)
+            strokeP.color = 0xCCFFFFFF.toInt(); strokeP.strokeWidth = maxOf(3f * density, rim * 2f); canvas.drawOval(oval, strokeP)
+            strokeP.color = col; strokeP.strokeWidth = rim; canvas.drawOval(oval, strokeP)
             // Two signal waves running out from the radio to the edge of its coverage and fading.
             for (k in 0 until 2) {
                 val f = ((time * RADIO_WAVE_SPEED + k * 0.5f + n.id * 0.37f) % 1f + 1f) % 1f
@@ -1169,7 +1265,7 @@ class IsoRenderer : Renderer {
         }
         for (n in radios) if (world.interferers(n).isNotEmpty()) {
             groundEllipse(n.center, n.radius)
-            strokeP.color = RadioStyles.INTERFERENCE; strokeP.strokeWidth = tw * 0.022f; canvas.drawOval(oval, strokeP)
+            strokeP.color = RadioStyles.INTERFERENCE; strokeP.strokeWidth = rim * 1.2f; canvas.drawOval(oval, strokeP)
         }
         val dash = tw * 0.07f
         airP.pathEffect = airDash.get(dash, 0.8f, -time * dash * 4f)
@@ -1244,8 +1340,12 @@ class IsoRenderer : Renderer {
                 val blink = sin(time * 2.4f + x * 1.3f + y) > 0f
                 fillP.color = if (blink) 0xFFFF4D5E.toInt() else 0xFFB33A46.toInt()
                 canvas.drawCircle(sx(mx, my), sy(mx, my, top + 0.38f), maxOf(1.5f, tw * 0.03f), fillP)
+                val badge = tw * 0.13f * badgePop(world, n)
+                strokeP.color = col.shade(-0.25f); strokeP.strokeWidth = badge * 0.3f
+                Shapes.draw(canvas, service.shape, sx(x, y), sy(x, y, top), badge, strokeP)
                 fillP.color = 0xFFFFFFFF.toInt()
-                Shapes.draw(canvas, service.shape, sx(x, y), sy(x, y, top), tw * 0.13f * badgePop(world, n), fillP)
+                Shapes.draw(canvas, service.shape, sx(x, y), sy(x, y, top), badge, fillP)
+
             }
             NodeKind.CLIENT -> {
                 val d = n.device!!
@@ -1287,6 +1387,9 @@ class IsoRenderer : Renderer {
                 for (i in 0 until count) {
                     val svc = n.pending[i]
                     val px = qx + i * r * 2.6f
+                    // The same white sticker rim as the packets on the cables, so waiting and moving requests match.
+                    strokeP.color = 0xFFFFFFFF.toInt(); strokeP.strokeWidth = r * 0.5f
+                    Shapes.draw(canvas, svc.shape, px, qy, r, strokeP)
                     fillP.color = ServiceColors.of(svc)
                     Shapes.draw(canvas, svc.shape, px, qy, r, fillP)
                     val problem = world.routeProblem(n, svc)
@@ -1426,8 +1529,7 @@ class IsoRenderer : Renderer {
         val side = if (alongX) Vec2(0.12f * u, 0f) else Vec2(0f, 0.12f * u)
         val lx = if (alongX) 0.37f else 0.26f
         val ly = if (alongX) 0.26f else 0.37f
-        oval.set(sx(at.x, at.y) - tw * 0.4f, sy(at.x, at.y) - th * 0.4f, sx(at.x, at.y) + tw * 0.4f, sy(at.x, at.y) + th * 0.4f)
-        fillP.color = 0x2E000000; canvas.drawOval(oval, fillP)
+        groundShadow(canvas, at.x, at.y, 0.66f, 0.58f)
         boxRect(canvas, at.x - lx, at.y - ly, at.x + lx, at.y + ly, 0f, 0.15f, IncidentStyles.EXCAVATOR_DARK.shade(0.25f), IncidentStyles.EXCAVATOR_DARK)
         val cx = at.x - d.x * 0.04f; val cy = at.y - d.y * 0.04f
         val cab = 0.21f
@@ -1633,7 +1735,12 @@ class IsoRenderer : Renderer {
         }
         quad(x0, y0, x1 - x0, y1 - y0, z1)
         fillP.color = top; canvas.drawPath(path, fillP)
+        // A thin bright rim around the top catches the light and keeps every block crisp against its walls.
+        edgeP.strokeWidth = tw * 0.012f
+        canvas.drawPath(path, edgeP)
     }
+
+    private val edgeP = stroke(0x73FFFFFF)
 
     private fun quad(x: Float, y: Float, w: Float, d: Float, z: Float) {
         path.reset()
@@ -1704,6 +1811,21 @@ class IsoRenderer : Renderer {
             1f, 0f, 0f, 0f, 0f, -1f,
             0f, 1f, 0f, 0f, -1f, 0f,
         )
+
+        /** Neighbour directions as x, y pairs: east, south, west, north. */
+        val NEIGHBOURS = intArrayOf(1, 0, 0, 1, -1, 0, 0, -1)
+        /** Share of the other checker color mixed into water and locked tiles: 0.5 would be flat, 0 full contrast. */
+        const val SOFT_CHECKER = 0.32f
+        /** How far water lies below the land, and the bank's shade and waterline. */
+        const val BANK_DEPTH = 0.07f
+        const val BANK_SHADE = -0.3f
+        const val FOAM = 0xCCFFFFFF.toInt()
+        const val FOAM_LOCKED = 0x80FFFFFF.toInt()
+        /** Spread (cells) of the passes of the board's shadow on the table, and the alpha of each. */
+        val BOARD_SHADOW_SPREAD = floatArrayOf(0.9f, 0.7f, 0.5f, 0.32f, 0.16f, 0.04f)
+        const val BOARD_SHADOW_ALPHA = 0x06
+        /** Smallest width of a radio's rim on a phone, in dp. */
+        const val RADIO_RIM_MIN_DP = 2f
 
         /** FNV-style step of the map signatures. */
         fun mix(h: Long, v: Int) = (h xor v.toLong()) * 0x100000001B3L
