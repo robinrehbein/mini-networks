@@ -66,6 +66,7 @@ class IsoRenderer : Renderer {
 
     override val camera = Camera().apply { projection = IsoProjection }
     override var density = 1f
+    override val serverLabels = ServerLabels()
     /** A tile at least [READABLE_TILE_DP] wide on first launch, close to the store framing: devices and packets read at phone size. */
     override val readableScale get() = READABLE_TILE_DP * density
     /** Tile width and height in pixels at the current zoom. */
@@ -130,6 +131,7 @@ class IsoRenderer : Renderer {
 
     /** Painter's order of everything with height, rebuilt every frame without allocating. */
     private val depth = DepthQueue(256)
+    private val labelBox = RectF()
     private val radioScratch = ArrayList<Node>()
     private val pos = FloatArray(2)
     private val cutDash = DashCache()
@@ -186,6 +188,7 @@ class IsoRenderer : Renderer {
 
     override fun draw(canvas: Canvas, world: World, drag: DragPreview?, time: Float) {
         pal = Cosmetic.paletteFor(world.scenario.id)
+        serverLabels.begin()
         drawGroundLayer(canvas, world)
         drawWaterShimmer(canvas, world, time)
 
@@ -211,6 +214,11 @@ class IsoRenderer : Renderer {
         }
         drawRadioCoverage(canvas, world, time)
         for (i in world.incidents) drawIncidentGround(canvas, i, time)
+        // Servers the player is looking for (a device being dragged from asks for them) glow on the ground.
+        if (serverLabels.focus != null) for (n in world.nodes) if (serverLabels.matches(n)) {
+            groundEllipse(n.footprintCenter, if (n.isDataCenter) 1.3f else 0.66f)
+            serverLabels.drawRing(canvas, n, oval, maxOf(tw * 0.03f, 2f * density), time)
+        }
 
         drag?.let { d ->
             val end = d.layout.end
@@ -232,6 +240,7 @@ class IsoRenderer : Renderer {
                     canvas, it, d.detail, sx(end.x, end.y), sy(end.x, end.y), maxOf(th * 2.2f, 40f * density), size, density,
                     if (d.blocked) alarm else 0xFF2F3A34.toInt(), if (d.detailWarning) alarm else 0xFF5B6674.toInt(), col,
                 )
+                DragJuice.lastBubble.let { b -> serverLabels.obstacle(b.left, b.top, b.right, b.bottom, hardEdge = true) }
             }
         }
 
@@ -302,7 +311,27 @@ class IsoRenderer : Renderer {
         }
         for (n in nodes) if (n.upgradedAt > Float.NEGATIVE_INFINITY) drawUpgradeJuice(canvas, world, n)
         drawDeliveryPops(canvas, world)
+        serverLabels.draw(canvas, camera, serverLabels.visibility(tw, density), density, time)
     }
+
+    /**
+     * Screen box around the ground square of half size [half] (cells) around ([x], [y]) at any angle, reaching up to
+     * screen y [top], into [labelBox]; for [ServerLabels] obstacles.
+     */
+    private fun groundBox(x: Float, y: Float, half: Float, top: Float): RectF {
+        var l = Float.MAX_VALUE; var r = -Float.MAX_VALUE; var b = -Float.MAX_VALUE
+        for (k in 0 until 4) {
+            val px = x + if (k == 1 || k == 2) half else -half
+            val py = y + if (k >= 2) half else -half
+            val qx = sx(px, py); val qy = sy(px, py)
+            l = minOf(l, qx); r = maxOf(r, qx); b = maxOf(b, qy)
+        }
+        labelBox.set(l, minOf(top, b), r, b)
+        return labelBox
+    }
+
+    /** [groundBox] as a (soft) obstacle for the server plates: network gear whose edge a plate may touch. */
+    private fun labelObstacle(b: RectF) = serverLabels.obstacle(b.left, b.top, b.right, b.bottom)
 
     /** The cable in [path] with style [st]: dark outline, white halo, the cable colour and its core, if any. */
     private fun strokeCable(canvas: Canvas, st: CableStyles.Style) {
@@ -1198,6 +1227,12 @@ class IsoRenderer : Renderer {
         }
     }
 
+    /** Scale of a server's sign while it is in the focus: it breathes with the ground ring. */
+    private fun focusPop(n: Node, time: Float): Float {
+        if (!serverLabels.matches(n)) return 1f
+        return 1f + 0.14f * serverLabels.focus!!.strength * sin(serverLabels.pulse(time) * PI.toFloat()).let { it * it }
+    }
+
     /** Scale of a server's badge: a short bounce each time a request arrives. */
     private fun badgePop(world: World, n: Node): Float {
         val last = world.arrivals.lastOrNull { !it.isResponse && it.node === n } ?: return 1f
@@ -1295,6 +1330,18 @@ class IsoRenderer : Renderer {
     }
 
     private fun drawNode(canvas: Canvas, world: World, n: Node, time: Float) {
+        // A server outside the focus steps back (drawn through a translucent layer over its own box).
+        val dim = serverLabels.dimAlpha(n)
+        if (dim < 255) {
+            val c = n.footprintCenter
+            val b = groundBox(c.x, c.y, if (n.isDataCenter) 1.1f else 0.6f, sy(c.x, c.y, n.level * 0.72f + 0.6f) - tw * 0.45f)
+            canvas.saveLayerAlpha(b.left - tw * 0.2f, b.top, b.right + tw * 0.2f, b.bottom + th * 0.2f, dim)
+        }
+        drawNodeBody(canvas, world, n, time)
+        if (dim < 255) canvas.restore()
+    }
+
+    private fun drawNodeBody(canvas: Canvas, world: World, n: Node, time: Float) {
         val busy = world.serverBusy(n)
         val x = n.center.x; val y = n.center.y
         when (n.kind) {
@@ -1340,10 +1387,11 @@ class IsoRenderer : Renderer {
                 fillP.color = if (blink) 0xFFFF4D5E.toInt() else 0xFFB33A46.toInt()
                 canvas.drawCircle(sx(mx, my), sy(mx, my, top + 0.38f), maxOf(1.5f, tw * 0.03f), fillP)
                 // The service's sign floats over the roof, like a shop sign: the same pictogram as its packets.
-                val badge = maxOf(tw * 0.17f, SIGN_MIN_DP * density) * badgePop(world, n)
+                val badge = maxOf(tw * 0.17f, SIGN_MIN_DP * density) * badgePop(world, n) * focusPop(n, time)
                 val signY = sy(x, y, top) - badge * 0.9f
                 fillP.color = 0x30000000; canvas.drawCircle(sx(x, y) + badge * 0.12f, signY + badge * 0.18f, badge, fillP)
                 ServiceGlyphs.sign(canvas, service, sx(x, y), signY, badge, col.shade(-0.2f))
+                groundBox(x, y, 0.39f, signY - badge).let { serverLabels.add(n, it.left, it.top, it.right, it.bottom) }
 
             }
             NodeKind.CLIENT -> {
@@ -1421,6 +1469,11 @@ class IsoRenderer : Renderer {
                 }
                 // The problem badge hangs at the bubble's left end: what is wrong, next to what is waiting.
                 badge?.let { ProblemBadges.draw(canvas, it, qx - r - pad - r * 1.9f, qy, r * 1.6f) }
+                // Plates keep clear of the device, its bubble, its badge and its overload ring.
+                if (slots > 0) serverLabels.obstacle(oval.left - (if (badge != null) r * 3.6f else 0f), oval.top, oval.right, oval.bottom + r * 0.7f, hardEdge = true)
+                val b = groundBox(x, y, if (n.overload > 0f) 0.62f else 0.3f, sy(x, y, 0.2f) - icon * 2.1f)
+                b.union(bx - icon * 1.3f, b.top, bx + icon * 1.3f, b.bottom)
+                serverLabels.obstacle(b.left, b.top, b.right, b.bottom, hardEdge = true)
             }
             NodeKind.ROUTER -> {
                 val dark = world.isDark(n)
@@ -1462,6 +1515,7 @@ class IsoRenderer : Renderer {
                 fillP.color = 0x30000000; canvas.drawCircle(sx(x, y) + badge * 0.12f, signY + badge * 0.18f, badge, fillP)
                 ServiceGlyphs.networkSign(canvas, sx(x, y), signY, badge, if (dark) 0xFF56606C.toInt() else ROUTER_SIDE, ROUTER_SIDE)
                 if (dark || warning) powerBadge(canvas, sx(x, y) + badge * 1.6f, signY, dark, time)
+                labelObstacle(groundBox(x, y, 0.33f, signY - badge))
             }
             NodeKind.ACCESS_POINT -> {
                 val dark = world.isDark(n)
@@ -1470,8 +1524,12 @@ class IsoRenderer : Renderer {
                 icons.accessPoint(canvas, sx(x, y), sy(x, y, 0.3f) - tw * 0.06f, tw * 0.15f, RadioStyles.color(n), time, dark)
                 if (!dark) channelBadge(canvas, n, sx(x, y) + tw * 0.22f, sy(x, y, 0.3f) - tw * 0.2f, world.interferers(n).isNotEmpty())
                 if (dark || warning) powerBadge(canvas, sx(x, y) - tw * 0.2f, sy(x, y, 0.3f) - tw * 0.3f, dark, time)
+                labelObstacle(groundBox(x, y, 0.3f, sy(x, y, 0.3f) - tw * 0.4f).apply { right = maxOf(right, sx(x, y) + tw * 0.32f) })
             }
-            NodeKind.CELL_TOWER -> drawCellTower(canvas, n, x, y, time)
+            NodeKind.CELL_TOWER -> {
+                drawCellTower(canvas, n, x, y, time)
+                labelObstacle(groundBox(x, y, 0.3f, sy(x, y, 2.3f)).apply { right = maxOf(right, sx(x, y) + tw * 0.4f) })
+            }
         }
     }
 
@@ -1707,10 +1765,11 @@ class IsoRenderer : Renderer {
             box(canvas, c.x + ROOF_UNITS[2 * p], c.y + ROOF_UNITS[2 * p + 1], 0.42f, 0.16f, 0xFF5B6674.toInt(), 0xFFB9C2CC.toInt(), z0 = roof)
         }
         // The same floating service sign as on a rack server, a size larger.
-        val badge = maxOf(tw * 0.24f, SIGN_MIN_DP * density) * pop
+        val badge = maxOf(tw * 0.24f, SIGN_MIN_DP * density) * pop * focusPop(n, time)
         val bx = sx(c.x, c.y); val by = sy(c.x, c.y, roof) - badge * 1.1f
         fillP.color = 0x30000000; canvas.drawCircle(bx + badge * 0.12f, by + badge * 0.18f, badge, fillP)
         ServiceGlyphs.sign(canvas, service, bx, by, badge, col.shade(-0.2f))
+        groundBox(c.x, c.y, 0.93f, by - badge).let { serverLabels.add(n, it.left, it.top, it.right, it.bottom) }
     }
 
     /**

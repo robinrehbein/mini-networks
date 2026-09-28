@@ -45,6 +45,20 @@
     <string name="service_video_call">Videobellen</string>
     <string name="service_camera_upload">Camera-upload</string>
     <string name="service_cloud_backup">Cloudback-up</string>
+
+    <!-- Server names & matching -->
+    <string name="server_mail">Mailserver</string>
+    <string name="server_call">Telefooncentrale</string>
+    <string name="server_gaming">Gameserver</string>
+    <string name="server_streaming">Streamingserver</string>
+    <string name="server_video_call">Videoserver</string>
+    <string name="server_camera_upload">Cameracloud</string>
+    <string name="server_cloud_backup">Back-upserver</string>
+    <string name="device_wants_server">%1$s wil %2$s → %3$s</string>
+    <string name="device_needs_servers">%1$s heeft nodig: %2$s</string>
+    <string name="legend_device_servers">Verbind met: %1$s</string>
+    <string name="legend_data_center_desc">Geen eigen soort: het hoogste niveau van elke server. Levert nog steeds alleen zijn eigen dienst, met meer kracht en meer poorten.</string>
+
     <string name="device_pc">Pc</string>
     <string name="device_phone">Telefoon</string>
     <string name="device_laptop">Laptop</string>
@@ -66,7 +80,6 @@
     <string name="node_router">Router</string>
     <string name="node_access_point">Wifi-accesspoint</string>
     <string name="node_cell_tower">Zendmast</string>
-    <string name="node_server">Server voor %1$s</string>
 
     <!-- Week news and cable feedback -->
     <string name="news_with_year">%1$d · %2$s</string>
@@ -157,7 +170,7 @@
     <string name="tutorial_cable_text">De pc wil een mail versturen. Sleep met je vinger van de pc naar de mailserver.</string>
     <string name="tutorial_router_title">Plaats een router</string>
     <string name="tutorial_router_text">Een apparaat heeft maar 2 poorten, een router 6. Tik onderaan op ‘Router’ en dan op een vrij vak bij de telefoons.</string>
-    <string name="tutorial_router_connect_text">Verbind nu beide telefoons en de belserver met de router. Die verdeelt de gesprekken.</string>
+    <string name="tutorial_router_connect_text">Verbind nu beide telefoons en de telefooncentrale met de router. Die verdeelt de gesprekken.</string>
     <string name="tutorial_bandwidth_title">Bandbreedte</string>
     <string name="tutorial_bandwidth_text">1998: de tv wil streamen. Verbind hem met de streamingserver.</string>
     <string name="tutorial_bandwidth_narrow_text">Te smal! Streaming heeft bandbreedte %1$d nodig, ISDN draagt maar %2$d. Kies onderaan DSL, dat draagt %3$d.</string>
@@ -208,10 +221,10 @@
     <string name="hint_service_needs">%1$s heeft bandbreedte %2$d nodig</string>
     <string name="hint_service_needs_ping">%1$s heeft bandbreedte %2$d nodig en een ping van hooguit %3$d ms</string>
     <string name="device_wants">%1$s wil: %2$s</string>
-    <string name="problem_no_route">%1$s: %2$s – geen weg naar een server</string>
-    <string name="problem_too_narrow">%1$s: %2$s – geen kabel breed genoeg (bandbreedte %3$d)</string>
-    <string name="problem_ping">%1$s: %2$s – ping %3$d ms, toegestaan %4$d ms</string>
-    <string name="problem_jam">%1$s: %2$s – file, kabels of server te vol</string>
+    <string name="problem_no_route">%1$s → %2$s: geen weg – verbind ze met een kabel</string>
+    <string name="problem_too_narrow">%1$s → %2$s: geen kabel breed genoeg (bandbreedte %3$d)</string>
+    <string name="problem_ping">%1$s → %2$s: ping %3$d ms, toegestaan %4$d ms</string>
+    <string name="problem_jam">%1$s → %2$s: file, kabels of server te vol</string>
     <string name="game_over_no_route">%1$s bereikte geen %2$s-server</string>
     <string name="game_over_too_narrow">%1$s had een bredere kabel nodig voor %2$s</string>
     <string name="game_over_ping">%2$s op %1$s haperde: %3$d ms, max %4$d ms</string>
@@ -479,8 +492,8 @@
     <string name="reviewer_access_enabled">Toegang voor reviewers ingeschakeld</string>
     <string name="reviewer_access_invalid">Ongeldige reviewcode</string>
     <string name="menu_legend">Wat is wat?</string>
-    <string name="legend_section_services">Diensten</string>
-    <string name="legend_section_devices">Apparaten</string>
+    <string name="legend_section_services">Servers</string>
+    <string name="legend_section_devices">Apparaten → servers</string>
     <string name="legend_section_network">Jouw netwerk</string>
     <string name="legend_section_signs">Tekens</string>
     <string name="legend_service_ping">Bandbreedte %1$d · ping hooguit %2$d ms</string>

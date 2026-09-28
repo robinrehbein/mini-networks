@@ -40,6 +40,7 @@ class FlatRenderer : Renderer {
 
     override val camera = Camera()
     override var density = 1f
+    override val serverLabels = ServerLabels()
     /** A cell at least [READABLE_CELL_DP] wide in the automatic framing. */
     override val readableScale get() = READABLE_CELL_DP * density
     private val cell get() = camera.scale
@@ -63,6 +64,7 @@ class FlatRenderer : Renderer {
     private val gridRect = RectF()
     private val openRect = RectF()
     private val radioScratch = ArrayList<Node>()
+    private val labelBox = RectF()
 
     /** Cell centers of the single river of the map with water signature [riverMap], top to bottom; empty if none. */
     private var riverMap = 0L
@@ -92,6 +94,7 @@ class FlatRenderer : Renderer {
             waterColor = it.flatWater
             backdrop = it.flatBackdrop
         }
+        serverLabels.begin()
         if (cornerRadius != cell * 0.35f) {
             cornerRadius = cell * 0.35f
             cableP.pathEffect = CornerPathEffect(cornerRadius)
@@ -149,6 +152,14 @@ class FlatRenderer : Renderer {
         }
         canvas.restore()
 
+        // Servers the player is looking for (a device being dragged from asks for them) glow on the ground.
+        if (serverLabels.focus != null) for (n in world.nodes) if (serverLabels.matches(n)) {
+            val c = toScreen(n.footprintCenter)
+            val rr = cell * if (n.isDataCenter) 1.25f else 0.62f
+            arcRect.set(c.x - rr, c.y - rr, c.x + rr, c.y + rr)
+            serverLabels.drawRing(canvas, n, arcRect, maxOf(cell * 0.05f, 2f * density), time)
+        }
+
         drag?.let { d ->
             val end = d.layout.end
             val col = if (d.blocked) alarm else CableStyles.of(d.type).color
@@ -162,6 +173,7 @@ class FlatRenderer : Renderer {
                     canvas, it, d.detail, s.x, s.y, maxOf(cell * 0.9f, 40f * density), maxOf(cell * 0.38f, LABEL_MIN_DP * 1.2f * density), density,
                     if (d.blocked) alarm else ink, if (d.detailWarning) alarm else ink, col,
                 )
+                DragJuice.lastBubble.let { b -> serverLabels.obstacle(b.left, b.top, b.right, b.bottom, hardEdge = true) }
             }
         }
 
@@ -207,13 +219,23 @@ class FlatRenderer : Renderer {
                         CellBadges.draw(canvas, it, nx + cell * 0.44f, ny - cell * 0.3f, r)
                     }
                 }
-                NodeKind.SERVER -> if (n.isDataCenter) {
-                    icons.dataCenter(
-                        canvas, n.service!!, world.serverBusy(n), screenX(n.footprintCenter.x, n.footprintCenter.y),
-                        screenY(n.footprintCenter.x, n.footprintCenter.y), cell * 0.85f, time,
-                    )
-                } else {
-                    icons.server(canvas, n.service!!, n.level, world.serverBusy(n), nx, ny, cell * 0.34f, time)
+                NodeKind.SERVER -> {
+                    // A server outside the focus steps back; every server gets its name plate ([ServerLabels]).
+                    val dim = serverLabels.dimAlpha(n)
+                    if (n.isDataCenter) {
+                        val x = screenX(n.footprintCenter.x, n.footprintCenter.y); val y = screenY(n.footprintCenter.x, n.footprintCenter.y)
+                        val s = cell * 0.85f
+                        labelBox.set(x - s * 1.05f, y - s * 1.15f, x + s * 1.2f, y + s)
+                        if (dim < 255) canvas.saveLayerAlpha(labelBox, dim)
+                        icons.dataCenter(canvas, n.service!!, world.serverBusy(n), x, y, s, time)
+                    } else {
+                        val s = cell * 0.34f
+                        labelBox.set(nx - s * 0.9f, ny + s * 0.6f - s * 0.62f * n.level - s * 0.72f, nx + s * 1.3f, ny + s)
+                        if (dim < 255) canvas.saveLayerAlpha(labelBox, dim)
+                        icons.server(canvas, n.service!!, n.level, world.serverBusy(n), nx, ny, s, time)
+                    }
+                    if (dim < 255) canvas.restore()
+                    serverLabels.add(n, labelBox.left, labelBox.top, labelBox.right, labelBox.bottom)
                 }
                 NodeKind.CLIENT -> {
                     val icon = maxOf(cell * 0.3f, ICON_MIN_DP * density)
@@ -238,7 +260,14 @@ class FlatRenderer : Renderer {
                         strokeP.color = alarm; strokeP.strokeWidth = maxOf(cell * 0.07f, RING_MIN_DP * density)
                         canvas.drawArc(arcRect, -90f, 360f * n.overload, false, strokeP)
                     }
+                    // Plates keep clear of the device, its queue, its badge and its overload ring.
+                    val reach = maxOf(icon * 1.3f, cell * 0.55f)
+                    val queueRight = if (n.pending.isEmpty()) nx + reach else qx + (minOf(n.pending.size, 4) - 1) * r * 2.75f + r * 1.5f
+                    serverLabels.obstacle(nx - icon * 1.25f - r * 2.5f, ny - maxOf(reach, icon * 1.1f + r * 2.5f), maxOf(nx + reach, queueRight), ny + reach, hardEdge = true)
                 }
+            }
+            if (n.kind != NodeKind.SERVER && n.kind != NodeKind.CLIENT) {
+                serverLabels.obstacle(nx - cell * 0.45f, ny - cell * 0.5f, nx + cell * 0.6f, ny + cell * 0.45f)
             }
         }
 
@@ -260,6 +289,8 @@ class FlatRenderer : Renderer {
             strokeP.color = alarm; strokeP.strokeWidth = cell * 0.05f
             canvas.drawCircle(s.x, s.y, cell * (0.7f + 0.15f * kotlin.math.sin(time * 6f)), strokeP)
         }
+        // Flat cells are about half as wide as iso tiles for the same view: the plates count them double.
+        serverLabels.draw(canvas, camera, serverLabels.visibility(cell * FLAT_LABEL_ZOOM, density), density, time)
     }
 
     /**
@@ -519,6 +550,8 @@ class FlatRenderer : Renderer {
         /** Readable sizes on a phone: cell width of the automatic framing, minimum dp of a device icon's half size, a
          *  request's radius, an overload ring and the drag label. */
         const val READABLE_CELL_DP = 26f
+        /** Factor from a flat cell to the iso tile width the server plates' zoom fade ([ServerLabels.visibility]) is tuned for. */
+        const val FLAT_LABEL_ZOOM = 1.8f
         /** Cable width factor of the overview over [CableStyles] widths: bold metro-map lines. */
         const val FLAT_LINE = 1.6f
         const val ICON_MIN_DP = 7f

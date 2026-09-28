@@ -48,6 +48,20 @@
     <string name="service_video_call">Videollamadas</string>
     <string name="service_camera_upload">Cámaras</string>
     <string name="service_cloud_backup">Copias en la nube</string>
+
+    <!-- Server names & matching -->
+    <string name="server_mail">Servidor de correo</string>
+    <string name="server_call">Central telefónica</string>
+    <string name="server_gaming">Servidor de juegos</string>
+    <string name="server_streaming">Servidor de streaming</string>
+    <string name="server_video_call">Servidor de vídeo</string>
+    <string name="server_camera_upload">Nube de cámaras</string>
+    <string name="server_cloud_backup">Servidor de copias</string>
+    <string name="device_wants_server">%1$s quiere %2$s → %3$s</string>
+    <string name="device_needs_servers">%1$s necesita: %2$s</string>
+    <string name="legend_device_servers">Conéctalo a: %1$s</string>
+    <string name="legend_data_center_desc">No es un tipo aparte: el nivel máximo de cualquier servidor. Sigue ofreciendo solo su servicio, con más potencia y más puertos.</string>
+
     <string name="device_pc">PC</string>
     <string name="device_phone">Teléfono</string>
     <string name="device_laptop">Portátil</string>
@@ -69,7 +83,6 @@
     <string name="node_router">Router</string>
     <string name="node_access_point">Punto de acceso Wi-Fi</string>
     <string name="node_cell_tower">Antena de telefonía</string>
-    <string name="node_server">Servidor de %1$s</string>
 
     <!-- Week news and cable feedback -->
     <string name="news_with_year">%1$d · %2$s</string>
@@ -162,7 +175,7 @@
     <string name="tutorial_cable_text">El PC quiere enviar un correo. Arrastra el dedo desde el PC hasta el servidor de correo.</string>
     <string name="tutorial_router_title">Coloca un router</string>
     <string name="tutorial_router_text">Un dispositivo solo tiene 2 puertos; un router, 6. Toca «Router» abajo y luego una casilla libre junto a los teléfonos.</string>
-    <string name="tutorial_router_connect_text">Ahora conecta los dos teléfonos y el servidor de llamadas al router. Él reparte las llamadas.</string>
+    <string name="tutorial_router_connect_text">Ahora conecta los dos teléfonos y la central telefónica al router. Él reparte las llamadas.</string>
     <string name="tutorial_bandwidth_title">Ancho de banda</string>
     <string name="tutorial_bandwidth_text">1998: la tele quiere hacer streaming. Conéctala al servidor de streaming.</string>
     <string name="tutorial_bandwidth_narrow_text">¡Demasiado estrecho! El streaming necesita ancho de banda %1$d y la RDSI solo lleva %2$d. Elige ADSL abajo, lleva %3$d.</string>
@@ -214,10 +227,10 @@
     <string name="hint_service_needs">%1$s necesita ancho de banda %2$d</string>
     <string name="hint_service_needs_ping">%1$s necesita ancho de banda %2$d y un ping de %3$d ms como máximo</string>
     <string name="device_wants">%1$s quiere: %2$s</string>
-    <string name="problem_no_route">%1$s: %2$s – ningún camino a un servidor</string>
-    <string name="problem_too_narrow">%1$s: %2$s – ningún cable es lo bastante ancho (ancho de banda %3$d)</string>
-    <string name="problem_ping">%1$s: %2$s – ping %3$d ms, permitido %4$d ms</string>
-    <string name="problem_jam">%1$s: %2$s – atasco, cables o servidor llenos</string>
+    <string name="problem_no_route">%1$s → %2$s: ningún camino – conéctalos con cables</string>
+    <string name="problem_too_narrow">%1$s → %2$s: ningún cable es lo bastante ancho (ancho de banda %3$d)</string>
+    <string name="problem_ping">%1$s → %2$s: ping %3$d ms, permitido %4$d ms</string>
+    <string name="problem_jam">%1$s → %2$s: atasco, cables o servidor llenos</string>
     <string name="game_over_no_route">%1$s no llegó a ningún servidor de %2$s</string>
     <string name="game_over_too_narrow">%1$s necesitaba un cable más ancho para %2$s</string>
     <string name="game_over_ping">%2$s en %1$s iba con retraso: %3$d ms, máx. %4$d ms</string>
@@ -514,8 +527,8 @@
     <string name="reviewer_access_enabled">Acceso para revisores activado</string>
     <string name="reviewer_access_invalid">Código de revisión no válido</string>
     <string name="menu_legend">¿Qué es qué?</string>
-    <string name="legend_section_services">Servicios</string>
-    <string name="legend_section_devices">Dispositivos</string>
+    <string name="legend_section_services">Servidores</string>
+    <string name="legend_section_devices">Dispositivos → servidores</string>
     <string name="legend_section_network">Tu red</string>
     <string name="legend_section_signs">Señales</string>
     <string name="legend_service_ping">Ancho de banda %1$d · ping máx. %2$d ms</string>

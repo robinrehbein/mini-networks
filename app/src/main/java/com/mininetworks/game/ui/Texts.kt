@@ -94,7 +94,30 @@ class Texts(private val context: Context) {
         },
     )
 
-    fun server(s: Service) = context.getString(R.string.node_server, service(s))
+    /**
+     * Name of the server type that delivers [s] ("Mail-Server", "Telefonzentrale"): every service has its own; a data
+     * center is only a server's top tier ([dataCenter]), never a type of its own.
+     */
+    fun server(s: Service) = context.getString(
+        when (s) {
+            Service.MAIL -> R.string.server_mail
+            Service.CALL -> R.string.server_call
+            Service.GAMING -> R.string.server_gaming
+            Service.STREAMING -> R.string.server_streaming
+            Service.VIDEO_CALL -> R.string.server_video_call
+            Service.CAMERA_UPLOAD -> R.string.server_camera_upload
+            Service.CLOUD_BACKUP -> R.string.server_cloud_backup
+        },
+    )
+
+    /** The top server tier ("Rechenzentrum"), as the stage a server reaches. */
+    fun dataCenter() = context.getString(R.string.server_tier_data_center)
+
+    /** [service] with its pictogram in front, drawn inline where the text is shown ([InlineGlyphs]). */
+    fun serviceWithGlyph(s: Service) = InlineGlyphs.of(s) + service(s)
+
+    /** [server] with its service's pictogram in front ([InlineGlyphs]). */
+    fun serverWithGlyph(s: Service) = InlineGlyphs.of(s) + server(s)
 
     fun node(n: Node) = when (n.kind) {
         NodeKind.CLIENT -> device(n.device!!)

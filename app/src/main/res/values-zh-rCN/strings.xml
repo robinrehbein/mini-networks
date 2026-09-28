@@ -42,6 +42,20 @@
     <string name="service_video_call">视频通话</string>
     <string name="service_camera_upload">摄像头上传</string>
     <string name="service_cloud_backup">云备份</string>
+
+    <!-- Server names & matching -->
+    <string name="server_mail">邮件服务器</string>
+    <string name="server_call">电话交换中心</string>
+    <string name="server_gaming">游戏服务器</string>
+    <string name="server_streaming">流媒体服务器</string>
+    <string name="server_video_call">视频服务器</string>
+    <string name="server_camera_upload">摄像头云</string>
+    <string name="server_cloud_backup">备份服务器</string>
+    <string name="device_wants_server">%1$s想要%2$s → %3$s</string>
+    <string name="device_needs_servers">%1$s需要：%2$s</string>
+    <string name="legend_device_servers">连接到：%1$s</string>
+    <string name="legend_data_center_desc">不是单独的类型：任何服务器的最高等级。仍只提供自己的那一种服务，但性能更强、端口更多。</string>
+
     <string name="device_pc">电脑</string>
     <string name="device_phone">电话</string>
     <string name="device_laptop">笔记本</string>
@@ -63,7 +77,6 @@
     <string name="node_router">路由器</string>
     <string name="node_access_point">Wi-Fi 接入点</string>
     <string name="node_cell_tower">移动基站</string>
-    <string name="node_server">%1$s服务器</string>
 
     <!-- Week news and cable feedback -->
     <string name="news_with_year">%1$d年 · %2$s</string>
@@ -152,7 +165,7 @@
     <string name="tutorial_cable_text">电脑想发送一封邮件。用手指从电脑拖到邮件服务器。</string>
     <string name="tutorial_router_title">放置路由器</string>
     <string name="tutorial_router_text">设备只有 2 个端口，路由器有 6 个。点按下方的“路由器”，再点按电话旁边的空格子。</string>
-    <string name="tutorial_router_connect_text">现在把两部电话和通话服务器连到路由器上，由它来分配通话。</string>
+    <string name="tutorial_router_connect_text">现在把两部电话和电话交换中心连到路由器上，由它来分配通话。</string>
     <string name="tutorial_bandwidth_title">带宽</string>
     <string name="tutorial_bandwidth_text">1998 年：电视想看流媒体。把它连到流媒体服务器。</string>
     <string name="tutorial_bandwidth_narrow_text">太窄了！流媒体需要带宽 %1$d，ISDN 只能承载 %2$d。在下方选择 DSL，它能承载 %3$d。</string>
@@ -202,10 +215,10 @@
     <string name="hint_service_needs">%1$s需要带宽 %2$d</string>
     <string name="hint_service_needs_ping">%1$s需要带宽 %2$d，延迟最多 %3$d 毫秒</string>
     <string name="device_wants">%1$s想要：%2$s</string>
-    <string name="problem_no_route">%1$s：%2$s——没有通往服务器的路径</string>
-    <string name="problem_too_narrow">%1$s：%2$s——没有足够宽的电缆（带宽 %3$d）</string>
-    <string name="problem_ping">%1$s：%2$s——延迟 %3$d 毫秒，允许 %4$d 毫秒</string>
-    <string name="problem_jam">%1$s：%2$s——拥堵，电缆或服务器已满</string>
+    <string name="problem_no_route">%1$s → %2$s：没有路径——用电缆把它们连起来</string>
+    <string name="problem_too_narrow">%1$s → %2$s：没有足够宽的电缆（带宽 %3$d）</string>
+    <string name="problem_ping">%1$s → %2$s：延迟 %3$d 毫秒，允许 %4$d 毫秒</string>
+    <string name="problem_jam">%1$s → %2$s：拥堵，电缆或服务器已满</string>
     <string name="game_over_no_route">%1$s 无法连到 %2$s 服务器</string>
     <string name="game_over_too_narrow">%1$s 的 %2$s 需要更宽的电缆</string>
     <string name="game_over_ping">%1$s 的 %2$s 延迟 %3$d 毫秒，上限 %4$d 毫秒</string>
@@ -444,8 +457,8 @@
     <string name="reviewer_access_enabled">已启用审核访问</string>
     <string name="reviewer_access_invalid">审核代码无效</string>
     <string name="menu_legend">这是什么？</string>
-    <string name="legend_section_services">服务</string>
-    <string name="legend_section_devices">设备</string>
+    <string name="legend_section_services">服务器</string>
+    <string name="legend_section_devices">设备 → 服务器</string>
     <string name="legend_section_network">你的网络</string>
     <string name="legend_section_signs">标志</string>
     <string name="legend_service_ping">带宽 %1$d · Ping 最多 %2$d ms</string>

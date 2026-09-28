@@ -51,6 +51,20 @@
     <string name="service_video_call">Wideorozmowy</string>
     <string name="service_camera_upload">Kamery</string>
     <string name="service_cloud_backup">Kopia w chmurze</string>
+
+    <!-- Server names & matching -->
+    <string name="server_mail">Serwer poczty</string>
+    <string name="server_call">Centrala telefoniczna</string>
+    <string name="server_gaming">Serwer gier</string>
+    <string name="server_streaming">Serwer streamingu</string>
+    <string name="server_video_call">Serwer wideo</string>
+    <string name="server_camera_upload">Chmura kamer</string>
+    <string name="server_cloud_backup">Serwer kopii</string>
+    <string name="device_wants_server">%1$s chce: %2$s → %3$s</string>
+    <string name="device_needs_servers">%1$s potrzebuje: %2$s</string>
+    <string name="legend_device_servers">Połącz z: %1$s</string>
+    <string name="legend_data_center_desc">To nie osobny typ: najwyższy poziom każdego serwera. Dalej dostarcza tylko swoją usługę, z większą mocą i większą liczbą portów.</string>
+
     <string name="device_pc">PC</string>
     <string name="device_phone">Telefon</string>
     <string name="device_laptop">Laptop</string>
@@ -72,7 +86,6 @@
     <string name="node_router">Router</string>
     <string name="node_access_point">Punkt dostępu Wi-Fi</string>
     <string name="node_cell_tower">Maszt komórkowy</string>
-    <string name="node_server">Serwer (%1$s)</string>
 
     <!-- Week news and cable feedback -->
     <string name="news_with_year">%1$d · %2$s</string>
@@ -167,7 +180,7 @@
     <string name="tutorial_cable_text">PC chce wysłać e-mail. Przeciągnij palcem od PC do serwera poczty.</string>
     <string name="tutorial_router_title">Postaw router</string>
     <string name="tutorial_router_text">Urządzenie ma tylko 2 porty, router ma 6. Dotknij „Router” na dole, a potem wolnego pola przy telefonach.</string>
-    <string name="tutorial_router_connect_text">Teraz połącz oba telefony i serwer telefonii z routerem. To on rozdziela rozmowy.</string>
+    <string name="tutorial_router_connect_text">Teraz połącz oba telefony i centralę telefoniczną z routerem. To on rozdziela rozmowy.</string>
     <string name="tutorial_bandwidth_title">Przepustowość</string>
     <string name="tutorial_bandwidth_text">1998: telewizor chce streamować. Połącz go z serwerem streamingu.</string>
     <string name="tutorial_bandwidth_narrow_text">Za wąsko! Streaming potrzebuje przepustowości %1$d, a ISDN daje tylko %2$d. Wybierz na dole DSL, daje %3$d.</string>
@@ -220,10 +233,10 @@
     <string name="hint_service_needs">%1$s: potrzeba przepustowości %2$d</string>
     <string name="hint_service_needs_ping">%1$s: potrzeba przepustowości %2$d i pingu najwyżej %3$d ms</string>
     <string name="device_wants">%1$s chce: %2$s</string>
-    <string name="problem_no_route">%1$s: %2$s – brak drogi do serwera</string>
-    <string name="problem_too_narrow">%1$s: %2$s – żaden kabel nie jest dość szeroki (przepustowość %3$d)</string>
-    <string name="problem_ping">%1$s: %2$s – ping %3$d ms, dozwolone %4$d ms</string>
-    <string name="problem_jam">%1$s: %2$s – korek, kable lub serwer przepełnione</string>
+    <string name="problem_no_route">%1$s → %2$s: brak drogi – połącz je kablem</string>
+    <string name="problem_too_narrow">%1$s → %2$s: żaden kabel nie jest dość szeroki (przepustowość %3$d)</string>
+    <string name="problem_ping">%1$s → %2$s: ping %3$d ms, dozwolone %4$d ms</string>
+    <string name="problem_jam">%1$s → %2$s: korek, kable lub serwer przepełnione</string>
     <string name="game_over_no_route">Brak połączenia z serwerem %2$s (%1$s)</string>
     <string name="game_over_too_narrow">Za wąski kabel dla %2$s (%1$s)</string>
     <string name="game_over_ping">Za duży ping dla %2$s (%1$s): %3$d ms, maks. %4$d ms</string>
@@ -549,8 +562,8 @@
     <string name="reviewer_access_enabled">Dostęp dla recenzentów włączony</string>
     <string name="reviewer_access_invalid">Nieprawidłowy kod recenzenta</string>
     <string name="menu_legend">Co jest czym?</string>
-    <string name="legend_section_services">Usługi</string>
-    <string name="legend_section_devices">Urządzenia</string>
+    <string name="legend_section_services">Serwery</string>
+    <string name="legend_section_devices">Urządzenia → serwery</string>
     <string name="legend_section_network">Twoja sieć</string>
     <string name="legend_section_signs">Oznaczenia</string>
     <string name="legend_service_ping">Przepustowość %1$d · ping maks. %2$d ms</string>

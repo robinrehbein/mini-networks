@@ -48,6 +48,20 @@
     <string name="service_video_call">Videochiamate</string>
     <string name="service_camera_upload">Telecamere</string>
     <string name="service_cloud_backup">Backup cloud</string>
+
+    <!-- Server names & matching -->
+    <string name="server_mail">Server email</string>
+    <string name="server_call">Centralino</string>
+    <string name="server_gaming">Server di gioco</string>
+    <string name="server_streaming">Server streaming</string>
+    <string name="server_video_call">Server video</string>
+    <string name="server_camera_upload">Cloud telecamere</string>
+    <string name="server_cloud_backup">Server di backup</string>
+    <string name="device_wants_server">%1$s vuole %2$s → %3$s</string>
+    <string name="device_needs_servers">%1$s ha bisogno di: %2$s</string>
+    <string name="legend_device_servers">Collegalo a: %1$s</string>
+    <string name="legend_data_center_desc">Non è un tipo a sé: il livello massimo di ogni server. Fornisce sempre solo il suo servizio, con più potenza e più porte.</string>
+
     <string name="device_pc">PC</string>
     <string name="device_phone">Telefono</string>
     <string name="device_laptop">Portatile</string>
@@ -69,7 +83,6 @@
     <string name="node_router">Router</string>
     <string name="node_access_point">Access point Wi-Fi</string>
     <string name="node_cell_tower">Antenna cellulare</string>
-    <string name="node_server">Server %1$s</string>
 
     <!-- Week news and cable feedback -->
     <string name="news_with_year">%1$d · %2$s</string>
@@ -162,7 +175,7 @@
     <string name="tutorial_cable_text">Il PC vuole inviare un’email. Trascina il dito dal PC al server email.</string>
     <string name="tutorial_router_title">Piazza un router</string>
     <string name="tutorial_router_text">Un dispositivo ha solo 2 porte, un router ne ha 6. Tocca “Router” in basso, poi una casella libera vicino ai telefoni.</string>
-    <string name="tutorial_router_connect_text">Ora collega i due telefoni e il server delle chiamate al router. Smisterà lui le chiamate.</string>
+    <string name="tutorial_router_connect_text">Ora collega i due telefoni e il centralino al router. Smisterà lui le chiamate.</string>
     <string name="tutorial_bandwidth_title">Banda</string>
     <string name="tutorial_bandwidth_text">1998: la TV vuole lo streaming. Collegala al server streaming.</string>
     <string name="tutorial_bandwidth_narrow_text">Troppo stretto! Lo streaming richiede banda %1$d, l’ISDN ne porta solo %2$d. Scegli l’ADSL in basso, porta %3$d.</string>
@@ -214,10 +227,10 @@
     <string name="hint_service_needs">%1$s richiede banda %2$d</string>
     <string name="hint_service_needs_ping">%1$s richiede banda %2$d e un ping di al massimo %3$d ms</string>
     <string name="device_wants">%1$s vuole: %2$s</string>
-    <string name="problem_no_route">%1$s: %2$s – nessun percorso verso un server</string>
-    <string name="problem_too_narrow">%1$s: %2$s – nessun cavo abbastanza largo (banda %3$d)</string>
-    <string name="problem_ping">%1$s: %2$s – ping %3$d ms, consentiti %4$d ms</string>
-    <string name="problem_jam">%1$s: %2$s – ingorgo, cavi o server troppo pieni</string>
+    <string name="problem_no_route">%1$s → %2$s: nessun percorso – collegali con un cavo</string>
+    <string name="problem_too_narrow">%1$s → %2$s: nessun cavo abbastanza largo (banda %3$d)</string>
+    <string name="problem_ping">%1$s → %2$s: ping %3$d ms, consentiti %4$d ms</string>
+    <string name="problem_jam">%1$s → %2$s: ingorgo, cavi o server troppo pieni</string>
     <string name="game_over_no_route">%1$s non ha raggiunto nessun server di %2$s</string>
     <string name="game_over_too_narrow">%1$s aveva bisogno di un cavo più largo per %2$s</string>
     <string name="game_over_ping">%2$s su %1$s andava a scatti: %3$d ms, max %4$d ms</string>
@@ -514,8 +527,8 @@
     <string name="reviewer_access_enabled">Accesso revisori attivato</string>
     <string name="reviewer_access_invalid">Codice di revisione non valido</string>
     <string name="menu_legend">Cos\'è cosa?</string>
-    <string name="legend_section_services">Servizi</string>
-    <string name="legend_section_devices">Dispositivi</string>
+    <string name="legend_section_services">Server</string>
+    <string name="legend_section_devices">Dispositivi → server</string>
     <string name="legend_section_network">La tua rete</string>
     <string name="legend_section_signs">Segnali</string>
     <string name="legend_service_ping">Banda %1$d · ping max %2$d ms</string>

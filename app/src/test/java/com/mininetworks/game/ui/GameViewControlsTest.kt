@@ -234,7 +234,56 @@ class GameViewControlsTest {
         tv.pending.addLast(Service.STREAMING)
         draw()
         tapCell(tv.cell)
-        assertEquals("Smart-TV: Streaming – kein Kabel breit genug (Bandbreite 3)", view.shownHint)
+        assertEquals("Smart-TV → Streaming-Server: kein Kabel breit genug (Bandbreite 3)", view.shownHint)
+    }
+
+    @Test
+    fun tappingADeviceNamesTheServersItNeedsAndLightsThemUp() {
+        val pc = world.addClient(Device.PC, cell(2, 2).x, cell(2, 2).y)
+        val mail = world.addServer(Service.MAIL, cell(6, 2).x, cell(6, 2).y)
+        val phones = world.addServer(Service.CALL, cell(6, 6).x, cell(6, 6).y)
+        draw()
+        tapCell(pc.cell)
+        assertEquals("PC braucht: Mail-Server · Game-Server · Backup-Server", view.shownHint)
+        draw()
+        val labels = view.activeRenderer.serverLabels
+        assertEquals(Device.PC.services.toSet(), labels.focus?.services)
+        assertTrue("the mail server is one of them", labels.matches(mail))
+        assertFalse("the telephone exchange is not", labels.matches(phones))
+        repeat(30) { view.advance(1f / 60f) }
+        view.drawCurrent(Canvas(bmp))
+        assertTrue("the highlight fades in", labels.focus!!.strength > 0.99f)
+        assertTrue("the others step back", labels.dimAlpha(phones) < 255 && labels.dimAlpha(mail) == 255)
+        repeat(4 * 60) { view.advance(1f / 60f) }
+        view.drawCurrent(Canvas(bmp))
+        assertNull("and goes out again", labels.focus)
+
+        // With a request waiting, the tap names that request and its server; with no way there, it says so.
+        pc.pending.addLast(Service.MAIL)
+        tapCell(pc.cell)
+        assertEquals("PC → Mail-Server: kein Weg – verbinde beide per Kabel", view.shownHint)
+        world.connect(pc, mail, CableType.ISDN)
+        tapCell(pc.cell)
+        assertEquals("PC will Mail → Mail-Server", view.shownHint)
+    }
+
+    @Test
+    fun draggingFromARouterLightsUpTheServersItsDevicesWaitFor() {
+        val phone = world.addClient(Device.PHONE, cell(2, 2).x, cell(2, 2).y)
+        val router = world.addRouter(cell(4, 2).x, cell(4, 2).y)
+        val phones = world.addServer(Service.CALL, cell(8, 2).x, cell(8, 2).y)
+        val mail = world.addServer(Service.MAIL, cell(8, 6).x, cell(8, 6).y)
+        world.connect(phone, router, CableType.ISDN)
+        phone.pending.addLast(Service.CALL)
+        draw()
+        val p = view.activeRenderer.toScreen(router.center)
+        view.injectTouch(MotionEvent.ACTION_DOWN, p.x, p.y)
+        view.injectTouch(MotionEvent.ACTION_MOVE, p.x + 150f, p.y + 40f)
+        draw()
+        val labels = view.activeRenderer.serverLabels
+        assertTrue(labels.matches(phones))
+        assertFalse(labels.matches(mail))
+        view.injectTouch(MotionEvent.ACTION_UP, p.x + 150f, p.y + 40f)
     }
 
     @Test

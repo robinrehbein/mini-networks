@@ -58,6 +58,9 @@ interface Renderer {
     /** Pixels per dp of the screen, for sizes that must stay readable at any zoom; set by the view, 1 by default. */
     var density: Float
 
+    /** Server name plates and the highlight of the servers a device needs; the view sets names and focus. */
+    val serverLabels: ServerLabels
+
     /**
      * Smallest zoom the automatic framing ([layout], [fitArea], [onAreaChanged]) goes to, so devices and requests stay
      * readable on a phone; a bigger area than fits is then centred and the player pans. Pinching zooms out further.
@@ -883,6 +886,9 @@ object DragJuice {
     private val tail = Path()
     private val rect = RectF()
 
+    /** Screen box of the last [bubble], so the server plates ([ServerLabels]) can keep clear of it. */
+    val lastBubble = RectF()
+
     /** The glow under a preview line [path] of stroke width [width] pixels in [color]. */
     fun glow(canvas: Canvas, path: Path, color: Int, width: Float) {
         glowP.color = color and 0xFFFFFF or 0x38000000
@@ -936,13 +942,14 @@ object DragJuice {
         canvas.drawRoundRect(rect, r, r, shadowP)
         rect.offset(0f, -3f * density)
         tail.reset()
-        val tx = x.coerceIn(rect.left + r, rect.right - r)
+        val tx = if (rect.width() > 2 * r) x.coerceIn(rect.left + r, rect.right - r) else rect.centerX()
         tail.moveTo(tx - size * 0.45f, bottom - 1f)
         tail.lineTo(tx, bottom + size * 0.5f)
         tail.lineTo(tx + size * 0.45f, bottom - 1f)
         tail.close()
         canvas.drawPath(tail, bubbleP)
         canvas.drawRoundRect(rect, r, r, bubbleP)
+        lastBubble.set(rect.left, rect.top, rect.right, bottom + size * 0.5f)
         ringP.color = accent; ringP.strokeWidth = 2.5f * density
         canvas.drawRoundRect(rect, r, r, ringP)
         textP.textSize = size; textP.color = labelColor

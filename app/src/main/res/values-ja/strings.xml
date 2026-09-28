@@ -42,6 +42,20 @@
     <string name="service_video_call">ビデオ通話</string>
     <string name="service_camera_upload">カメラ映像</string>
     <string name="service_cloud_backup">クラウドバックアップ</string>
+
+    <!-- Server names & matching -->
+    <string name="server_mail">メールサーバー</string>
+    <string name="server_call">電話交換機</string>
+    <string name="server_gaming">ゲームサーバー</string>
+    <string name="server_streaming">動画配信サーバー</string>
+    <string name="server_video_call">ビデオ通話サーバー</string>
+    <string name="server_camera_upload">カメラクラウド</string>
+    <string name="server_cloud_backup">バックアップサーバー</string>
+    <string name="device_wants_server">%1$s：%2$s → %3$s</string>
+    <string name="device_needs_servers">%1$sに必要：%2$s</string>
+    <string name="legend_device_servers">つなぐ先：%1$s</string>
+    <string name="legend_data_center_desc">独立した種類ではなく、どのサーバーにもある最高レベルです。提供するサービスは同じ1つだけで、性能とポートが増えます。</string>
+
     <string name="device_pc">PC</string>
     <string name="device_phone">電話</string>
     <string name="device_laptop">ノートPC</string>
@@ -63,7 +77,6 @@
     <string name="node_router">ルーター</string>
     <string name="node_access_point">Wi-Fiアクセスポイント</string>
     <string name="node_cell_tower">携帯基地局</string>
-    <string name="node_server">%1$sサーバー</string>
 
     <!-- Week news and cable feedback -->
     <string name="news_with_year">%1$d年 · %2$s</string>
@@ -152,7 +165,7 @@
     <string name="tutorial_cable_text">PCがメールを送りたがっています。PCからメールサーバーまで指でなぞりましょう。</string>
     <string name="tutorial_router_title">ルーターを置こう</string>
     <string name="tutorial_router_text">端末のポートは2つだけ、ルーターなら6つ。下の「ルーター」をタップして、電話の近くの空きマスをタップしましょう。</string>
-    <string name="tutorial_router_connect_text">次に、2台の電話と通話サーバーをルーターにつなぎましょう。ルーターが通話を振り分けます。</string>
+    <string name="tutorial_router_connect_text">次に、2台の電話と電話交換機をルーターにつなぎましょう。ルーターが通話を振り分けます。</string>
     <string name="tutorial_bandwidth_title">帯域</string>
     <string name="tutorial_bandwidth_text">1998年：テレビが動画を見たがっています。動画配信サーバーにつなぎましょう。</string>
     <string name="tutorial_bandwidth_narrow_text">帯域が足りません！動画配信には帯域%1$dが必要ですが、ISDNは%2$dしか運べません。下でDSLを選びましょう。DSLなら%3$d運べます。</string>
@@ -202,10 +215,10 @@
     <string name="hint_service_needs">%1$sには帯域%2$dが必要です</string>
     <string name="hint_service_needs_ping">%1$sには帯域%2$dとPing %3$dミリ秒以内が必要です</string>
     <string name="device_wants">%1$s：%2$sを要求</string>
-    <string name="problem_no_route">%1$s：%2$s ― サーバーへの経路がありません</string>
-    <string name="problem_too_narrow">%1$s：%2$s ― 帯域の足りるケーブルがありません（帯域%3$d）</string>
-    <string name="problem_ping">%1$s：%2$s ― Ping %3$dミリ秒、上限%4$dミリ秒</string>
-    <string name="problem_jam">%1$s：%2$s ― 渋滞中、ケーブルかサーバーが満杯</string>
+    <string name="problem_no_route">%1$s → %2$s：経路がありません。ケーブルでつなぎましょう</string>
+    <string name="problem_too_narrow">%1$s → %2$s：帯域の足りるケーブルがありません（帯域%3$d）</string>
+    <string name="problem_ping">%1$s → %2$s：Ping %3$dミリ秒、上限%4$dミリ秒</string>
+    <string name="problem_jam">%1$s → %2$s：渋滞中、ケーブルかサーバーが満杯</string>
     <string name="game_over_no_route">%1$sは%2$sサーバーにつながらなかった</string>
     <string name="game_over_too_narrow">%1$sの%2$sには、もっと太いケーブルが必要だった</string>
     <string name="game_over_ping">%1$sの%2$sが遅延：%3$d ms（上限%4$d ms）</string>
@@ -444,8 +457,8 @@
     <string name="reviewer_access_enabled">審査用アクセスを有効にしました</string>
     <string name="reviewer_access_invalid">審査コードが無効です</string>
     <string name="menu_legend">これは何？</string>
-    <string name="legend_section_services">サービス</string>
-    <string name="legend_section_devices">デバイス</string>
+    <string name="legend_section_services">サーバー</string>
+    <string name="legend_section_devices">デバイス → サーバー</string>
     <string name="legend_section_network">ネットワーク</string>
     <string name="legend_section_signs">サイン</string>
     <string name="legend_service_ping">帯域 %1$d・Ping 最大 %2$d ms</string>
