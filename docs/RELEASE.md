@@ -255,7 +255,7 @@ daher mit **Ja, Werbung oder Marketing** zu beantworten.
       (profgen liegt in `cmdline-tools/latest/bin`)
 - [ ] Datenschutzerklärung veröffentlicht, URL in Play Console und UMP-Nachricht
 - [ ] In-App-Produkte angelegt und aktiv, Lizenztester eingetragen
-- [ ] Store-Eintrag in 12 Sprachen (`docs/store/<sprache>.md`), Icon 512 px (`docs/screenshots/store-icon-512.png`), Feature-Grafik (je Sprache `docs/store/feature-graphic/<sprache>.png`; `docs/store/feature-graphic.png` ist die Standardgrafik mit englischer Tagline, nur Rückfall), Screenshots (`docs/store/screenshots/`)
+- [ ] Store-Eintrag in 12 Sprachen (`docs/store/<sprache>.md`), Icon 512 px (`docs/store/icon-512.png`), Feature-Grafik (je Sprache `docs/store/feature-graphic/<sprache>.png`; `docs/store/feature-graphic.png` ist die Standardgrafik mit englischer Tagline, nur Rückfall), Screenshots (`docs/store/screenshots/`)
 - [ ] Store-Bilder und Feature-Grafiken der übrigen 10 Sprachen erzeugt und je Eintrag hochgeladen:
       `ROBOLECTRIC_DEPS_DIR=/opt/robolectric ./gradlew testDebugUnitTest --tests '*StoreScreenshotTest*' -Pstore.locales=fr,es,it,pt-rBR,pl,nl,tr,ja,ko,zh-rCN`
       (nicht eingecheckt, ≈ 80 MB PNG; ohne sie zeigt Play dort die deutschen bzw. englischen Bilder)
