@@ -5,7 +5,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [claude/mini-networks-android-prototype-9l0v8n]
+    branches: [main]
 
 concurrency:
   group: ci-${{ github.ref }}
