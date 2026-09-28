@@ -8,7 +8,7 @@ import com.mininetworks.game.R
 import com.mininetworks.game.render.fill
 
 /**
- * The game's logo mark: the launcher icon (server tower, glowing cables and packet on dusk blue) as a rounded tile
+ * The game's logo mark: the launcher icon (server tower, bold cables and an orange packet on the brand indigo) as a rounded tile
  * with a soft shadow, for the main menu's logotype above the game's name.
  */
 class LogoMark(context: Context) {
@@ -36,4 +36,16 @@ class LogoMark(context: Context) {
         }
         canvas.restore()
     }
+}
+
+/**
+ * The one brand colour, deep indigo, used everywhere the brand shows: the launcher icon's background
+ * (tools/icon/gen_icon.py), the main menu's header and title, the store caption bar and the feature graphic's backdrop
+ * (judge panel: three different blues read as three brands).
+ */
+object Brand {
+    const val COLOR = 0xFF232B63.toInt()
+
+    /** The shade of [COLOR]: bottom of the menu header and the caption bar, the feature graphic's night sky. */
+    const val DARK = 0xFF181D48.toInt()
 }

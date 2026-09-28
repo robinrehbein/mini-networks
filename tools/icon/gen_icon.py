@@ -72,7 +72,7 @@ def grad(d, cx, cy, r, stops):
 
 # ---------------------------------------------------------------- palette (the game's colours, a notch brighter)
 FIBER, FIBER_D, FIBER_L = "#FF8A1C", "#C4560A", "#FFE3B8"
-TEAL, TEAL_D = "#23B5A5", "#16847A"          # DSL
+TEAL, TEAL_D = "#3DE8CF", "#14A08F"          # DSL, bright so it stands off the indigo brand ground
 WINE, WINE_D = "#E0457B", "#A82C58"          # coax
 BLUE, BLUE_D = "#1F7FC4", "#17639C"          # mail server roof
 WHITE, WHITE_S = "#FFFFFF", "#D3DCE3"
@@ -282,10 +282,11 @@ SRV, SRV_D, SRV_TOP = "#2F9ED8", "#2385BA", "#3FB0E8"
 LED = "#6FC7F7"
 ANTENNA, ANTENNA_TIP = "#3A424C", "#E5383B"
 PKT = "#0C8DC3"
-DUSK_C, DUSK_M, DUSK_E = "#2F6A80", "#1B495D", "#0E2A38"
+# The one brand colour (deep indigo, BRAND in the app and the store), a touch lighter in the middle of the icon.
+DUSK_C, DUSK_M, DUSK_E = "#313C82", "#232B63", "#181D48"
 
 RACK_SMALL = dict(cx=45.0, yb=70.0, hw=18.0, fl=13.0, n=2, band=2.6, slots=True)
-RACK_BIG = dict(cx=C, yb=82.0, hw=25.0, fl=15.5, n=2, band=3.4, slots=False)
+RACK_BIG = dict(cx=C, yb=69.0, hw=14.0, fl=9.5, n=2, band=2.2, slots=False, packet=True)
 
 
 def rpt(r, face, s, z):
@@ -348,12 +349,28 @@ def rack_body(r):
         if r["slots"]:
             s.append(fill(poly_d(slot), "#0F1620", 0.8))
     s.append(fill(poly_d(rack_top(r)), SRV_TOP))
+    if r.get("packet"):
+        (px, py), pr = roof_packet(r)
+        s.append(("group", (1.0, 0.5, px, py + pr * 1.1), [grad(circle_d(px, py + pr * 1.1, pr * 1.1), px, py + pr * 1.1, pr * 1.1,
+                                                              [(0, "#0B3F66", 0.5), (1, "#0B3F66", 0)])]))
+        s.append(grad(circle_d(px, py, pr * 2.0), px, py, pr * 2.0, [(0, "#FFE9C4", 0.9), (0.5, "#FFB050", 0.35), (1, "#FFB050", 0)]))
+        s.append(fill(circle_d(px, py, pr), WHITE))
+        s.append(fill(circle_d(px, py, pr * 0.8), "#FF7A00"))
+        s.append(fill(circle_d(px - pr * 0.22, py - pr * 0.24, pr * 0.24), "#FFD7A0"))
+        return s
     x, y, w = rack_symbol(r)
     (ax, ay0), (_, ay1), ar = rack_antenna(r)
     s.append(stroke(line_d([(ax, ay0), (ax, ay1)]), ANTENNA, ar * 0.8, cap="butt"))
     s.append(fill(circle_d(ax, ay1, ar), ANTENNA_TIP))
     s.append(fill(rrect_d(x, y, w, w, w * 0.12), WHITE))
     return s
+
+
+def roof_packet(r):
+    """The one glyph on the roof: a big orange packet (the thing the game is about) standing on the roof's middle."""
+    H = r["n"] * r["fl"]
+    pr = r["hw"] * 0.46
+    return (r["cx"], r["yb"] - H - r["hw"] / 2 - pr * 0.6), pr
 
 
 def rack_antenna(r):
@@ -367,11 +384,16 @@ def rack_body_mono(r):
     rack = Polygon(rack_outline(r))
     cuts = [Polygon(q) for _, q in rack_panels(r)]
     edge = LineString([rpt(r, -1, 1, H), rpt(r, -1, 0, H), rpt(r, 1, 1, H)]).buffer(0.8, cap_style=2, join_style=2)
+    leds = unary_union([Polygon(led) for _, led, _ in rack_leds(r)])
+    if r.get("packet"):
+        (px, py), pr = roof_packet(r)
+        disc = Point(px, py).buffer(pr * 0.8)
+        body = rack.difference(unary_union(cuts + [edge, Point(px, py).buffer(pr)]))
+        return rack.union(Point(px, py).buffer(pr)), unary_union([body, leds, disc])
     x, y, w = rack_symbol(r)
     sym = rrect_poly(x, y, w, w, w * 0.12)
     (ax, ay0), (_, ay1), ar = rack_antenna(r)
     antenna = LineString([(ax, ay0), (ax, ay1)]).buffer(ar * 0.4, cap_style=2).union(Point(ax, ay1).buffer(ar))
-    leds = unary_union([Polygon(led) for _, led, _ in rack_leds(r)])
     body = rack.difference(unary_union(cuts + [edge, sym.buffer(1.2)]))
     return rack, unary_union([body, leds, sym, antenna.difference(sym.buffer(1.2))])
 
@@ -384,10 +406,11 @@ def contact_shadow(r):
                                                 [(0, sh, 0.55), (0.6, sh, 0.25), (1, sh, 0)])])
 
 
-def cable(pts, col, dark, w, core=None):
-    out = [stroke(line_d(pts), dark, w, cap="butt"), stroke(line_d(pts), col, w - 3.2, cap="butt")]
+def cable(pts, col, dark, w, core=None, cap="butt"):
+    edge = 3.2 if w < 15 else 4.4
+    out = [stroke(line_d(pts), dark, w, cap=cap), stroke(line_d(pts), col, w - edge, cap=cap)]
     if core:
-        out.append(stroke(line_d(pts), core, 2.8, cap="butt"))
+        out.append(stroke(line_d(pts), core, 2.8 if w < 15 else 3.6, cap=cap))
     return out
 
 
@@ -423,24 +446,43 @@ def rack_mono():
 
 
 # ---- big rack with three cables in the game's colours running off the tile
+SAFE_R = 32.6   # the 66 dp safe zone (radius 33), less a hair for anti-aliasing
+
+
+def stub(start, direction, width):
+    """The longest round-capped stub from [start] along [direction] whose whole outline stays inside the safe zone."""
+    safe = Point(C, C).buffer(SAFE_R, quad_segs=32)
+    lo, hi = 0.0, 80.0
+    for _ in range(40):
+        mid = (lo + hi) / 2
+        end = (start[0] + direction[0] * mid, start[1] + direction[1] * mid)
+        if safe.contains(LineString([start, end]).buffer(width / 2, cap_style=1)):
+            lo = mid
+        else:
+            hi = mid
+    return [start, (start[0] + direction[0] * lo, start[1] + direction[1] * lo)]
+
+
 def rackhub_cables():
+    """Three short, bold stubs (twice the old width) in the game's cable colours, each ending inside the safe zone."""
     r = RACK_BIG
     right = rpt(r, 1, 0.5, 1.5)
     left = rpt(r, -1, 0.5, 1.5)
-    back = rpt(r, 1, 1, r["fl"] * 0.6)   # leaves behind the right back corner, to the upper right
+    back = rpt(r, 1, 1, r["fl"] * 0.7)   # leaves behind the right back corner, to the upper right
+    k = 1 / 5 ** 0.5
     return [
-        ([back, (back[0] + 60, back[1] - 30)], WINE, WINE_D, 12.0),
-        ([left, (left[0] - 60, left[1] + 30)], TEAL, TEAL_D, 12.0),
-        ([right, (right[0] + 60, right[1] + 30)], "#FF8800", "#D96A00", 15.0),
+        (stub(back, (2 * k, -k), 16.0), WINE, WINE_D, 16.0),
+        (stub(left, (-2 * k, k), 16.0), TEAL, TEAL_D, 16.0),
+        (stub(right, (2 * k, k), 19.0), "#FF8800", "#D96A00", 19.0),
     ]
 
 
 def rackhub_fg():
     r = RACK_BIG
-    s = [grad(circle_d(C, 50, 40), C, 50, 40, [(0, "#7CC6D8", 0.55), (0.55, "#4E97AE", 0.25), (1, "#4E97AE", 0)]),
+    s = [grad(circle_d(C, 50, 40), C, 50, 40, [(0, "#7F8EEA", 0.5), (0.55, "#4E5BB0", 0.22), (1, "#4E5BB0", 0)]),
          contact_shadow(r)]
     for pts, col, dark, w in rackhub_cables():
-        s += cable(pts, col, dark, w, "#FFE3B8" if col == "#FF8800" else None)
+        s += cable(pts, col, dark, w, "#FFE3B8" if col == "#FF8800" else None, cap="round")
     s += rack_body(r)
     return s
 
@@ -448,7 +490,7 @@ def rackhub_fg():
 def rackhub_mono():
     r = RACK_BIG
     rack, body = rack_body_mono(r)
-    cabs = unary_union([LineString(p).buffer(w / 2 - 0.5, cap_style=2) for p, _, _, w in rackhub_cables()])
+    cabs = unary_union([LineString(p).buffer(w / 2 - 0.5, cap_style=1) for p, _, _, w in rackhub_cables()])
     return mono_layer(unary_union([body, cabs.difference(rack.buffer(1.4))]))
 
 
@@ -465,10 +507,10 @@ DESIGNS = {   # the explored alternatives (compare.js); CHOSEN is the one the ap
 }
 CHOSEN = "rackhub"
 COMMENTS = {
-    "background": "Launcher background: the brand's dusk blue (store bar, menu header), lighter in the middle.",
-    "foreground": "Launcher foreground: one big server in the game's own look (rack units, blue roof, mail square,\n"
-                  "     antenna) with glass fiber, DSL and coax cables leaving it. 108 dp canvas, inside the 66 dp safe zone.",
-    "monochrome": "Themed-icon layer (Android 13+): the server with panels cut out, and the three cable stubs.",
+    "background": "Launcher background: the brand's deep indigo (store bar, feature graphic, menu header), lighter in the middle.",
+    "foreground": "Launcher foreground: one server in the game's own look (rack units, blue roof) with one orange packet on\n"
+                  "     the roof and bold fiber, DSL and coax stubs. 108 dp canvas, everything inside the 66 dp safe zone.",
+    "monochrome": "Themed-icon layer (Android 13+): the server with panels cut out, the packet, and the three cable stubs.",
 }
 
 

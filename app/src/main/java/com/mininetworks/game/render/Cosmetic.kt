@@ -34,7 +34,7 @@ class MapPalette(
      * Translucent haze over the locked ground: a light veil in the scenery's own backdrop colour, so the land outside
      * the board reads as a soft, paler version of the scenery instead of a grey wash (judge panel).
      */
-    val fog: Int = (background and 0xFFFFFF) or 0x47000000
+    val fog: Int = (background and 0xFFFFFF) or 0x33000000
 }
 
 /**
@@ -48,12 +48,45 @@ object Cosmetic {
     /** The palette of the active [theme]. */
     val palette: MapPalette get() = paletteOf(theme)
 
-    fun paletteOf(t: ColorTheme): MapPalette = when (t) {
-        ColorTheme.MEADOW -> MEADOW
-        ColorTheme.AUTUMN -> AUTUMN
-        ColorTheme.WINTER -> WINTER
-        ColorTheme.DESERT -> DESERT
+    fun paletteOf(t: ColorTheme): MapPalette = VIVID_THEMES.getValue(t)
+
+    private val VIVID_THEMES by lazy {
+        mapOf(
+            ColorTheme.MEADOW to vivid(MEADOW), ColorTheme.AUTUMN to vivid(AUTUMN),
+            ColorTheme.WINTER to vivid(WINTER), ColorTheme.DESERT to vivid(DESERT),
+        )
     }
+
+    /**
+     * Saturation of the ground palettes (1 = the pastel base values below). The game's own look is the lively one the
+     * store art shows (judge panel: the pale mint River Town read washed out next to the store shots), so every palette
+     * is lifted here once and the store renders it unfiltered.
+     */
+    const val GROUND_SATURATION = 1.4f
+
+    /** Contrast around mid grey applied with [GROUND_SATURATION]. */
+    const val GROUND_CONTRAST = 1.08f
+
+    /** [c] with [GROUND_SATURATION] and [GROUND_CONTRAST] (Rec. 709 luma, like Android's ColorMatrix.setSaturation). */
+    fun vivid(c: Int): Int {
+        val r = (c shr 16) and 0xFF
+        val g = (c shr 8) and 0xFF
+        val b = c and 0xFF
+        val l = 0.213f * r + 0.715f * g + 0.072f * b
+        fun ch(v: Int): Int {
+            val s = l + (v - l) * GROUND_SATURATION
+            return ((s - 128f) * GROUND_CONTRAST + 128f - 6f).toInt().coerceIn(0, 255)
+        }
+        return (c and 0xFF000000.toInt()) or (ch(r) shl 16) or (ch(g) shl 8) or ch(b)
+    }
+
+    private fun vivid(p: MapPalette) = MapPalette(
+        vivid(p.landA), vivid(p.landB), vivid(p.waterA), vivid(p.waterB),
+        vivid(p.lockedLandA), vivid(p.lockedLandB), vivid(p.lockedWaterA), vivid(p.lockedWaterB),
+        vivid(p.boardLit), vivid(p.boardShade), vivid(p.background), vivid(p.grass),
+        vivid(p.leaf), vivid(p.leafDark), vivid(p.pine), vivid(p.pineDark),
+        p.flatLand, vivid(p.flatWater), p.flatBackdrop,
+    )
 
     /**
      * The palette for a map of scenery [scenarioId]: with the default theme ([ColorTheme.MEADOW]) every scenery has a
@@ -62,7 +95,7 @@ object Cosmetic {
      * unlocked theme the player picked wins over it.
      */
     fun paletteFor(scenarioId: String): MapPalette =
-        if (theme != ColorTheme.MEADOW) palette else SCENERY_PALETTES[scenarioId] ?: MEADOW
+        if (theme != ColorTheme.MEADOW) palette else SCENERY_PALETTES[scenarioId] ?: paletteOf(ColorTheme.MEADOW)
 
     /** Resets to the defaults, for tests. */
     fun reset() {
@@ -95,9 +128,9 @@ object Cosmetic {
         flatLand = 0xFFF3F1EC.toInt(), flatWater = 0xFFC3DCE8.toInt(), flatBackdrop = 0xFFD3CFC5.toInt(),
     )
 
-    /** Kleinstadt am Fluss: the meadow, a little fresher. */
+    /** Kleinstadt am Fluss: the meadow, a greener fresh grass (judge panel: pale mint). */
     private val RIVER_TOWN = palette(
-        landA = 0xFFD0E8C0.toInt(), landB = 0xFFC4DFB3.toInt(), waterA = 0xFF6AB4DD.toInt(), waterB = 0xFF86C4E6.toInt(),
+        landA = 0xFFC6E4B0.toInt(), landB = 0xFFB8DAA2.toInt(), waterA = 0xFF6AB4DD.toInt(), waterB = 0xFF86C4E6.toInt(),
         boardLit = 0xFFAFC7A1.toInt(), boardShade = 0xFF9BB58D.toInt(), background = 0xFFEAF2E4.toInt(),
         grass = 0xFFA9C79B.toInt(), leaf = 0xFF8CC275.toInt(), leafDark = 0xFF67A05A.toInt(), pine = 0xFF66A674.toInt(), pineDark = 0xFF478459.toInt(),
         flatLand = 0xFFF1F3EA.toInt(), flatWater = 0xFFB9D9E8.toInt(), flatBackdrop = 0xFFD2D8CB.toInt(),
@@ -139,7 +172,7 @@ object Cosmetic {
         mapOf(
             "river_town" to RIVER_TOWN, "metropolis" to METROPOLIS, "island_harbor" to ISLAND,
             "mountain_village" to MOUNTAIN_VILLAGE, "future_2030" to FUTURE,
-        )
+        ).mapValues { vivid(it.value) }
     }
 
     /** Straw fields and orange trees. */

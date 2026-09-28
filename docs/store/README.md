@@ -37,7 +37,7 @@ Play Games optional, Werbung nur zwischen Partien, „Werbefrei“ und Szenerien
 - Vor dem Start (docs/RELEASE.md 4): die übrigen 10 Sprachen mit `-Pstore.locales=fr,es,it,pt-rBR,pl,nl,tr,ja,ko,zh-rCN`
   erzeugen und je Eintrag hochladen; sonst zeigt Play dort die Standardbilder mit deutscher bzw. englischer
   Beschriftung. Nicht eingecheckt, weil jeder Satz rund 8 MB PNG ist (zehn Sprachen ≈ 80 MB bei jedem Neuerzeugen).
-- Eine Vorlage für alle Bilder: das Spiel randlos unter einer Überschriften-Leiste im Dämmerblau der Marke mit dünner
+- Eine Vorlage für alle Bilder: das Spiel randlos unter einer Überschriften-Leiste im Indigo der Marke (dieselbe Farbe wie Icon und Feature-Grafik; Spielbild ohne Farbfilter) mit dünner
   Glasfaser-Orange-Kante; die kurze Überschrift in Nunito Black, ein Schlüsselwort in der Akzentfarbe des Motivs und
   unterstrichen; nur Bild 1 trägt das App-Icon, Querformat-Bilder das Jahr der Szene rechts in einer Pille.
 - Motive (Dateien `01-town` … `08-sceneries`), jedes in eigener Stimmung: 1 Held: Tag auf der Wiese, der Knoten einer

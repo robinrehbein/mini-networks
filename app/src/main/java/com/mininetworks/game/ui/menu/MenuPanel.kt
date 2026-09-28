@@ -245,7 +245,7 @@ class MenuPanel(context: Context) {
     private fun header(canvas: Canvas, card: RectF, radius: Float, h: Float, u: Float) {
         canvas.save()
         canvas.clipRect(card.left, card.top, card.right, card.top + h)
-        headerP.shader = android.graphics.LinearGradient(card.left, card.top, card.right, card.top + h, 0xFF1B4A5E.toInt(), 0xFF0E2A38.toInt(), android.graphics.Shader.TileMode.CLAMP)
+        headerP.shader = android.graphics.LinearGradient(card.left, card.top, card.right, card.top + h, BRAND, BRAND_DARK, android.graphics.Shader.TileMode.CLAMP)
         canvas.drawRoundRect(card, radius, radius, headerP)
         val w = card.width()
         val lines = listOf(0.34f to 0xFFF28C28.toInt(), 0.58f to 0xFF1FA39A.toInt(), 0.8f to 0xFFB0305A.toInt())
@@ -826,7 +826,8 @@ class MenuPanel(context: Context) {
         const val LOGO_DP = 64f
         /** The logo mark over the game's name on the main menu. */
         const val HERO_LOGO_DP = 76f
-        /** The brand's dusk blue (launcher icon) for the game's name and the hero numbers. */
-        const val BRAND = 0xFF1B4A5E.toInt()
+        /** The one brand colour, deep indigo (launcher icon, store caption bar, feature graphic): the game's name, hero numbers, header. */
+        const val BRAND = Brand.COLOR
+        const val BRAND_DARK = Brand.DARK
     }
 }

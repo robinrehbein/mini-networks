@@ -46,7 +46,7 @@ class RewardDialog(private val context: Context) {
     private val glowP = Paint(Paint.ANTI_ALIAS_FLAG)
     private val rayP = Paint(Paint.ANTI_ALIAS_FLAG)
     private val haloP = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val pillP = fill(0xCC0E2A38.toInt())
+    private val pillP = fill(0xCC181D48.toInt())
     private val display = Fonts.display(context)
     private val ink = 0xFF262B33.toInt()
     private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; color = ink }
@@ -138,7 +138,7 @@ class RewardDialog(private val context: Context) {
         text.textSize = newsSize
         text.color = 0xFFFFD58A.toInt()
         // Warm text in the warm spotlight: a dark shadow keeps it apart from the glow.
-        text.setShadowLayer(3f * density, 0f, 1f * density, 0xB30E2A38.toInt())
+        text.setShadowLayer(3f * density, 0f, 1f * density, 0xB3181D48.toInt())
         // This week's unlock message, without the year the heading already shows.
         news?.let { canvas.drawText(fit(it, width - 2 * side), width / 2f, newsBaseline, text) }
         text.clearShadowLayer()

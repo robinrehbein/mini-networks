@@ -617,20 +617,25 @@ class IsoRenderer : Renderer {
             val ex = x.coerceIn(0, cols - 1); val ey = y.coerceIn(0, rows - 1)
             if ((depthOf(x + 0.5f, y + 0.5f) > depthOf(ex + 0.5f, ey + 0.5f)) != front) continue
             val dist = maxOf(abs(x - ex), abs(y - ey))
-            val fade = (dist / OUTSKIRT_FADE).coerceAtMost(1f) * 0.72f + 0.06f
+            // Only a light haze that deepens slowly: the countryside fills the screen and stays calm (judge panel:
+            // a portrait screen showed pale fog above and below the board).
+            val fade = (dist / OUTSKIRT_FADE).coerceAtMost(1f) * OUTSKIRT_HAZE + 0.04f
             // A river leaves the board straight on: only cells beyond one edge (not a corner) continue it.
             val water = (x in 0 until cols || y in 0 until rows) && world.terrainAt(ex, ey) == Terrain.WATER
             val even = (x + y) % 2 == 0
             if (pass == 0) {
                 quad(x.toFloat(), y.toFloat(), 1f, 1f, 0f)
-                val base = if (water) (if (even) lockedWaterA else lockedWaterB) else if (even) lockedLandA else lockedLandB
+                val base = if (water) (if (even) blend(waterA, lockedWaterA, 0.5f) else blend(waterB, lockedWaterB, 0.5f))
+                    else if (even) blend(landA, lockedLandA, 0.55f) else blend(landB, lockedLandB, 0.55f)
                 fillP.color = blend(base.shade(Scenery.tileVariation(seed, x, y) * TILE_VARIATION), pal.background, fade)
                 c.drawPath(path, fillP)
             } else if (!water && dist <= OUTSKIRT_DECOR) {
-                val d = Scenery.planned(seed, x, y) ?: continue
+                val d = Scenery.outskirt(seed, x, y, dist) ?: continue
+                decorWash = OUTSKIRT_DECOR_WASH + fade * 0.5f
                 drawDecor(c, seed, Cell(x, y), d, open = false)
             }
         }
+        decorWash = LOCKED_DECOR_WASH
         c.restore()
     }
 
@@ -973,7 +978,7 @@ class IsoRenderer : Renderer {
         val x = cell.x + 0.5f + (Scenery.unit(seed, cell.x, cell.y, 11) - 0.5f) * 0.3f
         val y = cell.y + 0.5f + (Scenery.unit(seed, cell.x, cell.y, 12) - 0.5f) * 0.3f
         val k = 0.85f + 0.3f * Scenery.unit(seed, cell.x, cell.y, 13)
-        fun col(v: Int) = if (open) v else wash(v)
+        fun col(v: Int) = if (open) v else blend(v, lockedLandA, decorWash)
         if (d != Decor.HOUSE) {
             groundEllipse(Vec2(x + unturnX(0.13f, 0.05f) * k, y + unturnY(0.13f, 0.05f) * k), 0.17f * k)
             fillP.color = 0x22000000; c.drawOval(oval, fillP)
@@ -1060,7 +1065,10 @@ class IsoRenderer : Renderer {
     }
 
     /** [color] faded towards the locked ground, for decorations outside the unlocked area. */
-    private fun wash(color: Int) = blend(color, lockedLandA, 0.6f)
+    private fun wash(color: Int) = blend(color, lockedLandA, LOCKED_DECOR_WASH)
+
+    /** How far [drawDecor] fades a decoration outside the unlocked area: less in the outskirts than on locked board cells. */
+    private var decorWash = LOCKED_DECOR_WASH
 
     // ---------------------------------------------------------------- animations
 
@@ -1850,8 +1858,12 @@ class IsoRenderer : Renderer {
          *  over how many cells they fade into the backdrop and up to which distance they carry trees. */
         const val OUTSKIRT_DROP = 0.5f
         const val OUTSKIRT_MAX = 40
-        const val OUTSKIRT_FADE = 9f
-        const val OUTSKIRT_DECOR = 7
+        const val OUTSKIRT_FADE = 26f
+        const val OUTSKIRT_HAZE = 0.5f
+        const val OUTSKIRT_DECOR = 30
+        /** Fade of decorations towards the locked ground: on locked board cells, and at least in the outskirts. */
+        const val LOCKED_DECOR_WASH = 0.6f
+        const val OUTSKIRT_DECOR_WASH = 0.25f
         const val FLOWER_A = 0xFFFFFFFF.toInt()
         const val FLOWER_B = 0xFFF2D06B.toInt()
         const val TRUNK = 0xFF8A6A4A.toInt()

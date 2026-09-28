@@ -334,8 +334,8 @@ class StoreScreenshotTest {
             game(bmp, world, zoom = if (tall) 3.4f else 1.75f, focus = focus)
             vignette(bmp, strength = 0.35f, color = 0x120C2E)
         },
-        // 7. The turned map at dusk: the metropolis late in a game in its autumn colours, turned to an odd angle, a
-        //    warm low sun over the skyline; two broad arrows trace the two-finger turn.
+        // 7. The turned map: the metropolis late in a game in its autumn colours, turned to an odd angle (plain render);
+        //    two broad arrows trace the two-finger turn.
         Shot("rotation", 0xFFFFB35C.toInt()) { bmp ->
             val world = lateMetropolis()
             world.nodes.forEach { it.overload = 0f }
@@ -347,7 +347,6 @@ class StoreScreenshotTest {
                 val r = v.activeRenderer
                 r.rotateBy(Camera.shortestTurn(r.camera.angle, 34f), r.camera.centerX, r.camera.centerY, world)
             }
-            dusk(bmp)
             motionArcs(bmp)
         },
         // 8. Five sceneries, each in its own colours, as a collage of their maps, each named on a small pill.
@@ -377,31 +376,6 @@ class StoreScreenshotTest {
                 bmp.width / 2f, bmp.height * 0.46f, r, intArrayOf(color, color, (a shl 24) or color),
                 floatArrayOf(0f, 0.55f, 1f), Shader.TileMode.CLAMP,
             )
-        })
-    }
-
-    /**
-     * Evening light over a shot: the picture multiplied with a sky running from low-sun amber at the top to dusk violet
-     * at the bottom, and a soft sun glow at the top left. Only the light changes; the map is the real one.
-     */
-    private fun dusk(bmp: Bitmap) {
-        val c = Canvas(bmp)
-        val w = bmp.width.toFloat()
-        val h = bmp.height.toFloat()
-        c.drawRect(0f, 0f, w, h, Paint().apply {
-            shader = LinearGradient(0f, 0f, w * 0.35f, h, intArrayOf(0xFFFFEBD0.toInt(), 0xFFF8D2B8.toInt(), 0xFFC9B0DE.toInt()), floatArrayOf(0f, 0.5f, 1f), Shader.TileMode.CLAMP)
-            xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.MULTIPLY)
-        })
-        c.drawRect(0f, 0f, w, h, Paint().apply {
-            shader = RadialGradient(w * 0.12f, -h * 0.05f, maxOf(w, h) * 0.7f, 0x60FFB060, 0x00FFB060, Shader.TileMode.CLAMP)
-            xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SCREEN)
-        })
-        // Low sun, hard light: a little more contrast, so the evening does not read as haze.
-        val lit = bmp.copy(Bitmap.Config.ARGB_8888, false)
-        val k = 1.2f
-        val t = -0.1f * 255f
-        c.drawBitmap(lit, 0f, 0f, Paint().apply {
-            colorFilter = android.graphics.ColorMatrixColorFilter(android.graphics.ColorMatrix(floatArrayOf(k, 0f, 0f, 0f, t, 0f, k, 0f, 0f, t, 0f, 0f, k, 0f, t, 0f, 0f, 0f, 1f, 0f)))
         })
     }
 
@@ -768,7 +742,7 @@ class StoreScreenshotTest {
      */
     private fun sceneryCollage(bmp: Bitmap): List<RectF> {
         val c = Canvas(bmp)
-        c.drawColor(0xFF15392C.toInt())
+        c.drawColor(BRAND_DARK)
         val d = uiDensity()
         val gap = 8f * d
         val w = bmp.width.toFloat()
@@ -873,23 +847,11 @@ class StoreScreenshotTest {
         return w
     }
 
-    /** Livelier colours for store art: saturation up by a third and a touch more contrast than the game's calm look. */
-    private val vivid = Paint(Paint.FILTER_BITMAP_FLAG).apply {
-        val m = android.graphics.ColorMatrix().apply { setSaturation(1.35f) }
-        val k = 1.08f
-        val t = -0.04f * 255f
-        m.postConcat(android.graphics.ColorMatrix(floatArrayOf(k, 0f, 0f, 0f, t, 0f, k, 0f, 0f, t, 0f, 0f, k, 0f, t, 0f, 0f, 0f, 1f, 0f)))
-        colorFilter = android.graphics.ColorMatrixColorFilter(m)
-    }
-
-    /** The 1995 half of the feature graphic a step more saturated still, level with the vivid 2030 half (judge panel). */
-    private val vividPast = Paint(Paint.FILTER_BITMAP_FLAG).apply {
-        val m = android.graphics.ColorMatrix().apply { setSaturation(1.6f) }
-        val k = 1.1f
-        val t = -0.06f * 255f
-        m.postConcat(android.graphics.ColorMatrix(floatArrayOf(k, 0f, 0f, 0f, t, 0f, k, 0f, 0f, t, 0f, 0f, k, 0f, t, 0f, 0f, 0f, 1f, 0f)))
-        colorFilter = android.graphics.ColorMatrixColorFilter(m)
-    }
+    /**
+     * Store art shows the game exactly as it renders: no colour filter (judge panel: the store looked more saturated
+     * than real play). The lively ground lives in the game's own palettes ([com.mininetworks.game.render.Cosmetic.vivid]).
+     */
+    private val plain = Paint(Paint.FILTER_BITMAP_FLAG)
 
     /**
      * [game] in the frame of [d] under [caption]. A full-bleed shot runs under the caption, which sits on a soft
@@ -907,7 +869,7 @@ class StoreScreenshotTest {
         // One brand bar for every slide (judge panel: a hue per slide read as unrelated templates, and the fade into the
         // map hid ~150 px of play): solid dusk navy with a short soft shadow, the game whole below it.
         c.drawColor(BRAND_DARK)
-        c.drawBitmap(game, 0f, band, vivid)
+        c.drawBitmap(game, 0f, band, plain)
         c.drawRect(0f, 0f, w, band, Paint().apply {
             shader = LinearGradient(0f, 0f, 0f, band, BRAND_MID, BRAND_DARK, Shader.TileMode.CLAMP)
         })
@@ -1012,16 +974,16 @@ class StoreScreenshotTest {
             camera.zoomBy(1.9f, fx, fy)
             draw(Canvas(map), city, drag = null, time = 1.3f)
         }
-        c.drawColor(0xFF1A1540.toInt())
-        c.drawBitmap(map, 0f, 0f, vivid)
+        c.drawColor(BRAND_DARK)
+        c.drawBitmap(map, 0f, 0f, plain)
         // The night sky over the left: deep indigo behind the title, fading out over the city.
         c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), Paint().apply {
-            shader = LinearGradient(0f, 0f, w * 0.62f, 0f, intArrayOf(0xFA15103A.toInt(), 0xE615103A.toInt(), 0x8015103A.toInt(), 0x0015103A),
+            shader = LinearGradient(0f, 0f, w * 0.62f, 0f, intArrayOf(0xFA000000.toInt() or (BRAND_DARK and 0xFFFFFF), 0xE6000000.toInt() or (BRAND_DARK and 0xFFFFFF), 0x80000000.toInt() or (BRAND_DARK and 0xFFFFFF), BRAND_DARK and 0xFFFFFF),
                 floatArrayOf(0f, 0.45f, 0.72f, 1f), Shader.TileMode.CLAMP)
         })
         // A soft vignette at the top and bottom edges, and a warm glow behind the skyline so it pops.
         c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), Paint().apply {
-            shader = LinearGradient(0f, 0f, 0f, h.toFloat(), intArrayOf(0x6015103A, 0x0015103A, 0x0015103A, 0x7015103A),
+            shader = LinearGradient(0f, 0f, 0f, h.toFloat(), intArrayOf(0x60000000 or (BRAND_DARK and 0xFFFFFF), BRAND_DARK and 0xFFFFFF, BRAND_DARK and 0xFFFFFF, 0x70000000 or (BRAND_DARK and 0xFFFFFF)),
                 floatArrayOf(0f, 0.22f, 0.75f, 1f), Shader.TileMode.CLAMP)
         })
         c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), Paint().apply {
@@ -1138,9 +1100,12 @@ class StoreScreenshotTest {
         /** Height of the caption band, as a share of the frame (judge panel: 17 % cost too much of every shot). */
         const val BAND = 0.14f
 
-        /** The brand's dusk blue (launcher icon) of the caption band, dark to light. */
-        const val BRAND_DARK = 0xFF0E2A38.toInt()
-        const val BRAND_MID = 0xFF1B4A5E.toInt()
+        /**
+         * The one brand colour, deep indigo (launcher icon background, caption band, feature-graphic backdrop, menu
+         * header; judge panel: the icon, the bar and the feature graphic used three different blues), and its shade.
+         */
+        const val BRAND_MID = com.mininetworks.game.ui.menu.Brand.COLOR
+        const val BRAND_DARK = com.mininetworks.game.ui.menu.Brand.DARK
 
         /** The fiber orange of the app icon's cable, the edge under every caption bar. */
         const val BRAND_FIBER = 0xFFF28C28.toInt()
