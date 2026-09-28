@@ -68,6 +68,20 @@
     <string name="service_video_call">영상 통화</string>
     <string name="service_camera_upload">카메라 업로드</string>
     <string name="service_cloud_backup">클라우드 백업</string>
+
+    <!-- Server names & matching -->
+    <string name="server_mail">메일 서버</string>
+    <string name="server_call">전화 교환국</string>
+    <string name="server_gaming">게임 서버</string>
+    <string name="server_streaming">스트리밍 서버</string>
+    <string name="server_video_call">영상 통화 서버</string>
+    <string name="server_camera_upload">카메라 클라우드</string>
+    <string name="server_cloud_backup">백업 서버</string>
+    <string name="device_wants_server">%1$s: %2$s → %3$s</string>
+    <string name="device_needs_servers">%1$s에 필요: %2$s</string>
+    <string name="legend_device_servers">연결할 곳: %1$s</string>
+    <string name="legend_data_center_desc">별도의 종류가 아니라 모든 서버의 최고 단계예요. 여전히 자기 서비스 하나만 제공하고, 성능과 포트가 늘어나요.</string>
+
     <string name="device_pc">PC</string>
     <string name="device_phone">전화기</string>
     <string name="device_laptop">노트북</string>
@@ -89,7 +103,6 @@
     <string name="node_router">라우터</string>
     <string name="node_access_point">Wi-Fi 액세스 포인트</string>
     <string name="node_cell_tower">이동통신 기지국</string>
-    <string name="node_server">%1$s 서버</string>
 
     <!-- Week news and cable feedback -->
     <string name="news_with_year">%1$d년 · %2$s</string>
@@ -177,7 +190,7 @@
     <string name="tutorial_cable_text">PC가 메일을 보내려고 합니다. 손가락으로 PC에서 메일 서버까지 드래그하세요.</string>
     <string name="tutorial_router_title">라우터 놓기</string>
     <string name="tutorial_router_text">기기에는 포트가 2개뿐이지만 라우터에는 6개가 있습니다. 아래의 “라우터”를 탭한 다음 전화기 근처 빈칸을 탭하세요.</string>
-    <string name="tutorial_router_connect_text">이제 전화기 두 대와 통화 서버를 라우터에 연결하세요. 라우터가 통화를 나눠 줍니다.</string>
+    <string name="tutorial_router_connect_text">이제 전화기 두 대와 전화 교환국를 라우터에 연결하세요. 라우터가 통화를 나눠 줍니다.</string>
     <string name="tutorial_bandwidth_title">대역폭</string>
     <string name="tutorial_bandwidth_text">1998년: TV가 스트리밍을 원합니다. 스트리밍 서버에 연결하세요.</string>
     <string name="tutorial_bandwidth_narrow_text">너무 좁아요! 스트리밍에는 대역폭 %1$d이(가) 필요한데 ISDN은 %2$d밖에 못 싣습니다. 아래에서 DSL을 고르세요. DSL은 %3$d을(를) 싣습니다.</string>
@@ -234,10 +247,10 @@
     <string name="hint_service_needs">%1$s: 대역폭 %2$d 필요</string>
     <string name="hint_service_needs_ping">%1$s: 대역폭 %2$d, 핑 최대 %3$dms 필요</string>
     <string name="device_wants">%1$s: %2$s 요청</string>
-    <string name="problem_no_route">%1$s: %2$s – 서버로 가는 길이 없음</string>
-    <string name="problem_too_narrow">%1$s: %2$s – 충분히 넓은 케이블이 없음 (대역폭 %3$d)</string>
-    <string name="problem_ping">%1$s: %2$s – 핑 %3$dms, 허용 %4$dms</string>
-    <string name="problem_jam">%1$s: %2$s – 정체, 케이블이나 서버가 꽉 참</string>
+    <string name="problem_no_route">%1$s → %2$s: 길이 없음 – 케이블로 연결하세요</string>
+    <string name="problem_too_narrow">%1$s → %2$s: 충분히 넓은 케이블이 없음 (대역폭 %3$d)</string>
+    <string name="problem_ping">%1$s → %2$s: 핑 %3$dms, 허용 %4$dms</string>
+    <string name="problem_jam">%1$s → %2$s: 정체, 케이블이나 서버가 꽉 참</string>
     <string name="game_over_no_route">%2$s 서버에 연결할 수 없었어요 (%1$s)</string>
     <string name="game_over_too_narrow">%2$s에는 더 넓은 케이블이 필요했어요 (%1$s)</string>
     <string name="game_over_ping">%2$s 지연: %3$d ms, 최대 %4$d ms (%1$s)</string>
@@ -476,8 +489,8 @@
     <string name="reviewer_access_enabled">심사자 액세스가 활성화되었습니다</string>
     <string name="reviewer_access_invalid">잘못된 심사 코드</string>
     <string name="menu_legend">무엇이 무엇?</string>
-    <string name="legend_section_services">서비스</string>
-    <string name="legend_section_devices">기기</string>
+    <string name="legend_section_services">서버</string>
+    <string name="legend_section_devices">기기 → 서버</string>
     <string name="legend_section_network">내 네트워크</string>
     <string name="legend_section_signs">표시</string>
     <string name="legend_service_ping">대역폭 %1$d · 핑 최대 %2$d ms</string>

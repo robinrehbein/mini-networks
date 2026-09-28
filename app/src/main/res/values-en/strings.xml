@@ -75,6 +75,20 @@
     <string name="service_video_call">Video calls</string>
     <string name="service_camera_upload">Camera upload</string>
     <string name="service_cloud_backup">Cloud backup</string>
+
+    <!-- Server names & matching -->
+    <string name="server_mail">Mail server</string>
+    <string name="server_call">Phone exchange</string>
+    <string name="server_gaming">Game server</string>
+    <string name="server_streaming">Streaming server</string>
+    <string name="server_video_call">Video server</string>
+    <string name="server_camera_upload">Camera cloud</string>
+    <string name="server_cloud_backup">Backup server</string>
+    <string name="device_wants_server">%1$s wants %2$s → %3$s</string>
+    <string name="device_needs_servers">%1$s needs: %2$s</string>
+    <string name="legend_device_servers">Connect to: %1$s</string>
+    <string name="legend_data_center_desc">Not a type of its own: the top tier of any server. It still delivers only its one service, with more power and more ports.</string>
+
     <string name="device_pc">PC</string>
     <string name="device_phone">Phone</string>
     <string name="device_laptop">Laptop</string>
@@ -96,7 +110,6 @@
     <string name="node_router">Router</string>
     <string name="node_access_point">Wi-Fi access point</string>
     <string name="node_cell_tower">Cell tower</string>
-    <string name="node_server">%1$s server</string>
 
     <!-- Week news and cable feedback -->
     <string name="news_with_year">%1$d · %2$s</string>
@@ -186,7 +199,7 @@
     <string name="tutorial_cable_text">The PC wants to send a mail. Drag with your finger from the PC to the mail server.</string>
     <string name="tutorial_router_title">Place a router</string>
     <string name="tutorial_router_text">A device has only 2 ports, a router has 6. Tap “Router” below, then a free cell near the phones.</string>
-    <string name="tutorial_router_connect_text">Now connect both phones and the telephony server to the router. It shares out the calls.</string>
+    <string name="tutorial_router_connect_text">Now connect both phones and the phone exchange to the router. It shares out the calls.</string>
     <string name="tutorial_bandwidth_title">Bandwidth</string>
     <string name="tutorial_bandwidth_text">1998: The TV wants to stream. Connect it to the streaming server.</string>
     <string name="tutorial_bandwidth_narrow_text">Too narrow! Streaming needs bandwidth %1$d, ISDN carries only %2$d. Pick DSL below, it carries %3$d.</string>
@@ -244,10 +257,10 @@
     <string name="hint_service_needs">%1$s needs bandwidth %2$d</string>
     <string name="hint_service_needs_ping">%1$s needs bandwidth %2$d, ping at most %3$d ms</string>
     <string name="device_wants">%1$s wants %2$s</string>
-    <string name="problem_no_route">%1$s: %2$s – no way to a server</string>
-    <string name="problem_too_narrow">%1$s: %2$s – no cable wide enough (bandwidth %3$d)</string>
-    <string name="problem_ping">%1$s: %2$s – ping %3$d ms, allowed %4$d ms</string>
-    <string name="problem_jam">%1$s: %2$s – jammed, cables or server too full</string>
+    <string name="problem_no_route">%1$s → %2$s: no way – connect them with cables</string>
+    <string name="problem_too_narrow">%1$s → %2$s: no cable wide enough (bandwidth %3$d)</string>
+    <string name="problem_ping">%1$s → %2$s: ping %3$d ms, allowed %4$d ms</string>
+    <string name="problem_jam">%1$s → %2$s: jammed, cables or server too full</string>
     <string name="game_over_no_route">%1$s couldn’t reach a %2$s server</string>
     <string name="game_over_too_narrow">%1$s needed a wider cable for %2$s</string>
     <string name="game_over_ping">%2$s on %1$s lagged: %3$d ms, max %4$d ms</string>
@@ -515,8 +528,8 @@
     <string name="reviewer_access_enabled">Reviewer access enabled</string>
     <string name="reviewer_access_invalid">Invalid review code</string>
     <string name="menu_legend">What\'s what?</string>
-    <string name="legend_section_services">Services</string>
-    <string name="legend_section_devices">Devices</string>
+    <string name="legend_section_services">Servers</string>
+    <string name="legend_section_devices">Devices → servers</string>
     <string name="legend_section_network">Your network</string>
     <string name="legend_section_signs">Signs</string>
     <string name="legend_service_ping">Bandwidth %1$d · ping at most %2$d ms</string>

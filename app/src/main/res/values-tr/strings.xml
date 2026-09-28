@@ -75,6 +75,20 @@
     <string name="service_video_call">Görüntülü arama</string>
     <string name="service_camera_upload">Kamera yükleme</string>
     <string name="service_cloud_backup">Bulut yedekleme</string>
+
+    <!-- Server names & matching -->
+    <string name="server_mail">E-posta sunucusu</string>
+    <string name="server_call">Telefon santrali</string>
+    <string name="server_gaming">Oyun sunucusu</string>
+    <string name="server_streaming">Yayın sunucusu</string>
+    <string name="server_video_call">Video sunucusu</string>
+    <string name="server_camera_upload">Kamera bulutu</string>
+    <string name="server_cloud_backup">Yedekleme sunucusu</string>
+    <string name="device_wants_server">%1$s: %2$s → %3$s</string>
+    <string name="device_needs_servers">%1$s için gerekli: %2$s</string>
+    <string name="legend_device_servers">Bağlanacağı yer: %1$s</string>
+    <string name="legend_data_center_desc">Ayrı bir tür değil: her sunucunun en üst seviyesi. Yine yalnızca kendi hizmetini verir, daha fazla güç ve bağlantı noktasıyla.</string>
+
     <string name="device_pc">PC</string>
     <string name="device_phone">Telefon</string>
     <string name="device_laptop">Dizüstü</string>
@@ -96,7 +110,6 @@
     <string name="node_router">Router</string>
     <string name="node_access_point">Wi-Fi erişim noktası</string>
     <string name="node_cell_tower">Baz istasyonu</string>
-    <string name="node_server">%1$s sunucusu</string>
 
     <!-- Week news and cable feedback -->
     <string name="news_with_year">%1$d · %2$s</string>
@@ -186,7 +199,7 @@
     <string name="tutorial_cable_text">PC bir e-posta göndermek istiyor. Parmağını PC’den e-posta sunucusuna sürükle.</string>
     <string name="tutorial_router_title">Router yerleştir</string>
     <string name="tutorial_router_text">Bir cihazın yalnızca 2 portu var, router’ın 6. Alttaki “Router” düğmesine, sonra telefonların yanındaki boş bir kareye dokun.</string>
-    <string name="tutorial_router_connect_text">Şimdi iki telefonu ve telefon sunucusunu router’a bağla. Aramaları o dağıtır.</string>
+    <string name="tutorial_router_connect_text">Şimdi iki telefonu ve telefon santralini router’a bağla. Aramaları o dağıtır.</string>
     <string name="tutorial_bandwidth_title">Bant genişliği</string>
     <string name="tutorial_bandwidth_text">1998: Televizyon yayın izlemek istiyor. Onu yayın sunucusuna bağla.</string>
     <string name="tutorial_bandwidth_narrow_text">Çok dar! Yayın için bant genişliği %1$d gerekir, ISDN yalnızca %2$d taşır. Alttan DSL’i seç, o %3$d taşır.</string>
@@ -244,10 +257,10 @@
     <string name="hint_service_needs">%1$s için bant genişliği %2$d gerekir</string>
     <string name="hint_service_needs_ping">%1$s için bant genişliği %2$d ve en fazla %3$d ms ping gerekir</string>
     <string name="device_wants">%1$s istiyor: %2$s</string>
-    <string name="problem_no_route">%1$s: %2$s – sunucuya giden yol yok</string>
-    <string name="problem_too_narrow">%1$s: %2$s – yeterince geniş kablo yok (bant genişliği %3$d)</string>
-    <string name="problem_ping">%1$s: %2$s – ping %3$d ms, izin verilen %4$d ms</string>
-    <string name="problem_jam">%1$s: %2$s – tıkanıklık, kablolar ya da sunucu dolu</string>
+    <string name="problem_no_route">%1$s → %2$s: yol yok – ikisini kabloyla bağla</string>
+    <string name="problem_too_narrow">%1$s → %2$s: yeterince geniş kablo yok (bant genişliği %3$d)</string>
+    <string name="problem_ping">%1$s → %2$s: ping %3$d ms, izin verilen %4$d ms</string>
+    <string name="problem_jam">%1$s → %2$s: tıkanıklık, kablolar ya da sunucu dolu</string>
     <string name="game_over_no_route">%1$s hiçbir %2$s sunucusuna ulaşamadı</string>
     <string name="game_over_too_narrow">%1$s, %2$s için daha geniş bir kablo istedi</string>
     <string name="game_over_ping">%1$s üzerinde %2$s takıldı: %3$d ms, en fazla %4$d ms</string>
@@ -515,8 +528,8 @@
     <string name="reviewer_access_enabled">İnceleyici erişimi etkinleştirildi</string>
     <string name="reviewer_access_invalid">Geçersiz inceleme kodu</string>
     <string name="menu_legend">Ne nedir?</string>
-    <string name="legend_section_services">Hizmetler</string>
-    <string name="legend_section_devices">Cihazlar</string>
+    <string name="legend_section_services">Sunucular</string>
+    <string name="legend_section_devices">Cihazlar → sunucular</string>
     <string name="legend_section_network">Ağın</string>
     <string name="legend_section_signs">İşaretler</string>
     <string name="legend_service_ping">Bant genişliği %1$d · ping en çok %2$d ms</string>

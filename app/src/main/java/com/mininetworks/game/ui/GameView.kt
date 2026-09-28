@@ -90,6 +90,8 @@ import com.mininetworks.game.render.FlatRenderer
 import com.mininetworks.game.render.IncidentStyles
 import com.mininetworks.game.render.IsoRenderer
 import com.mininetworks.game.render.Renderer
+import com.mininetworks.game.render.ServerFocus
+import com.mininetworks.game.render.ServerLabels
 import com.mininetworks.game.render.ServiceColors
 import com.mininetworks.game.render.TouchTargets
 import com.mininetworks.game.render.TwoFingerGesture
@@ -166,7 +168,8 @@ import kotlin.math.roundToInt
  *    a row of port dots ([com.mininetworks.game.render.PortDots]: filled in use, hollow free; a PC 2, a server 4, a
  *    router 6); while a cable is dragged, nodes without a free port are ringed red. A cable that fails on full ports
  *    says so ("PC hat nur 2 Anschlüsse – setz einen Router dazwischen"), the router tile pulses, and the first time
- *    in a game a tip explains the dots
+ *    in a game a tip explains the dots. While the finger is on a device, the servers of the services it asks for light
+ *    up and the others dim ([ServerFocus]; from a router or radio: the servers the devices behind it wait for)
  *  - drag on empty ground or with two fingers: pan; pinch: zoom; turn two fingers: rotate the map around their midpoint
  *    (all at once); on release it eases to the nearest multiple of 90° unless "free rotation" is on in the settings;
  *    the compass button (only while the map is turned) turns it back to north; double tap on empty ground: fit the
@@ -181,7 +184,12 @@ import kotlin.math.roundToInt
  *  - a selected cable shows a grab handle at each end: drag one onto another node to re-route that end, drag the middle
  *    of a bent cable to flip its L ([World.reroute]; the label shows the price difference, "+12", "−4" or "±0", and
  *    releasing anywhere else cancels); a long press on any cable selects it and grabs its nearer end at once
- *  - tap a device: why its requests are stuck (no way, too narrow, ping too high, jam), or what it wants
+ *  - tap a device: which server its requests need and why they are stuck (no way, too narrow, ping too high, jam), what
+ *    its oldest request wants, or which servers it needs, each with the service's token ([InlineGlyphs]); its servers
+ *    light up for [FOCUS_TAP_SECONDS]
+ *  - every server carries a name plate ([ServerLabels]): its service's token and its type ("Telefonzentrale"); a data
+ *    center is only a server's top tier ("Mail-Server · Rechenzentrum"). Plates keep clear of devices, bubbles and the
+ *    HUD and fade out when zoomed far out
  *  - drag a network tile onto the map: the device floats over the cell under the finger (red where it cannot go) and
  *    is placed where it is let go, not over the toolbar; or tap the tile, then tap an empty cell (a tap, not the start
  *    of a pan or pinch). A cell that does not work says why; tap a router without cables twice to put it back
@@ -417,6 +425,16 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     private var dragFrom: Node? = null
     private var dragEnd: Vec2? = null
+    /**
+     * Services whose servers light up ([ServerFocus]) while a drag from a device (or a router) is under way and, after
+     * a tap on a device, until [focusUntil]; [focusSince] is when the highlight began, for its fade-in.
+     */
+    private var focusServices: Set<Service> = emptySet()
+    private var focusSince = 0f
+    private var focusUntil = 0f
+    private val focus = ServerFocus(emptySet(), 0f)
+    /** The HUD's bottom tray as last drawn, which the server plates keep clear of. */
+    private val trayBox = RectF()
     /** Pointer of the current drag in screen pixels, used to pick the target node in screen space. */
     private var dragEndScreen: Vec2? = null
     /** The node the current drag snapped to, for the haptic tick. */
@@ -539,6 +557,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     init {
         holder.addCallback(this)
         renderers.forEach { it.density = density }
+        val plateNames = ServerLabels.Names(Service.entries.associateWith { texts.server(it) }, texts.dataCenter())
+        renderers.forEach {
+            it.serverLabels.names = plateNames
+            it.serverLabels.textPx = textScale.px(ServerLabels.DEFAULT_SP)
+        }
         importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_YES
     }
 
@@ -1008,6 +1031,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     private fun drawFrame(canvas: Canvas) {
         val playing = screen == Screen.PLAYING
+        renderer.serverLabels.focus = if (playing) serverFocus() else null
         renderer.draw(canvas, world, if (playing) dragPreview() else null, animTime)
         if (playing) {
             drawSelection(canvas)
@@ -1016,6 +1040,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         }
         if (hudVisible && !hudHidden) drawHud(canvas) else hudNodes.clear()
         if (playing) drawToolGhost(canvas)
+        // The server plates of the next frame keep clear of the HUD just drawn (its bottom tray included).
+        renderer.serverLabels.clearReserved()
+        for (n in hudNodes) renderer.serverLabels.reserve(n.bounds)
+        if (hudNodes.isNotEmpty() && !trayBox.isEmpty) renderer.serverLabels.reserve(trayBox)
         if (playing) tutorial?.let {
             tutorialOverlay.place(safeInsets.left + 16 * density, tutorialTop(), tutorialBottom())
             tutorialOverlay.draw(canvas, it, tutorialFocus(it), renderer, world, ::hudTarget, surfaceWidth, animTime, tutorialPressed)
@@ -1193,7 +1221,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     internal val shownSceneryHint: String? get() = sceneryHint
 
     /** The hint line above the bottom bar right now, or null, for tests. */
-    internal val shownHint: String? get() = hint?.takeIf { animTime < hintUntil }
+    internal val shownHint: String? get() = hint?.takeIf { animTime < hintUntil }?.let(InlineGlyphs::plain)
 
     /** True while the clock is stopped in place by the pause button, for tests. */
     internal val pausedInPlace: Boolean get() = userPaused
@@ -1394,6 +1422,42 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         )
     }
 
+    /**
+     * The servers to highlight this frame: while a finger that went down on a device (or a router) is on the map, and
+     * for [FOCUS_TAP_SECONDS] after a tap on a device; fading in over [FOCUS_FADE_SECONDS] and out at the end.
+     */
+    private fun serverFocus(): ServerFocus? {
+        if (focusServices.isEmpty() || placing != null) return null
+        val holding = dragFrom != null && holdAp == null
+        if (!holding && animTime >= focusUntil) return null
+        val fadeIn = ((animTime - focusSince) / FOCUS_FADE_SECONDS).coerceIn(0f, 1f)
+        val fadeOut = if (holding) 1f else ((focusUntil - animTime) / FOCUS_FADE_SECONDS).coerceIn(0f, 1f)
+        focus.services = focusServices
+        focus.strength = minOf(fadeIn, fadeOut)
+        return focus
+    }
+
+    /**
+     * What a drag from [n] is looking for: every service a device asks for; for a router or radio, what the devices
+     * already behind it wait for (found over cables and radio links, not through servers). Empty for anything else.
+     */
+    private fun servicesSought(n: Node): Set<Service> = when (n.kind) {
+        NodeKind.CLIENT -> n.device!!.services.toSet()
+        NodeKind.ROUTER, NodeKind.ACCESS_POINT, NodeKind.CELL_TOWER -> {
+            val seen = HashSet<Node>().apply { add(n) }
+            val queue = ArrayDeque<Node>().apply { add(n) }
+            val out = LinkedHashSet<Service>()
+            while (queue.isNotEmpty()) {
+                val at = queue.removeFirst()
+                if (at.kind == NodeKind.CLIENT) out += at.pending
+                for (c in world.cables) if (c.connects(at)) c.other(at).let { if (it.kind != NodeKind.SERVER && seen.add(it)) queue += it }
+                for (l in world.radioLinks) if (l.connects(at)) l.other(at).let { if (it.kind != NodeKind.SERVER && seen.add(it)) queue += it }
+            }
+            out
+        }
+        NodeKind.SERVER -> emptySet()
+    }
+
     private fun trackDrag(sx: Float, sy: Float) {
         val p = renderer.toWorld(sx, sy)
         dragEnd = p
@@ -1411,6 +1475,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     /** Drops the gesture in progress: a half-drawn cable, a re-route, a pan, and a hold on an access point or cable. */
     private fun endDrag() {
         endToolDrag()
+        // The servers' highlight fades out instead of vanishing with the finger (a tap keeps it longer, explainClient).
+        if (dragFrom != null && focusServices.isNotEmpty()) focusUntil = maxOf(focusUntil, animTime + FOCUS_FADE_SECONDS)
         holdAp = null
         holdCable = null
         grab = null
@@ -1652,10 +1718,17 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 banner = null
                 room = floor((hintY - hudSub.textSize - maxOf(cursorWithoutBanner, blocksBottom)) / lineH).toInt() + 1
             }
-            val lines = wrapText(it, right - left, hudSub, room.coerceIn(1, MAX_HINT_LINES))
-            lines.forEachIndexed { i, line -> canvas.drawText(line, left, hintY - (lines.size - 1 - i) * lineH, hudSub) }
+            // Service pictograms in the text ([InlineGlyphs]) are laid out as gaps and painted as tokens into them.
+            val glyphs = InlineGlyphs.services(it)
+            val lines = wrapText(InlineGlyphs.layout(it), right - left, hudSub, room.coerceIn(1, MAX_HINT_LINES))
+            var glyph = 0
+            lines.forEachIndexed { i, line ->
+                val ly = hintY - (lines.size - 1 - i) * lineH
+                canvas.drawText(line, left, ly, hudSub)
+                if (glyphs.isNotEmpty()) glyph = InlineGlyphs.drawTokens(canvas, line, left, ly, hudSub, glyphs, glyph)
+            }
             val w = lines.maxOf { l -> hudSub.measureText(l) }
-            hudNodes += UiNode("hud:hint", RectF(left, hintY - (lines.size - 1) * lineH - hudSub.textSize, left + w, hintY + hudSub.descent()), it, UiNode.Kind.TEXT)
+            hudNodes += UiNode("hud:hint", RectF(left, hintY - (lines.size - 1) * lineH - hudSub.textSize, left + w, hintY + hudSub.descent()), InlineGlyphs.plain(it), UiNode.Kind.TEXT)
         }
         banner?.let { drawPausedBanner(canvas, it) }
     }
@@ -1864,6 +1937,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         val w = surfaceWidth.toFloat()
         val line = 1 * density
         canvas.drawRect(0f, bar.trayTop, w, surfaceHeight.toFloat(), trayFill)
+        trayBox.set(0f, bar.trayTop, w, surfaceHeight.toFloat())
         val raised = bar.raised
         canvas.drawRect(0f, bar.trayTop - line, raised?.left ?: w, bar.trayTop, trayLineFill)
         if (raised == null) return
@@ -2334,6 +2408,15 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 // While placing, the tap (not the start of a pan or pinch) decides where: see ACTION_UP.
                 grab = if (placing != null) null else grabAt(e.x, e.y)
                 dragFrom = if (placing != null || grab != null) null else pickNode(e.x, e.y)
+                // A finger on a device lights up the servers it needs; anywhere else ends a tap's highlight.
+                val sought = dragFrom?.let(::servicesSought).orEmpty()
+                if (sought.isNotEmpty()) {
+                    if (sought != focusServices || animTime >= focusUntil) focusSince = animTime
+                    focusServices = sought
+                } else {
+                    focusUntil = 0f
+                    focusServices = emptySet()
+                }
                 if (dragFrom == null && grab == null && isDoubleTap(e)) {
                     renderer.fitArea(world, animate = true)
                     emptyTapTime = null
@@ -2786,25 +2869,35 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         }
     }
 
-    /** Says why the device's waiting requests are stuck, or what it wants if none is. */
+    /**
+     * Says which server the device's requests are for and why they are stuck ("Konsole → Game-Server: Ping 180 ms,
+     * erlaubt 140 ms"), what its oldest request wants ("PC will Mail → Mail-Server"), or, with none waiting, which
+     * servers it needs; the servers light up meanwhile ([serverFocus]).
+     */
     private fun explainClient(client: Node) {
         val stuck = client.pending.firstOrNull { world.routeProblem(client, it) != null }
+        val waiting = client.pending.firstOrNull()
         showHint(
-            if (stuck != null) {
-                val problem = world.routeProblem(client, stuck)
-                problemText(client, stuck, problem, if (problem == RouteProblem.PING_TOO_HIGH) world.bestRoute(client, stuck)?.pingMs else null)
-            } else {
-                val services = client.device!!.services.joinToString(context.getString(R.string.list_separator)) { texts.service(it) }
-                context.getString(R.string.device_wants, texts.node(client), services)
+            when {
+                stuck != null -> {
+                    val problem = world.routeProblem(client, stuck)
+                    problemText(client, stuck, problem, if (problem == RouteProblem.PING_TOO_HIGH) world.bestRoute(client, stuck)?.pingMs else null)
+                }
+                waiting != null -> context.getString(R.string.device_wants_server, texts.node(client), texts.serviceWithGlyph(waiting), texts.server(waiting))
+                else -> context.getString(
+                    R.string.device_needs_servers, texts.node(client),
+                    client.device!!.services.joinToString(SERVER_LIST_SEPARATOR) { texts.serverWithGlyph(it) },
+                )
             },
             LONG_HINT_SECONDS,
         )
+        focusUntil = animTime + FOCUS_TAP_SECONDS
     }
 
-    /** "Konsole: Gaming – Ping 180 ms, erlaubt 140 ms" and the like, for a device, a service and its [RouteProblem]. */
+    /** "Konsole → Game-Server: Ping 180 ms, erlaubt 140 ms" and the like, for a device, a service and its [RouteProblem]. */
     private fun problemText(n: Node, s: Service, problem: RouteProblem?, pingMs: Float?): String {
         val node = texts.node(n)
-        val service = texts.service(s)
+        val service = texts.serverWithGlyph(s)
         return when (problem) {
             RouteProblem.NO_ROUTE -> context.getString(R.string.problem_no_route, node, service)
             RouteProblem.TOO_NARROW -> context.getString(R.string.problem_too_narrow, node, service, s.bandwidth)
@@ -3649,26 +3742,33 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     }
 
     /**
-     * The legend's content: every service with its bandwidth and ping, every device with the services it wants, the
-     * network's parts with what they do, and the signs on the map. Everything is drawn as on the map.
+     * The legend's content: first which device needs which server (the requests it sends and the servers that answer
+     * them), then every server type with its service's bandwidth and ping and the data center as the top tier of any
+     * of them, the signs on the map and the network's parts. Everything is drawn as on the map.
      */
     private fun legendSections(): List<LegendSection> {
         val numbers = java.text.NumberFormat.getNumberInstance(resources.configuration.locales[0])
-        val services = Service.entries.map { s ->
-            LegendEntry(
-                "service:${s.name}", LegendIcon.Request(s), texts.service(s),
-                s.maxPingMs?.let { context.getString(R.string.legend_service_ping, s.bandwidth, it) }
-                    ?: context.getString(R.string.legend_service_any, s.bandwidth),
-            )
-        }
+        val locale = resources.configuration.locales[0]
         val devices = Device.entries.map { d ->
             LegendEntry(
-                "device:${d.name}", LegendIcon.OfDevice(d), texts.device(d), "", services = d.services,
+                "device:${d.name}", LegendIcon.OfDevice(d), texts.device(d), "",
+                services = d.services, labels = d.services.map { texts.server(it) },
                 servicesLabel = context.getString(
-                    R.string.device_wants, texts.device(d), d.services.joinToString(context.getString(R.string.list_separator)) { texts.service(it) },
+                    R.string.legend_device_servers, d.services.joinToString(context.getString(R.string.list_separator)) { texts.server(it) },
                 ),
             )
         }
+        val servers = Service.entries.map { s ->
+            LegendEntry(
+                "service:${s.name}", LegendIcon.Server(s), texts.server(s),
+                s.maxPingMs?.let { context.getString(R.string.legend_service_ping, s.bandwidth, it) }
+                    ?: context.getString(R.string.legend_service_any, s.bandwidth),
+                services = listOf(s), labels = listOf(texts.service(s)), servicesLabel = texts.service(s),
+            )
+        } + LegendEntry(
+            "data_center", LegendIcon.DataCenter(Service.MAIL), texts.dataCenter().replaceFirstChar { it.titlecase(locale) },
+            context.getString(R.string.legend_data_center_desc),
+        )
         val network = listOf(
             LegendEntry("server", LegendIcon.Server(Service.MAIL), context.getString(R.string.legend_server_title), context.getString(R.string.legend_server_desc)),
             LegendEntry("router", LegendIcon.Router, context.getString(R.string.node_router), context.getString(R.string.legend_router_desc)),
@@ -3690,10 +3790,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             LegendEntry("ping", LegendIcon.Problem(RouteProblem.PING_TOO_HIGH), context.getString(R.string.legend_ping_title), context.getString(R.string.legend_ping_desc)),
         )
         return listOf(
-            LegendSection("services", context.getString(R.string.legend_section_services), services),
+            LegendSection("devices", context.getString(R.string.legend_section_devices), devices),
+            LegendSection("servers", context.getString(R.string.legend_section_services), servers),
             LegendSection("signs", context.getString(R.string.legend_section_signs), signs),
             LegendSection("network", context.getString(R.string.legend_section_network), network),
-            LegendSection("devices", context.getString(R.string.legend_section_devices), devices),
         )
     }
 
@@ -3965,6 +4065,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         const val GAME_OVER_FOCUS_SECONDS = 1.6f
         /** Longer hints: what a new service needs, why a device is stuck. */
         const val LONG_HINT_SECONDS = 4f
+        /** How long the servers a tapped device needs stay lit, and how long the highlight takes to fade in and out. */
+        const val FOCUS_TAP_SECONDS = 2.8f
+        const val FOCUS_FADE_SECONDS = 0.25f
+        /** Between the servers a device needs in a hint ("PC braucht: Mail-Server · Game-Server"), in every language. */
+        const val SERVER_LIST_SEPARATOR = " · "
         /** How long a tapped cable, server or router stays selected for the confirming second tap. */
         const val SELECT_SECONDS = 3f
         /** Requests waiting at one server before the game points out that tapping upgrades it. */

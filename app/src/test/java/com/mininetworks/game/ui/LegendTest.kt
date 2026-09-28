@@ -27,8 +27,9 @@ import org.robolectric.annotation.GraphicsMode
 import java.io.File
 
 /**
- * The legend "What's what?": opened from the pause menu, it explains every symbol of the map (each service with its
- * bandwidth and ping, each device with the services it wants, the network's parts and the warning signs) and leads
+ * The legend "What's what?": opened from the pause menu, it explains every symbol of the map (which device needs
+ * which server, each server type with its service's bandwidth and ping, the data center as the top tier of any server,
+ * the network's parts and the warning signs) and leads
  * back to the pause menu. Every tile's title and description are shown in full in all 12 languages, in every format,
  * at font scale 1 and 2.
  */
@@ -70,9 +71,11 @@ class LegendTest {
         bmp.eraseColor(0)
         view.drawSnapshot(Canvas(bmp), game, bmp.width, bmp.height, time = 1.3f, style = "Iso", screen = null)
         save(bmp, "legend-de.png")
-        // Every service, every device, every cable and the warning signs have a tile.
+        // Every server type, every device, every cable and the warning signs have a tile; which device needs which
+        // server comes first.
+        assertTrue("devices → servers leads", view.legendTile("device:PC")!!.top < view.legendTile("service:MAIL")!!.top)
         for (id in Service.entries.map { "service:${it.name}" } + Device.entries.map { "device:${it.name}" } +
-            CableType.entries.map { "cable:${it.name}" } + listOf("server", "router", "ports", "access_point", "cell_tower", "request", "response", "overload", "too_narrow", "ping")) {
+            CableType.entries.map { "cable:${it.name}" } + listOf("data_center", "server", "router", "ports", "access_point", "cell_tower", "request", "response", "overload", "too_narrow", "ping")) {
             assertNotNull("tile $id", view.legendTile(id))
         }
         // Scrolling shows the rest; the back pill stays where it is.
@@ -85,6 +88,14 @@ class LegendTest {
         bmp.eraseColor(0)
         view.drawSnapshot(Canvas(bmp), game, bmp.width, bmp.height, time = 1.3f, style = "Iso", screen = null)
         save(bmp, "legend-de-scrolled.png")
+        // Further down: the server types and the data center as the top tier of any of them.
+        view.injectTouch(MotionEvent.ACTION_DOWN, 1200f, 1000f)
+        view.injectTouch(MotionEvent.ACTION_MOVE, 1200f, 500f)
+        view.injectTouch(MotionEvent.ACTION_MOVE, 1200f, 250f)
+        view.injectTouch(MotionEvent.ACTION_UP, 1200f, 250f)
+        bmp.eraseColor(0)
+        view.drawSnapshot(Canvas(bmp), game, bmp.width, bmp.height, time = 1.3f, style = "Iso", screen = null)
+        save(bmp, "legend-de-servers.png")
         tapAt(view, back.centerX(), back.centerY())
         assertEquals(Screen.PAUSED, view.currentScreen)
         // The system back gesture leads there too.
