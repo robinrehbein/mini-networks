@@ -1,7 +1,7 @@
 # Automatischer Play-Testrelease
 
 Der Workflow `.github/workflows/play-release.yml` startet nach jedem Push auf den aktuellen Standardbranch
-`claude/mini-networks-android-prototype-9l0v8n` (also auch nach einem Merge) und kann manuell gestartet werden.
+`main` (also auch nach einem Merge) und kann manuell gestartet werden.
 Er prüft den Code, baut ein signiertes Android App Bundle und veröffentlicht denselben Versionscode
 im internen Test und im bestehenden geschlossenen Track. Der Play API Edit wird erst nach beiden
 Track-Updates committed. Die Produktion gehört bewusst nicht zum Workflow, solange der Zugang

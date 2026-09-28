@@ -2,7 +2,7 @@ name: Publish Google Play tests
 
 on:
   push:
-    branches: [claude/mini-networks-android-prototype-9l0v8n]
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
