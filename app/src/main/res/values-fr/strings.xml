@@ -11,6 +11,40 @@
     <string name="hud_clock_day">Jour · %1$s</string>
     <string name="hud_clock_night">Nuit · %1$s · sauvegardes à %2$s</string>
     <string name="button_router">Routeur (%1$d)</string>
+    <!-- Toolbar network & ports -->
+    <string name="toolbar_cables">Câbles</string>
+    <string name="toolbar_network">Réseau</string>
+    <string name="toolbar_router">Routeur</string>
+    <string name="toolbar_access_point">Wi-Fi</string>
+    <string name="toolbar_cell_tower">Antenne</string>
+    <plurals name="toolbar_ports">
+        <item quantity="one">%1$d port</item>
+        <item quantity="many">%1$d ports</item>
+        <item quantity="other">%1$d ports</item>
+    </plurals>
+    <string name="hint_drop_tool">Glisse-le sur une case libre et lâche</string>
+    <plurals name="ports_full">
+        <item quantity="one">%1$s n’a que %2$d port – place un routeur entre les deux</item>
+        <item quantity="many">%1$s n’a que %2$d ports – place un routeur entre les deux</item>
+        <item quantity="other">%1$s n’a que %2$d ports – place un routeur entre les deux</item>
+    </plurals>
+    <plurals name="ports_full_short">
+        <item quantity="one">%1$s : %2$d port seulement</item>
+        <item quantity="many">%1$s : %2$d ports seulement</item>
+        <item quantity="other">%1$s : %2$d ports seulement</item>
+    </plurals>
+    <string name="ports_add_router">Place un routeur entre les deux</string>
+    <plurals name="tip_ports">
+        <item quantity="one">Astuce : les points sous un appareil sont ses ports, ● pris, ○ libre. Un routeur en a %1$d : glisse-le depuis la barre du bas entre les appareils.</item>
+        <item quantity="many">Astuce : les points sous un appareil sont ses ports, ● pris, ○ libre. Un routeur en a %1$d : glisse-le depuis la barre du bas entre les appareils.</item>
+        <item quantity="other">Astuce : les points sous un appareil sont ses ports, ● pris, ○ libre. Un routeur en a %1$d : glisse-le depuis la barre du bas entre les appareils.</item>
+    </plurals>
+    <string name="tutorial_ports_title">Ports</string>
+    <string name="tutorial_ports_text">Deux nouveaux PC ! Le premier PC utilise déjà ses deux ports, tu vois les deux points ? Glisse un routeur de la barre du bas vers les nouveaux PC.</string>
+    <string name="tutorial_ports_connect_text">Relie maintenant les deux PC et le serveur mail au routeur. Il a 6 ports et fait passer leurs mails.</string>
+    <string name="legend_router_desc">Relie beaucoup d’appareils : 6 ports au lieu de 2 comme un PC. Glisse-le depuis la barre du bas sur une case libre.</string>
+    <string name="legend_ports_title">Ports</string>
+    <string name="legend_ports_desc">Les points sous un appareil : ● pris, ○ libre. Appareils et Wi-Fi en ont 2, serveurs et antennes 4, routeurs 6.</string>
     <string name="hint_place_router">Touche une case libre</string>
     <string name="button_access_point">Wi-Fi (%1$d)</string>
     <string name="button_cell_tower">Antenne (%1$d)</string>
@@ -79,7 +113,6 @@
     <string name="connect_error_same_node">Même nœud</string>
     <string name="connect_error_already_connected">Déjà relié</string>
     <string name="connect_error_not_invented">%1$s pas encore inventé</string>
-    <string name="connect_error_ports_full">%1$s : tous les ports sont pris</string>
     <string name="connect_error_no_budget">Budget insuffisant</string>
 
     <!-- Week rewards -->

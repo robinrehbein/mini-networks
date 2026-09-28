@@ -9,6 +9,32 @@
     <string name="hud_clock_day">白天 · %1$s</string>
     <string name="hud_clock_night">夜晚 · %1$s · %2$s 备份</string>
     <string name="button_router">路由器 (%1$d)</string>
+    <!-- Toolbar network & ports -->
+    <string name="toolbar_cables">线缆</string>
+    <string name="toolbar_network">网络</string>
+    <string name="toolbar_router">路由器</string>
+    <string name="toolbar_access_point">Wi-Fi</string>
+    <string name="toolbar_cell_tower">基站</string>
+    <plurals name="toolbar_ports">
+        <item quantity="other">%1$d 个端口</item>
+    </plurals>
+    <string name="hint_drop_tool">拖到空格子上再松开</string>
+    <plurals name="ports_full">
+        <item quantity="other">%1$s只有 %2$d 个端口，在中间放一个路由器</item>
+    </plurals>
+    <plurals name="ports_full_short">
+        <item quantity="other">%1$s：只有 %2$d 个端口</item>
+    </plurals>
+    <string name="ports_add_router">在中间放一个路由器</string>
+    <plurals name="tip_ports">
+        <item quantity="other">提示：设备下方的圆点是它的端口，● 已占用，○ 空闲。路由器有 %1$d 个：从下方栏把它拖到设备之间。</item>
+    </plurals>
+    <string name="tutorial_ports_title">端口</string>
+    <string name="tutorial_ports_text">两台新电脑！第一台电脑的两个端口都已占用，看到两个圆点了吗？从下方栏拖一个路由器到新电脑旁边。</string>
+    <string name="tutorial_ports_connect_text">现在把两台电脑和邮件服务器都连到路由器上。它有 6 个端口，会分发它们的邮件。</string>
+    <string name="legend_router_desc">连接许多设备：6 个端口，而电脑只有 2 个。从下方栏拖到空格子上。</string>
+    <string name="legend_ports_title">端口</string>
+    <string name="legend_ports_desc">设备下方的圆点：● 已占用，○ 空闲。设备和 Wi-Fi 有 2 个，服务器和基站 4 个，路由器 6 个。</string>
     <string name="hint_place_router">点按一个空格子</string>
     <string name="button_access_point">Wi-Fi (%1$d)</string>
     <string name="button_cell_tower">基站 (%1$d)</string>
@@ -73,7 +99,6 @@
     <string name="connect_error_same_node">同一个节点</string>
     <string name="connect_error_already_connected">已经连接</string>
     <string name="connect_error_not_invented">%1$s 还没有发明</string>
-    <string name="connect_error_ports_full">%1$s：端口已满</string>
     <string name="connect_error_no_budget">预算不足</string>
 
     <!-- Week rewards -->

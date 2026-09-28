@@ -11,6 +11,40 @@
     <string name="hud_clock_day">Giorno · %1$s</string>
     <string name="hud_clock_night">Notte · %1$s · backup alle %2$s</string>
     <string name="button_router">Router (%1$d)</string>
+    <!-- Toolbar network & ports -->
+    <string name="toolbar_cables">Cavi</string>
+    <string name="toolbar_network">Rete</string>
+    <string name="toolbar_router">Router</string>
+    <string name="toolbar_access_point">Wi-Fi</string>
+    <string name="toolbar_cell_tower">Antenna</string>
+    <plurals name="toolbar_ports">
+        <item quantity="one">%1$d porta</item>
+        <item quantity="many">%1$d porte</item>
+        <item quantity="other">%1$d porte</item>
+    </plurals>
+    <string name="hint_drop_tool">Trascinalo su una casella libera e rilascia</string>
+    <plurals name="ports_full">
+        <item quantity="one">%1$s ha solo %2$d porta: metti un router in mezzo</item>
+        <item quantity="many">%1$s ha solo %2$d porte: metti un router in mezzo</item>
+        <item quantity="other">%1$s ha solo %2$d porte: metti un router in mezzo</item>
+    </plurals>
+    <plurals name="ports_full_short">
+        <item quantity="one">%1$s: solo %2$d porta</item>
+        <item quantity="many">%1$s: solo %2$d porte</item>
+        <item quantity="other">%1$s: solo %2$d porte</item>
+    </plurals>
+    <string name="ports_add_router">Metti un router in mezzo</string>
+    <plurals name="tip_ports">
+        <item quantity="one">Consiglio: i punti sotto un dispositivo sono le sue porte, ● occupata, ○ libera. Un router ne ha %1$d: trascinalo dalla barra in basso tra i dispositivi.</item>
+        <item quantity="many">Consiglio: i punti sotto un dispositivo sono le sue porte, ● occupata, ○ libera. Un router ne ha %1$d: trascinalo dalla barra in basso tra i dispositivi.</item>
+        <item quantity="other">Consiglio: i punti sotto un dispositivo sono le sue porte, ● occupata, ○ libera. Un router ne ha %1$d: trascinalo dalla barra in basso tra i dispositivi.</item>
+    </plurals>
+    <string name="tutorial_ports_title">Porte</string>
+    <string name="tutorial_ports_text">Due nuovi PC! Il primo PC usa già entrambe le sue porte, vedi i due punti? Trascina un router dalla barra in basso vicino ai nuovi PC.</string>
+    <string name="tutorial_ports_connect_text">Ora collega entrambi i PC e il server di posta al router. Ha 6 porte e smista la loro posta.</string>
+    <string name="legend_router_desc">Collega molti dispositivi: 6 porte invece di 2 come un PC. Trascinalo dalla barra in basso su una casella libera.</string>
+    <string name="legend_ports_title">Porte</string>
+    <string name="legend_ports_desc">I punti sotto un dispositivo: ● occupata, ○ libera. Dispositivi e Wi-Fi ne hanno 2, server e antenne 4, router 6.</string>
     <string name="hint_place_router">Tocca una casella libera</string>
     <string name="button_access_point">Wi-Fi (%1$d)</string>
     <string name="button_cell_tower">Antenna (%1$d)</string>
@@ -79,7 +113,6 @@
     <string name="connect_error_same_node">Stesso nodo</string>
     <string name="connect_error_already_connected">Già collegati</string>
     <string name="connect_error_not_invented">%1$s non ancora inventato</string>
-    <string name="connect_error_ports_full">%1$s: tutte le porte occupate</string>
     <string name="connect_error_no_budget">Budget insufficiente</string>
 
     <!-- Week rewards -->

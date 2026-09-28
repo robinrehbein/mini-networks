@@ -80,7 +80,7 @@ class TutorialOverlay(private val context: Context) {
 
     /**
      * Draws the highlight for [focus] and the bubble for [tutorial]'s step. [hudButton] returns the screen rectangle of
-     * a HUD button by id ("router", "cable:DSL" ...).
+     * a HUD button by id ("router" for the router tile of the toolbar, "cable:DSL" ...).
      */
     fun draw(
         canvas: Canvas,
@@ -276,6 +276,7 @@ class TutorialOverlay(private val context: Context) {
             TutorialStep.BANDWIDTH -> R.string.tutorial_bandwidth_title
             TutorialStep.PING -> R.string.tutorial_ping_title
             TutorialStep.OVERLOAD -> R.string.tutorial_overload_title
+            TutorialStep.PORTS -> R.string.tutorial_ports_title
             TutorialStep.DONE -> R.string.tutorial_done_title
         },
     )
@@ -301,6 +302,9 @@ class TutorialOverlay(private val context: Context) {
             TutorialStep.PING -> t.tooSlowPingMs()?.let { context.getString(R.string.tutorial_ping_slow_text, it, gamingLimit) }
                 ?: context.getString(R.string.tutorial_ping_text, gamingLimit)
             TutorialStep.OVERLOAD -> World.Tuning.MAX_PENDING.let { context.resources.getQuantityString(R.plurals.tutorial_overload_text, it, it) }
+            TutorialStep.PORTS -> context.getString(
+                if (focus == TutorialFocus.RouterButton) R.string.tutorial_ports_text else R.string.tutorial_ports_connect_text,
+            )
             TutorialStep.DONE -> context.getString(R.string.tutorial_done_text)
         }
     }

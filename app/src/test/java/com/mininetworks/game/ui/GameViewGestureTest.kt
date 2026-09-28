@@ -3,6 +3,7 @@ package com.mininetworks.game.ui
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.view.MotionEvent
+import com.mininetworks.game.R
 import com.mininetworks.game.game.CableType
 import com.mininetworks.game.game.Cell
 import com.mininetworks.game.game.DebugApi
@@ -99,6 +100,78 @@ class GameViewGestureTest {
         assertTrue("double tap fits the unlocked area again", camera.followsArea)
         repeat(240) { camera.step(1f / 60f) }
         assertEquals(camera.fitScale(view.activeRenderer.mapBounds(world.unlocked)), camera.scale, 1e-3f)
+    }
+
+    /** Draws a frame, so the HUD's tiles are where the next touches expect them. */
+    private fun draw() {
+        val bmp = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)
+        view.drawCurrent(Canvas(bmp))
+    }
+
+    /** Drags from the HUD tile [id] to the centre of [cell] (screen positions from the renderer's own mapping). */
+    private fun dragTile(id: String, cell: Cell) {
+        val tile = view.hudTarget(id)!!
+        val to = view.activeRenderer.toScreen(cell.center)
+        view.injectTouch(MotionEvent.ACTION_DOWN, tile.centerX(), tile.centerY())
+        view.injectTouch(MotionEvent.ACTION_MOVE, (tile.centerX() + to.x) / 2f, (tile.centerY() + to.y) / 2f)
+        view.injectTouch(MotionEvent.ACTION_MOVE, to.x, to.y)
+        draw()
+        view.injectTouch(MotionEvent.ACTION_UP, to.x, to.y)
+    }
+
+    @Test
+    fun routerTileDraggedOntoTheMapPlacesARouterOnTheTurnedMap() {
+        // A turned camera (45°): the drop uses the renderer's picking, never screen axes.
+        val r = view.activeRenderer
+        r.rotateBy(45f, r.camera.centerX, r.camera.centerY, world)
+        repeat(120) { r.camera.step(1f / 60f) }
+        draw()
+        val stock = world.routersAvailable
+        val cell = Cell(world.unlocked.left + 5, world.unlocked.top + 3)
+        dragTile("router", cell)
+        val router = world.nodes.single { it.kind == NodeKind.ROUTER }
+        assertEquals(cell, router.cell)
+        assertEquals(stock - 1, world.routersAvailable)
+        assertFalse("a drag does not leave placing armed", view.placingArmed)
+
+        // Onto a taken cell: nothing placed, the reason is shown.
+        draw()
+        dragTile("router", cell)
+        assertEquals(1, world.nodes.count { it.kind == NodeKind.ROUTER })
+        assertEquals(RuntimeEnvironment.getApplication().getString(R.string.place_error_occupied), view.shownHint)
+
+        // Let go over the toolbar: nothing happens.
+        draw()
+        val tile = view.hudTarget("router")!!
+        view.injectTouch(MotionEvent.ACTION_DOWN, tile.centerX(), tile.centerY())
+        view.injectTouch(MotionEvent.ACTION_MOVE, tile.centerX() - 80f, tile.centerY())
+        view.injectTouch(MotionEvent.ACTION_UP, tile.centerX() - 80f, tile.centerY())
+        assertEquals(1, world.nodes.count { it.kind == NodeKind.ROUTER })
+        assertEquals(stock - 1, world.routersAvailable)
+    }
+
+    @Test
+    fun cableOntoAFullPcExplainsPortsAndPulsesTheRouterTile() {
+        val app = RuntimeEnvironment.getApplication()
+        val pc = world.addClient(Device.PC, 10, 7)
+        val a = world.addClient(Device.PC, 12, 7)
+        val b = world.addClient(Device.PC, 10, 9)
+        val mail = world.addServer(Service.MAIL, 14, 9)
+        assertTrue(world.connect(pc, a, CableType.ISDN))
+        assertTrue(world.connect(pc, b, CableType.ISDN))
+        draw()
+        val from = view.activeRenderer.toScreen(mail.center)
+        val to = view.activeRenderer.toScreen(pc.center)
+        view.injectTouch(MotionEvent.ACTION_DOWN, from.x, from.y)
+        view.injectTouch(MotionEvent.ACTION_MOVE, (from.x + to.x) / 2f, (from.y + to.y) / 2f)
+        view.injectTouch(MotionEvent.ACTION_UP, to.x, to.y)
+        assertNull(world.cableBetween(pc, mail))
+        val pcName = app.getString(R.string.device_pc)
+        assertEquals(app.resources.getQuantityString(R.plurals.ports_full, 2, pcName, 2), view.shownHint)
+        assertTrue("the router tile pulses", view.routerPulsing)
+        // Once the hint has had its time, the one-time tip explains the dots.
+        repeat(5 * 60) { view.advance(1f / 60f) }
+        assertEquals(app.resources.getQuantityString(R.plurals.tip_ports, 6, 6), view.shownHint)
     }
 
     @Test

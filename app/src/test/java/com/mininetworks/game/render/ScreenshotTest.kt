@@ -897,7 +897,8 @@ class ScreenshotTest {
 
     /**
      * The tutorial on a landscape phone, one shot per step as the player gets there: the dragged cable, the router
-     * button, the TV on ISDN too narrow for streaming, a DSL cable too slow for gaming, the overload ring, and the finish.
+     * button, the TV on ISDN too narrow for streaming, a DSL cable too slow for gaming, the overload ring, two new PCs
+     * next to the first one whose ports are full, and the finish.
      */
     @Test
     @Config(qualifiers = "de-xhdpi")
@@ -955,6 +956,11 @@ class ScreenshotTest {
         play(5f)
         shot("5-overload")
         w.connect(t.newPc!!, t.mailServer, CableType.DSL)
+        play(1.5f)
+        shot("6-ports")
+        val spot = w.nearestFree(Cell(t.officePcs[1].cellX + 1, t.officePcs[1].cellY))!!
+        val shared = w.placeRouter(spot.x, spot.y)!!
+        for (n in t.officePcs + t.mailServer) w.connect(n, shared, CableType.DSL)
         play(1.5f)
         shot("done")
     }

@@ -9,6 +9,32 @@
     <string name="hud_clock_day">낮 · %1$s</string>
     <string name="hud_clock_night">밤 · %1$s · 백업 시각 %2$s</string>
     <string name="button_router">라우터 (%1$d)</string>
+    <!-- Toolbar network & ports -->
+    <string name="toolbar_cables">케이블</string>
+    <string name="toolbar_network">네트워크</string>
+    <string name="toolbar_router">라우터</string>
+    <string name="toolbar_access_point">Wi-Fi</string>
+    <string name="toolbar_cell_tower">기지국</string>
+    <plurals name="toolbar_ports">
+        <item quantity="other">포트 %1$d개</item>
+    </plurals>
+    <string name="hint_drop_tool">빈칸으로 끌어다 놓으세요</string>
+    <plurals name="ports_full">
+        <item quantity="other">%1$s의 포트는 %2$d개뿐 – 사이에 라우터를 놓으세요</item>
+    </plurals>
+    <plurals name="ports_full_short">
+        <item quantity="other">%1$s: 포트 %2$d개뿐</item>
+    </plurals>
+    <string name="ports_add_router">사이에 라우터를 놓으세요</string>
+    <plurals name="tip_ports">
+        <item quantity="other">팁: 기기 아래의 점은 포트입니다. ● 사용 중, ○ 비어 있음. 라우터는 %1$d개: 아래 막대에서 기기 사이로 끌어다 놓으세요.</item>
+    </plurals>
+    <string name="tutorial_ports_title">포트</string>
+    <string name="tutorial_ports_text">새 PC 2대! 첫 PC는 벌써 포트 2개를 모두 쓰고 있어요. 점 두 개가 보이나요? 아래 막대에서 새 PC 옆으로 라우터를 끌어다 놓으세요.</string>
+    <string name="tutorial_ports_connect_text">이제 두 PC와 메일 서버를 라우터에 연결하세요. 포트가 6개라 메일을 나눠 줍니다.</string>
+    <string name="legend_router_desc">많은 기기를 연결: PC처럼 2개가 아니라 포트 6개. 아래 막대에서 빈칸으로 끌어다 놓으세요.</string>
+    <string name="legend_ports_title">포트</string>
+    <string name="legend_ports_desc">기기 아래의 점: ● 사용 중, ○ 비어 있음. 기기와 Wi-Fi는 2개, 서버와 기지국은 4개, 라우터는 6개.</string>
     <string name="hint_place_router">빈칸을 탭하세요</string>
     <string name="button_access_point">Wi-Fi (%1$d)</string>
     <string name="button_cell_tower">기지국 (%1$d)</string>
@@ -73,7 +99,6 @@
     <string name="connect_error_same_node">같은 노드입니다</string>
     <string name="connect_error_already_connected">이미 연결됨</string>
     <string name="connect_error_not_invented">%1$s: 아직 발명되지 않음</string>
-    <string name="connect_error_ports_full">%1$s: 포트가 모두 찼습니다</string>
     <string name="connect_error_no_budget">예산이 부족합니다</string>
 
     <!-- Week rewards -->

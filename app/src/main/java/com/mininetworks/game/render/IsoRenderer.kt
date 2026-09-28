@@ -261,9 +261,10 @@ class IsoRenderer : Renderer {
             depth.add(depthOf(pos[0], pos[1]) + 0.01f, PACKET, packets[k], pos[0], pos[1])
         }
         depth.sort()
+        val showPorts = PortDots.visible(unitPx, density)
         for (k in 0 until depth.size) {
             when (depth.kind(k)) {
-                NODE -> drawNode(canvas, world, depth.ref(k) as Node, time)
+                NODE -> (depth.ref(k) as Node).let { drawNode(canvas, world, it, time); drawPorts(canvas, world, it, drag, showPorts) }
                 EXCAVATOR -> (depth.ref(k) as Int).let { drawExcavator(canvas, standFor[it], standAt[it], standDir[it], time) }
                 else -> drawPacket(canvas, depth.ref(k) as Packet, depth.x(k), depth.y(k))
             }
@@ -313,6 +314,18 @@ class IsoRenderer : Renderer {
                 )
             }
         }
+    }
+
+    /**
+     * [n]'s port dots ([PortDots]) upright on the ground in front of it, drawn right after the node so nearer buildings
+     * still cover them; a node without a free port gets a red ring on the ground while a cable is dragged.
+     */
+    private fun drawPorts(canvas: Canvas, world: World, n: Node, drag: DragPreview?, show: Boolean) {
+        val e = PortDots.emphasis(world, n, drag, show) ?: return
+        val c = n.footprintCenter
+        val x = sx(c.x, c.y); val y = sy(c.x, c.y)
+        val k = if (n.isDataCenter) 2f else 1f
+        PortDots.draw(canvas, world, n, x, y + th * 0.5f * k, unitPx, density, e, x, y, tw * 0.5f * k, th * 0.5f * k)
     }
 
     /** The cable in [path] with style [st]: dark outline, white halo, the cable colour and its core, if any. */
