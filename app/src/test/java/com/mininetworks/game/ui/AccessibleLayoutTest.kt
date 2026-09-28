@@ -106,9 +106,10 @@ class AccessibleLayoutTest {
         view.drawSnapshot(Canvas(bmp), view.currentWorld, bmp.width, bmp.height, time = 1.3f, screen = Screen.DAILY)
         check(size, "daily", view.accessibilityLayer.nodes, expectedActions = 2)
         val game = FormFactorScreenshotTest.busyHud()
-        // Settings: sound, haptics, appearance, tutorial, privacy choices, privacy policy, back;
+        // Pause: resume, legend, settings, restart, main menu;
+        // settings: sound, haptics, appearance, tutorial, privacy choices, privacy policy, back;
         // game over: again, share (docs/TOP100.md D2), main menu.
-        for ((screen, actions) in listOf(Screen.PAUSED to 4, Screen.SETTINGS to 7, Screen.APPEARANCE to 6, Screen.GAME_OVER to 3)) {
+        for ((screen, actions) in listOf(Screen.PAUSED to 5, Screen.SETTINGS to 7, Screen.APPEARANCE to 6, Screen.GAME_OVER to 3)) {
             bmp.eraseColor(0)
             view.drawSnapshot(Canvas(bmp), game, bmp.width, bmp.height, time = 1.3f, style = "Iso", screen = screen)
             check(size, screen.name, view.accessibilityLayer.nodes, expectedActions = actions)

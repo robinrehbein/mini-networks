@@ -478,4 +478,24 @@
     <string name="reviewer_access_unlock">Ontgrendelen</string>
     <string name="reviewer_access_enabled">Toegang voor reviewers ingeschakeld</string>
     <string name="reviewer_access_invalid">Ongeldige reviewcode</string>
+    <string name="menu_legend">Wat is wat?</string>
+    <string name="legend_section_services">Diensten</string>
+    <string name="legend_section_devices">Apparaten</string>
+    <string name="legend_section_network">Jouw netwerk</string>
+    <string name="legend_section_signs">Tekens</string>
+    <string name="legend_service_ping">Bandbreedte %1$d · ping hooguit %2$d ms</string>
+    <string name="legend_service_any">Bandbreedte %1$d · elke ping</string>
+    <string name="legend_request_title">Verzoek</string>
+    <string name="legend_request_desc">Een apparaat wil deze dienst. Het verzoek wacht bij het apparaat tot een weg naar een passende server vrij is.</string>
+    <string name="legend_response_title">Antwoord</string>
+    <string name="legend_response_desc">Wit met een gekleurde rand: gaat van de server terug naar het apparaat en telt als bezorgd pakket.</string>
+    <string name="legend_server_title">Server</string>
+    <string name="legend_server_desc">Levert precies één dienst: het bord op het dak laat zien welke. Tik om te upgraden.</string>
+    <string name="legend_cable_desc">Bandbreedte %1$d · %2$s ms per vak · %3$d per vak</string>
+    <string name="legend_overload_title">Overbelasting</string>
+    <string name="legend_overload_desc">Er wachten te veel verzoeken. Loopt de rode ring leeg, dan is het spel voorbij.</string>
+    <string name="legend_too_narrow_title">Te smal</string>
+    <string name="legend_too_narrow_desc">Geen weg heeft genoeg bandbreedte voor deze dienst. Leg een bredere kabel.</string>
+    <string name="legend_ping_title">Te traag</string>
+    <string name="legend_ping_desc">De weg is te lang voor de ping van de dienst. Verbind korter of met een snellere kabel.</string>
 </resources>

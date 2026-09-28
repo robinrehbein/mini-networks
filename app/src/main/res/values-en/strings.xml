@@ -478,4 +478,24 @@
     <string name="reviewer_access_unlock">Unlock</string>
     <string name="reviewer_access_enabled">Reviewer access enabled</string>
     <string name="reviewer_access_invalid">Invalid review code</string>
+    <string name="menu_legend">What\'s what?</string>
+    <string name="legend_section_services">Services</string>
+    <string name="legend_section_devices">Devices</string>
+    <string name="legend_section_network">Your network</string>
+    <string name="legend_section_signs">Signs</string>
+    <string name="legend_service_ping">Bandwidth %1$d · ping at most %2$d ms</string>
+    <string name="legend_service_any">Bandwidth %1$d · any ping</string>
+    <string name="legend_request_title">Request</string>
+    <string name="legend_request_desc">A device wants this service. The request waits at the device until a way to a matching server is free.</string>
+    <string name="legend_response_title">Response</string>
+    <string name="legend_response_desc">White with a colored rim: travels back from the server to the device and counts as a delivered packet.</string>
+    <string name="legend_server_title">Server</string>
+    <string name="legend_server_desc">Delivers exactly one service: the sign on its roof shows which. Tap to upgrade.</string>
+    <string name="legend_cable_desc">Bandwidth %1$d · %2$s ms per tile · price per tile %3$d</string>
+    <string name="legend_overload_title">Overload</string>
+    <string name="legend_overload_desc">Too many requests are waiting. When the red ring runs out, the game is over.</string>
+    <string name="legend_too_narrow_title">Too narrow</string>
+    <string name="legend_too_narrow_desc">No way has enough bandwidth for this service. Lay a wider cable.</string>
+    <string name="legend_ping_title">Too slow</string>
+    <string name="legend_ping_desc">The way is too long for the service\'s ping. Connect it shorter or with a faster cable.</string>
 </resources>

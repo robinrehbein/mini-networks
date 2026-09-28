@@ -443,4 +443,24 @@
     <string name="reviewer_access_unlock">잠금 해제</string>
     <string name="reviewer_access_enabled">심사자 액세스가 활성화되었습니다</string>
     <string name="reviewer_access_invalid">잘못된 심사 코드</string>
+    <string name="menu_legend">무엇이 무엇?</string>
+    <string name="legend_section_services">서비스</string>
+    <string name="legend_section_devices">기기</string>
+    <string name="legend_section_network">내 네트워크</string>
+    <string name="legend_section_signs">표시</string>
+    <string name="legend_service_ping">대역폭 %1$d · 핑 최대 %2$d ms</string>
+    <string name="legend_service_any">대역폭 %1$d · 핑 제한 없음</string>
+    <string name="legend_request_title">요청</string>
+    <string name="legend_request_desc">기기가 이 서비스를 원해요. 맞는 서버로 가는 길이 열릴 때까지 기기 옆에서 기다려요.</string>
+    <string name="legend_response_title">응답</string>
+    <string name="legend_response_desc">흰 바탕에 색 테두리: 서버에서 기기로 돌아오며 배달된 패킷으로 셉니다.</string>
+    <string name="legend_server_title">서버</string>
+    <string name="legend_server_desc">서비스 하나만 제공해요. 지붕 간판이 어떤 서비스인지 보여 줘요. 탭하면 업그레이드.</string>
+    <string name="legend_cable_desc">대역폭 %1$d · 칸당 %2$s ms · 칸당 %3$d</string>
+    <string name="legend_overload_title">과부하</string>
+    <string name="legend_overload_desc">기다리는 요청이 너무 많아요. 빨간 링이 다 줄면 게임 오버.</string>
+    <string name="legend_too_narrow_title">너무 좁음</string>
+    <string name="legend_too_narrow_desc">이 서비스에 맞는 대역폭의 길이 없어요. 더 넓은 케이블을 까세요.</string>
+    <string name="legend_ping_title">너무 느림</string>
+    <string name="legend_ping_desc">길이 너무 길어 핑이 맞지 않아요. 더 짧게 또는 빠른 케이블로 연결하세요.</string>
 </resources>

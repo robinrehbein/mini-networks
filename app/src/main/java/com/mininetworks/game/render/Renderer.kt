@@ -16,7 +16,6 @@ import com.mininetworks.game.game.Node
 import com.mininetworks.game.game.Packet
 import com.mininetworks.game.game.RouteProblem
 import com.mininetworks.game.game.Service
-import com.mininetworks.game.game.Shape
 import com.mininetworks.game.game.Vec2
 import com.mininetworks.game.game.World
 import kotlin.math.cos
@@ -247,7 +246,7 @@ interface Renderer {
 }
 
 /**
- * Marks for requests that cannot leave ([World.routeProblem]): a red badge with a clock when the route is too slow for
+ * Marks for requests that cannot leave ([World.routeProblem]): a red badge with a speedometer when the route is too slow for
  * the service's ping limit, and with two wedges squeezing together when no link on the way is wide enough.
  * [NO_ROUTE][RouteProblem.NO_ROUTE] gets none: an unconnected device already shows that. Shared by all styles.
  */
@@ -277,10 +276,14 @@ object ProblemBadges {
         inkP.strokeWidth = r * 0.16f
         canvas.drawCircle(x, y, r, inkP)
         when (problem) {
+            // A speedometer, not a clock: a clock read as the overload timer (playtest).
             RouteProblem.PING_TOO_HIGH -> {
-                canvas.drawCircle(x, y, r * 0.55f, inkP)
-                canvas.drawLine(x, y, x, y - r * 0.4f, inkP)
-                canvas.drawLine(x, y, x + r * 0.3f, y, inkP)
+                val k = r * 1.45f / 24f
+                canvas.save()
+                canvas.translate(x - 12f * k, y - 12.5f * k)
+                canvas.scale(k, k)
+                canvas.drawPath(gauge, inkFill)
+                canvas.restore()
             }
             RouteProblem.TOO_NARROW -> for (side in SIDES) {
                 path.reset()
@@ -295,6 +298,12 @@ object ProblemBadges {
     }
 
     private val SIDES = floatArrayOf(-1f, 1f)
+
+    /** Material Icons "speed" (Apache License 2.0, docs/licenses-material-icons.txt), in its 24-unit box. */
+    private val gauge: Path = androidx.core.graphics.PathParser.createPathFromPathData(
+        "M19.46 10a1 1 0 0 0-.07 1 7.55 7.55 0 0 1 .52 1.81 8 8 0 0 1-.69 4.73 1 1 0 0 1-.89.53H5.68a1 1 0 0 1-.89-.54A8 8 0 0 1 13 6.06a7.69 7.69 0 0 1 2.11.56 1 1 0 0 0 1-.07 1 1 0 0 0-.17-1.76A10 10 0 0 0 3.35 19a2 2 0 0 0 1.72 1h13.85a2 2 0 0 0 1.74-1 10 10 0 0 0 .55-8.89 1 1 0 0 0-1.75-.11z" +
+            "M10.59 12.59a2 2 0 0 0 2.83 2.83l5.66-8.49z",
+    )
 }
 
 /**
@@ -378,54 +387,6 @@ object TouchTargets {
 }
 
 private fun distance(a: Vec2, b: Vec2) = hypot(a.x - b.x, a.y - b.y)
-
-/** Shape helpers shared by all styles. */
-object Shapes {
-    private val path = Path()
-
-    fun path(shape: Shape, x: Float, y: Float, r: Float): Path {
-        path.reset()
-        when (shape) {
-            Shape.CIRCLE -> path.addCircle(x, y, r, Path.Direction.CW)
-            Shape.SQUARE -> { val q = r * 0.85f; path.addRect(x - q, y - q, x + q, y + q, Path.Direction.CW) }
-            Shape.TRIANGLE -> {
-                val h = r * 1.15f
-                path.moveTo(x, y - h)
-                path.lineTo(x + h * 0.95f, y + h * 0.7f)
-                path.lineTo(x - h * 0.95f, y + h * 0.7f)
-                path.close()
-            }
-            Shape.DIAMOND -> {
-                val h = r * 1.2f
-                path.moveTo(x, y - h); path.lineTo(x + h, y); path.lineTo(x, y + h); path.lineTo(x - h, y); path.close()
-            }
-            Shape.PENTAGON -> polygon(x, y + r * 0.08f, r * 1.1f, 5, -90f)
-            Shape.HEXAGON -> polygon(x, y, r * 1.05f, 6, 0f)
-            Shape.PLUS -> {
-                val a = r * 1.05f
-                val t = r * 0.38f
-                path.moveTo(x - t, y - a); path.lineTo(x + t, y - a); path.lineTo(x + t, y - t); path.lineTo(x + a, y - t)
-                path.lineTo(x + a, y + t); path.lineTo(x + t, y + t); path.lineTo(x + t, y + a); path.lineTo(x - t, y + a)
-                path.lineTo(x - t, y + t); path.lineTo(x - a, y + t); path.lineTo(x - a, y - t); path.lineTo(x - t, y - t)
-                path.close()
-            }
-        }
-        return path
-    }
-
-    /** Regular polygon with [corners] on a circle of radius [r], the first corner at [startDeg]. */
-    private fun polygon(x: Float, y: Float, r: Float, corners: Int, startDeg: Float) {
-        for (i in 0 until corners) {
-            val a = Math.toRadians((startDeg + 360f * i / corners).toDouble())
-            val px = x + r * cos(a).toFloat()
-            val py = y + r * sin(a).toFloat()
-            if (i == 0) path.moveTo(px, py) else path.lineTo(px, py)
-        }
-        path.close()
-    }
-
-    fun draw(c: Canvas, shape: Shape, x: Float, y: Float, r: Float, paint: Paint) = c.drawPath(path(shape, x, y, r), paint)
-}
 
 fun Int.shade(f: Float): Int {
     val r = (this shr 16) and 0xFF
@@ -669,16 +630,18 @@ class DeviceIcons {
                 canvas.drawLine(x - s * 0.45f, y + s * 0.8f, x + s * 0.45f, y + s * 0.8f, line)
             }
             Device.PHONE -> {
-                // Desk phone: base with keypad, handset on top.
-                path.reset()
-                path.moveTo(x - s * 0.8f, y + s * 0.8f); path.lineTo(x - s * 0.55f, y - s * 0.1f)
-                path.lineTo(x + s * 0.55f, y - s * 0.1f); path.lineTo(x + s * 0.8f, y + s * 0.8f); path.close()
-                pathDepth(path, s)
-                body.color = 0xFFFFFFFF.toInt(); canvas.drawPath(path, body)
-                line.strokeWidth = s * 0.16f; canvas.drawPath(path, line)
-                line.strokeWidth = s * 0.3f
-                canvas.drawLine(x - s * 0.75f, y - s * 0.5f, x + s * 0.75f, y - s * 0.5f, line)
-                for (i in 0 until 3) canvas.drawCircle(x - s * 0.3f + i * s * 0.3f, y + s * 0.4f, s * 0.08f, solid)
+                // Desk phone like the ☎ sign: a wide base with a 3×2 keypad and the handset resting on two cradle
+                // horns (the old slanted base with a bar on top read as a flat iron).
+                box(x - s * 0.85f, y, x + s * 0.85f, y + s * 0.85f, s * 0.22f, 0xFFFFFFFF.toInt(), s)
+                for (row in 0 until 2) for (col in 0 until 3) {
+                    canvas.drawCircle(x - s * 0.34f + col * s * 0.34f, y + s * 0.3f + row * s * 0.28f, s * 0.085f, solid)
+                }
+                // Handset: a curved grip with a round ear and mouth piece, lifted clear of the base.
+                line.strokeWidth = s * 0.26f
+                rect.set(x - s * 0.72f, y - s * 0.78f, x + s * 0.72f, y + s * 0.1f)
+                canvas.drawArc(rect, 200f, 140f, false, line)
+                canvas.drawCircle(x - s * 0.7f, y - s * 0.3f, s * 0.2f, solid)
+                canvas.drawCircle(x + s * 0.7f, y - s * 0.3f, s * 0.2f, solid)
             }
             Device.LAPTOP -> {
                 box(x - s * 0.8f, y - s * 0.8f, x + s * 0.8f, y + s * 0.3f, s * 0.1f, screen, s)
@@ -770,11 +733,7 @@ class DeviceIcons {
             }
             canvas.drawCircle(x + s * 0.5f, sy, s * 0.1f, body)
         }
-        body.color = 0xFFFFFFFF.toInt()
-        canvas.drawCircle(x + s * 0.8f, top, s * 0.42f, body)
-        line.strokeWidth = s * 0.1f; canvas.drawCircle(x + s * 0.8f, top, s * 0.42f, line)
-        body.color = col
-        Shapes.draw(canvas, service.shape, x + s * 0.8f, top + if (service.shape == Shape.TRIANGLE) s * 0.04f else 0f, s * 0.22f, body)
+        ServiceGlyphs.sign(canvas, service, x + s * 0.8f, top, s * 0.46f, ink)
     }
 
     /** Data center (server tier 4) spanning 2×2 cells around ([x], [y]): rows of racks with LEDs and a service badge. */
@@ -795,11 +754,7 @@ class DeviceIcons {
                 canvas.drawCircle(x - s * 0.62f + i * s * 0.3f, ry, s * 0.045f, body)
             }
         }
-        body.color = 0xFFFFFFFF.toInt()
-        canvas.drawCircle(x + s * 0.85f, y - s * 0.8f, s * 0.26f, body)
-        line.strokeWidth = s * 0.05f; canvas.drawCircle(x + s * 0.85f, y - s * 0.8f, s * 0.26f, line)
-        body.color = col
-        Shapes.draw(canvas, service.shape, x + s * 0.85f, y - s * 0.8f + if (service.shape == Shape.TRIANGLE) s * 0.02f else 0f, s * 0.13f, body)
+        ServiceGlyphs.sign(canvas, service, x + s * 0.85f, y - s * 0.8f, s * 0.3f, ink)
     }
 
     /**

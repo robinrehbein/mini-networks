@@ -450,22 +450,20 @@ class ScreenshotTest {
         save(bmp, File(shots, "portrait-sceneries.png"))
     }
 
-    /** Every service shape in both palettes, requests filled and responses outlined, plus every device icon. */
+    /** Every service pictogram in both palettes: request token, response and server sign, plus every device icon. */
     @Test
     fun renderServiceShapes() {
         val bmp = Bitmap.createBitmap(1400, 560, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp)
         c.drawColor(0xFFDDE9D6.toInt())
-        val stroke = stroke(0, 5f)
         for ((row, colorblind) in listOf(false, true).withIndex()) {
             ServiceColors.colorblind = colorblind
             for ((i, svc) in Service.entries.withIndex()) {
                 val x = 100f + i * 200f
                 val y = 80f + row * 150f
-                Shapes.draw(c, svc.shape, x - 40f, y, 34f, fill(ServiceColors.of(svc)))
-                Shapes.draw(c, svc.shape, x + 45f, y, 22f, fill(0xFFFFFFFF.toInt()))
-                stroke.color = ServiceColors.of(svc)
-                Shapes.draw(c, svc.shape, x + 45f, y, 22f, stroke)
+                ServiceGlyphs.token(c, svc, x - 55f, y, 30f)
+                ServiceGlyphs.response(c, svc, x + 5f, y, 22f)
+                ServiceGlyphs.sign(c, svc, x + 60f, y, 26f, 0xFF262B33.toInt())
             }
         }
         ServiceColors.colorblind = false

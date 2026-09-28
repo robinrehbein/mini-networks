@@ -513,4 +513,24 @@
     <string name="reviewer_access_unlock">Débloquer</string>
     <string name="reviewer_access_enabled">Accès examinateur activé</string>
     <string name="reviewer_access_invalid">Code d\'examen non valide</string>
+    <string name="menu_legend">C\'est quoi ?</string>
+    <string name="legend_section_services">Services</string>
+    <string name="legend_section_devices">Appareils</string>
+    <string name="legend_section_network">Ton réseau</string>
+    <string name="legend_section_signs">Signaux</string>
+    <string name="legend_service_ping">Bande passante %1$d · ping max. %2$d ms</string>
+    <string name="legend_service_any">Bande passante %1$d · ping libre</string>
+    <string name="legend_request_title">Requête</string>
+    <string name="legend_request_desc">Un appareil veut ce service. La requête attend à l\'appareil qu\'un chemin vers un serveur adapté soit libre.</string>
+    <string name="legend_response_title">Réponse</string>
+    <string name="legend_response_desc">Blanche avec un bord coloré : revient du serveur vers l\'appareil et compte comme paquet livré.</string>
+    <string name="legend_server_title">Serveur</string>
+    <string name="legend_server_desc">Fournit un seul service : le panneau sur le toit montre lequel. Touche pour l\'améliorer.</string>
+    <string name="legend_cable_desc">Bande passante %1$d · %2$s ms par case · %3$d par case</string>
+    <string name="legend_overload_title">Surcharge</string>
+    <string name="legend_overload_desc">Trop de requêtes attendent. Quand l\'anneau rouge est vide, la partie est finie.</string>
+    <string name="legend_too_narrow_title">Trop étroit</string>
+    <string name="legend_too_narrow_desc">Aucun chemin n\'a assez de bande passante pour ce service. Pose un câble plus large.</string>
+    <string name="legend_ping_title">Trop lent</string>
+    <string name="legend_ping_desc">Le chemin est trop long pour le ping du service. Relie-le plus court ou avec un câble plus rapide.</string>
 </resources>

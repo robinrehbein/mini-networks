@@ -171,17 +171,8 @@ class FlatRenderer : Renderer {
             world.packetPosition(p, pos)
             val sx = screenX(pos[0], pos[1]); val sy = screenY(pos[0], pos[1])
             val r = maxOf(cell * (0.11f + 0.035f * p.size), (2.6f + 0.8f * p.size) * density)
-            if (p.isResponse) {
-                // Responses: smaller and outlined in the service color.
-                fillP.color = land; Shapes.draw(canvas, p.service.shape, sx, sy, r * 0.8f, fillP)
-                strokeP.color = ServiceColors.of(p.service); strokeP.strokeWidth = cell * 0.045f
-                Shapes.draw(canvas, p.service.shape, sx, sy, r * 0.8f, strokeP)
-            } else {
-                fillP.color = ServiceColors.of(p.service)
-                Shapes.draw(canvas, p.service.shape, sx, sy, r, fillP)
-                strokeP.color = land; strokeP.strokeWidth = cell * 0.035f
-                Shapes.draw(canvas, p.service.shape, sx, sy, r, strokeP)
-            }
+            if (p.isResponse) ServiceGlyphs.response(canvas, p.service, sx, sy, r * 0.9f)
+            else ServiceGlyphs.token(canvas, p.service, sx, sy, r)
         }
 
         for (i in world.incidents) if (i.kind == IncidentKind.EXCAVATOR) {
@@ -228,12 +219,11 @@ class FlatRenderer : Renderer {
                         val svc = n.pending[i]
                         val px = qx + (i % 4) * r * 2.75f
                         val py = qy + (i / 4) * r * 3f
-                        fillP.color = ServiceColors.of(svc)
-                        Shapes.draw(canvas, svc.shape, px, py, r, fillP)
+                        ServiceGlyphs.token(canvas, svc, px, py, r)
                         if (ProblemBadges.shows(world.routeProblem(n, svc))) {
                             // Stuck: the route is too slow for this real-time service, or no link is wide enough.
                             strokeP.color = alarm; strokeP.strokeWidth = r * 0.38f
-                            Shapes.draw(canvas, svc.shape, px, py, r * 1.4f, strokeP)
+                            canvas.drawCircle(px, py, r * 1.45f, strokeP)
                         }
                     }
                     ProblemBadges.of(world, n)?.let { ProblemBadges.draw(canvas, it, nx - icon * 1.25f, ny - icon * 1.1f, r * 1.9f) }
@@ -320,8 +310,7 @@ class FlatRenderer : Renderer {
             if (!a.isResponse) continue
             val py = y - cell * (0.55f + 0.35f * t)
             val alpha = Juice.fade(t) shl 24
-            fillP.color = ServiceColors.of(a.service) and 0xFFFFFF or alpha
-            Shapes.draw(canvas, a.service.shape, x, py, cell * 0.08f, fillP)
+            ServiceGlyphs.token(canvas, a.service, x, py, cell * 0.1f, alpha = alpha ushr 24)
             val b = t / 0.45f
             if (b <= 1f) Juice.sparkles(canvas, path, x, py, b, cell * 0.25f, 0f, cell * 0.05f, ServiceColors.of(a.service), fillP, n = 5)
         }

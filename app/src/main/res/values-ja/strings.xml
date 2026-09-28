@@ -443,4 +443,24 @@
     <string name="reviewer_access_unlock">解除</string>
     <string name="reviewer_access_enabled">審査用アクセスを有効にしました</string>
     <string name="reviewer_access_invalid">審査コードが無効です</string>
+    <string name="menu_legend">これは何？</string>
+    <string name="legend_section_services">サービス</string>
+    <string name="legend_section_devices">デバイス</string>
+    <string name="legend_section_network">ネットワーク</string>
+    <string name="legend_section_signs">サイン</string>
+    <string name="legend_service_ping">帯域 %1$d・Ping 最大 %2$d ms</string>
+    <string name="legend_service_any">帯域 %1$d・Ping 制限なし</string>
+    <string name="legend_request_title">リクエスト</string>
+    <string name="legend_request_desc">デバイスがこのサービスを求めています。合うサーバーへの道が空くまで、デバイスの横で待ちます。</string>
+    <string name="legend_response_title">レスポンス</string>
+    <string name="legend_response_desc">白地に色の縁：サーバーからデバイスへ戻り、配達済みパケットになります。</string>
+    <string name="legend_server_title">サーバー</string>
+    <string name="legend_server_desc">提供するサービスは1つだけ。屋根の看板が種類を示します。タップで強化。</string>
+    <string name="legend_cable_desc">帯域 %1$d・1マス %2$s ms・1マス %3$d</string>
+    <string name="legend_overload_title">過負荷</string>
+    <string name="legend_overload_desc">待ちのリクエストが多すぎます。赤いリングがなくなるとゲームオーバー。</string>
+    <string name="legend_too_narrow_title">帯域不足</string>
+    <string name="legend_too_narrow_desc">このサービスに十分な帯域の道がありません。太いケーブルを引きましょう。</string>
+    <string name="legend_ping_title">遅すぎ</string>
+    <string name="legend_ping_desc">道が長すぎて Ping が間に合いません。短く、または速いケーブルでつなぎましょう。</string>
 </resources>

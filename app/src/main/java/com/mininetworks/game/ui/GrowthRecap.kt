@@ -19,7 +19,7 @@ import com.mininetworks.game.render.Cosmetic
 import com.mininetworks.game.render.MapPalette
 import com.mininetworks.game.render.shade
 import com.mininetworks.game.render.ServiceColors
-import com.mininetworks.game.render.Shapes
+import com.mininetworks.game.render.ServiceGlyphs
 import com.mininetworks.game.render.fill
 import com.mininetworks.game.render.stroke
 import kotlin.math.abs
@@ -177,9 +177,7 @@ class GrowthRecap(private val density: Float, private val dateOf: (GrowthRecorde
                         val q = rest / seg
                         val x = a0.x + (b0.x - a0.x) * q; val y = a0.y + (b0.y - a0.y) * q
                         val rr = maxOf(u * 0.17f, 3f * density)
-                        casing.strokeWidth = rr * 0.5f
-                        Shapes.draw(canvas, svc.shape, px(x, y), py(x, y) - rr * 0.4f, rr * 1.1f, casing)
-                        Shapes.draw(canvas, svc.shape, px(x, y), py(x, y) - rr * 0.4f, rr, dot)
+                        ServiceGlyphs.token(canvas, svc, px(x, y), py(x, y) - rr * 0.4f, rr)
                         break
                     }
                     rest -= seg
@@ -195,8 +193,7 @@ class GrowthRecap(private val density: Float, private val dateOf: (GrowthRecorde
                     val col = ServiceColors.of(n.service!!)
                     val h = u * (0.55f + 0.25f * n.level) * (if (n.size > 1) 1.4f else 1f)
                     box(canvas, cx, cy, 0.78f * n.size, h, col.shade(0.15f), 0xFFE9ECEF.toInt())
-                    dot.color = 0xFFFFFFFF.toInt()
-                    Shapes.draw(canvas, n.service!!.shape, px(cx, cy), py(cx, cy, h), u * 0.28f * n.size, dot)
+                    ServiceGlyphs.sign(canvas, n.service!!, px(cx, cy), py(cx, cy, h), u * 0.3f * n.size, col.shade(-0.2f))
                 }
                 NodeKind.CLIENT -> {
                     val h = u * 0.22f

@@ -483,4 +483,24 @@
     <string name="reviewer_access_unlock">Freischalten</string>
     <string name="reviewer_access_enabled">Prüferzugang aktiviert</string>
     <string name="reviewer_access_invalid">Ungültiger Prüfercode</string>
+    <string name="menu_legend">Was ist was?</string>
+    <string name="legend_section_services">Dienste</string>
+    <string name="legend_section_devices">Geräte</string>
+    <string name="legend_section_network">Dein Netz</string>
+    <string name="legend_section_signs">Anzeigen</string>
+    <string name="legend_service_ping">Bandbreite %1$d · Ping höchstens %2$d ms</string>
+    <string name="legend_service_any">Bandbreite %1$d · Ping egal</string>
+    <string name="legend_request_title">Anfrage</string>
+    <string name="legend_request_desc">Ein Gerät will diesen Dienst. Die Anfrage wartet am Gerät, bis ein Weg zu einem passenden Server frei ist.</string>
+    <string name="legend_response_title">Antwort</string>
+    <string name="legend_response_desc">Weiß mit farbigem Rand: kommt vom Server zurück zum Gerät und zählt als zugestelltes Paket.</string>
+    <string name="legend_server_title">Server</string>
+    <string name="legend_server_desc">Liefert genau einen Dienst: Das Schild auf dem Dach zeigt, welchen. Antippen zum Aufrüsten.</string>
+    <string name="legend_cable_desc">Bandbreite %1$d · %2$s ms pro Feld · Preis pro Feld %3$d</string>
+    <string name="legend_overload_title">Überlast</string>
+    <string name="legend_overload_desc">Zu viele Anfragen warten. Läuft der rote Ring ab, ist das Spiel vorbei.</string>
+    <string name="legend_too_narrow_title">Zu schmal</string>
+    <string name="legend_too_narrow_desc">Kein Weg hat genug Bandbreite für diesen Dienst. Leg ein breiteres Kabel.</string>
+    <string name="legend_ping_title">Zu langsam</string>
+    <string name="legend_ping_desc">Der Weg ist zu lang für den Ping des Dienstes. Verbinde kürzer oder mit schnellerem Kabel.</string>
 </resources>

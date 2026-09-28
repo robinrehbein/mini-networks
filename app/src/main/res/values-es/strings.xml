@@ -513,4 +513,24 @@
     <string name="reviewer_access_unlock">Desbloquear</string>
     <string name="reviewer_access_enabled">Acceso para revisores activado</string>
     <string name="reviewer_access_invalid">Código de revisión no válido</string>
+    <string name="menu_legend">¿Qué es qué?</string>
+    <string name="legend_section_services">Servicios</string>
+    <string name="legend_section_devices">Dispositivos</string>
+    <string name="legend_section_network">Tu red</string>
+    <string name="legend_section_signs">Señales</string>
+    <string name="legend_service_ping">Ancho de banda %1$d · ping máx. %2$d ms</string>
+    <string name="legend_service_any">Ancho de banda %1$d · cualquier ping</string>
+    <string name="legend_request_title">Solicitud</string>
+    <string name="legend_request_desc">Un dispositivo quiere este servicio. La solicitud espera en el dispositivo hasta que haya un camino libre a un servidor adecuado.</string>
+    <string name="legend_response_title">Respuesta</string>
+    <string name="legend_response_desc">Blanca con borde de color: vuelve del servidor al dispositivo y cuenta como paquete entregado.</string>
+    <string name="legend_server_title">Servidor</string>
+    <string name="legend_server_desc">Ofrece un solo servicio: el cartel del tejado muestra cuál. Tócalo para mejorarlo.</string>
+    <string name="legend_cable_desc">Ancho de banda %1$d · %2$s ms por casilla · %3$d por casilla</string>
+    <string name="legend_overload_title">Sobrecarga</string>
+    <string name="legend_overload_desc">Hay demasiadas solicitudes esperando. Cuando se acaba el anillo rojo, termina la partida.</string>
+    <string name="legend_too_narrow_title">Demasiado estrecho</string>
+    <string name="legend_too_narrow_desc">Ningún camino tiene ancho de banda suficiente para este servicio. Tiende un cable más ancho.</string>
+    <string name="legend_ping_title">Demasiado lento</string>
+    <string name="legend_ping_desc">El camino es demasiado largo para el ping del servicio. Conéctalo más corto o con un cable más rápido.</string>
 </resources>
