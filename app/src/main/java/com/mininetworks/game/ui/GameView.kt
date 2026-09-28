@@ -38,6 +38,7 @@ import com.mininetworks.game.game.Cable
 import com.mininetworks.game.game.CableLayout
 import com.mininetworks.game.game.CableSkin
 import com.mininetworks.game.game.CableType
+import com.mininetworks.game.game.Device
 import com.mininetworks.game.game.CableUpgradeError
 import com.mininetworks.game.game.Cell
 import com.mininetworks.game.game.CellRect
@@ -95,6 +96,10 @@ import com.mininetworks.game.ui.menu.AchievementTile
 import com.mininetworks.game.ui.menu.AchievementsPanel
 import com.mininetworks.game.ui.menu.DailyPreview
 import com.mininetworks.game.ui.menu.DemoCity
+import com.mininetworks.game.ui.menu.LegendEntry
+import com.mininetworks.game.ui.menu.LegendIcon
+import com.mininetworks.game.ui.menu.LegendPanel
+import com.mininetworks.game.ui.menu.LegendSection
 import com.mininetworks.game.ui.menu.MenuAction
 import com.mininetworks.game.ui.menu.MenuItem
 import com.mininetworks.game.ui.menu.MenuPage
@@ -312,6 +317,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     /** The mode the scenery picker starts games in (docs/TOP100.md C4); its pill switches it. */
     private var pickerMode = GameMode.NORMAL
     private val achievementsPanel = AchievementsPanel(context)
+    private val legendPanel = LegendPanel(context)
+    private var pressedLegend: String? = null
+    private var legendDownY = 0f
+    private var legendLastY = 0f
+    private var legendScrolling = false
     /** [AchievementsPanel.BACK] under the finger on the achievements screen. */
     private var pressedAchievement: String? = null
     /** Vertical drag on the achievements grid. */
@@ -489,6 +499,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             page != null -> nodes += menuPanel.nodes
             screen == Screen.SCENERIES -> nodes += sceneryPicker.nodes
             screen == Screen.ACHIEVEMENTS -> nodes += achievementsPanel.nodes
+            screen == Screen.LEGEND -> nodes += legendPanel.nodes
             screen == Screen.PLAYING && world.rewardOffer != null -> {
                 nodes += rewardDialog.nodes
                 nodes += hudNodes.filter { it.key == "hud:menu" }
@@ -535,6 +546,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             "achievement" -> if (screen == Screen.ACHIEVEMENTS && id == AchievementsPanel.BACK) {
                 click()
                 screen = Screen.MAIN_MENU
+            }
+            "legend" -> if (screen == Screen.LEGEND && id == LegendPanel.BACK) {
+                click()
+                screen = Screen.PAUSED
             }
             "tutorial" -> if (screen == Screen.PLAYING && tutorial != null && tutorialOverlay.targetOf(id) != null) {
                 click()
@@ -844,6 +859,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     /** Screen rectangle of the tile of achievement [id] in the last drawn frame, for tests. */
     internal fun achievementTile(id: String): RectF? = if (screen == Screen.ACHIEVEMENTS) achievementsPanel.tileOf(id) else null
 
+    /** Where the legend's back pill ([LegendPanel.BACK]) was drawn in the last frame, for tests. */
+    internal fun legendTarget(id: String): RectF? = if (screen == Screen.LEGEND) legendPanel.targetOf(id) else null
+
+    /** Where the legend's tile [id] was drawn in the last frame (maybe scrolled out of view), for tests. */
+    internal fun legendTile(id: String): RectF? = if (screen == Screen.LEGEND) legendPanel.tileOf(id) else null
+
     /** The mode the picker starts games in, for tests. */
     internal val sceneryMode: GameMode get() = pickerMode
 
@@ -965,6 +986,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 context.getString(R.string.menu_back), achievementTiles(), surfaceWidth, surfaceHeight, pressedAchievement, safeInsets,
             )
         }
+        if (screen == Screen.LEGEND) {
+            legendPanel.draw(
+                canvas, context.getString(R.string.menu_legend), context.getString(R.string.menu_back), legendSections(),
+                surfaceWidth, surfaceHeight, pressedLegend, animTime, safeInsets,
+            )
+        }
         toast.draw(canvas, surfaceWidth, animTime, safeInsets)
         publishAccessibility()
     }
@@ -988,7 +1015,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
      */
     private val hudVisible
         get() = when (screen) {
-            Screen.MAIN_MENU, Screen.SCENERIES, Screen.DAILY, Screen.ACHIEVEMENTS, Screen.GAME_OVER -> false
+            Screen.MAIN_MENU, Screen.SCENERIES, Screen.DAILY, Screen.ACHIEVEMENTS, Screen.GAME_OVER, Screen.LEGEND -> false
             Screen.SETTINGS, Screen.APPEARANCE -> settingsReturn != Screen.MAIN_MENU
             else -> true
         }
@@ -1745,6 +1772,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             is Input.Reveal -> when {
                 screen == Screen.SCENERIES && input.key.startsWith("scenery:") -> sceneryPicker.reveal(input.key.removePrefix("scenery:"))
                 screen == Screen.ACHIEVEMENTS && input.key.startsWith("achievement:") -> achievementsPanel.reveal(input.key.removePrefix("achievement:"))
+                screen == Screen.LEGEND && input.key.startsWith("legend:") -> legendPanel.reveal(input.key.removePrefix("legend:"))
             }
             Input.SignedIn -> onSignedIn()
             is Input.CloudLoaded -> applyCloud(input.progress)
@@ -1765,6 +1793,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         }
         if (screen == Screen.ACHIEVEMENTS) {
             onAchievementsTouch(e)
+            return
+        }
+        if (screen == Screen.LEGEND) {
+            onLegendTouch(e)
             return
         }
         if (screen != Screen.PLAYING) {
@@ -2302,6 +2334,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             ),
             items = listOf(
                 MenuItem.Button(MenuAction.RESUME, context.getString(R.string.menu_resume), primary = true),
+                MenuItem.Button(MenuAction.LEGEND, context.getString(R.string.menu_legend)),
                 MenuItem.Button(MenuAction.SETTINGS, context.getString(R.string.menu_settings)),
                 MenuItem.Button(MenuAction.RESTART, context.getString(R.string.menu_restart)),
                 MenuItem.Button(MenuAction.MAIN_MENU, context.getString(R.string.menu_main)),
@@ -2365,7 +2398,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             ),
         )
         Screen.DAILY -> dailyPage()
-        Screen.ACHIEVEMENTS -> null
+        Screen.ACHIEVEMENTS, Screen.LEGEND -> null
     }
 
     /** What the pause card calls the running game: its scenery, with the mode or the daily rule. */
@@ -2502,6 +2535,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             MenuAction.ACHIEVEMENTS -> {
                 achievementsPanel.resetScroll()
                 screen = Screen.ACHIEVEMENTS
+            }
+            MenuAction.LEGEND -> {
+                legendPanel.resetScroll()
+                screen = Screen.LEGEND
             }
             MenuAction.CABLE_SKIN -> updateSettings(settings.copy(cableSkin = Cosmetics.next(Cosmetic.skin, Cosmetics.skins(tracker.unlocked))))
             MenuAction.COLOR_THEME -> updateSettings(settings.copy(colorTheme = Cosmetics.next(Cosmetic.theme, Cosmetics.themes(tracker.unlocked))))
@@ -2739,6 +2776,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             Screen.SETTINGS -> screen = settingsReturn
             Screen.APPEARANCE -> screen = Screen.SETTINGS
             Screen.SCENERIES, Screen.DAILY, Screen.ACHIEVEMENTS -> screen = Screen.MAIN_MENU
+            Screen.LEGEND -> screen = Screen.PAUSED
             Screen.GAME_OVER -> onMenuAction(MenuAction.MAIN_MENU)
             Screen.MAIN_MENU -> mainThread.post { onExit?.invoke() }
         }
@@ -2908,6 +2946,88 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             }
             MotionEvent.ACTION_CANCEL -> pressedAchievement = null
         }
+    }
+
+    /** Legend screen: the back pill on a tap; a vertical drag scrolls the tiles. */
+    private fun onLegendTouch(e: Input.Touch) {
+        when (e.action) {
+            MotionEvent.ACTION_DOWN -> {
+                endDrag()
+                pressedLegend = legendPanel.hit(e.x, e.y)
+                legendDownY = e.y
+                legendLastY = e.y
+                legendScrolling = false
+            }
+            MotionEvent.ACTION_MOVE -> if (legendPanel.scrollable) {
+                if (!legendScrolling && kotlin.math.abs(e.y - legendDownY) >= TAP_SLOP_DP * density) {
+                    legendScrolling = true
+                    pressedLegend = null
+                }
+                if (legendScrolling) legendPanel.scrollBy(legendLastY - e.y)
+                legendLastY = e.y
+            }
+            MotionEvent.ACTION_UP -> {
+                val id = pressedLegend
+                pressedLegend = null
+                if (legendScrolling) {
+                    legendScrolling = false
+                    return
+                }
+                if (id == LegendPanel.BACK && legendPanel.hit(e.x, e.y) == id) {
+                    click()
+                    screen = Screen.PAUSED
+                }
+            }
+            MotionEvent.ACTION_CANCEL -> pressedLegend = null
+        }
+    }
+
+    /**
+     * The legend's content: every service with its bandwidth and ping, every device with the services it wants, the
+     * network's parts with what they do, and the signs on the map. Everything is drawn as on the map.
+     */
+    private fun legendSections(): List<LegendSection> {
+        val numbers = java.text.NumberFormat.getNumberInstance(resources.configuration.locales[0])
+        val services = Service.entries.map { s ->
+            LegendEntry(
+                "service:${s.name}", LegendIcon.Request(s), texts.service(s),
+                s.maxPingMs?.let { context.getString(R.string.legend_service_ping, s.bandwidth, it) }
+                    ?: context.getString(R.string.legend_service_any, s.bandwidth),
+            )
+        }
+        val devices = Device.entries.map { d ->
+            LegendEntry(
+                "device:${d.name}", LegendIcon.OfDevice(d), texts.device(d), "", services = d.services,
+                servicesLabel = context.getString(
+                    R.string.device_wants, texts.device(d), d.services.joinToString(context.getString(R.string.list_separator)) { texts.service(it) },
+                ),
+            )
+        }
+        val network = listOf(
+            LegendEntry("server", LegendIcon.Server(Service.MAIL), context.getString(R.string.legend_server_title), context.getString(R.string.legend_server_desc)),
+            LegendEntry("router", LegendIcon.Router, context.getString(R.string.node_router), context.getString(R.string.reward_routers_desc)),
+        ) + CableType.entries.map { t ->
+            LegendEntry(
+                "cable:${t.name}", LegendIcon.Cable(t), texts.cable(t),
+                context.getString(R.string.legend_cable_desc, t.capacity, numbers.format(t.msPerCell.toDouble()), t.costPerCell),
+            )
+        } + listOf(
+            LegendEntry("access_point", LegendIcon.AccessPoint, context.getString(R.string.node_access_point), context.getString(R.string.reward_access_point_desc)),
+            LegendEntry("cell_tower", LegendIcon.CellTower, context.getString(R.string.node_cell_tower), context.getString(R.string.reward_cell_tower_desc)),
+        )
+        val signs = listOf(
+            LegendEntry("request", LegendIcon.Request(Service.MAIL), context.getString(R.string.legend_request_title), context.getString(R.string.legend_request_desc)),
+            LegendEntry("response", LegendIcon.Response(Service.MAIL), context.getString(R.string.legend_response_title), context.getString(R.string.legend_response_desc)),
+            LegendEntry("overload", LegendIcon.Overload, context.getString(R.string.legend_overload_title), context.getString(R.string.legend_overload_desc)),
+            LegendEntry("too_narrow", LegendIcon.Problem(RouteProblem.TOO_NARROW), context.getString(R.string.legend_too_narrow_title), context.getString(R.string.legend_too_narrow_desc)),
+            LegendEntry("ping", LegendIcon.Problem(RouteProblem.PING_TOO_HIGH), context.getString(R.string.legend_ping_title), context.getString(R.string.legend_ping_desc)),
+        )
+        return listOf(
+            LegendSection("services", context.getString(R.string.legend_section_services), services),
+            LegendSection("signs", context.getString(R.string.legend_section_signs), signs),
+            LegendSection("network", context.getString(R.string.legend_section_network), network),
+            LegendSection("devices", context.getString(R.string.legend_section_devices), devices),
+        )
     }
 
     private fun openPauseMenu() {

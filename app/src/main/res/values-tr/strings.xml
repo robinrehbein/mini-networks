@@ -478,4 +478,24 @@
     <string name="reviewer_access_unlock">Kilidi aç</string>
     <string name="reviewer_access_enabled">İnceleyici erişimi etkinleştirildi</string>
     <string name="reviewer_access_invalid">Geçersiz inceleme kodu</string>
+    <string name="menu_legend">Ne nedir?</string>
+    <string name="legend_section_services">Hizmetler</string>
+    <string name="legend_section_devices">Cihazlar</string>
+    <string name="legend_section_network">Ağın</string>
+    <string name="legend_section_signs">İşaretler</string>
+    <string name="legend_service_ping">Bant genişliği %1$d · ping en çok %2$d ms</string>
+    <string name="legend_service_any">Bant genişliği %1$d · ping fark etmez</string>
+    <string name="legend_request_title">İstek</string>
+    <string name="legend_request_desc">Bir cihaz bu hizmeti istiyor. İstek, uygun bir sunucuya yol açılana kadar cihazın yanında bekler.</string>
+    <string name="legend_response_title">Yanıt</string>
+    <string name="legend_response_desc">Beyaz, renkli kenarlı: sunucudan cihaza geri döner ve teslim edilen paket sayılır.</string>
+    <string name="legend_server_title">Sunucu</string>
+    <string name="legend_server_desc">Tek bir hizmet verir: çatıdaki tabela hangisi olduğunu gösterir. Yükseltmek için dokun.</string>
+    <string name="legend_cable_desc">Bant genişliği %1$d · kare başı %2$s ms · kare başı %3$d</string>
+    <string name="legend_overload_title">Aşırı yük</string>
+    <string name="legend_overload_desc">Çok fazla istek bekliyor. Kırmızı halka biterse oyun biter.</string>
+    <string name="legend_too_narrow_title">Çok dar</string>
+    <string name="legend_too_narrow_desc">Hiçbir yolun bu hizmet için yeterli bant genişliği yok. Daha geniş kablo çek.</string>
+    <string name="legend_ping_title">Çok yavaş</string>
+    <string name="legend_ping_desc">Yol, hizmetin pingi için çok uzun. Daha kısa ya da daha hızlı kabloyla bağla.</string>
 </resources>

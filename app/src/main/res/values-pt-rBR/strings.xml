@@ -513,4 +513,24 @@
     <string name="reviewer_access_unlock">Desbloquear</string>
     <string name="reviewer_access_enabled">Acesso de revisão ativado</string>
     <string name="reviewer_access_invalid">Código de revisão inválido</string>
+    <string name="menu_legend">O que é o quê?</string>
+    <string name="legend_section_services">Serviços</string>
+    <string name="legend_section_devices">Aparelhos</string>
+    <string name="legend_section_network">Sua rede</string>
+    <string name="legend_section_signs">Sinais</string>
+    <string name="legend_service_ping">Banda %1$d · ping máx. %2$d ms</string>
+    <string name="legend_service_any">Banda %1$d · qualquer ping</string>
+    <string name="legend_request_title">Pedido</string>
+    <string name="legend_request_desc">Um aparelho quer este serviço. O pedido espera no aparelho até haver um caminho livre para um servidor certo.</string>
+    <string name="legend_response_title">Resposta</string>
+    <string name="legend_response_desc">Branca com borda colorida: volta do servidor ao aparelho e conta como pacote entregue.</string>
+    <string name="legend_server_title">Servidor</string>
+    <string name="legend_server_desc">Entrega um só serviço: a placa no telhado mostra qual. Toque para melhorar.</string>
+    <string name="legend_cable_desc">Banda %1$d · %2$s ms por casa · %3$d por casa</string>
+    <string name="legend_overload_title">Sobrecarga</string>
+    <string name="legend_overload_desc">Há pedidos demais esperando. Quando o anel vermelho acabar, fim de jogo.</string>
+    <string name="legend_too_narrow_title">Estreito demais</string>
+    <string name="legend_too_narrow_desc">Nenhum caminho tem banda suficiente para este serviço. Passe um cabo mais largo.</string>
+    <string name="legend_ping_title">Lento demais</string>
+    <string name="legend_ping_desc">O caminho é longo demais para o ping do serviço. Ligue mais curto ou com um cabo mais rápido.</string>
 </resources>

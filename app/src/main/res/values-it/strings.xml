@@ -513,4 +513,24 @@
     <string name="reviewer_access_unlock">Sblocca</string>
     <string name="reviewer_access_enabled">Accesso revisori attivato</string>
     <string name="reviewer_access_invalid">Codice di revisione non valido</string>
+    <string name="menu_legend">Cos\'è cosa?</string>
+    <string name="legend_section_services">Servizi</string>
+    <string name="legend_section_devices">Dispositivi</string>
+    <string name="legend_section_network">La tua rete</string>
+    <string name="legend_section_signs">Segnali</string>
+    <string name="legend_service_ping">Banda %1$d · ping max %2$d ms</string>
+    <string name="legend_service_any">Banda %1$d · ping libero</string>
+    <string name="legend_request_title">Richiesta</string>
+    <string name="legend_request_desc">Un dispositivo vuole questo servizio. La richiesta aspetta al dispositivo finché una strada verso un server adatto è libera.</string>
+    <string name="legend_response_title">Risposta</string>
+    <string name="legend_response_desc">Bianca con bordo colorato: torna dal server al dispositivo e conta come pacchetto consegnato.</string>
+    <string name="legend_server_title">Server</string>
+    <string name="legend_server_desc">Fornisce un solo servizio: il cartello sul tetto mostra quale. Tocca per potenziarlo.</string>
+    <string name="legend_cable_desc">Banda %1$d · %2$s ms per casella · %3$d per casella</string>
+    <string name="legend_overload_title">Sovraccarico</string>
+    <string name="legend_overload_desc">Troppe richieste in attesa. Quando l\'anello rosso finisce, la partita è persa.</string>
+    <string name="legend_too_narrow_title">Troppo stretto</string>
+    <string name="legend_too_narrow_desc">Nessuna strada ha banda sufficiente per questo servizio. Posa un cavo più largo.</string>
+    <string name="legend_ping_title">Troppo lento</string>
+    <string name="legend_ping_desc">La strada è troppo lunga per il ping del servizio. Collegalo più corto o con un cavo più veloce.</string>
 </resources>

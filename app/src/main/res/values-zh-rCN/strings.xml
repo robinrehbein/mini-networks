@@ -443,4 +443,24 @@
     <string name="reviewer_access_unlock">解锁</string>
     <string name="reviewer_access_enabled">已启用审核访问</string>
     <string name="reviewer_access_invalid">审核代码无效</string>
+    <string name="menu_legend">这是什么？</string>
+    <string name="legend_section_services">服务</string>
+    <string name="legend_section_devices">设备</string>
+    <string name="legend_section_network">你的网络</string>
+    <string name="legend_section_signs">标志</string>
+    <string name="legend_service_ping">带宽 %1$d · Ping 最多 %2$d ms</string>
+    <string name="legend_service_any">带宽 %1$d · Ping 不限</string>
+    <string name="legend_request_title">请求</string>
+    <string name="legend_request_desc">设备需要这项服务。请求在设备旁等待，直到有通往合适服务器的空闲线路。</string>
+    <string name="legend_response_title">响应</string>
+    <string name="legend_response_desc">白底彩边：从服务器返回设备，算作一个已送达的数据包。</string>
+    <string name="legend_server_title">服务器</string>
+    <string name="legend_server_desc">只提供一种服务：屋顶的招牌显示是哪种。点击升级。</string>
+    <string name="legend_cable_desc">带宽 %1$d · 每格 %2$s ms · 每格 %3$d</string>
+    <string name="legend_overload_title">过载</string>
+    <string name="legend_overload_desc">等待的请求太多。红环走完，游戏结束。</string>
+    <string name="legend_too_narrow_title">太窄</string>
+    <string name="legend_too_narrow_desc">没有一条线路的带宽够这项服务。铺一条更宽的电缆。</string>
+    <string name="legend_ping_title">太慢</string>
+    <string name="legend_ping_desc">线路太长，赶不上这项服务的 Ping。连得更短，或换更快的电缆。</string>
 </resources>

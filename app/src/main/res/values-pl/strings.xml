@@ -548,4 +548,24 @@
     <string name="reviewer_access_unlock">Odblokuj</string>
     <string name="reviewer_access_enabled">Dostęp dla recenzentów włączony</string>
     <string name="reviewer_access_invalid">Nieprawidłowy kod recenzenta</string>
+    <string name="menu_legend">Co jest czym?</string>
+    <string name="legend_section_services">Usługi</string>
+    <string name="legend_section_devices">Urządzenia</string>
+    <string name="legend_section_network">Twoja sieć</string>
+    <string name="legend_section_signs">Oznaczenia</string>
+    <string name="legend_service_ping">Przepustowość %1$d · ping maks. %2$d ms</string>
+    <string name="legend_service_any">Przepustowość %1$d · dowolny ping</string>
+    <string name="legend_request_title">Żądanie</string>
+    <string name="legend_request_desc">Urządzenie chce tej usługi. Żądanie czeka przy urządzeniu, aż droga do pasującego serwera będzie wolna.</string>
+    <string name="legend_response_title">Odpowiedź</string>
+    <string name="legend_response_desc">Biała z kolorowym brzegiem: wraca z serwera do urządzenia i liczy się jako dostarczony pakiet.</string>
+    <string name="legend_server_title">Serwer</string>
+    <string name="legend_server_desc">Dostarcza jedną usługę: szyld na dachu pokazuje którą. Stuknij, aby ulepszyć.</string>
+    <string name="legend_cable_desc">Przepustowość %1$d · %2$s ms na pole · %3$d za pole</string>
+    <string name="legend_overload_title">Przeciążenie</string>
+    <string name="legend_overload_desc">Czeka za dużo żądań. Gdy czerwony pierścień się skończy, gra się kończy.</string>
+    <string name="legend_too_narrow_title">Za wąsko</string>
+    <string name="legend_too_narrow_desc">Żadna droga nie ma dość przepustowości dla tej usługi. Połóż szerszy kabel.</string>
+    <string name="legend_ping_title">Za wolno</string>
+    <string name="legend_ping_desc">Droga jest za długa dla pingu usługi. Połącz krócej lub szybszym kablem.</string>
 </resources>

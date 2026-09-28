@@ -354,17 +354,11 @@ class IsoRenderer : Renderer {
         oval.set(cx - r * 1.1f, cy - r * 0.55f, cx + r * 1.1f, cy + r * 0.55f)
         fillP.color = 0x30000000; canvas.drawOval(oval, fillP)
         if (isResponse) {
-            // Responses: smaller, white with a thick outline in the service color.
-            val rr = r * 0.8f
-            fillP.color = 0xFFFFFFFF.toInt(); Shapes.draw(canvas, service.shape, gx, py, rr, fillP)
-            strokeP.color = ServiceColors.of(service); strokeP.strokeWidth = rr * 0.42f
-            Shapes.draw(canvas, service.shape, gx, py, rr, strokeP)
+            // Responses: smaller, white with the pictogram and a rim in the service color.
+            ServiceGlyphs.response(canvas, service, gx, py, r * 0.9f)
         } else {
-            // Requests: a filled token with a white sticker rim, so the shape stays readable on dark cables and grass.
-            strokeP.color = 0xFFFFFFFF.toInt(); strokeP.strokeWidth = r * 0.55f
-            Shapes.draw(canvas, service.shape, gx, py, r, strokeP)
-            fillP.color = ServiceColors.of(service)
-            Shapes.draw(canvas, service.shape, gx, py, r, fillP)
+            // Requests: a disc in the service color with the white pictogram and a white sticker rim.
+            ServiceGlyphs.token(canvas, service, gx, py, r)
         }
     }
 
@@ -1197,10 +1191,7 @@ class IsoRenderer : Renderer {
             val x = sx(c.x, c.y); val y = sy(c.x, c.y, 0.2f) - tw * (0.5f + 0.3f * t)
             val alpha = ((1f - t * t) * 255f).toInt().shl(24)
             val r = tw * 0.055f * (0.7f + 0.6f * sin(minOf(t * 3f, 1f) * PI.toFloat() / 2f))
-            fillP.color = ServiceColors.of(a.service) and 0xFFFFFF or alpha
-            Shapes.draw(canvas, a.service.shape, x, y, r, fillP)
-            strokeP.color = 0xFFFFFF or alpha; strokeP.strokeWidth = tw * 0.015f
-            Shapes.draw(canvas, a.service.shape, x, y, r, strokeP)
+            ServiceGlyphs.token(canvas, a.service, x, y, r * 1.15f, alpha = alpha ushr 24)
             // A little burst the moment it lands.
             val b = t / 0.45f
             if (b <= 1f) Juice.sparkles(canvas, path, x, y, b, tw * 0.2f, 0f, tw * 0.035f, ServiceColors.of(a.service), fillP, n = 5)
@@ -1348,11 +1339,11 @@ class IsoRenderer : Renderer {
                 val blink = sin(time * 2.4f + x * 1.3f + y) > 0f
                 fillP.color = if (blink) 0xFFFF4D5E.toInt() else 0xFFB33A46.toInt()
                 canvas.drawCircle(sx(mx, my), sy(mx, my, top + 0.38f), maxOf(1.5f, tw * 0.03f), fillP)
-                val badge = tw * 0.13f * badgePop(world, n)
-                strokeP.color = col.shade(-0.25f); strokeP.strokeWidth = badge * 0.3f
-                Shapes.draw(canvas, service.shape, sx(x, y), sy(x, y, top), badge, strokeP)
-                fillP.color = 0xFFFFFFFF.toInt()
-                Shapes.draw(canvas, service.shape, sx(x, y), sy(x, y, top), badge, fillP)
+                // The service's sign floats over the roof, like a shop sign: the same pictogram as its packets.
+                val badge = maxOf(tw * 0.17f, SIGN_MIN_DP * density) * badgePop(world, n)
+                val signY = sy(x, y, top) - badge * 0.9f
+                fillP.color = 0x30000000; canvas.drawCircle(sx(x, y) + badge * 0.12f, signY + badge * 0.18f, badge, fillP)
+                ServiceGlyphs.sign(canvas, service, sx(x, y), signY, badge, col.shade(-0.2f))
 
             }
             NodeKind.CLIENT -> {
@@ -1371,39 +1362,49 @@ class IsoRenderer : Renderer {
                 icons.depthX = 0.16f; icons.depthY = -0.16f
                 icons.device(canvas, d, bx, by - icon, icon)
                 canvas.restore()
-                // Waiting requests in a queue beside the device, on a white plate so they read as "this device wants
-                // service" and not as ground clutter; a red outline marks one that is stuck (ping, bandwidth).
+                // Waiting requests in a speech bubble centered over the device, its tail pointing down at it: it reads
+                // as "this device wants ..." and stays inside the device's own column instead of reaching into the
+                // neighbour's (playtest). A red outline marks one that is stuck (ping, bandwidth).
                 val r = maxOf(tw * 0.12f, REQUEST_MIN_DP * 1.56f * density)
-                val qx = sx(x, y) + maxOf(tw * 0.38f, icon * 1.6f)
-                val qy = sy(x, y, 0.2f) - icon * 2.2f
-                // One tidy row: up to [MAX_QUEUE] shapes, then a dark count badge for the rest, so neighbouring
-                // queues do not run into each other at phone size (judge panel).
+                // One tidy row: up to [MAX_QUEUE] tokens, then a dark count badge for the rest.
                 val total = n.pending.size
                 val count = minOf(total, MAX_QUEUE)
                 val slots = if (total > count) count + 1 else count
+                val step = r * 2.6f
+                val pad = r * 0.8f
+                val qy = sy(x, y, 0.2f) - icon * 2.2f - r - pad - r * 0.7f
+                val qx = sx(x, y) - (slots - 1) * step / 2f
                 if (slots > 0) {
-                    val pad = r * 0.8f
-                    oval.set(qx - r - pad, qy - r - pad, qx + (slots - 1) * r * 2.6f + r + pad, qy + r + pad)
+                    oval.set(qx - r - pad, qy - r - pad, qx + (slots - 1) * step + r + pad, qy + r + pad)
                     val corner = r + pad
-                    // A soft drop shadow and a thin darker rim lift the plate off the pale ground.
+                    val tip = r * 0.7f
+                    path.reset()
+                    path.moveTo(sx(x, y) - tip, oval.bottom - 1f)
+                    path.lineTo(sx(x, y), oval.bottom + tip)
+                    path.lineTo(sx(x, y) + tip, oval.bottom - 1f)
+                    path.close()
+                    // A soft drop shadow and a thin darker rim lift the bubble off the pale ground.
                     oval.offset(0f, r * 0.45f); fillP.color = 0x40000000; canvas.drawRoundRect(oval, corner, corner, fillP)
-                    oval.offset(0f, -r * 0.45f); fillP.color = 0xFAFFFFFF.toInt(); canvas.drawRoundRect(oval, corner, corner, fillP)
+                    oval.offset(0f, -r * 0.45f)
                     strokeP.color = PILL_RIM; strokeP.strokeWidth = maxOf(1f, r * 0.14f)
+                    canvas.drawPath(path, strokeP)
+                    fillP.color = 0xFAFFFFFF.toInt(); canvas.drawRoundRect(oval, corner, corner, fillP)
+                    fillP.color = 0xFFFFFFFF.toInt(); canvas.drawPath(path, fillP)
                     canvas.drawRoundRect(oval, corner, corner, strokeP)
+                    // The tail joins the bubble without a seam.
+                    fillP.color = 0xFFFFFFFF.toInt()
+                    canvas.drawRect(sx(x, y) - tip + strokeP.strokeWidth, oval.bottom - strokeP.strokeWidth * 1.5f, sx(x, y) + tip - strokeP.strokeWidth, oval.bottom + 1f, fillP)
                 }
                 var badge: RouteProblem? = null
                 for (i in 0 until count) {
                     val svc = n.pending[i]
-                    val px = qx + i * r * 2.6f
+                    val px = qx + i * step
                     // The same white sticker rim as the packets on the cables, so waiting and moving requests match.
-                    strokeP.color = 0xFFFFFFFF.toInt(); strokeP.strokeWidth = r * 0.5f
-                    Shapes.draw(canvas, svc.shape, px, qy, r, strokeP)
-                    fillP.color = ServiceColors.of(svc)
-                    Shapes.draw(canvas, svc.shape, px, qy, r, fillP)
+                    ServiceGlyphs.token(canvas, svc, px, qy, r, rim = false)
                     val problem = world.routeProblem(n, svc)
                     if (ProblemBadges.shows(problem)) {
                         strokeP.color = alarm; strokeP.strokeWidth = r * 0.3f
-                        Shapes.draw(canvas, svc.shape, px, qy, r * 1.4f, strokeP)
+                        canvas.drawCircle(px, qy, r * 1.3f, strokeP)
                         if (badge == null) badge = problem
                     }
                 }
@@ -1412,20 +1413,22 @@ class IsoRenderer : Renderer {
                         if (badge != null) break
                         world.routeProblem(n, n.pending[i]).takeIf { ProblemBadges.shows(it) }?.let { badge = it }
                     }
-                    val bx = qx + count * r * 2.6f
+                    val bx = qx + count * step
                     fillP.color = 0xFF3A4350.toInt()
                     canvas.drawCircle(bx, qy, r * 1.25f, fillP)
                     labelP.color = 0xFFFFFFFF.toInt(); labelP.textSize = r * (if (total - count > 9) 1.25f else 1.55f)
                     canvas.drawText("+${total - count}", bx, qy + labelP.textSize * 0.36f, labelP)
                 }
-                badge?.let { ProblemBadges.draw(canvas, it, sx(x, y) - icon * 1.4f, qy, r * 2.1f) }
+                // The problem badge hangs at the bubble's left end: what is wrong, next to what is waiting.
+                badge?.let { ProblemBadges.draw(canvas, it, qx - r - pad - r * 1.9f, qy, r * 1.6f) }
             }
             NodeKind.ROUTER -> {
                 val dark = world.isDark(n)
                 val warning = world.incidents.any { it.node === n && !it.struck }
-                box(canvas, x, y, 0.4f, 0.15f, if (dark) DARK_TOP else 0xFFF5F7F9.toInt(), if (dark) DARK_SIDE else 0xFFD9DEE3.toInt())
-                icons.router(canvas, sx(x, y), sy(x, y, 0.15f) - tw * 0.08f, tw * 0.17f, time, warning, dark)
-                if (dark || warning) powerBadge(canvas, sx(x, y), sy(x, y, 0.15f) - tw * 0.42f, dark, time)
+                // A slate-blue plinth sets routers apart from the white device plinths: they relay, they want nothing.
+                box(canvas, x, y, 0.5f, 0.2f, if (dark) DARK_TOP else ROUTER_TOP, if (dark) DARK_SIDE else ROUTER_SIDE)
+                icons.router(canvas, sx(x, y), sy(x, y, 0.2f) - tw * 0.1f, maxOf(tw * 0.22f, ICON_MIN_DP * density), time, warning, dark)
+                if (dark || warning) powerBadge(canvas, sx(x, y), sy(x, y, 0.2f) - tw * 0.48f, dark, time)
             }
             NodeKind.ACCESS_POINT -> {
                 val dark = world.isDark(n)
@@ -1663,11 +1666,11 @@ class IsoRenderer : Renderer {
             val p = order[k]
             box(canvas, c.x + ROOF_UNITS[2 * p], c.y + ROOF_UNITS[2 * p + 1], 0.42f, 0.16f, 0xFF5B6674.toInt(), 0xFFB9C2CC.toInt(), z0 = roof)
         }
-        val bx = sx(c.x + 0.2f, c.y + 0.25f); val by = sy(c.x + 0.2f, c.y + 0.25f, roof)
-        oval.set(bx - tw * 0.2f * pop, by - th * 0.2f * pop, bx + tw * 0.2f * pop, by + th * 0.2f * pop)
-        fillP.color = 0xFFFFFFFF.toInt(); canvas.drawOval(oval, fillP)
-        fillP.color = col
-        Shapes.draw(canvas, service.shape, bx, by - th * 0.04f, tw * 0.08f * pop, fillP)
+        // The same floating service sign as on a rack server, a size larger.
+        val badge = maxOf(tw * 0.24f, SIGN_MIN_DP * density) * pop
+        val bx = sx(c.x, c.y); val by = sy(c.x, c.y, roof) - badge * 1.1f
+        fillP.color = 0x30000000; canvas.drawCircle(bx + badge * 0.12f, by + badge * 0.18f, badge, fillP)
+        ServiceGlyphs.sign(canvas, service, bx, by, badge, col.shade(-0.2f))
     }
 
     /**
@@ -1781,6 +1784,12 @@ class IsoRenderer : Renderer {
         const val PILL_RIM = 0x4D262B33
         const val ICON_MIN_DP = 7f
         const val REQUEST_MIN_DP = 3.2f
+
+        /** Smallest radius of a server's service sign, so its pictogram stays readable when zoomed out. */
+        const val SIGN_MIN_DP = 9f
+
+        const val ROUTER_TOP = 0xFF5C7FA8.toInt()
+        const val ROUTER_SIDE = 0xFF3F5E85.toInt()
         const val RING_MIN_DP = 2.5f
         const val LABEL_MIN_DP = 13f
         /** Radius of an access point's channel badge never shrinks below this, so the number stays readable. */
