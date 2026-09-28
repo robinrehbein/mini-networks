@@ -2,6 +2,7 @@ package com.mininetworks.game.ui
 
 import android.annotation.SuppressLint
 import android.app.AlertDialog
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.graphics.Canvas
@@ -2489,10 +2490,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             MenuAction.SECOND_CHANCE -> askSecondChance()
             MenuAction.REMOVE_ADS -> monetization.purchase(Entitlements.REMOVE_ADS)
             MenuAction.PRIVACY -> monetization.showPrivacyOptions()
-            MenuAction.PRIVACY_POLICY -> context.startActivity(
-                Intent(Intent.ACTION_VIEW, Uri.parse("https://robinrehbein.github.io/mini-networks/privacy/"))
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-            )
+            MenuAction.PRIVACY_POLICY -> openPrivacyPolicy()
             MenuAction.REVIEW_ACCESS -> showReviewerAccessDialog()
             MenuAction.DAILY -> screen = Screen.DAILY
             MenuAction.DAILY_START -> startDaily(DailyChallenge.at(wallClock()))
@@ -2504,6 +2502,21 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             MenuAction.COLOR_THEME -> updateSettings(settings.copy(colorTheme = Cosmetics.next(Cosmetic.theme, Cosmetics.themes(tracker.unlocked))))
             MenuAction.LEADERBOARDS -> gameServices.showLeaderboards()
             MenuAction.SHARE -> shareNetwork()
+        }
+    }
+
+    /**
+     * Opens the privacy policy in a browser. On the main thread, as every activity start; without a browser (none
+     * installed, disabled, blocked by a work profile) nothing happens instead of the game thread crashing the app.
+     */
+    private fun openPrivacyPolicy() {
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(PRIVACY_POLICY_URL)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        mainThread.post {
+            try {
+                context.startActivity(intent)
+            } catch (e: ActivityNotFoundException) {
+                Log.w("GameView", "no app to open the privacy policy", e)
+            }
         }
     }
 
@@ -2564,6 +2577,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         if (merged.stats != tracker.stats) {
             tracker.replace(merged.stats)
             progressStore.saveStats(merged.stats)
+            // Cosmetics the merged stats unlock (docs/TOP100.md C5) take effect now, not after the next settings change.
+            applySettings(settings)
             tiles = emptyList()
             tilesFor = null
         }
@@ -3138,6 +3153,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         /** Screens of the main menu, which show the demo town beside them. */
         val MENU_SCREENS = setOf(Screen.MAIN_MENU, Screen.SCENERIES, Screen.DAILY, Screen.ACHIEVEMENTS)
         const val MILLIS_PER_DAY = 86_400_000L
+        const val PRIVACY_POLICY_URL = "https://robinrehbein.github.io/mini-networks/privacy/"
         /** Lower bound per loop iteration, in case posting a frame does not block on vsync. */
         const val MIN_FRAME_NANOS = 8_000_000L
         /** Longest animation step per frame, so animations do not jump after a stall. */

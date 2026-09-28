@@ -1,5 +1,6 @@
 package com.mininetworks.game.ui
 
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -12,9 +13,12 @@ import com.mininetworks.game.data.GameIo
 import com.mininetworks.game.data.HighscoreStore
 import com.mininetworks.game.data.ProgressStore
 import com.mininetworks.game.data.ReviewStore
+import com.mininetworks.game.data.GameSettings
 import com.mininetworks.game.data.SettingsStore
 import com.mininetworks.game.game.Achievements
+import com.mininetworks.game.game.CableSkin
 import com.mininetworks.game.game.CableType
+import com.mininetworks.game.game.ColorTheme
 import com.mininetworks.game.game.CloudProgress
 import com.mininetworks.game.game.DailyChallenge
 import com.mininetworks.game.game.DailyStreak
@@ -31,6 +35,7 @@ import com.mininetworks.game.game.Service
 import com.mininetworks.game.game.World
 import com.mininetworks.game.games.FakeGameServices
 import com.mininetworks.game.games.GamesIds
+import com.mininetworks.game.render.Cosmetic
 import com.mininetworks.game.review.ReviewPrompt
 import com.mininetworks.game.share.ShareCard
 import com.mininetworks.game.share.ShareSheet
@@ -48,6 +53,7 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import org.robolectric.shadows.ShadowLog
 import java.io.File
 
 /**
@@ -268,6 +274,58 @@ class PlayServicesFlowTest {
         view.advance(0f)
         assertEquals(9, HighscoreStore(app).best("island_harbor"))
         assertTrue(games.saved.isEmpty())
+    }
+
+    @Test
+    fun cosmeticsTheCloudSaveUnlocksTakeEffectAtOnce() {
+        SettingsStore(app).save(GameSettings(cableSkin = CableSkin.COPPER, colorTheme = ColorTheme.AUTUMN))
+        val games = FakeGameServices(cloud = CloudProgress(savedAt = 5, stats = PlayerStats(cablesLaid = 100, fiberLaid = 25, bestWeek = 10)))
+        try {
+            val view = newView(games)
+            assertEquals("not unlocked on this device yet", CableSkin.CLASSIC, Cosmetic.skin)
+            assertEquals(ColorTheme.MEADOW, Cosmetic.theme)
+            games.signInNow()
+            view.advance(0f)
+            assertEquals("unlocked by the merged cloud stats", CableSkin.COPPER, Cosmetic.skin)
+            assertEquals(ColorTheme.AUTUMN, Cosmetic.theme)
+        } finally {
+            Cosmetic.reset()
+        }
+    }
+
+    // ---------------------------------------------------------------- privacy policy (E1)
+
+    @Test
+    fun thePrivacyPolicyOpensInTheBrowserFromTheMainThread() {
+        val view = newView()
+        tap(view, MenuAction.SETTINGS)
+        tap(view, MenuAction.PRIVACY_POLICY)
+        assertNull("not started from the game thread", shadowOf(app).nextStartedActivity)
+        shadowOf(Looper.getMainLooper()).idle()
+        val started = shadowOf(app).nextStartedActivity ?: throw AssertionError("no browser was asked for")
+        assertEquals(Intent.ACTION_VIEW, started.action)
+        assertEquals(Uri.parse(GameView.PRIVACY_POLICY_URL), started.data)
+    }
+
+    @Test
+    fun withoutABrowserThePrivacyPolicyEntryDoesNotCrash() {
+        // No app handles the link (no browser, or browsers disabled by a work profile): startActivity throws.
+        shadowOf(app).checkActivities(true)
+        val uncaught = java.util.concurrent.atomic.AtomicReference<Throwable?>(null)
+        val before = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { _, e -> uncaught.set(e) }
+        try {
+            val view = newView()
+            tap(view, MenuAction.SETTINGS)
+            tap(view, MenuAction.PRIVACY_POLICY)
+            shadowOf(Looper.getMainLooper()).idle()
+            assertNull("nothing reached the uncaught-exception handler", uncaught.get())
+            assertTrue("the missing browser was caught", ShadowLog.getLogsForTag("GameView").any { it.throwable is ActivityNotFoundException })
+            assertEquals("the settings stay open", Screen.SETTINGS, view.currentScreen)
+        } finally {
+            Thread.setDefaultUncaughtExceptionHandler(before)
+            shadowOf(app).checkActivities(false)
+        }
     }
 
     // ---------------------------------------------------------------- rating (D1)

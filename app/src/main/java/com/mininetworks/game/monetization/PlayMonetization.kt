@@ -39,7 +39,8 @@ import kotlin.concurrent.thread
 class PlayMonetization(private val activity: Activity, private val ageBand: AgeGate.Band) : Monetization {
     private val main = Handler(Looper.getMainLooper())
     private val reviewerPrefs by lazy { activity.getSharedPreferences("reviewer_access", Activity.MODE_PRIVATE) }
-    @Volatile private var reviewerAccess = reviewerPrefs.getBoolean("unlocked", false)
+    // Read on the GameIo thread in [start] (disk work, docs/TOP100.md A3), before consent and ads start; false until then.
+    @Volatile private var reviewerAccess = false
     val reviewerAccessAvailable get() = BuildConfig.REVIEW_ACCESS_CODE.isNotEmpty() && !reviewerAccess
 
     fun unlockReviewerAccess(code: String): Boolean {
@@ -95,6 +96,7 @@ class PlayMonetization(private val activity: Activity, private val ageBand: AgeG
         }
         MobileAds.setRequestConfiguration(configuration.build())
         GameIo.execute {
+            if (!closed && reviewerPrefs.getBoolean("unlocked", false)) reviewerAccess = true
             if (!closed) {
                 val p = Purchases(PlayBillingGateway(activity), store)
                 p.onOwnedChanged = ::ownedChanged

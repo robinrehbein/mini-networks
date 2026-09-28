@@ -56,4 +56,4 @@ réseau, câbles, stratégie, puzzle, jeu de construction, ville, routeur, Wi-Fi
 8. Cinq décors
 
 Bilder: nicht eingecheckt; erzeugen mit `ROBOLECTRIC_DEPS_DIR=/opt/robolectric ./gradlew testDebugUnitTest --tests '*StoreScreenshotTest*' -Pstore.locales=fr` (landet in `docs/store/screenshots/<gerät>/fr/`). Bis dahin zeigt Play die englischen bzw. deutschen Bilder.
-Feature-Grafik: `docs/store/feature-graphic/fr.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=fr`); bis dahin die wortlose `docs/store/feature-graphic.png`
+Feature-Grafik: `docs/store/feature-graphic/fr.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=fr`); bis dahin die Standardgrafik `docs/store/feature-graphic.png`, die die englische Tagline „Wire your town – from dial-up to fiber“ trägt

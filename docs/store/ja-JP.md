@@ -56,4 +56,4 @@ Mini Networksは基本無料です。ゲームとゲームの間にときどき�
 8. 5つのステージ
 
 Bilder: nicht eingecheckt; erzeugen mit `ROBOLECTRIC_DEPS_DIR=/opt/robolectric ./gradlew testDebugUnitTest --tests '*StoreScreenshotTest*' -Pstore.locales=ja` (landet in `docs/store/screenshots/<gerät>/ja/`). Bis dahin zeigt Play die englischen bzw. deutschen Bilder.
-Feature-Grafik: `docs/store/feature-graphic/ja.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=ja`); bis dahin die wortlose `docs/store/feature-graphic.png`
+Feature-Grafik: `docs/store/feature-graphic/ja.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=ja`); bis dahin die Standardgrafik `docs/store/feature-graphic.png`, die die englische Tagline „Wire your town – from dial-up to fiber“ trägt

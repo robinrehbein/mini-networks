@@ -56,4 +56,4 @@ Mini Networks 可免费游玩。两局之间偶尔会出现广告，游戏过程
 8. 五个场景
 
 Bilder: nicht eingecheckt; erzeugen mit `ROBOLECTRIC_DEPS_DIR=/opt/robolectric ./gradlew testDebugUnitTest --tests '*StoreScreenshotTest*' -Pstore.locales=zh-rCN` (landet in `docs/store/screenshots/<gerät>/zh-rCN/`). Bis dahin zeigt Play die englischen bzw. deutschen Bilder.
-Feature-Grafik: `docs/store/feature-graphic/zh-rCN.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=zh-rCN`); bis dahin die wortlose `docs/store/feature-graphic.png`
+Feature-Grafik: `docs/store/feature-graphic/zh-rCN.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=zh-rCN`); bis dahin die Standardgrafik `docs/store/feature-graphic.png`, die die englische Tagline „Wire your town – from dial-up to fiber“ trägt

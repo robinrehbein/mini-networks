@@ -56,4 +56,4 @@ rede, cabos, estratégia, quebra-cabeça, construção, cidade, roteador, Wi-Fi,
 8. Cinco cenários
 
 Bilder: nicht eingecheckt; erzeugen mit `ROBOLECTRIC_DEPS_DIR=/opt/robolectric ./gradlew testDebugUnitTest --tests '*StoreScreenshotTest*' -Pstore.locales=pt-rBR` (landet in `docs/store/screenshots/<gerät>/pt-rBR/`). Bis dahin zeigt Play die englischen bzw. deutschen Bilder.
-Feature-Grafik: `docs/store/feature-graphic/pt-rBR.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=pt-rBR`); bis dahin die wortlose `docs/store/feature-graphic.png`
+Feature-Grafik: `docs/store/feature-graphic/pt-rBR.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=pt-rBR`); bis dahin die Standardgrafik `docs/store/feature-graphic.png`, die die englische Tagline „Wire your town – from dial-up to fiber“ trägt

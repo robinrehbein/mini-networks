@@ -56,4 +56,4 @@ network, cables, strategy, puzzle, city builder, town, router, Wi-Fi, fiber, int
 8. Five sceneries
 
 Bilder: `docs/store/screenshots/{phone,phone-portrait,tablet-7,tablet-10}/en/01…08-*.png`
-Feature-Grafik: `docs/store/feature-graphic/en.png` (mit Tagline dieser Sprache); ohne Worte außer dem Namen: `docs/store/feature-graphic.png`
+Feature-Grafik: `docs/store/feature-graphic/en.png` (mit Tagline dieser Sprache); gleichwertig `docs/store/feature-graphic.png`: die Standardgrafik trägt ebenfalls die englische Tagline „Wire your town – from dial-up to fiber“ (nicht wortlos). Sie ist der Rückfall für Einträge ohne eigene Grafik; alle anderen Sprachen bekommen `docs/store/feature-graphic/<sprache>.png`

@@ -56,4 +56,4 @@ rete, cavi, strategia, puzzle, gestionale, città, router, Wi-Fi, fibra, interne
 8. Cinque scenari
 
 Bilder: nicht eingecheckt; erzeugen mit `ROBOLECTRIC_DEPS_DIR=/opt/robolectric ./gradlew testDebugUnitTest --tests '*StoreScreenshotTest*' -Pstore.locales=it` (landet in `docs/store/screenshots/<gerät>/it/`). Bis dahin zeigt Play die englischen bzw. deutschen Bilder.
-Feature-Grafik: `docs/store/feature-graphic/it.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=it`); bis dahin die wortlose `docs/store/feature-graphic.png`
+Feature-Grafik: `docs/store/feature-graphic/it.png` (mit Tagline dieser Sprache, erzeugen mit `-Pstore.locales=it`); bis dahin die Standardgrafik `docs/store/feature-graphic.png`, die die englische Tagline „Wire your town – from dial-up to fiber“ trägt

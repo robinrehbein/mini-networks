@@ -1,5 +1,6 @@
 package com.mininetworks.game.ui
 
+import android.app.Activity
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.os.Bundle
@@ -11,6 +12,8 @@ import com.mininetworks.game.data.SaveStore
 import com.mininetworks.game.data.SettingsStore
 import com.mininetworks.game.game.Scenarios
 import com.mininetworks.game.game.World
+import com.mininetworks.game.monetization.AgeGate
+import com.mininetworks.game.monetization.PlayMonetization
 import com.mininetworks.game.ui.menu.Screen
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -20,6 +23,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
@@ -132,6 +136,23 @@ class MainThreadIoTest {
         assertNotEquals(StrictMode.VmPolicy.LAX.toString(), StrictMode.getVmPolicy().toString())
         StrictMode.setThreadPolicy(StrictMode.ThreadPolicy.LAX)
         StrictMode.setVmPolicy(StrictMode.VmPolicy.LAX)
+    }
+
+    @Test
+    fun playMonetizationReadsTheReviewerAccessOnTheIoThread() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        activity.getSharedPreferences("reviewer_access", Activity.MODE_PRIVATE).edit().putBoolean("unlocked", true).commit()
+        closeGate()
+        lateinit var play: PlayMonetization
+        val took = millis {
+            play = PlayMonetization(activity, AgeGate.Band.ADULT)
+            play.start()
+        }
+        assertTrue("creating and starting waited $took ms for the disk", took < QUICK_MS)
+        assertFalse("not read on the UI thread", play.adsRemoved)
+        openGate()
+        assertTrue("read on the I/O thread in start()", play.adsRemoved)
+        play.close()
     }
 
     private companion object {
