@@ -113,6 +113,11 @@
     <string name="settings_haptics">Vibrazione</string>
     <string name="settings_overview">Vista piatta</string>
     <string name="settings_free_rotation">Rotazione libera</string>
+    <!-- Camera controls -->
+    <string name="a11y_rotate_left">Ruota la mappa in senso antiorario</string>
+    <string name="a11y_rotate_right">Ruota la mappa in senso orario</string>
+    <string name="a11y_tilt_low">Vista più bassa, più di lato</string>
+    <string name="a11y_tilt_high">Vista più ripida, più dall’alto</string>
     <string name="settings_colorblind">Daltonismo</string>
     <string name="settings_language">La lingua segue quella del sistema</string>
 

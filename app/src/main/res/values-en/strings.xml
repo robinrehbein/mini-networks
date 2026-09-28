@@ -110,6 +110,11 @@
     <string name="settings_haptics">Haptics</string>
     <string name="settings_overview">Flat overview</string>
     <string name="settings_free_rotation">Free rotation</string>
+    <!-- Camera controls -->
+    <string name="a11y_rotate_left">Turn the map counterclockwise</string>
+    <string name="a11y_rotate_right">Turn the map clockwise</string>
+    <string name="a11y_tilt_low">Lower view, more from the side</string>
+    <string name="a11y_tilt_high">Steeper view, more from above</string>
     <string name="settings_colorblind">Colorblind aid</string>
     <string name="settings_language">The language follows your system language</string>
 

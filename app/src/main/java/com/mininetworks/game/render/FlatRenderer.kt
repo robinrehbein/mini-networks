@@ -69,8 +69,11 @@ class FlatRenderer : Renderer {
     private var riverReady = false
     private val river = ArrayList<Vec2>()
 
-    /** Room for icons above the cells and request queues to the right of them (flat map units are turned cells). */
-    override fun mapBounds(area: CellRect, angle: Float) = turnedBounds(area, angle, MapProjection.Identity, 0.3f, 0.6f, 0.9f, 0.3f)
+    /**
+     * Room for icons above the cells and request queues to the right of them (flat map units are turned cells). The
+     * overview has no height, so the pitch [tilt] does not change it.
+     */
+    override fun mapBounds(area: CellRect, angle: Float, tilt: Float) = turnedBounds(area, angle, MapProjection.Identity, 0.3f, 0.6f, 0.9f, 0.3f)
 
     /** The camera focus turned back into world axes, so [gx] and [gy] draw world-aligned under [turnCanvas]. */
     private var groundFocusX = 0f

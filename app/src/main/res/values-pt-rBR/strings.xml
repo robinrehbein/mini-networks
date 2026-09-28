@@ -113,6 +113,11 @@
     <string name="settings_haptics">Vibração</string>
     <string name="settings_overview">Visão plana</string>
     <string name="settings_free_rotation">Giro livre</string>
+    <!-- Camera controls -->
+    <string name="a11y_rotate_left">Girar o mapa no sentido anti-horário</string>
+    <string name="a11y_rotate_right">Girar o mapa no sentido horário</string>
+    <string name="a11y_tilt_low">Vista mais baixa, mais de lado</string>
+    <string name="a11y_tilt_high">Vista mais inclinada, mais de cima</string>
     <string name="settings_colorblind">Modo daltônico</string>
     <string name="settings_language">O idioma segue o do sistema</string>
 

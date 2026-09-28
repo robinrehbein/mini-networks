@@ -116,6 +116,11 @@
     <string name="settings_haptics">Wibracje</string>
     <string name="settings_overview">Widok płaski</string>
     <string name="settings_free_rotation">Swobodny obrót</string>
+    <!-- Camera controls -->
+    <string name="a11y_rotate_left">Obróć mapę przeciwnie do ruchu wskazówek zegara</string>
+    <string name="a11y_rotate_right">Obróć mapę zgodnie z ruchem wskazówek zegara</string>
+    <string name="a11y_tilt_low">Niższy widok, bardziej z boku</string>
+    <string name="a11y_tilt_high">Bardziej stromy widok, bardziej z góry</string>
     <string name="settings_colorblind">Tryb dla daltonistów</string>
     <string name="settings_language">Język zgodny z językiem systemu</string>
 

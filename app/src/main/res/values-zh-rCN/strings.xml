@@ -107,6 +107,11 @@
     <string name="settings_haptics">振动</string>
     <string name="settings_overview">平面视图</string>
     <string name="settings_free_rotation">自由旋转</string>
+    <!-- Camera controls -->
+    <string name="a11y_rotate_left">逆时针旋转地图</string>
+    <string name="a11y_rotate_right">顺时针旋转地图</string>
+    <string name="a11y_tilt_low">更低的视角(更多从侧面看)</string>
+    <string name="a11y_tilt_high">更高的视角(更多从上方看)</string>
     <string name="settings_colorblind">色盲辅助</string>
     <string name="settings_language">语言跟随系统设置</string>
 

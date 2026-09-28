@@ -72,9 +72,10 @@ interface Renderer {
 
     /**
      * Map-space box that shows [area] with everything drawn on it (buildings, queues, board edge) when the world is
-     * turned by [angle] degrees: the box around the turned area plus room for what stands up from it.
+     * turned by [angle] degrees and seen at pitch [tilt] ([Camera.tilt]; a style without height ignores it): the box
+     * around the turned area plus room for what stands up from it.
      */
-    fun mapBounds(area: CellRect, angle: Float = camera.angle): MapRect
+    fun mapBounds(area: CellRect, angle: Float = camera.angle, tilt: Float = camera.tilt): MapRect
 
     /** World units -> screen pixels, on the ground plane. */
     fun toScreen(p: Vec2): Vec2 = camera.worldToScreen(p)
@@ -91,11 +92,25 @@ interface Renderer {
         updateLimits(world)
     }
 
-    /** Advances the camera's animations by [dt] seconds, renewing the pan limit while the angle changes. */
+    /** True if this style has height, so the camera's pitch ([Camera.tilt]) changes its picture; the flat overview has none. */
+    val tilts: Boolean get() = false
+
+    /**
+     * Tilts the view by [degrees] of pitch around the screen point ([pivotX], [pivotY]) and renews the pan limit, which
+     * depends on the pitch; nothing happens in a style without height ([tilts]).
+     */
+    fun tiltBy(degrees: Float, pivotX: Float, pivotY: Float, world: World) {
+        if (!tilts) return
+        camera.tiltBy(degrees, pivotX, pivotY)
+        updateLimits(world)
+    }
+
+    /** Advances the camera's animations by [dt] seconds, renewing the pan limit while the angle or the pitch changes. */
     fun stepCamera(dt: Float, world: World) {
         val before = camera.angle
+        val pitch = camera.tilt
         camera.step(dt)
-        if (camera.angle != before) updateLimits(world)
+        if (camera.angle != before || camera.tilt != pitch) updateLimits(world)
     }
 
     /** Sets the view size and fits the camera to the world's unlocked area. */
@@ -185,13 +200,17 @@ interface Renderer {
 
     /**
      * Zoom range: out to the whole grid (and a bit more) at any angle, in until about [ZOOM_IN_COLS] × [ZOOM_IN_ROWS]
-     * cells fill the view. The range does not depend on the current angle, so turning the map never zooms it. The
-     * screen centre stays over the grid as it is turned now.
+     * cells fill the view. The range does not depend on the current angle, so turning the map never zooms it; at the
+     * classic pitch and flatter it does not depend on the pitch either, and a steeper view (a taller map) may zoom out
+     * further, so the whole grid still fits. The screen centre stays over the grid as it is turned and tilted now.
      */
     fun updateLimits(world: World) {
         var out = Float.MAX_VALUE
-        for (a in LIMIT_ANGLES) out = minOf(out, camera.fitScale(mapBounds(world.bounds, a)), camera.fitScale(mapBounds(world.unlocked, a)))
-        camera.setZoomRange(out * ZOOM_OUT_SLACK, camera.fitScale(mapBounds(CellRect(0, 0, ZOOM_IN_COLS, ZOOM_IN_ROWS), 0f)))
+        val pitch = maxOf(camera.tilt, Camera.DEFAULT_TILT)
+        for (a in LIMIT_ANGLES) {
+            out = minOf(out, camera.fitScale(mapBounds(world.bounds, a, pitch)), camera.fitScale(mapBounds(world.unlocked, a, pitch)))
+        }
+        camera.setZoomRange(out * ZOOM_OUT_SLACK, camera.fitScale(mapBounds(CellRect(0, 0, ZOOM_IN_COLS, ZOOM_IN_ROWS), 0f, Camera.DEFAULT_TILT)))
         camera.panBounds = mapBounds(world.bounds)
     }
 
@@ -314,6 +333,7 @@ fun turnedBounds(area: CellRect, angle: Float, projection: MapProjection, left: 
     val r = Math.toRadians(angle.toDouble())
     var c = cos(r).toFloat(); var s = sin(r).toFloat()
     if (angle % 90f == 0f) { c = kotlin.math.round(c); s = kotlin.math.round(s) }
+    else if (angle % 45f == 0f) { c = kotlin.math.sign(c) * 0.70710677f; s = kotlin.math.sign(s) * 0.70710677f }
     var l = Float.MAX_VALUE; var t = Float.MAX_VALUE; var rr = -Float.MAX_VALUE; var b = -Float.MAX_VALUE
     for (k in 0 until 4) {
         val x = (if (k == 1 || k == 2) area.right else area.left).toFloat()

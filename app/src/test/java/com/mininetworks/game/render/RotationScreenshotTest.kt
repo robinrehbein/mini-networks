@@ -15,7 +15,6 @@ import com.mininetworks.game.game.World
 import com.mininetworks.game.ui.GameView
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -30,8 +29,10 @@ import kotlin.math.abs
 /**
  * docs/TOP100.md B5: the turned map, rendered with Robolectric's native graphics into docs/screenshots/rotation/.
  * One busy scene (river, decorations, houses, every node kind, a data center, cables of every type, packets, a WLAN
- * radius, an excavator and a power outage) in the game frame with its HUD at 0°, 90°, 180°, 270° and 37°, the flat
- * overview at 37°, and the mountain village and the metropolis (relief and towers) at 37° and 200°.
+ * radius, an excavator and a power outage) in the game frame with its HUD at 0°, 90°, 180°, 270°, the side-on views at
+ * 45° and 135° and at 37°, the flat overview at 37°, and the mountain village and the metropolis (relief and towers) at
+ * 37° and 200°. The camera's pitch: the busy scene low and steep (tilt-low-iso, tilt-steep-iso) and low from a side,
+ * and the metropolis low and steep, each also from the ground cache.
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -82,18 +83,17 @@ class RotationScreenshotTest {
     }
 
     @Test
-    fun gameFrameAtFourRightAnglesAndAtAnOddOne() {
+    fun gameFrameAtFourCornersTwoSidesAndAnOddAngle() {
         val world = scene()
         val view = GameView(RuntimeEnvironment.getApplication())
         val bmp = Bitmap.createBitmap(2400, 1080, Bitmap.Config.ARGB_8888)
         view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 1.3f, style = "Iso")
-        assertNull("no compass while facing north", view.hudTarget("compass"))
         val r = view.activeRenderer
-        for (angle in listOf(0f, 90f, 180f, 270f, 37f)) {
+        for (angle in listOf(0f, 90f, 180f, 270f, 45f, 135f, 37f)) {
             r.rotateBy(Camera.shortestTurn(r.camera.angle, angle), r.camera.centerX, r.camera.centerY, world)
             val canvas = Canvas(bmp)
             view.drawCurrent(canvas)
-            if (angle != 0f) assertNotNull("compass at $angle°", view.hudTarget("compass"))
+            for (id in VIEW_CONTROLS) assertNotNull("$id at $angle°", view.hudTarget(id))
             save(bmp, "iso-%03d.png".format(Locale.ROOT, angle.toInt()))
         }
         val flat = FlatRenderer()
@@ -106,7 +106,49 @@ class RotationScreenshotTest {
         }
     }
 
-    /** Relief (mountains with snow, downtown towers) and the ground cache at an odd angle. */
+    /**
+     * The camera's pitch in the game frame: the busy scene at the low and the steep end of the range from the classic
+     * corner, and low from a side-on view.
+     */
+    @Test
+    fun gameFrameLowAndSteep() {
+        val world = scene()
+        val view = GameView(RuntimeEnvironment.getApplication())
+        val bmp = Bitmap.createBitmap(2400, 1080, Bitmap.Config.ARGB_8888)
+        view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 1.3f, style = "Iso")
+        val r = view.activeRenderer
+        for ((name, angle, pitch) in listOf(
+            Triple("tilt-low-iso", 0f, Camera.TILT_MIN), Triple("tilt-steep-iso", 0f, Camera.TILT_MAX),
+            Triple("tilt-low-side-iso", 45f, Camera.TILT_MIN),
+        )) {
+            r.rotateBy(Camera.shortestTurn(r.camera.angle, angle), r.camera.centerX, r.camera.centerY, world)
+            r.tiltBy(pitch - r.camera.tilt, r.camera.centerX, r.camera.centerY, world)
+            assertEquals(pitch, r.camera.tilt, 0f)
+            // Twice, as a still frame after the change looks (from the ground cache and the packet sprites, which
+            // IsoGroundCacheTest and IsoRenderCacheTest compare with direct drawing).
+            view.drawCurrent(Canvas(bmp))
+            view.drawCurrent(Canvas(bmp))
+            save(bmp, "$name.png")
+        }
+    }
+
+    /** A portrait phone, side-on and a step steeper: the view controls take a row per pill below the counters. */
+    @Test
+    fun portraitSideOn() {
+        val world = scene()
+        val view = GameView(RuntimeEnvironment.getApplication())
+        val bmp = Bitmap.createBitmap(1080, 2400, Bitmap.Config.ARGB_8888)
+        view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 1.3f, style = "Iso")
+        val r = view.activeRenderer
+        r.rotateBy(135f, r.camera.centerX, r.camera.centerY, world)
+        r.tiltBy(Camera.TILT_STEP, r.camera.centerX, r.camera.centerY, world)
+        view.drawCurrent(Canvas(bmp))
+        view.drawCurrent(Canvas(bmp))
+        for (id in VIEW_CONTROLS) assertNotNull(id, view.hudTarget(id))
+        save(bmp, "portrait-side-iso.png")
+    }
+
+    /** Relief (mountains with snow, downtown towers) and the ground cache at odd angles; the metropolis low and steep. */
     @Test
     fun reliefAtOddAngles() {
         for (s in listOf(Scenarios.MOUNTAIN_VILLAGE, Scenarios.METROPOLIS)) {
@@ -127,6 +169,14 @@ class RotationScreenshotTest {
                 assertEquals("${s.id} at $angle°: the cached ground matches", 0, differingPixels(direct, bmp))
                 save(bmp, "${s.id}-%03d.png".format(Locale.ROOT, angle.toInt()))
             }
+            if (s != Scenarios.METROPOLIS) continue
+            r.rotateBy(-r.camera.angle, 800f, 450f, world)
+            for ((name, pitch) in listOf("low" to Camera.TILT_MIN, "steep" to Camera.TILT_MAX)) {
+                r.tiltBy(pitch - r.camera.tilt, 800f, 450f, world)
+                r.draw(Canvas(bmp), world, drag = null, time = 1.3f)
+                r.draw(Canvas(bmp), world, drag = null, time = 1.3f)
+                save(bmp, "${s.id}-tilt-$name.png")
+            }
         }
     }
 
@@ -137,6 +187,11 @@ class RotationScreenshotTest {
             if (abs((p shr 16 and 0xFF) - (q shr 16 and 0xFF)) > 8 || abs((p shr 8 and 0xFF) - (q shr 8 and 0xFF)) > 8 || abs((p and 0xFF) - (q and 0xFF)) > 8) n++
         }
         return n
+    }
+
+    private companion object {
+        /** The HUD's view controls, shown at every angle. */
+        val VIEW_CONTROLS = listOf("rotate:left", "compass", "rotate:right", "tilt:low", "tilt:high")
     }
 
     private fun wiredStart(s: Scenario): World {

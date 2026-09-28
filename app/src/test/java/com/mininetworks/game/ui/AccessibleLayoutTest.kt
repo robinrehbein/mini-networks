@@ -61,11 +61,11 @@ class AccessibleLayoutTest {
     fun hudTargetsAreLargeAndApartInEveryFormat() = everywhere { size, view, bmp ->
         view.drawSnapshot(Canvas(bmp), FormFactorScreenshotTest.busyHud(), bmp.width, bmp.height, time = 1.3f, style = "Iso")
         val nodes = view.accessibilityLayer.nodes.filter { it.key != "hud:map" }
-        // Menu, pause, router, two radios, four cable types.
-        check(size, "hud", nodes, expectedActions = 9)
+        // Menu, pause, router, two radios, four cable types, and the view controls: turn both ways, compass, tilt both ways.
+        check(size, "hud", nodes, expectedActions = 14)
     }
 
-    /** docs/TOP100.md B5: with the map turned, the compass joins the HUD below the counters without overlapping. */
+    /** docs/TOP100.md B5: with the map turned, the view controls below the counters stay apart from everything else. */
     @Test
     fun hudWithCompassStaysApartInEveryFormat() = everywhere { size, view, bmp ->
         val world = FormFactorScreenshotTest.busyHud()
@@ -75,7 +75,7 @@ class AccessibleLayoutTest {
         view.drawCurrent(Canvas(bmp))
         val nodes = view.accessibilityLayer.nodes.filter { it.key != "hud:map" }
         assertTrue("${size}: compass shown", nodes.any { it.key == "hud:compass" })
-        check(size, "hud-compass", nodes, expectedActions = 10)
+        check(size, "hud-compass", nodes, expectedActions = 14)
     }
 
     @Test
@@ -90,7 +90,7 @@ class AccessibleLayoutTest {
         val nodes = view.accessibilityLayer.nodes.filter { it.key != "hud:map" }
         assertTrue("${size}: paused banner shown", nodes.any { it.key == "hud:paused" })
         assertTrue("${size}: hint shown", nodes.any { it.key == "hud:hint" })
-        check(size, "hud-paused", nodes, expectedActions = 9)
+        check(size, "hud-paused", nodes, expectedActions = 9 + viewControls(size, nodes))
     }
 
     @Test
@@ -280,12 +280,13 @@ class AccessibleLayoutTest {
                 val where = "$lang, $size"
                 val world = FormFactorScreenshotTest.busyHud()
                 view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 1.3f, style = "Iso")
-                check(where, "hud", view.accessibilityLayer.nodes.filter { it.key != "hud:map" }, expectedActions = 9)
+                check(where, "hud", view.accessibilityLayer.nodes.filter { it.key != "hud:map" }, expectedActions = 14)
                 view.accessibilityLayer.performAction(view.accessibilityLayer.idOf("hud:pause"), android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK, null)
                 view.accessibilityLayer.performAction(view.accessibilityLayer.idOf("hud:cable:FIBER"), android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK, null)
                 view.advance(0f)
                 view.drawCurrent(Canvas(bmp))
-                check(where, "hud-paused", view.accessibilityLayer.nodes.filter { it.key != "hud:map" }, expectedActions = 9)
+                val paused = view.accessibilityLayer.nodes.filter { it.key != "hud:map" }
+                check(where, "hud-paused", paused, expectedActions = 9 + viewControls(where, paused))
                 val reward = GameView(app).also { it.accessibilityLayer.forceActive = true; it.monetization = FakeMonetization(owned = mutableSetOf(Entitlements.REMOVE_ADS)) }
                 bmp.eraseColor(0)
                 reward.drawSnapshot(Canvas(bmp), FormFactorScreenshotTest.rewardWorld(), bmp.width, bmp.height, time = 1.3f, style = "Iso")
@@ -334,6 +335,18 @@ class AccessibleLayoutTest {
         const val MIN_REASON_SP = 12f
         /** Smallest label size of the game-over card's entries, in sp at font scale 1. */
         const val MIN_ENTRY_SP = 14f
+    }
+
+    /**
+     * The HUD's five view controls (turn both ways, compass, tilt both ways) among [nodes]: all of them, or none where a
+     * low window with large text has no room for them beside a hint, and they step aside while it shows.
+     */
+    private fun viewControls(size: String, nodes: List<UiNode>): Int {
+        val keys = listOf("hud:rotate:left", "hud:compass", "hud:rotate:right", "hud:tilt:low", "hud:tilt:high")
+        val shown = nodes.count { it.key in keys }
+        assertTrue("$size: all view controls or none, got $shown", shown == 0 || shown == keys.size)
+        if (shown == 0) assertTrue("$size: only a low window steps them aside", screen.height() < 1100f && screen.width() > screen.height())
+        return shown
     }
 
     private fun check(size: String, what: String, nodes: List<UiNode>, expectedActions: Int, offScreenOk: (String) -> Boolean = { false }) {

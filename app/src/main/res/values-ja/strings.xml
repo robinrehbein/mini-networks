@@ -107,6 +107,11 @@
     <string name="settings_haptics">振動</string>
     <string name="settings_overview">フラット表示</string>
     <string name="settings_free_rotation">自由回転</string>
+    <!-- Camera controls -->
+    <string name="a11y_rotate_left">地図を反時計回りに回す</string>
+    <string name="a11y_rotate_right">地図を時計回りに回す</string>
+    <string name="a11y_tilt_low">低い視点(より横から)</string>
+    <string name="a11y_tilt_high">高い視点(より上から)</string>
     <string name="settings_colorblind">色覚サポート</string>
     <string name="settings_language">言語は端末の設定に従います</string>
 
