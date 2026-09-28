@@ -28,28 +28,29 @@ Play Games optional, Werbung nur zwischen Partien, „Werbefrei“ und Szenerien
   `tablet-7` (1920 × 1080, xhdpi, 960 × 540 dp) und `tablet-10` (2560 × 1440, xhdpi); 16:9 und 24-Bit-PNG ohne Alpha,
   wie Play es für Telefone und Tablets verlangt (1080–7680 px je Seite). Eingecheckt: Deutsch und Englisch; weitere
   Sprachen mit `-Pstore.locales=fr,es,it,pt-rBR,pl,nl,tr,ja,ko,zh-rCN`.
-- `feature-graphic.png`: 1024 × 500, 24-Bit-PNG, nichts Wichtiges in den äußeren 10 %: über die ganze Breite die Ära
-  des Spiels, eine belebte Kleinstadt (Wiese, ein Gerät in Überlast) geht an einer diagonalen Glasfaser-Naht in die
-  dichte Stadt 2030 über, beide echte Karten spät im Spiel, mit den Jahres-Schildern „1995“ und „2030“; links auf
-  einer ruhigen, festen Markenfläche mit eigener Diagonale App-Icon, Name in Nunito Black und die englische Tagline
-  „Wire your town – from dial-up to fiber“; die Naht zu 2030 ist eine kräftige, leuchtende Glasfaser-Linie, die
-  Jahres-Schilder stehen beiderseits der Naht. `feature-graphic/<sprache>.png`:
-  dieselbe Grafik mit der Tagline der Sprache (en: „Wire your town – from dial-up to fiber“), für jede erzeugte
-  Sprache; in der Play Console je Sprache hochladen.
+- `feature-graphic.png`: 1024 × 500, 24-Bit-PNG, nichts Wichtiges in den äußeren 10 %: ein einziges starkes Bild,
+  die Stadt 2030 bei Nacht spät im Spiel (echte Karte), eng auf die Skyline mit Rechenzentren und leuchtenden
+  Glasfaser-Leitungen rechts gerahmt; links geht der Nachthimmel in ein ruhiges Indigo über, darauf App-Icon, Name in
+  Nunito Black und die Tagline in Glasfaser-Orange („Wire your town – from dial-up to fiber“).
+  `feature-graphic/<sprache>.png`: dieselbe Grafik mit der Tagline der Sprache, für jede erzeugte Sprache; in der Play
+  Console je Sprache hochladen.
 - Vor dem Start (docs/RELEASE.md 4): die übrigen 10 Sprachen mit `-Pstore.locales=fr,es,it,pt-rBR,pl,nl,tr,ja,ko,zh-rCN`
   erzeugen und je Eintrag hochladen; sonst zeigt Play dort die Standardbilder mit deutscher bzw. englischer
   Beschriftung. Nicht eingecheckt, weil jeder Satz rund 8 MB PNG ist (zehn Sprachen ≈ 80 MB bei jedem Neuerzeugen).
-- Eine Vorlage für alle Bilder, je Motiv eigene Tönung: das Spiel randlos, die kurze Überschrift (Nunito Black) mit
-  einem kurzen Akzentstrich auf einem Verlauf, der in die Karte übergeht; Motive mit HUD, Dialog oder Collage hängen
-  unter einem schmalen Band in derselben Tönung. Nur Bild 1 trägt das App-Icon.
-- Motive (Dateien `01-town`, `02-drag`, `03-incidents`, `04-overload`, `05-wireless`, `06-network`, `07-rotation`,
-  `08-sceneries`): 1 lebendige Stadt (wenige Anfragen, ein Gerät läuft voll), 2 Kabel ziehen mit Finger und Preis,
-  3 Bagger und Stromausfall, 4 Überlastung im echten Spielbild mit HUD, 5 Funk (Abdeckung mit Signalwellen, Server ganz
-  im Bild), 6 großes Netz: die Metropole spät im Spiel mit Paketen in jeder Kabelfarbe, 7 gedrehte Stadt 2030 mit
-  kleinem Dreh-Abzeichen in der Ecke, 8 fünf Szenerien, jede auf ihr Merkmal gerahmt (Türme, Meer, Berge) mit
-  Namens-Pille am unteren Rand. Beschriftungen: `StoreScreenshotTest` (`CAPTIONS`).
+- Eine Vorlage für alle Bilder: das Spiel randlos unter einer Überschriften-Leiste im Dämmerblau der Marke mit dünner
+  Glasfaser-Orange-Kante; die kurze Überschrift in Nunito Black, ein Schlüsselwort in der Akzentfarbe des Motivs und
+  unterstrichen; nur Bild 1 trägt das App-Icon, Querformat-Bilder das Jahr der Szene rechts in einer Pille.
+- Motive (Dateien `01-town` … `08-sceneries`), jedes in eigener Stimmung: 1 Held: Tag auf der Wiese, der Knoten einer
+  späten Kleinstadt ist gerade zum Rechenzentrum gewachsen, alle Kabelarten laufen hinein, Kamera eng, sanfte Vignette;
+  2 die Geste in Nahaufnahme auf der Insel in der Sonne (Sand, türkises Meer): ein Finger zieht die Glasfaser von der
+  wartenden Konsole zum Spiele-Server, mit Preis-Blase; 3 Winter: ein Bagger hat im Bergdorf ein Kabel gekappt;
+  4 Überlastung im echten Spielbild mit HUD, roter Rand; 5 Funk im warmen Wüsten-Thema: WLAN-, 5-GHz- und Mobilfunk-
+  Zone, Server ganz im Bild; 6 großes Netz bei Nacht: die Stadt 2030 spät im Spiel mit Paketen auf jeder Leitung;
+  7 die gedrehte Großstadt in der Abenddämmerung (Herbst-Thema unter tiefer Abendsonne) mit zwei Dreh-Pfeilen; 8 fünf
+  Szenerien als Collage mit Namens-Pillen. Beschriftungen: `StoreScreenshotTest` (`LANGUAGES`, Schlüsselwörter `KEYWORDS`).
 - `screenshots/phone-portrait/<sprache>/`: 1080 × 1920 für das Hochformat-Karussell von Play, alle 8 Motive
-  (`01-town.png` … `08-sceneries.png`), jeweils für das Hochformat neu gerahmt.
+  (`01-town.png` … `08-sceneries.png`), jeweils für das Hochformat neu gerahmt: Szenen mit gewachsenem Land, damit das
+  Bild bis zum Rand Karte zeigt und kein Nebel jenseits der offenen Fläche.
 - Trailer: `trailer.md`.
 
 Erzeugen:
