@@ -1824,8 +1824,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         drawToolbar(canvas, bar)
         // Above the whole toolbar, the raised network row too: a long word must never run into it.
         val hintPadX = HINT_PAD_X_DP * density
-        val hintPadY = HINT_PAD_Y_DP * density
-        val hintY = (bar.raised?.top ?: bar.trayTop) - hudSub.descent() - hintPadY - 4 * density
+        var hintPadY = HINT_PAD_Y_DP * density
+        val hintBase = (bar.raised?.top ?: bar.trayTop) - hudSub.descent() - 4 * density
+        var hintY = hintBase - hintPadY
         // No hint under a menu card: the game-over card and the pause menu cover that spot.
         val hintText = when {
             screen != Screen.PLAYING -> null
@@ -1840,6 +1841,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             // As many lines as fit between the top rows (and the centered lines) and the buttons (floor: a line that
             // would reach into the rows above does not count).
             var room = floor((hintY - hudSub.textSize - hintPadY - maxOf(cursor, blocksBottom)) / lineH).toInt() + 1
+            if (room < 1) {
+                // Tight (a low window with large text): a thinner plate first, before anything else steps aside.
+                hintPadY = HINT_PAD_TIGHT_DP * density
+                hintY = hintBase - hintPadY
+                room = floor((hintY - hudSub.textSize - hintPadY - maxOf(cursor, blocksBottom)) / lineH).toInt() + 1
+            }
             if (room < 1 && controlsShown) {
                 // Not even one line below the view controls (a low window with large text): they step aside while the
                 // hint shows, and the paused pill may go back up beside the counters.
@@ -4226,6 +4233,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         /** Padding (dp) around the hint line's text inside its backdrop plate, and the plate's corner radius. */
         const val HINT_PAD_X_DP = 10f
         const val HINT_PAD_Y_DP = 5f
+        /** The hint plate's top and bottom padding where a full one would push the paused pill or view controls away. */
+        const val HINT_PAD_TIGHT_DP = 1f
         const val HINT_RADIUS_DP = 12f
         /** How long the camera shows the failed device before the game-over card. */
         const val GAME_OVER_FOCUS_SECONDS = 1.6f
