@@ -11,6 +11,40 @@
     <string name="hud_clock_day">Jour · %1$s</string>
     <string name="hud_clock_night">Nuit · %1$s · sauvegardes à %2$s</string>
     <string name="button_router">Routeur (%1$d)</string>
+    <!-- Toolbar network & ports -->
+    <string name="toolbar_cables">Câbles</string>
+    <string name="toolbar_network">Réseau</string>
+    <string name="toolbar_router">Routeur</string>
+    <string name="toolbar_access_point">Wi-Fi</string>
+    <string name="toolbar_cell_tower">Antenne</string>
+    <plurals name="toolbar_ports">
+        <item quantity="one">%1$d port</item>
+        <item quantity="many">%1$d ports</item>
+        <item quantity="other">%1$d ports</item>
+    </plurals>
+    <string name="hint_drop_tool">Glisse-le sur une case libre et lâche</string>
+    <plurals name="ports_full">
+        <item quantity="one">%1$s n’a que %2$d port – place un routeur entre les deux</item>
+        <item quantity="many">%1$s n’a que %2$d ports – place un routeur entre les deux</item>
+        <item quantity="other">%1$s n’a que %2$d ports – place un routeur entre les deux</item>
+    </plurals>
+    <plurals name="ports_full_short">
+        <item quantity="one">%1$s : %2$d port seulement</item>
+        <item quantity="many">%1$s : %2$d ports seulement</item>
+        <item quantity="other">%1$s : %2$d ports seulement</item>
+    </plurals>
+    <string name="ports_add_router">Place un routeur entre les deux</string>
+    <plurals name="tip_ports">
+        <item quantity="one">Astuce : les points sous un appareil sont ses ports, ● pris, ○ libre. Un routeur en a %1$d : glisse-le depuis la barre du bas entre les appareils.</item>
+        <item quantity="many">Astuce : les points sous un appareil sont ses ports, ● pris, ○ libre. Un routeur en a %1$d : glisse-le depuis la barre du bas entre les appareils.</item>
+        <item quantity="other">Astuce : les points sous un appareil sont ses ports, ● pris, ○ libre. Un routeur en a %1$d : glisse-le depuis la barre du bas entre les appareils.</item>
+    </plurals>
+    <string name="tutorial_ports_title">Ports</string>
+    <string name="tutorial_ports_text">Deux nouveaux PC ! Le premier PC utilise déjà ses deux ports, tu vois les deux points ? Glisse un routeur de la barre du bas vers les nouveaux PC.</string>
+    <string name="tutorial_ports_connect_text">Relie maintenant les deux PC et le serveur mail au routeur. Il a 6 ports et fait passer leurs mails.</string>
+    <string name="legend_router_desc">Relie beaucoup d’appareils : 6 ports au lieu de 2 comme un PC. Glisse-le depuis la barre du bas sur une case libre.</string>
+    <string name="legend_ports_title">Ports</string>
+    <string name="legend_ports_desc">Les points sous un appareil : ● pris, ○ libre. Appareils et Wi-Fi en ont 2, serveurs et antennes 4, routeurs 6.</string>
     <string name="hint_place_router">Touche une case libre</string>
     <string name="button_access_point">Wi-Fi (%1$d)</string>
     <string name="button_cell_tower">Antenne (%1$d)</string>
@@ -48,6 +82,20 @@
     <string name="service_video_call">Visio</string>
     <string name="service_camera_upload">Envoi caméra</string>
     <string name="service_cloud_backup">Sauvegarde cloud</string>
+
+    <!-- Server names & matching -->
+    <string name="server_mail">Serveur mail</string>
+    <string name="server_call">Central téléphonique</string>
+    <string name="server_gaming">Serveur de jeu</string>
+    <string name="server_streaming">Serveur de streaming</string>
+    <string name="server_video_call">Serveur visio</string>
+    <string name="server_camera_upload">Cloud caméras</string>
+    <string name="server_cloud_backup">Serveur de sauvegarde</string>
+    <string name="device_wants_server">%1$s veut %2$s → %3$s</string>
+    <string name="device_needs_servers">%1$s a besoin de : %2$s</string>
+    <string name="legend_device_servers">À relier à : %1$s</string>
+    <string name="legend_data_center_desc">Pas un type à part : le niveau maximal de tout serveur. Il fournit toujours son seul service, avec plus de puissance et de ports.</string>
+
     <string name="device_pc">PC</string>
     <string name="device_phone">Téléphone</string>
     <string name="device_laptop">Portable</string>
@@ -69,7 +117,6 @@
     <string name="node_router">Routeur</string>
     <string name="node_access_point">Point d’accès Wi-Fi</string>
     <string name="node_cell_tower">Antenne relais</string>
-    <string name="node_server">Serveur %1$s</string>
 
     <!-- Week news and cable feedback -->
     <string name="news_with_year">%1$d · %2$s</string>
@@ -79,7 +126,6 @@
     <string name="connect_error_same_node">Même nœud</string>
     <string name="connect_error_already_connected">Déjà relié</string>
     <string name="connect_error_not_invented">%1$s pas encore inventé</string>
-    <string name="connect_error_ports_full">%1$s : tous les ports sont pris</string>
     <string name="connect_error_no_budget">Budget insuffisant</string>
 
     <!-- Week rewards -->
@@ -113,6 +159,11 @@
     <string name="settings_haptics">Vibrations</string>
     <string name="settings_overview">Vue à plat</string>
     <string name="settings_free_rotation">Rotation libre</string>
+    <!-- Camera controls -->
+    <string name="a11y_rotate_left">Tourner la carte dans le sens antihoraire</string>
+    <string name="a11y_rotate_right">Tourner la carte dans le sens horaire</string>
+    <string name="a11y_tilt_low">Vue plus basse, davantage de côté</string>
+    <string name="a11y_tilt_high">Vue plus plongeante, davantage d’en haut</string>
     <string name="settings_colorblind">Mode daltonien</string>
     <string name="settings_language">La langue suit celle du système</string>
 
@@ -162,7 +213,7 @@
     <string name="tutorial_cable_text">Le PC veut envoyer un mail. Glisse ton doigt du PC jusqu’au serveur mail.</string>
     <string name="tutorial_router_title">Place un routeur</string>
     <string name="tutorial_router_text">Un appareil n’a que 2 ports, un routeur en a 6. Touche « Routeur » en bas, puis une case libre près des téléphones.</string>
-    <string name="tutorial_router_connect_text">Relie maintenant les deux téléphones et le serveur de téléphonie au routeur. Il répartit les appels.</string>
+    <string name="tutorial_router_connect_text">Relie maintenant les deux téléphones et le central téléphonique au routeur. Il répartit les appels.</string>
     <string name="tutorial_bandwidth_title">Bande passante</string>
     <string name="tutorial_bandwidth_text">1998 : la télé veut du streaming. Relie-la au serveur de streaming.</string>
     <string name="tutorial_bandwidth_narrow_text">Trop étroit ! Le streaming demande une bande passante de %1$d, le RNIS n’en porte que %2$d. Choisis l’ADSL en bas, il en porte %3$d.</string>
@@ -198,6 +249,13 @@
     <string name="cable_error_no_budget">Budget insuffisant, l’amélioration coûte %1$d</string>
     <string name="hint_cable_remove">Câble %1$s · touche encore pour le retirer (+%2$d)</string>
     <string name="hint_cable_removed">Câble retiré, remboursement : +%1$d</string>
+    <!-- Cable reroute -->
+    <string name="hint_cable_select">Câble %1$s · fais glisser un bout pour le dévier · touche encore pour le retirer (+%2$d)</string>
+    <string name="hint_cable_select_free">Câble %1$s · fais glisser un bout pour le dévier · touche encore pour le retirer</string>
+    <string name="hint_cable_rerouted">Câble dévié</string>
+    <string name="hint_cable_rerouted_paid">Câble dévié · −%1$d</string>
+    <string name="hint_cable_rerouted_refund">Câble dévié, remboursement : +%1$d</string>
+    <string name="reroute_error_incident">Pelleteuse sur ce câble · dévie-le une fois partie</string>
     <string name="place_error_no_stock">Plus de %1$s en stock</string>
     <string name="place_error_locked">Cette case n’est pas encore ouverte</string>
     <string name="place_error_occupied">Cette case est déjà occupée</string>
@@ -214,10 +272,10 @@
     <string name="hint_service_needs">%1$s demande une bande passante de %2$d</string>
     <string name="hint_service_needs_ping">%1$s demande une bande passante de %2$d et un ping de %3$d ms max</string>
     <string name="device_wants">%1$s veut : %2$s</string>
-    <string name="problem_no_route">%1$s : %2$s – aucun chemin vers un serveur</string>
-    <string name="problem_too_narrow">%1$s : %2$s – aucun câble assez large (bande passante %3$d)</string>
-    <string name="problem_ping">%1$s : %2$s – ping de %3$d ms, %4$d ms autorisés</string>
-    <string name="problem_jam">%1$s : %2$s – bouchon, câbles ou serveur saturés</string>
+    <string name="problem_no_route">%1$s → %2$s : aucun chemin – relie-les par câble</string>
+    <string name="problem_too_narrow">%1$s → %2$s : aucun câble assez large (bande passante %3$d)</string>
+    <string name="problem_ping">%1$s → %2$s : ping de %3$d ms, %4$d ms autorisés</string>
+    <string name="problem_jam">%1$s → %2$s : bouchon, câbles ou serveur saturés</string>
     <string name="game_over_no_route">%1$s n’a atteint aucun serveur %2$s</string>
     <string name="game_over_too_narrow">%1$s avait besoin d’un câble plus large pour %2$s</string>
     <string name="game_over_ping">%2$s sur %1$s a ramé : %3$d ms, max %4$d ms</string>
@@ -514,8 +572,8 @@
     <string name="reviewer_access_enabled">Accès examinateur activé</string>
     <string name="reviewer_access_invalid">Code d\'examen non valide</string>
     <string name="menu_legend">C\'est quoi ?</string>
-    <string name="legend_section_services">Services</string>
-    <string name="legend_section_devices">Appareils</string>
+    <string name="legend_section_services">Serveurs</string>
+    <string name="legend_section_devices">Appareils → serveurs</string>
     <string name="legend_section_network">Ton réseau</string>
     <string name="legend_section_signs">Signaux</string>
     <string name="legend_service_ping">Bande passante %1$d · ping max. %2$d ms</string>

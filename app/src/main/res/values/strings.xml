@@ -13,6 +13,36 @@
     <string name="hud_clock_night">Nacht · %1$s · Backups um %2$s</string>
     <string name="clock_time" translatable="false">%1$02d:%2$02d</string>
     <string name="button_router">Router (%1$d)</string>
+    <!-- Toolbar network & ports -->
+    <string name="toolbar_cables">Kabel</string>
+    <string name="toolbar_network">Netzwerk</string>
+    <string name="toolbar_router">Router</string>
+    <string name="toolbar_access_point">WLAN</string>
+    <string name="toolbar_cell_tower">Mast</string>
+    <plurals name="toolbar_ports">
+        <item quantity="one">%1$d Anschluss</item>
+        <item quantity="other">%1$d Anschlüsse</item>
+    </plurals>
+    <string name="hint_drop_tool">Auf ein freies Feld ziehen und loslassen</string>
+    <plurals name="ports_full">
+        <item quantity="one">%1$s hat nur %2$d Anschluss – setz einen Router dazwischen</item>
+        <item quantity="other">%1$s hat nur %2$d Anschlüsse – setz einen Router dazwischen</item>
+    </plurals>
+    <plurals name="ports_full_short">
+        <item quantity="one">%1$s: nur %2$d Anschluss</item>
+        <item quantity="other">%1$s: nur %2$d Anschlüsse</item>
+    </plurals>
+    <string name="ports_add_router">Router dazwischen setzen</string>
+    <plurals name="tip_ports">
+        <item quantity="one">Tipp: Die Punkte unter einem Gerät sind seine Anschlüsse, ● belegt, ○ frei. Ein Router hat %1$d: Zieh ihn aus der Leiste unten zwischen die Geräte.</item>
+        <item quantity="other">Tipp: Die Punkte unter einem Gerät sind seine Anschlüsse, ● belegt, ○ frei. Ein Router hat %1$d: Zieh ihn aus der Leiste unten zwischen die Geräte.</item>
+    </plurals>
+    <string name="tutorial_ports_title">Anschlüsse</string>
+    <string name="tutorial_ports_text">Zwei neue PCs! Der erste PC hat schon beide Anschlüsse belegt, siehst du die zwei Punkte? Zieh einen Router aus der Leiste unten zu den neuen PCs.</string>
+    <string name="tutorial_ports_connect_text">Verbinde jetzt beide PCs und den Mail-Server mit dem Router. Er hat 6 Anschlüsse und verteilt ihre Mails.</string>
+    <string name="legend_router_desc">Verbindet viele Geräte: 6 Anschlüsse statt 2 wie am PC. Aus der Leiste unten auf ein freies Feld ziehen.</string>
+    <string name="legend_ports_title">Anschlüsse</string>
+    <string name="legend_ports_desc">Die Punkte unter einem Gerät: ● belegt, ○ frei. Geräte und WLAN haben 2, Server und Mast 4, Router 6.</string>
     <string name="hint_place_router">Tippe auf ein freies Feld</string>
     <string name="button_access_point">WLAN (%1$d)</string>
     <string name="button_cell_tower">Mast (%1$d)</string>
@@ -48,6 +78,20 @@
     <string name="service_video_call">Videocall</string>
     <string name="service_camera_upload">Kamera-Upload</string>
     <string name="service_cloud_backup">Cloud-Backup</string>
+
+    <!-- Server names & matching -->
+    <string name="server_mail">Mail-Server</string>
+    <string name="server_call">Telefonzentrale</string>
+    <string name="server_gaming">Game-Server</string>
+    <string name="server_streaming">Streaming-Server</string>
+    <string name="server_video_call">Video-Server</string>
+    <string name="server_camera_upload">Kamera-Cloud</string>
+    <string name="server_cloud_backup">Backup-Server</string>
+    <string name="device_wants_server">%1$s will %2$s → %3$s</string>
+    <string name="device_needs_servers">%1$s braucht: %2$s</string>
+    <string name="legend_device_servers">Verbinden mit: %1$s</string>
+    <string name="legend_data_center_desc">Kein eigener Typ: die höchste Stufe jedes Servers. Liefert weiter nur seinen einen Dienst, mit mehr Leistung und mehr Anschlüssen.</string>
+
     <string name="device_pc">PC</string>
     <string name="device_phone">Telefon</string>
     <string name="device_laptop">Laptop</string>
@@ -69,7 +113,6 @@
     <string name="node_router">Router</string>
     <string name="node_access_point">WLAN-Access-Point</string>
     <string name="node_cell_tower">Mobilfunkmast</string>
-    <string name="node_server">%1$s-Server</string>
 
     <!-- Week news and cable feedback -->
     <string name="news_with_year">%1$d · %2$s</string>
@@ -79,7 +122,6 @@
     <string name="connect_error_same_node">Gleicher Knoten</string>
     <string name="connect_error_already_connected">Schon verbunden</string>
     <string name="connect_error_not_invented">%1$s noch nicht erfunden</string>
-    <string name="connect_error_ports_full">%1$s: alle Ports belegt</string>
     <string name="connect_error_no_budget">Budget reicht nicht</string>
 
     <!-- Week rewards -->
@@ -113,6 +155,11 @@
     <string name="settings_haptics">Haptik</string>
     <string name="settings_overview">Flache Übersicht</string>
     <string name="settings_free_rotation">Frei drehen</string>
+    <!-- Camera controls -->
+    <string name="a11y_rotate_left">Karte gegen den Uhrzeigersinn drehen</string>
+    <string name="a11y_rotate_right">Karte im Uhrzeigersinn drehen</string>
+    <string name="a11y_tilt_low">Flacher blicken, mehr von der Seite</string>
+    <string name="a11y_tilt_high">Steiler blicken, mehr von oben</string>
     <string name="settings_colorblind">Farbenblind-Palette</string>
     <string name="settings_language">Die Sprache folgt der Systemsprache</string>
 
@@ -160,7 +207,7 @@
     <string name="tutorial_cable_text">Der PC will eine Mail senden. Zieh mit dem Finger vom PC zum Mail-Server.</string>
     <string name="tutorial_router_title">Router setzen</string>
     <string name="tutorial_router_text">Ein Gerät hat nur 2 Anschlüsse, ein Router 6. Tippe unten auf „Router“ und dann auf ein freies Feld bei den Telefonen.</string>
-    <string name="tutorial_router_connect_text">Verbinde jetzt die Telefone und den Telefonie-Server mit dem Router. Er verteilt die Anrufe.</string>
+    <string name="tutorial_router_connect_text">Verbinde jetzt die Telefone und die Telefonzentrale mit dem Router. Er verteilt die Anrufe.</string>
     <string name="tutorial_bandwidth_title">Bandbreite</string>
     <string name="tutorial_bandwidth_text">1998: Der Fernseher will streamen. Verbinde ihn mit dem Streaming-Server.</string>
     <string name="tutorial_bandwidth_narrow_text">Zu schmal! Streaming braucht Bandbreite %1$d, ISDN trägt nur %2$d. Wähle unten DSL, es trägt %3$d.</string>
@@ -195,6 +242,13 @@
     <string name="cable_error_no_budget">Zu wenig Budget, Aufrüsten kostet %1$d</string>
     <string name="hint_cable_remove">%1$s-Kabel · nochmal antippen zum Entfernen (+%2$d)</string>
     <string name="hint_cable_removed">Kabel entfernt, zurück: +%1$d</string>
+    <!-- Cable reroute -->
+    <string name="hint_cable_select">%1$s-Kabel · Ende ziehen zum Verlegen · nochmal antippen zum Entfernen (+%2$d)</string>
+    <string name="hint_cable_select_free">%1$s-Kabel · Ende ziehen zum Verlegen · nochmal antippen zum Entfernen</string>
+    <string name="hint_cable_rerouted">Kabel neu verlegt</string>
+    <string name="hint_cable_rerouted_paid">Kabel neu verlegt · −%1$d</string>
+    <string name="hint_cable_rerouted_refund">Kabel neu verlegt, zurück: +%1$d</string>
+    <string name="reroute_error_incident">Bagger am Kabel · erst danach neu verlegbar</string>
     <string name="place_error_no_stock">Kein %1$s mehr auf Lager</string>
     <string name="place_error_locked">Dieses Feld ist noch nicht erschlossen</string>
     <string name="place_error_occupied">Das Feld ist schon belegt</string>
@@ -211,10 +265,10 @@
     <string name="hint_service_needs">%1$s braucht Bandbreite %2$d</string>
     <string name="hint_service_needs_ping">%1$s braucht Bandbreite %2$d, Ping höchstens %3$d ms</string>
     <string name="device_wants">%1$s will %2$s</string>
-    <string name="problem_no_route">%1$s: %2$s – kein Weg zu einem Server</string>
-    <string name="problem_too_narrow">%1$s: %2$s – kein Kabel breit genug (Bandbreite %3$d)</string>
-    <string name="problem_ping">%1$s: %2$s – Ping %3$d ms, erlaubt %4$d ms</string>
-    <string name="problem_jam">%1$s: %2$s – Stau, Kabel oder Server zu voll</string>
+    <string name="problem_no_route">%1$s → %2$s: kein Weg – verbinde beide per Kabel</string>
+    <string name="problem_too_narrow">%1$s → %2$s: kein Kabel breit genug (Bandbreite %3$d)</string>
+    <string name="problem_ping">%1$s → %2$s: Ping %3$d ms, erlaubt %4$d ms</string>
+    <string name="problem_jam">%1$s → %2$s: Stau, Kabel oder Server zu voll</string>
     <string name="game_over_no_route">%1$s erreichte keinen %2$s-Server</string>
     <string name="game_over_too_narrow">%1$s brauchte ein breiteres Kabel für %2$s</string>
     <string name="game_over_ping">%2$s auf %1$s ruckelte: %3$d ms statt höchstens %4$d ms</string>
@@ -484,8 +538,8 @@
     <string name="reviewer_access_enabled">Prüferzugang aktiviert</string>
     <string name="reviewer_access_invalid">Ungültiger Prüfercode</string>
     <string name="menu_legend">Was ist was?</string>
-    <string name="legend_section_services">Dienste</string>
-    <string name="legend_section_devices">Geräte</string>
+    <string name="legend_section_services">Server</string>
+    <string name="legend_section_devices">Geräte → Server</string>
     <string name="legend_section_network">Dein Netz</string>
     <string name="legend_section_signs">Anzeigen</string>
     <string name="legend_service_ping">Bandbreite %1$d · Ping höchstens %2$d ms</string>

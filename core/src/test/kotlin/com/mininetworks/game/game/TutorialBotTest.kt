@@ -8,7 +8,7 @@ import org.junit.Test
  * docs/TOP100.md B1/B2: a tutorial bot plays the tutorial like a new player, with a human reaction time per step
  * (reading the bubble, finding the spot, dragging), and measures the game time from the first launch to the first
  * delivered packet. It also makes the typical mistakes the steps are built around (ISDN for the streaming TV, DSL
- * across the river for gaming) and fixes them the way the tutorial explains.
+ * across the river for gaming, a third cable at a PC with 2 ports) and fixes them the way the tutorial explains.
  */
 class TutorialBotTest {
 
@@ -43,10 +43,10 @@ class TutorialBotTest {
     }
 
     @Test
-    fun botPlaysAllFiveStepsIncludingTheMistakesTheyTeachWith() {
+    fun botPlaysAllSixStepsIncludingTheMistakesTheyTeachWith() {
         val t = Tutorial.start()
         val w = t.world
-        assertEquals(5, Tutorial.STEPS)
+        assertEquals(6, Tutorial.STEPS)
         wait(t, READ_SECONDS)
         assertTrue(w.connect(t.pc, t.mailServer, CableType.ISDN))
         until(t) { t.step == TutorialStep.PLACE_ROUTER }
@@ -76,6 +76,15 @@ class TutorialBotTest {
 
         wait(t, READ_SECONDS)
         assertTrue(w.connect(t.newPc!!, t.mailServer, CableType.DSL))
+        until(t) { t.step == TutorialStep.PORTS }
+
+        // Ports by playing: the first PC is full (mail and gaming), so a new PC cannot hang off it; a router can.
+        wait(t, READ_SECONDS)
+        val pcs = t.officePcs
+        assertEquals(ConnectError.TO_PORTS_FULL, w.connectError(pcs[0], t.pc, CableType.DSL))
+        val spot = w.nearestFree(Cell(pcs[1].cellX + 1, pcs[1].cellY))!!
+        val shared = w.placeRouter(spot.x, spot.y)!!
+        for (n in pcs + t.mailServer) assertTrue(w.connect(n, shared, CableType.DSL))
         until(t) { t.finished }
         assertTrue("budget left: ${w.budget}", w.budget >= 0)
         println("TutorialBotTest: tutorial finished after %.1f s of game time, %d packets delivered".format(w.time, w.delivered))

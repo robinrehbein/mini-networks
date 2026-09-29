@@ -113,6 +113,13 @@ enum class ServerUpgradeError { NOT_A_SERVER, MAX_LEVEL, NO_BUDGET, NO_SPACE }
 /** Why a cable cannot be laid. [FROM_PORTS_FULL] and [TO_PORTS_FULL] name the drag's start or end node. */
 enum class ConnectError { SAME_NODE, ALREADY_CONNECTED, NOT_INVENTED, FROM_PORTS_FULL, TO_PORTS_FULL, NO_BUDGET }
 
+/**
+ * Why a cable cannot be re-routed ([World.reroute]): the new ends are one node or already cabled, a new end has no free
+ * port ([PORTS_FULL]), the difference cannot be paid, an excavator is announced at the cable or cut it ([INCIDENT]),
+ * the new layout is the old one ([UNCHANGED]) or the cable is not in the world any more ([GONE]).
+ */
+enum class RerouteError { SAME_NODE, ALREADY_CONNECTED, PORTS_FULL, NO_BUDGET, INCIDENT, UNCHANGED, GONE }
+
 /** Why a cable cannot be swapped to another technology. */
 enum class CableUpgradeError { NOT_AN_UPGRADE, NOT_INVENTED, NO_BUDGET }
 

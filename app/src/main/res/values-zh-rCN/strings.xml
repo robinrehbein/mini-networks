@@ -9,6 +9,32 @@
     <string name="hud_clock_day">白天 · %1$s</string>
     <string name="hud_clock_night">夜晚 · %1$s · %2$s 备份</string>
     <string name="button_router">路由器 (%1$d)</string>
+    <!-- Toolbar network & ports -->
+    <string name="toolbar_cables">线缆</string>
+    <string name="toolbar_network">网络</string>
+    <string name="toolbar_router">路由器</string>
+    <string name="toolbar_access_point">Wi-Fi</string>
+    <string name="toolbar_cell_tower">基站</string>
+    <plurals name="toolbar_ports">
+        <item quantity="other">%1$d 个端口</item>
+    </plurals>
+    <string name="hint_drop_tool">拖到空格子上再松开</string>
+    <plurals name="ports_full">
+        <item quantity="other">%1$s只有 %2$d 个端口，在中间放一个路由器</item>
+    </plurals>
+    <plurals name="ports_full_short">
+        <item quantity="other">%1$s：只有 %2$d 个端口</item>
+    </plurals>
+    <string name="ports_add_router">在中间放一个路由器</string>
+    <plurals name="tip_ports">
+        <item quantity="other">提示：设备下方的圆点是它的端口，● 已占用，○ 空闲。路由器有 %1$d 个：从下方栏把它拖到设备之间。</item>
+    </plurals>
+    <string name="tutorial_ports_title">端口</string>
+    <string name="tutorial_ports_text">两台新电脑！第一台电脑的两个端口都已占用，看到两个圆点了吗？从下方栏拖一个路由器到新电脑旁边。</string>
+    <string name="tutorial_ports_connect_text">现在把两台电脑和邮件服务器都连到路由器上。它有 6 个端口，会分发它们的邮件。</string>
+    <string name="legend_router_desc">连接许多设备：6 个端口，而电脑只有 2 个。从下方栏拖到空格子上。</string>
+    <string name="legend_ports_title">端口</string>
+    <string name="legend_ports_desc">设备下方的圆点：● 已占用，○ 空闲。设备和 Wi-Fi 有 2 个，服务器和基站 4 个，路由器 6 个。</string>
     <string name="hint_place_router">点按一个空格子</string>
     <string name="button_access_point">Wi-Fi (%1$d)</string>
     <string name="button_cell_tower">基站 (%1$d)</string>
@@ -42,6 +68,20 @@
     <string name="service_video_call">视频通话</string>
     <string name="service_camera_upload">摄像头上传</string>
     <string name="service_cloud_backup">云备份</string>
+
+    <!-- Server names & matching -->
+    <string name="server_mail">邮件服务器</string>
+    <string name="server_call">电话交换中心</string>
+    <string name="server_gaming">游戏服务器</string>
+    <string name="server_streaming">流媒体服务器</string>
+    <string name="server_video_call">视频服务器</string>
+    <string name="server_camera_upload">摄像头云</string>
+    <string name="server_cloud_backup">备份服务器</string>
+    <string name="device_wants_server">%1$s想要%2$s → %3$s</string>
+    <string name="device_needs_servers">%1$s需要：%2$s</string>
+    <string name="legend_device_servers">连接到：%1$s</string>
+    <string name="legend_data_center_desc">不是单独的类型：任何服务器的最高等级。仍只提供自己的那一种服务，但性能更强、端口更多。</string>
+
     <string name="device_pc">电脑</string>
     <string name="device_phone">电话</string>
     <string name="device_laptop">笔记本</string>
@@ -63,7 +103,6 @@
     <string name="node_router">路由器</string>
     <string name="node_access_point">Wi-Fi 接入点</string>
     <string name="node_cell_tower">移动基站</string>
-    <string name="node_server">%1$s服务器</string>
 
     <!-- Week news and cable feedback -->
     <string name="news_with_year">%1$d年 · %2$s</string>
@@ -73,7 +112,6 @@
     <string name="connect_error_same_node">同一个节点</string>
     <string name="connect_error_already_connected">已经连接</string>
     <string name="connect_error_not_invented">%1$s 还没有发明</string>
-    <string name="connect_error_ports_full">%1$s：端口已满</string>
     <string name="connect_error_no_budget">预算不足</string>
 
     <!-- Week rewards -->
@@ -107,6 +145,11 @@
     <string name="settings_haptics">振动</string>
     <string name="settings_overview">平面视图</string>
     <string name="settings_free_rotation">自由旋转</string>
+    <!-- Camera controls -->
+    <string name="a11y_rotate_left">逆时针旋转地图</string>
+    <string name="a11y_rotate_right">顺时针旋转地图</string>
+    <string name="a11y_tilt_low">更低的视角(更多从侧面看)</string>
+    <string name="a11y_tilt_high">更高的视角(更多从上方看)</string>
     <string name="settings_colorblind">色盲辅助</string>
     <string name="settings_language">语言跟随系统设置</string>
 
@@ -152,7 +195,7 @@
     <string name="tutorial_cable_text">电脑想发送一封邮件。用手指从电脑拖到邮件服务器。</string>
     <string name="tutorial_router_title">放置路由器</string>
     <string name="tutorial_router_text">设备只有 2 个端口，路由器有 6 个。点按下方的“路由器”，再点按电话旁边的空格子。</string>
-    <string name="tutorial_router_connect_text">现在把两部电话和通话服务器连到路由器上，由它来分配通话。</string>
+    <string name="tutorial_router_connect_text">现在把两部电话和电话交换中心连到路由器上，由它来分配通话。</string>
     <string name="tutorial_bandwidth_title">带宽</string>
     <string name="tutorial_bandwidth_text">1998 年：电视想看流媒体。把它连到流媒体服务器。</string>
     <string name="tutorial_bandwidth_narrow_text">太窄了！流媒体需要带宽 %1$d，ISDN 只能承载 %2$d。在下方选择 DSL，它能承载 %3$d。</string>
@@ -186,6 +229,13 @@
     <string name="cable_error_no_budget">预算不足，升级需要 %1$d</string>
     <string name="hint_cable_remove">%1$s电缆 · 再次点按即可拆除（+%2$d）</string>
     <string name="hint_cable_removed">电缆已拆除，退还：+%1$d</string>
+    <!-- Cable reroute -->
+    <string name="hint_cable_select">%1$s电缆 · 拖动一端即可改线 · 再次点按即可拆除（+%2$d）</string>
+    <string name="hint_cable_select_free">%1$s电缆 · 拖动一端即可改线 · 再次点按即可拆除</string>
+    <string name="hint_cable_rerouted">电缆已改线</string>
+    <string name="hint_cable_rerouted_paid">电缆已改线 · −%1$d</string>
+    <string name="hint_cable_rerouted_refund">电缆已改线，退还：+%1$d</string>
+    <string name="reroute_error_incident">这条电缆旁有挖掘机 · 等它离开后再改线</string>
     <string name="place_error_no_stock">%1$s库存不足</string>
     <string name="place_error_locked">这个格子尚未开放</string>
     <string name="place_error_occupied">这个格子已被占用</string>
@@ -202,10 +252,10 @@
     <string name="hint_service_needs">%1$s需要带宽 %2$d</string>
     <string name="hint_service_needs_ping">%1$s需要带宽 %2$d，延迟最多 %3$d 毫秒</string>
     <string name="device_wants">%1$s想要：%2$s</string>
-    <string name="problem_no_route">%1$s：%2$s——没有通往服务器的路径</string>
-    <string name="problem_too_narrow">%1$s：%2$s——没有足够宽的电缆（带宽 %3$d）</string>
-    <string name="problem_ping">%1$s：%2$s——延迟 %3$d 毫秒，允许 %4$d 毫秒</string>
-    <string name="problem_jam">%1$s：%2$s——拥堵，电缆或服务器已满</string>
+    <string name="problem_no_route">%1$s → %2$s：没有路径——用电缆把它们连起来</string>
+    <string name="problem_too_narrow">%1$s → %2$s：没有足够宽的电缆（带宽 %3$d）</string>
+    <string name="problem_ping">%1$s → %2$s：延迟 %3$d 毫秒，允许 %4$d 毫秒</string>
+    <string name="problem_jam">%1$s → %2$s：拥堵，电缆或服务器已满</string>
     <string name="game_over_no_route">%1$s 无法连到 %2$s 服务器</string>
     <string name="game_over_too_narrow">%1$s 的 %2$s 需要更宽的电缆</string>
     <string name="game_over_ping">%1$s 的 %2$s 延迟 %3$d 毫秒，上限 %4$d 毫秒</string>
@@ -444,8 +494,8 @@
     <string name="reviewer_access_enabled">已启用审核访问</string>
     <string name="reviewer_access_invalid">审核代码无效</string>
     <string name="menu_legend">这是什么？</string>
-    <string name="legend_section_services">服务</string>
-    <string name="legend_section_devices">设备</string>
+    <string name="legend_section_services">服务器</string>
+    <string name="legend_section_devices">设备 → 服务器</string>
     <string name="legend_section_network">你的网络</string>
     <string name="legend_section_signs">标志</string>
     <string name="legend_service_ping">带宽 %1$d · Ping 最多 %2$d ms</string>

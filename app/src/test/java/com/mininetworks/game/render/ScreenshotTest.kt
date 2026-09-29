@@ -279,6 +279,39 @@ class ScreenshotTest {
         save(bmp, File(shots, "controls-server-preview.png"))
     }
 
+    /**
+     * Re-routing a cable on a phone, in both styles: the tablet's cable selected by a first tap (glow, a grab handle at
+     * each end, hint), then its router end dragged onto the other router: the new way from the tablet with its handle,
+     * the old way as a dashed ghost and the price difference in the label.
+     */
+    @Test
+    @Config(qualifiers = "de-xxhdpi")
+    fun renderReroute() {
+        for (style in listOf("Iso", "Flat")) {
+            val world = scene()
+            val view = GameView(RuntimeEnvironment.getApplication())
+            val bmp = xxhdpiPhone()
+            view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 1.3f, style = style)
+            val tablet = world.nodes.first { it.device == Device.TABLET }
+            val cable = world.cables.first { it.a.kind == NodeKind.ROUTER && it.b === tablet }
+            val target = world.nodes.filter { it.kind == NodeKind.ROUTER }.first { it !== cable.a }
+            val p = view.activeRenderer.toScreen(cable.layout.pointAt(0.5f))
+            view.injectTouch(MotionEvent.ACTION_DOWN, p.x, p.y, time = 1000L)
+            view.injectTouch(MotionEvent.ACTION_UP, p.x, p.y, time = 1050L)
+            view.drawCurrent(Canvas(bmp))
+            save(bmp, File(shots, "controls-reroute-selected-${style.lowercase()}.png"))
+            val h = view.handleTargets()[0]
+            val t = view.activeRenderer.toScreen(target.center)
+            view.injectTouch(MotionEvent.ACTION_DOWN, h.x, h.y, time = 2000L)
+            view.injectTouch(MotionEvent.ACTION_MOVE, h.x + (t.x - h.x) * 0.3f, h.y + (t.y - h.y) * 0.5f, time = 2100L)
+            view.injectTouch(MotionEvent.ACTION_MOVE, h.x + (t.x - h.x) * 0.7f, t.y, time = 2200L)
+            view.injectTouch(MotionEvent.ACTION_MOVE, t.x, t.y, time = 2300L)
+            view.drawCurrent(Canvas(bmp))
+            save(bmp, File(shots, "controls-reroute-${style.lowercase()}.png"))
+            view.injectTouch(MotionEvent.ACTION_CANCEL, t.x, t.y)
+        }
+    }
+
     /** Week change: the map pauses under the reward choice (isometric main style), the unlock message stays visible. */
     @Test
     fun renderRewardChoice() {
@@ -864,7 +897,8 @@ class ScreenshotTest {
 
     /**
      * The tutorial on a landscape phone, one shot per step as the player gets there: the dragged cable, the router
-     * button, the TV on ISDN too narrow for streaming, a DSL cable too slow for gaming, the overload ring, and the finish.
+     * button, the TV on ISDN too narrow for streaming, a DSL cable too slow for gaming, the overload ring, two new PCs
+     * next to the first one whose ports are full, and the finish.
      */
     @Test
     @Config(qualifiers = "de-xhdpi")
@@ -922,6 +956,11 @@ class ScreenshotTest {
         play(5f)
         shot("5-overload")
         w.connect(t.newPc!!, t.mailServer, CableType.DSL)
+        play(1.5f)
+        shot("6-ports")
+        val spot = w.nearestFree(Cell(t.officePcs[1].cellX + 1, t.officePcs[1].cellY))!!
+        val shared = w.placeRouter(spot.x, spot.y)!!
+        for (n in t.officePcs + t.mailServer) w.connect(n, shared, CableType.DSL)
         play(1.5f)
         shot("done")
     }

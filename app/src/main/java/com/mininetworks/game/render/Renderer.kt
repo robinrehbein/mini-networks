@@ -42,6 +42,12 @@ class DragPreview(
     val detailWarning: Boolean = false,
     /** The finger's path in world space, oldest first, drawn as a fading touch trail behind the pointer. */
     val trail: List<Vec2> = emptyList(),
+    /** The laid cable this drag re-routes, drawn as a dashed ghost under the preview; null for a new cable. */
+    val replaces: Cable? = null,
+    /** World points where grab handles ([DragJuice.handle]) are drawn on the preview, e.g. the end that stays. */
+    val handles: List<Vec2> = emptyList(),
+    /** Where the bubble's tail points; the end of [layout] if null. */
+    val labelAt: Vec2? = null,
 )
 
 /**
@@ -58,6 +64,9 @@ interface Renderer {
     /** Pixels per dp of the screen, for sizes that must stay readable at any zoom; set by the view, 1 by default. */
     var density: Float
 
+    /** Server name plates and the highlight of the servers a device needs; the view sets names and focus. */
+    val serverLabels: ServerLabels
+
     /**
      * Smallest zoom the automatic framing ([layout], [fitArea], [onAreaChanged]) goes to, so devices and requests stay
      * readable on a phone; a bigger area than fits is then centred and the player pans. Pinching zooms out further.
@@ -72,9 +81,10 @@ interface Renderer {
 
     /**
      * Map-space box that shows [area] with everything drawn on it (buildings, queues, board edge) when the world is
-     * turned by [angle] degrees: the box around the turned area plus room for what stands up from it.
+     * turned by [angle] degrees and seen at pitch [tilt] ([Camera.tilt]; a style without height ignores it): the box
+     * around the turned area plus room for what stands up from it.
      */
-    fun mapBounds(area: CellRect, angle: Float = camera.angle): MapRect
+    fun mapBounds(area: CellRect, angle: Float = camera.angle, tilt: Float = camera.tilt): MapRect
 
     /** World units -> screen pixels, on the ground plane. */
     fun toScreen(p: Vec2): Vec2 = camera.worldToScreen(p)
@@ -91,10 +101,45 @@ interface Renderer {
         updateLimits(world)
     }
 
-    /** Advances the camera's animations by [dt] seconds, renewing the pan limit while the angle changes. */
+    /** True if this style has height, so the camera's pitch ([Camera.tilt]) changes its picture; the flat overview has none. */
+    val tilts: Boolean get() = false
+
+    /**
+     * Tilts the view by [degrees] of pitch around the screen point ([pivotX], [pivotY]), renews the limits, which
+     * depend on the pitch, and keeps the view framed ([keepFramed]); nothing happens in a style without height ([tilts]).
+     */
+    fun tiltBy(degrees: Float, pivotX: Float, pivotY: Float, world: World) {
+        if (!tilts) return
+        keepFramed(world) { camera.tiltBy(degrees, pivotX, pivotY) }
+    }
+
+    /**
+     * Runs [tilt], which may change the camera's pitch (a tilt step, a frame of the tilt animation, a two-finger move),
+     * and if it did, renews the zoom and pan limits for the new pitch and keeps the playable area framed: a steeper view
+     * makes the map taller, a flatter one shorter, around the tilt's pivot ([Camera.tiltedAroundX]). While the zoom is
+     * at or beyond the automatic framing ([autoScale]), it follows that framing's zoom in proportion, so tilting back
+     * gives the same zoom back, and the camera pans as little as needed to keep the framing (all of the playable area
+     * where it fits) on screen. A player zoomed in closer than the framing keeps the zoom and the view.
+     */
+    fun keepFramed(world: World, tilt: () -> Unit) {
+        val pitch = camera.tilt
+        val framed = autoScale(world)
+        tilt()
+        if (camera.tilt == pitch) return
+        updateLimits(world)
+        if (camera.scale > framed * FRAMED_TOLERANCE) return
+        camera.rescale(autoScale(world) / framed, camera.tiltedAroundX, camera.tiltedAroundY)
+        camera.bringIntoView(frame(world))
+    }
+
+    /**
+     * Advances the camera's animations by [dt] seconds, renewing the limits while the angle or the pitch changes and
+     * keeping the view framed while it tilts ([keepFramed]).
+     */
     fun stepCamera(dt: Float, world: World) {
+        if (camera.isTilting) keepFramed(world) { camera.stepTilt(dt) }
         val before = camera.angle
-        camera.step(dt)
+        camera.step(dt, tilt = false)
         if (camera.angle != before) updateLimits(world)
     }
 
@@ -114,6 +159,10 @@ interface Renderer {
         camera.fit(frame(world), animate, atLeast = framingMinScale(world))
     }
 
+    /** The zoom the automatic framing ([fitArea]) settles on at the current angle and pitch. */
+    fun autoScale(world: World): Float =
+        maxOf(camera.fitScale(frame(world)), framingMinScale(world)).coerceIn(camera.minScale, camera.maxScale)
+
     /** Call when the unlocked area grew: widens the limits and, unless the player moved the view, follows the area. */
     fun onAreaChanged(world: World) {
         updateLimits(world)
@@ -132,12 +181,15 @@ interface Renderer {
 
     /**
      * The zoom the automatic framing does not go below: [readableScale]; but in a portrait view, whose width is the
-     * scarce direction, never so far in that a built node would be pushed off the side of the screen.
+     * scarce direction, never so far in that a built node would be pushed off the side of the screen. A view steeper
+     * than the classic pitch shows tiles taller, so there tiles need not be as wide: the floor keeps their height on
+     * screen instead (the scarce direction of a landscape phone), and the taller map still fits as before.
      */
     fun framingMinScale(world: World): Float {
-        if (!camera.isTall) return readableScale
-        val content = contentBounds(world) ?: return readableScale
-        return minOf(readableScale, camera.fitScale(content))
+        val readable = readableScale * minOf(1f, Camera.squashOf(Camera.DEFAULT_TILT) / camera.squash)
+        if (!camera.isTall) return readable
+        val content = contentBounds(world) ?: return readable
+        return minOf(readable, camera.fitScale(content))
     }
 
     /**
@@ -185,13 +237,17 @@ interface Renderer {
 
     /**
      * Zoom range: out to the whole grid (and a bit more) at any angle, in until about [ZOOM_IN_COLS] × [ZOOM_IN_ROWS]
-     * cells fill the view. The range does not depend on the current angle, so turning the map never zooms it. The
-     * screen centre stays over the grid as it is turned now.
+     * cells fill the view. The range does not depend on the current angle, so turning the map never zooms it; at the
+     * classic pitch and flatter it does not depend on the pitch either, and a steeper view (a taller map) may zoom out
+     * further, so the whole grid still fits. The screen centre stays over the grid as it is turned and tilted now.
      */
     fun updateLimits(world: World) {
         var out = Float.MAX_VALUE
-        for (a in LIMIT_ANGLES) out = minOf(out, camera.fitScale(mapBounds(world.bounds, a)), camera.fitScale(mapBounds(world.unlocked, a)))
-        camera.setZoomRange(out * ZOOM_OUT_SLACK, camera.fitScale(mapBounds(CellRect(0, 0, ZOOM_IN_COLS, ZOOM_IN_ROWS), 0f)))
+        val pitch = maxOf(camera.tilt, Camera.DEFAULT_TILT)
+        for (a in LIMIT_ANGLES) {
+            out = minOf(out, camera.fitScale(mapBounds(world.bounds, a, pitch)), camera.fitScale(mapBounds(world.unlocked, a, pitch)))
+        }
+        camera.setZoomRange(out * ZOOM_OUT_SLACK, camera.fitScale(mapBounds(CellRect(0, 0, ZOOM_IN_COLS, ZOOM_IN_ROWS), 0f, Camera.DEFAULT_TILT)))
         camera.panBounds = mapBounds(world.bounds)
     }
 
@@ -234,6 +290,8 @@ interface Renderer {
         /** Angles the zoom-out limit is worked out for; the widest one counts. */
         val LIMIT_ANGLES = floatArrayOf(0f, 30f, 45f, 60f, 90f, 120f, 135f, 150f)
         const val ZOOM_OUT_SLACK = 0.9f
+        /** A zoom up to this factor above the automatic framing still counts as at it for [keepFramed]. */
+        const val FRAMED_TOLERANCE = 1.01f
         const val ZOOM_IN_COLS = 4
         const val ZOOM_IN_ROWS = 3
         /** Zoom factor of [focusOn]. */
@@ -314,6 +372,7 @@ fun turnedBounds(area: CellRect, angle: Float, projection: MapProjection, left: 
     val r = Math.toRadians(angle.toDouble())
     var c = cos(r).toFloat(); var s = sin(r).toFloat()
     if (angle % 90f == 0f) { c = kotlin.math.round(c); s = kotlin.math.round(s) }
+    else if (angle % 45f == 0f) { c = kotlin.math.sign(c) * 0.70710677f; s = kotlin.math.sign(s) * 0.70710677f }
     var l = Float.MAX_VALUE; var t = Float.MAX_VALUE; var rr = -Float.MAX_VALUE; var b = -Float.MAX_VALUE
     for (k in 0 until 4) {
         val x = (if (k == 1 || k == 2) area.right else area.left).toFloat()
@@ -883,6 +942,34 @@ object DragJuice {
     private val tail = Path()
     private val rect = RectF()
 
+    /** Screen box of the last [bubble], so the server plates ([ServerLabels]) can keep clear of it. */
+    val lastBubble = RectF()
+
+    private val boundsRect = RectF()
+
+    /** The room for a [bubble] on [canvas]: the screen inside the camera's [insets] (safe area and HUD), or all of it where they leave none. */
+    fun bounds(canvas: Canvas, insets: ViewInsets): RectF {
+        boundsRect.set(insets.left, insets.top, canvas.width - insets.right, canvas.height - insets.bottom)
+        if (boundsRect.width() < 40f || boundsRect.height() < 40f) boundsRect.set(0f, 0f, canvas.width.toFloat(), canvas.height.toFloat())
+        return boundsRect
+    }
+
+    /**
+     * Puts a bubble of [w] by [h] for the point ([x], [y]) into [out], keeping [margin] to [bounds]: its bottom [lift]
+     * above the point, or, where its top would leave [bounds] (a [tail] tip included), its top [lift] below the point;
+     * then pushed inside vertically. Returns the centre x, clamped so the bubble stays between the side bounds.
+     */
+    internal fun place(w: Float, h: Float, x: Float, y: Float, lift: Float, tail: Float, margin: Float, bounds: RectF, out: RectF): Float {
+        val cx = if (w + 2 * margin >= bounds.width()) bounds.centerX() else x.coerceIn(bounds.left + margin + w / 2f, bounds.right - margin - w / 2f)
+        var top = y - lift - h
+        if (top < bounds.top + margin) top = y + lift
+        val low = bounds.bottom - margin - tail - h
+        val high = bounds.top + margin + tail
+        top = if (low < high) high else top.coerceIn(high, low)
+        out.set(cx - w / 2f, top, cx + w / 2f, top + h)
+        return cx
+    }
+
     /** The glow under a preview line [path] of stroke width [width] pixels in [color]. */
     fun glow(canvas: Canvas, path: Path, color: Int, width: Float) {
         glowP.color = color and 0xFFFFFF or 0x38000000
@@ -892,6 +979,35 @@ object DragJuice {
         glowP.strokeWidth = width * 1.9f
         canvas.drawPath(path, glowP)
     }
+
+    /**
+     * A grab handle at screen point ([x], [y]): a white disc with a dark rim and a dot in the cable's [color], on a soft
+     * shadow; the same at any zoom, so it reads as a control rather than part of the map.
+     */
+    fun handle(canvas: Canvas, x: Float, y: Float, color: Int, density: Float) {
+        val r = HANDLE_DP * density
+        dotP.color = 0x38000000
+        canvas.drawCircle(x, y + 1.5f * density, r + 1f * density, dotP)
+        dotP.color = 0xFFFFFFFF.toInt()
+        canvas.drawCircle(x, y, r, dotP)
+        ringP.color = HANDLE_RIM; ringP.strokeWidth = 2.5f * density
+        canvas.drawCircle(x, y, r - 1.25f * density, ringP)
+        dotP.color = color or 0xFF000000.toInt()
+        canvas.drawCircle(x, y, r * 0.42f, dotP)
+    }
+
+    /** The cable a drag re-routes, along [path] (stroke [width] pixels): dashed white over it, so it reads as "moving away". */
+    fun ghost(canvas: Canvas, path: Path, width: Float, density: Float) {
+        ghostP.pathEffect = ghostDash.get(maxOf(width * 1.2f, 6f * density), 0.6f, 0f)
+        ghostP.strokeWidth = width
+        canvas.drawPath(path, ghostP)
+    }
+
+    /** Visible radius of a [handle]; its touch target is larger (see GameView). */
+    const val HANDLE_DP = 11f
+    private const val HANDLE_RIM = 0xFF2F3A34.toInt()
+    private val ghostP = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeJoin = Paint.Join.ROUND; color = 0xD9FFFFFF.toInt() }
+    private val ghostDash = DashCache()
 
     /** The finger's trail through the screen points [xs]/[ys] (oldest first) and the contact ring at the last one. */
     fun trail(canvas: Canvas, xs: FloatArray, ys: FloatArray, color: Int, density: Float) {
@@ -913,11 +1029,12 @@ object DragJuice {
 
     /**
      * The bubble with [label] (and a smaller [detail] line) whose tail points at ([x], [y]), its bottom [lift] pixels
-     * above that point; [size] is the label's text size.
+     * above that point; [size] is the label's text size. The bubble stays inside [bounds] (the screen minus the safe
+     * area and the HUD): where it would clip at the top it flips below the point, tail up.
      */
     fun bubble(
         canvas: Canvas, label: String, detail: String?, x: Float, y: Float, lift: Float, size: Float, density: Float,
-        labelColor: Int, detailColor: Int, accent: Int,
+        labelColor: Int, detailColor: Int, accent: Int, bounds: RectF = RectF(0f, 0f, canvas.width.toFloat(), canvas.height.toFloat()),
     ) {
         textP.textSize = size
         val w1 = textP.measureText(label)
@@ -928,21 +1045,24 @@ object DragJuice {
         val padY = size * 0.5f
         val w = maxOf(w1, w2) + 2 * padX
         val h = size * 1.15f + (if (detail != null) detailSize * 1.25f else 0f) + 2 * padY
-        val bottom = y - lift
-        val cx = x.coerceIn(w / 2f + 8 * density, canvas.width - w / 2f - 8 * density)
-        rect.set(cx - w / 2f, bottom - h, cx + w / 2f, bottom)
+        val cx = place(w, h, x, y, lift, size * 0.5f, 8 * density, bounds, rect)
+        val flipped = rect.top > y
+        val bottom = rect.bottom
         val r = minOf(h / 2f, size * 0.9f)
         rect.offset(0f, 3f * density)
         canvas.drawRoundRect(rect, r, r, shadowP)
         rect.offset(0f, -3f * density)
         tail.reset()
-        val tx = x.coerceIn(rect.left + r, rect.right - r)
-        tail.moveTo(tx - size * 0.45f, bottom - 1f)
-        tail.lineTo(tx, bottom + size * 0.5f)
-        tail.lineTo(tx + size * 0.45f, bottom - 1f)
+        val tx = if (rect.width() > 2 * r) x.coerceIn(rect.left + r, rect.right - r) else rect.centerX()
+        val edge = if (flipped) rect.top + 1f else bottom - 1f
+        val tip = if (flipped) rect.top - size * 0.5f else bottom + size * 0.5f
+        tail.moveTo(tx - size * 0.45f, edge)
+        tail.lineTo(tx, tip)
+        tail.lineTo(tx + size * 0.45f, edge)
         tail.close()
         canvas.drawPath(tail, bubbleP)
         canvas.drawRoundRect(rect, r, r, bubbleP)
+        lastBubble.set(rect.left, if (flipped) tip else rect.top, rect.right, if (flipped) bottom else tip)
         ringP.color = accent; ringP.strokeWidth = 2.5f * density
         canvas.drawRoundRect(rect, r, r, ringP)
         textP.textSize = size; textP.color = labelColor

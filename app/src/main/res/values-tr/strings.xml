@@ -10,6 +10,36 @@
     <string name="hud_clock_day">Gündüz · %1$s</string>
     <string name="hud_clock_night">Gece · %1$s · yedekleme saati %2$s</string>
     <string name="button_router">Router (%1$d)</string>
+    <!-- Toolbar network & ports -->
+    <string name="toolbar_cables">Kablolar</string>
+    <string name="toolbar_network">Ağ</string>
+    <string name="toolbar_router">Router</string>
+    <string name="toolbar_access_point">Wi-Fi</string>
+    <string name="toolbar_cell_tower">Baz</string>
+    <plurals name="toolbar_ports">
+        <item quantity="one">%1$d port</item>
+        <item quantity="other">%1$d port</item>
+    </plurals>
+    <string name="hint_drop_tool">Boş bir kareye sürükle ve bırak</string>
+    <plurals name="ports_full">
+        <item quantity="one">%1$s yalnızca %2$d porta sahip – araya bir router koy</item>
+        <item quantity="other">%1$s yalnızca %2$d porta sahip – araya bir router koy</item>
+    </plurals>
+    <plurals name="ports_full_short">
+        <item quantity="one">%1$s: yalnızca %2$d port</item>
+        <item quantity="other">%1$s: yalnızca %2$d port</item>
+    </plurals>
+    <string name="ports_add_router">Araya bir router koy</string>
+    <plurals name="tip_ports">
+        <item quantity="one">İpucu: bir cihazın altındaki noktalar portlarıdır, ● dolu, ○ boş. Bir router’ın %1$d portu var: alttaki çubuktan cihazların arasına sürükle.</item>
+        <item quantity="other">İpucu: bir cihazın altındaki noktalar portlarıdır, ● dolu, ○ boş. Bir router’ın %1$d portu var: alttaki çubuktan cihazların arasına sürükle.</item>
+    </plurals>
+    <string name="tutorial_ports_title">Portlar</string>
+    <string name="tutorial_ports_text">İki yeni PC! İlk PC iki portunu da kullanıyor, iki noktayı görüyor musun? Alttaki çubuktan yeni PC’lerin yanına bir router sürükle.</string>
+    <string name="tutorial_ports_connect_text">Şimdi iki PC’yi ve e-posta sunucusunu router’a bağla. 6 portu var ve e-postalarını dağıtır.</string>
+    <string name="legend_router_desc">Birçok cihazı bağlar: PC gibi 2 değil, 6 port. Alttaki çubuktan boş bir kareye sürükle.</string>
+    <string name="legend_ports_title">Portlar</string>
+    <string name="legend_ports_desc">Bir cihazın altındaki noktalar: ● dolu, ○ boş. Cihazlar ve Wi-Fi 2, sunucular ve bazlar 4, router’lar 6 porta sahip.</string>
     <string name="hint_place_router">Boş bir kareye dokun</string>
     <string name="button_access_point">Wi-Fi (%1$d)</string>
     <string name="button_cell_tower">Baz (%1$d)</string>
@@ -45,6 +75,20 @@
     <string name="service_video_call">Görüntülü arama</string>
     <string name="service_camera_upload">Kamera yükleme</string>
     <string name="service_cloud_backup">Bulut yedekleme</string>
+
+    <!-- Server names & matching -->
+    <string name="server_mail">E-posta sunucusu</string>
+    <string name="server_call">Telefon santrali</string>
+    <string name="server_gaming">Oyun sunucusu</string>
+    <string name="server_streaming">Yayın sunucusu</string>
+    <string name="server_video_call">Video sunucusu</string>
+    <string name="server_camera_upload">Kamera bulutu</string>
+    <string name="server_cloud_backup">Yedekleme sunucusu</string>
+    <string name="device_wants_server">%1$s: %2$s → %3$s</string>
+    <string name="device_needs_servers">%1$s için gerekli: %2$s</string>
+    <string name="legend_device_servers">Bağlanacağı yer: %1$s</string>
+    <string name="legend_data_center_desc">Ayrı bir tür değil: her sunucunun en üst seviyesi. Yine yalnızca kendi hizmetini verir, daha fazla güç ve bağlantı noktasıyla.</string>
+
     <string name="device_pc">PC</string>
     <string name="device_phone">Telefon</string>
     <string name="device_laptop">Dizüstü</string>
@@ -66,7 +110,6 @@
     <string name="node_router">Router</string>
     <string name="node_access_point">Wi-Fi erişim noktası</string>
     <string name="node_cell_tower">Baz istasyonu</string>
-    <string name="node_server">%1$s sunucusu</string>
 
     <!-- Week news and cable feedback -->
     <string name="news_with_year">%1$d · %2$s</string>
@@ -76,7 +119,6 @@
     <string name="connect_error_same_node">Aynı düğüm</string>
     <string name="connect_error_already_connected">Zaten bağlı</string>
     <string name="connect_error_not_invented">%1$s henüz icat edilmedi</string>
-    <string name="connect_error_ports_full">%1$s: tüm portlar dolu</string>
     <string name="connect_error_no_budget">Bütçe yetmiyor</string>
 
     <!-- Week rewards -->
@@ -110,6 +152,11 @@
     <string name="settings_haptics">Titreşim</string>
     <string name="settings_overview">Düz görünüm</string>
     <string name="settings_free_rotation">Serbest döndürme</string>
+    <!-- Camera controls -->
+    <string name="a11y_rotate_left">Haritayı saat yönünün tersine çevir</string>
+    <string name="a11y_rotate_right">Haritayı saat yönünde çevir</string>
+    <string name="a11y_tilt_low">Daha alçak bakış, daha çok yandan</string>
+    <string name="a11y_tilt_high">Daha dik bakış, daha çok yukarıdan</string>
     <string name="settings_colorblind">Renk körü modu</string>
     <string name="settings_language">Dil, sistem dilini izler</string>
 
@@ -157,7 +204,7 @@
     <string name="tutorial_cable_text">PC bir e-posta göndermek istiyor. Parmağını PC’den e-posta sunucusuna sürükle.</string>
     <string name="tutorial_router_title">Router yerleştir</string>
     <string name="tutorial_router_text">Bir cihazın yalnızca 2 portu var, router’ın 6. Alttaki “Router” düğmesine, sonra telefonların yanındaki boş bir kareye dokun.</string>
-    <string name="tutorial_router_connect_text">Şimdi iki telefonu ve telefon sunucusunu router’a bağla. Aramaları o dağıtır.</string>
+    <string name="tutorial_router_connect_text">Şimdi iki telefonu ve telefon santralini router’a bağla. Aramaları o dağıtır.</string>
     <string name="tutorial_bandwidth_title">Bant genişliği</string>
     <string name="tutorial_bandwidth_text">1998: Televizyon yayın izlemek istiyor. Onu yayın sunucusuna bağla.</string>
     <string name="tutorial_bandwidth_narrow_text">Çok dar! Yayın için bant genişliği %1$d gerekir, ISDN yalnızca %2$d taşır. Alttan DSL’i seç, o %3$d taşır.</string>
@@ -192,6 +239,13 @@
     <string name="cable_error_no_budget">Bütçe yetmiyor, yükseltmenin bedeli %1$d</string>
     <string name="hint_cable_remove">Kablo: %1$s · kaldırmak için tekrar dokun (+%2$d)</string>
     <string name="hint_cable_removed">Kablo kaldırıldı, iade: +%1$d</string>
+    <!-- Cable reroute -->
+    <string name="hint_cable_select">Kablo: %1$s · yeniden döşemek için bir ucunu sürükle · kaldırmak için tekrar dokun (+%2$d)</string>
+    <string name="hint_cable_select_free">Kablo: %1$s · yeniden döşemek için bir ucunu sürükle · kaldırmak için tekrar dokun</string>
+    <string name="hint_cable_rerouted">Kablo yeniden döşendi</string>
+    <string name="hint_cable_rerouted_paid">Kablo yeniden döşendi · −%1$d</string>
+    <string name="hint_cable_rerouted_refund">Kablo yeniden döşendi, iade: +%1$d</string>
+    <string name="reroute_error_incident">Bu kabloda kepçe var · gidince yeniden döşeyebilirsin</string>
     <string name="place_error_no_stock">Stokta kalmadı: %1$s</string>
     <string name="place_error_locked">Bu kare henüz açılmadı</string>
     <string name="place_error_occupied">Bu kare zaten dolu</string>
@@ -208,10 +262,10 @@
     <string name="hint_service_needs">%1$s için bant genişliği %2$d gerekir</string>
     <string name="hint_service_needs_ping">%1$s için bant genişliği %2$d ve en fazla %3$d ms ping gerekir</string>
     <string name="device_wants">%1$s istiyor: %2$s</string>
-    <string name="problem_no_route">%1$s: %2$s – sunucuya giden yol yok</string>
-    <string name="problem_too_narrow">%1$s: %2$s – yeterince geniş kablo yok (bant genişliği %3$d)</string>
-    <string name="problem_ping">%1$s: %2$s – ping %3$d ms, izin verilen %4$d ms</string>
-    <string name="problem_jam">%1$s: %2$s – tıkanıklık, kablolar ya da sunucu dolu</string>
+    <string name="problem_no_route">%1$s → %2$s: yol yok – ikisini kabloyla bağla</string>
+    <string name="problem_too_narrow">%1$s → %2$s: yeterince geniş kablo yok (bant genişliği %3$d)</string>
+    <string name="problem_ping">%1$s → %2$s: ping %3$d ms, izin verilen %4$d ms</string>
+    <string name="problem_jam">%1$s → %2$s: tıkanıklık, kablolar ya da sunucu dolu</string>
     <string name="game_over_no_route">%1$s hiçbir %2$s sunucusuna ulaşamadı</string>
     <string name="game_over_too_narrow">%1$s, %2$s için daha geniş bir kablo istedi</string>
     <string name="game_over_ping">%1$s üzerinde %2$s takıldı: %3$d ms, en fazla %4$d ms</string>
@@ -479,8 +533,8 @@
     <string name="reviewer_access_enabled">İnceleyici erişimi etkinleştirildi</string>
     <string name="reviewer_access_invalid">Geçersiz inceleme kodu</string>
     <string name="menu_legend">Ne nedir?</string>
-    <string name="legend_section_services">Hizmetler</string>
-    <string name="legend_section_devices">Cihazlar</string>
+    <string name="legend_section_services">Sunucular</string>
+    <string name="legend_section_devices">Cihazlar → sunucular</string>
     <string name="legend_section_network">Ağın</string>
     <string name="legend_section_signs">İşaretler</string>
     <string name="legend_service_ping">Bant genişliği %1$d · ping en çok %2$d ms</string>

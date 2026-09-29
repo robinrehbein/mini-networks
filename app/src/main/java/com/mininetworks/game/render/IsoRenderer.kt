@@ -29,12 +29,16 @@ import kotlin.math.floor
 import kotlin.math.hypot
 import kotlin.math.sin
 
-/** The iso squash: one map unit per tile width, a tile half as high as it is wide. */
-object IsoProjection : MapProjection {
+/**
+ * The iso squash: one map unit per tile width, a tile [squash] times as high as it is wide ([Camera.squash], the sine
+ * of the camera's pitch; 1/2 is the classic look). Linear at every pitch, and exact at the classic one.
+ */
+class IsoProjection(val squash: Float = 0.5f) : MapProjection {
     override fun projectX(x: Float, y: Float) = (x - y) / 2f
-    override fun projectY(x: Float, y: Float) = (x + y) / 4f
-    override fun unprojectX(mx: Float, my: Float) = mx + 2f * my
-    override fun unprojectY(mx: Float, my: Float) = 2f * my - mx
+    override fun projectY(x: Float, y: Float) = (x + y) * squash / 2f
+    override fun unprojectX(mx: Float, my: Float) = mx + my / squash
+    override fun unprojectY(mx: Float, my: Float) = my / squash - mx
+    override fun tilted(squash: Float) = if (squash == this.squash) this else IsoProjection(squash)
 }
 
 /**
@@ -42,9 +46,16 @@ object IsoProjection : MapProjection {
  *
  * The map can be turned to any angle ([Camera.angle]): every world point is first turned around the world origin and
  * then squashed ([IsoProjection]), so tiles, cables, packets, radio circles and shadows all follow. What stands up from
- * the ground is built from its faces: a wall is drawn only while it faces the viewer, and its shade comes from the
+ * the ground is built from its faces: a wall is drawn only while it faces the viewer (at the side-on views, 45° off a
+ * corner, only the one wall straight ahead; the two beside it are edge-on and left out), and its shade comes from the
  * direction it faces on screen, so the light stays at the upper left however the map is turned. Things with height
- * are painted back to front by their depth in the turned map ([depthOf]).
+ * are painted back to front by their depth in the turned map ([depthOf]); at a side-on view a row across the screen
+ * shares one depth, drawn in insertion order, as nothing in it overlaps.
+ *
+ * The camera's pitch ([Camera.tilt]) sets how much the ground is squashed ([Camera.squash]) and how far every height
+ * rises ([Camera.lift]), both through [sx] and [sy]: buildings, relief, masts, packets in flight, the signs and
+ * queues above nodes and the board's edge all grow when the view is low and shrink when it is steep, while labels,
+ * badges and icons keep their screen size.
  */
 class IsoRenderer : Renderer {
     override val name = "Iso"
@@ -64,13 +75,16 @@ class IsoRenderer : Renderer {
     private val lockedWaterB get() = pal.lockedWaterB
     private val edge = 0x8C2F3A34.toInt()
 
-    override val camera = Camera().apply { projection = IsoProjection }
+    override val camera = Camera().apply { projection = IsoProjection() }
+    /** Buildings, relief and packets stand up from the ground, so the camera's pitch applies. */
+    override val tilts get() = true
     override var density = 1f
+    override val serverLabels = ServerLabels()
     /** A tile at least [READABLE_TILE_DP] wide on first launch, close to the store framing: devices and packets read at phone size. */
     override val readableScale get() = READABLE_TILE_DP * density
     /** Tile width and height in pixels at the current zoom. */
     private val tw get() = camera.scale
-    private val th get() = camera.scale / 2f
+    private val th get() = camera.scale * camera.squash
     override val unitPx get() = tw * 0.7f
 
     private val fillP = fill(0)
@@ -101,14 +115,15 @@ class IsoRenderer : Renderer {
         var focusX = 0f
         var focusY = 0f
         var angle = 0f
+        var tilt = 0f
         var width = 0
         var height = 0
 
         fun matches(c: Camera, w: Int, h: Int) =
-            scale == c.scale && focusX == c.focusX && focusY == c.focusY && angle == c.angle && width == w && height == h
+            scale == c.scale && focusX == c.focusX && focusY == c.focusY && angle == c.angle && tilt == c.tilt && width == w && height == h
 
         fun set(c: Camera, w: Int, h: Int) {
-            scale = c.scale; focusX = c.focusX; focusY = c.focusY; angle = c.angle; width = w; height = h
+            scale = c.scale; focusX = c.focusX; focusY = c.focusY; angle = c.angle; tilt = c.tilt; width = w; height = h
         }
     }
 
@@ -130,13 +145,20 @@ class IsoRenderer : Renderer {
 
     /** Painter's order of everything with height, rebuilt every frame without allocating. */
     private val depth = DepthQueue(256)
+    private val labelBox = RectF()
     private val radioScratch = ArrayList<Node>()
     private val pos = FloatArray(2)
     private val cutDash = DashCache()
     private val airDash = DashCache()
 
-    /** The (turned) diamond of [area] plus room for tall buildings above and the board edge below. */
-    override fun mapBounds(area: CellRect, angle: Float) = turnedBounds(area, angle, IsoProjection, 0.3f, 1.1f, 0.4f, 0.4f)
+    /**
+     * The (turned) diamond of [area] seen at pitch [tilt], plus room for tall buildings above and the board edge below;
+     * both grow and shrink with the height of things at that pitch ([Camera.lift]).
+     */
+    override fun mapBounds(area: CellRect, angle: Float, tilt: Float): MapRect {
+        val grow = Camera.liftOf(tilt) / Camera.liftOf(Camera.DEFAULT_TILT) - 1f
+        return turnedBounds(area, angle, IsoProjection(Camera.squashOf(tilt)), 0.3f, 1.1f + 0.75f * grow, 0.4f, 0.4f + 0.25f * grow)
+    }
 
     /** Screen x of world point ([x], [y]) on the ground: turned by the camera's angle, then squashed. */
     private fun sx(x: Float, y: Float): Float {
@@ -144,10 +166,10 @@ class IsoRenderer : Renderer {
         return camera.toScreenX(((c - s) * x - (s + c) * y) / 2f)
     }
 
-    /** Screen y of world point ([x], [y]) at height [z] (in tile widths). */
+    /** Screen y of world point ([x], [y]) at height [z] (in tile widths), squashed and lifted at the camera's pitch. */
     private fun sy(x: Float, y: Float, z: Float = 0f): Float {
         val c = camera.cosA; val s = camera.sinA
-        return camera.toScreenY(((c + s) * x + (c - s) * y) / 4f - z / 2f)
+        return camera.toScreenY(((c + s) * x + (c - s) * y) * camera.squash / 2f - z * camera.lift)
     }
 
     /** Depth of world point ([x], [y]) in the turned map: larger is nearer the viewer (x + y when not turned). */
@@ -186,6 +208,7 @@ class IsoRenderer : Renderer {
 
     override fun draw(canvas: Canvas, world: World, drag: DragPreview?, time: Float) {
         pal = Cosmetic.paletteFor(world.scenario.id)
+        serverLabels.begin()
         drawGroundLayer(canvas, world)
         drawWaterShimmer(canvas, world, time)
 
@@ -211,9 +234,17 @@ class IsoRenderer : Renderer {
         }
         drawRadioCoverage(canvas, world, time)
         for (i in world.incidents) drawIncidentGround(canvas, i, time)
+        // Servers the player is looking for (a device being dragged from asks for them) glow on the ground.
+        if (serverLabels.focus != null) for (n in world.nodes) if (serverLabels.matches(n)) {
+            groundEllipse(n.footprintCenter, if (n.isDataCenter) 1.3f else 0.66f)
+            serverLabels.drawRing(canvas, n, oval, maxOf(tw * 0.03f, 2f * density), time)
+        }
 
         drag?.let { d ->
-            val end = d.layout.end
+            d.replaces?.let { old ->
+                polyline(cablePath(old))
+                DragJuice.ghost(canvas, path, tw * CableStyles.of(old.type).width * 0.5f, density)
+            }
             polyline(d.layout.waypoints)
             val st = CableStyles.of(d.type)
             val col = if (d.blocked) alarm else st.color
@@ -226,13 +257,6 @@ class IsoRenderer : Renderer {
             d.trail.forEachIndexed { i, p -> xs[i] = sx(p.x, p.y); ys[i] = sy(p.x, p.y) }
             xs[d.trail.size] = sx(d.end.x, d.end.y); ys[d.trail.size] = sy(d.end.x, d.end.y)
             DragJuice.trail(canvas, xs, ys, col, density)
-            d.label?.let {
-                val size = maxOf(tw * 0.3f, LABEL_MIN_DP * 1.2f * density)
-                DragJuice.bubble(
-                    canvas, it, d.detail, sx(end.x, end.y), sy(end.x, end.y), maxOf(th * 2.2f, 40f * density), size, density,
-                    if (d.blocked) alarm else 0xFF2F3A34.toInt(), if (d.detailWarning) alarm else 0xFF5B6674.toInt(), col,
-                )
-            }
         }
 
         drawArrivalRings(canvas, world)
@@ -265,9 +289,10 @@ class IsoRenderer : Renderer {
             depth.add(depthOf(pos[0], pos[1]) + 0.01f, PACKET, packets[k], pos[0], pos[1])
         }
         depth.sort()
+        val showPorts = PortDots.visible(unitPx, density)
         for (k in 0 until depth.size) {
             when (depth.kind(k)) {
-                NODE -> drawNode(canvas, world, depth.ref(k) as Node, time)
+                NODE -> (depth.ref(k) as Node).let { drawNode(canvas, world, it, time); drawPorts(canvas, world, it, drag, showPorts) }
                 EXCAVATOR -> (depth.ref(k) as Int).let { drawExcavator(canvas, standFor[it], standAt[it], standDir[it], time) }
                 else -> drawPacket(canvas, depth.ref(k) as Packet, depth.x(k), depth.y(k))
             }
@@ -302,7 +327,56 @@ class IsoRenderer : Renderer {
         }
         for (n in nodes) if (n.upgradedAt > Float.NEGATIVE_INFINITY) drawUpgradeJuice(canvas, world, n)
         drawDeliveryPops(canvas, world)
+
+        // The drag's handles and label go on top, so no building ever covers the price.
+        drag?.let { d ->
+            val end = d.labelAt ?: d.layout.end
+            val st = CableStyles.of(d.type)
+            val col = if (d.blocked) alarm else st.color
+            for (h in d.handles) DragJuice.handle(canvas, sx(h.x, h.y), sy(h.x, h.y), st.color, density)
+            d.label?.let {
+                val size = maxOf(tw * 0.3f, LABEL_MIN_DP * 1.2f * density)
+                DragJuice.bubble(
+                    canvas, it, d.detail, sx(end.x, end.y), sy(end.x, end.y), maxOf(th * 2.2f, 40f * density), size, density,
+                    if (d.blocked) alarm else 0xFF2F3A34.toInt(), if (d.detailWarning) alarm else 0xFF5B6674.toInt(), col,
+                    DragJuice.bounds(canvas, camera.insets),
+                )
+                DragJuice.lastBubble.let { b -> serverLabels.obstacle(b.left, b.top, b.right, b.bottom, hardEdge = true) }
+            }
+        }
+        serverLabels.draw(canvas, camera, serverLabels.visibility(tw, density), density, time)
     }
+
+    /**
+     * [n]'s port dots ([PortDots]) upright on the ground in front of it, drawn right after the node so nearer buildings
+     * still cover them; a node without a free port gets a red ring on the ground while a cable is dragged.
+     */
+    private fun drawPorts(canvas: Canvas, world: World, n: Node, drag: DragPreview?, show: Boolean) {
+        val e = PortDots.emphasis(world, n, drag, show) ?: return
+        val c = n.footprintCenter
+        val x = sx(c.x, c.y); val y = sy(c.x, c.y)
+        val k = if (n.isDataCenter) 2f else 1f
+        PortDots.draw(canvas, world, n, x, y + th * 0.5f * k, unitPx, density, e, x, y, tw * 0.5f * k, th * 0.5f * k)
+    }
+
+    /**
+     * Screen box around the ground square of half size [half] (cells) around ([x], [y]) at any angle, reaching up to
+     * screen y [top], into [labelBox]; for [ServerLabels] obstacles.
+     */
+    private fun groundBox(x: Float, y: Float, half: Float, top: Float): RectF {
+        var l = Float.MAX_VALUE; var r = -Float.MAX_VALUE; var b = -Float.MAX_VALUE
+        for (k in 0 until 4) {
+            val px = x + if (k == 1 || k == 2) half else -half
+            val py = y + if (k >= 2) half else -half
+            val qx = sx(px, py); val qy = sy(px, py)
+            l = minOf(l, qx); r = maxOf(r, qx); b = maxOf(b, qy)
+        }
+        labelBox.set(l, minOf(top, b), r, b)
+        return labelBox
+    }
+
+    /** [groundBox] as a (soft) obstacle for the server plates: network gear whose edge a plate may touch. */
+    private fun labelObstacle(b: RectF) = serverLabels.obstacle(b.left, b.top, b.right, b.bottom)
 
     /** The cable in [path] with style [st]: dark outline, white halo, the cable colour and its core, if any. */
     private fun strokeCable(canvas: Canvas, st: CableStyles.Style) {
@@ -371,22 +445,27 @@ class IsoRenderer : Renderer {
     private var spriteScale = Float.NaN
     private var spriteDensity = Float.NaN
     private var spriteColorblind = false
+    /** Pitch the sprites were drawn at: the packet floats higher over its shadow the lower the view. */
+    private var spriteLift = Float.NaN
     private var lastPacketScale = Float.NaN
+    private var lastPacketLift = Float.NaN
     private var spritesOn = false
     /** Pixel of each sprite that sits on the packet's ground point. */
     private val spriteX = IntArray(sprites.size)
     private val spriteY = IntArray(sprites.size)
 
-    /** Called once per frame: sprites are used while the zoom holds still, and rebuilt when their look changes. */
+    /** Called once per frame: sprites are used while zoom and tilt hold still, and rebuilt when their look changes. */
     private fun preparePacketSprites() {
         val scale = camera.scale
-        val still = scale == lastPacketScale
+        val lift = camera.lift
+        val still = scale == lastPacketScale && lift == lastPacketLift
         lastPacketScale = scale
+        lastPacketLift = lift
         spritesOn = still && scale > 0f
         if (!spritesOn) return
-        if (scale != spriteScale || density != spriteDensity || ServiceColors.colorblind != spriteColorblind) {
+        if (scale != spriteScale || lift != spriteLift || density != spriteDensity || ServiceColors.colorblind != spriteColorblind) {
             for (i in sprites.indices) { sprites[i]?.recycle(); sprites[i] = null }
-            spriteScale = scale; spriteDensity = density; spriteColorblind = ServiceColors.colorblind
+            spriteScale = scale; spriteLift = lift; spriteDensity = density; spriteColorblind = ServiceColors.colorblind
         }
     }
 
@@ -593,7 +672,7 @@ class IsoRenderer : Renderer {
         val w = c.width.toFloat(); val h = c.height.toFloat()
         if (w <= 0f || h <= 0f) return
         // World cells the screen shows, as seen on the sunken level.
-        val drop = OUTSKIRT_DROP * tw / 2f
+        val drop = OUTSKIRT_DROP * tw * camera.lift
         var minX = Float.MAX_VALUE; var minY = Float.MAX_VALUE; var maxX = -Float.MAX_VALUE; var maxY = -Float.MAX_VALUE
         for (k in 0 until 4) {
             val p = camera.screenToWorld(if (k % 2 == 0) 0f else w, (if (k < 2) 0f else h) - drop)
@@ -606,31 +685,104 @@ class IsoRenderer : Renderer {
         val seed = world.seed
         c.save()
         c.translate(0f, drop)
-        for (pass in 0 until 2) for (y in y0..y1) for (x in x0..x1) {
-            if (x in 0 until cols && y in 0 until rows) continue
-            val ex = x.coerceIn(0, cols - 1); val ey = y.coerceIn(0, rows - 1)
-            if ((depthOf(x + 0.5f, y + 0.5f) > depthOf(ex + 0.5f, ey + 0.5f)) != front) continue
-            val dist = maxOf(abs(x - ex), abs(y - ey))
-            // Only a light haze that deepens slowly: the countryside fills the screen and stays calm (judge panel:
-            // a portrait screen showed pale fog above and below the board).
-            val fade = (dist / OUTSKIRT_FADE).coerceAtMost(1f) * OUTSKIRT_HAZE + 0.04f
-            // A river leaves the board straight on: only cells beyond one edge (not a corner) continue it.
-            val water = (x in 0 until cols || y in 0 until rows) && world.terrainAt(ex, ey) == Terrain.WATER
-            val even = (x + y) % 2 == 0
-            if (pass == 0) {
-                quad(x.toFloat(), y.toFloat(), 1f, 1f, 0f)
-                val base = if (water) (if (even) blend(waterA, lockedWaterA, 0.5f) else blend(waterB, lockedWaterB, 0.5f))
-                    else if (even) blend(landA, lockedLandA, 0.55f) else blend(landB, lockedLandB, 0.55f)
-                fillP.color = blend(base.shade(Scenery.tileVariation(seed, x, y) * TILE_VARIATION), pal.background, fade)
-                c.drawPath(path, fillP)
-            } else if (!water && dist <= OUTSKIRT_DECOR) {
-                val d = Scenery.outskirt(seed, x, y, dist) ?: continue
-                decorWash = OUTSKIRT_DECOR_WASH + fade * 0.5f
-                drawDecor(c, seed, Cell(x, y), d, open = false)
+        for (pass in 0 until 2) {
+            // Between the tiles and the decorations: the board's foot and the rivers falling off it.
+            if (pass == 1) drawBoardFoot(c, world, front)
+            for (y in y0..y1) for (x in x0..x1) {
+                if (x in 0 until cols && y in 0 until rows) continue
+                val ex = x.coerceIn(0, cols - 1); val ey = y.coerceIn(0, rows - 1)
+                if ((depthOf(x + 0.5f, y + 0.5f) > depthOf(ex + 0.5f, ey + 0.5f)) != front) continue
+                val dist = maxOf(abs(x - ex), abs(y - ey))
+                // Only a light haze that deepens slowly: the countryside fills the screen and stays calm (judge panel:
+                // a portrait screen showed pale fog above and below the board).
+                val fade = (dist / OUTSKIRT_FADE).coerceAtMost(1f) * OUTSKIRT_HAZE + 0.04f
+                // A river leaves the board straight on: only cells beyond one edge (not a corner) continue it.
+                val water = (x in 0 until cols || y in 0 until rows) && world.terrainAt(ex, ey) == Terrain.WATER
+                val even = (x + y) % 2 == 0
+                if (pass == 0) {
+                    quad(x.toFloat(), y.toFloat(), 1f, 1f, 0f)
+                    val base = if (water) (if (even) blend(waterA, lockedWaterA, 0.5f) else blend(waterB, lockedWaterB, 0.5f))
+                        else if (even) blend(landA, lockedLandA, 0.55f) else blend(landB, lockedLandB, 0.55f)
+                    fillP.color = blend(base.shade(Scenery.tileVariation(seed, x, y) * TILE_VARIATION), pal.background, fade)
+                    c.drawPath(path, fillP)
+                } else if (!water && dist <= OUTSKIRT_DECOR) {
+                    val d = Scenery.outskirt(seed, x, y, dist) ?: continue
+                    decorWash = OUTSKIRT_DECOR_WASH + fade * 0.5f
+                    drawDecor(c, seed, Cell(x, y), d, open = false)
+                }
             }
         }
         decorWash = LOCKED_DECOR_WASH
         c.restore()
+    }
+
+    /**
+     * Where the board meets the outskirts, on the sunken level (the canvas of [drawOutskirts]; height 0 is theirs and
+     * [OUTSKIRT_DROP] the board's), for the part nearer the viewer than the board if [front], else the rest.
+     *
+     * A soft shadow along the foot of every board edge: the step down to the outskirts reads even where a wall is seen
+     * edge-on and shows nothing (the side-on views), so the board never seems to sit lower than its surroundings.
+     * And every river that leaves the board falls to the outskirts' level over a short slope of foaming water, its
+     * earth banks shown where they face the viewer; the river runs on without a jog at any angle and pitch.
+     */
+    private fun drawBoardFoot(c: Canvas, world: World, front: Boolean) {
+        val w = world.cols.toFloat(); val h = world.rows.toFloat()
+        for (e in BOARD_EDGES.indices step 6) {
+            val nx = BOARD_EDGES[e + 4]; val ny = BOARD_EDGES[e + 5]
+            if (facing(nx, ny) != front) continue
+            val ax = BOARD_EDGES[e] * w; val ay = BOARD_EDGES[e + 1] * h; val bx = BOARD_EDGES[e + 2] * w; val by = BOARD_EDGES[e + 3] * h
+            fillP.color = FOOT_SHADOW_ALPHA shl 24
+            for (spread in FOOT_SHADOW_SPREAD) {
+                poly(ax, ay, 0f, bx, by, 0f, bx + nx * spread, by + ny * spread, 0f, ax + nx * spread, ay + ny * spread, 0f)
+                c.drawPath(path, fillP)
+            }
+        }
+        val cols = world.cols; val rows = world.rows
+        for (k in 0 until 4) {
+            val nx = NEIGHBOURS[2 * k]; val ny = NEIGHBOURS[2 * k + 1]
+            if (facing(nx.toFloat(), ny.toFloat()) != front) continue
+            val along = if (nx != 0) rows else cols
+            for (i in 0 until along) {
+                // The board cell on this edge and where its edge lies.
+                val ex = if (nx > 0) cols - 1 else if (nx < 0) 0 else i
+                val ey = if (ny > 0) rows - 1 else if (ny < 0) 0 else i
+                if (world.terrainAt(ex, ey) != Terrain.WATER) continue
+                drawFall(c, world.unlocked.contains(ex, ey), ex, ey, nx, ny)
+            }
+        }
+    }
+
+    /**
+     * The river on board cell ([ex], [ey]) falling over the board edge with outward normal ([nx], [ny]) onto the
+     * outskirts ([drawBoardFoot]): a slope of lighter water [FALL_RUN] cells out from the top of the edge down to the
+     * sunken level, foam along its lip and foot, and the earth under it on the sides that face the viewer.
+     */
+    private fun drawFall(c: Canvas, lit: Boolean, ex: Int, ey: Int, nx: Int, ny: Int) {
+        val top = OUTSKIRT_DROP
+        // The lip: the cell's edge on the board's edge, from a to b; the foot lies FALL_RUN further out.
+        val ax = ex + if (nx > 0) 1f else 0f; val ay = ey + if (ny > 0) 1f else 0f
+        val bx = if (nx != 0) ax else ax + 1f; val by = if (ny != 0) ay else ay + 1f
+        val ox = nx * FALL_RUN; val oy = ny * FALL_RUN
+        // Earth sides first: the triangles under the slope at both ends of the lip, where they face the viewer.
+        val bank = if (lit) landB.shade(BANK_SHADE) else wash(landB.shade(BANK_SHADE))
+        val tx = (bx - ax); val ty = (by - ay)
+        fillP.color = bank
+        if (facing(-tx, -ty)) { poly(ax, ay, top, ax + ox, ay + oy, 0f, ax, ay, 0f); c.drawPath(path, fillP) }
+        if (facing(tx, ty)) { poly(bx, by, top, bx + ox, by + oy, 0f, bx, by, 0f); c.drawPath(path, fillP) }
+        val water = if (lit) blend(waterA, waterB, 0.5f) else blend(lockedWaterA, lockedWaterB, 0.5f)
+        poly(ax, ay, top, bx, by, top, bx + ox, by + oy, 0f, ax + ox, ay + oy, 0f)
+        fillP.color = blend(water, 0xFFFFFFFF.toInt(), FALL_FOAM)
+        c.drawPath(path, fillP)
+        strokeP.strokeWidth = tw * 0.022f
+        strokeP.color = if (lit) FOAM else FOAM_LOCKED
+        c.drawLine(sx(ax, ay), sy(ax, ay, top), sx(bx, by), sy(bx, by, top), strokeP)
+        c.drawLine(sx(ax + ox, ay + oy), sy(ax + ox, ay + oy), sx(bx + ox, by + oy), sy(bx + ox, by + oy), strokeP)
+        // Two streaks down the slope, so it reads as falling water rather than a tilted tile.
+        strokeP.color = if (lit) FALL_STREAK else FALL_STREAK_LOCKED
+        for (f in FALL_STREAKS) {
+            val px = ax + tx * f; val py = ay + ty * f
+            c.drawLine(sx(px, py), sy(px, py, top), sx(px + ox, py + oy), sy(px + ox, py + oy), strokeP)
+        }
     }
 
     /**
@@ -1198,6 +1350,12 @@ class IsoRenderer : Renderer {
         }
     }
 
+    /** Scale of a server's sign while it is in the focus: it breathes with the ground ring. */
+    private fun focusPop(n: Node, time: Float): Float {
+        if (!serverLabels.matches(n)) return 1f
+        return 1f + 0.14f * serverLabels.focus!!.strength * sin(serverLabels.pulse(time) * PI.toFloat()).let { it * it }
+    }
+
     /** Scale of a server's badge: a short bounce each time a request arrives. */
     private fun badgePop(world: World, n: Node): Float {
         val last = world.arrivals.lastOrNull { !it.isResponse && it.node === n } ?: return 1f
@@ -1239,7 +1397,7 @@ class IsoRenderer : Renderer {
             // other discs.
             fillP.color = col and 0x00FFFFFF or 0x2E000000; canvas.drawOval(oval, fillP)
             val glow = tw * 0.16f
-            oval.inset(glow / 2f, glow / 4f)
+            oval.inset(glow / 2f, glow / 2f * camera.squash)
             strokeP.color = col and 0x00FFFFFF or 0x26000000; strokeP.strokeWidth = glow; canvas.drawOval(oval, strokeP)
             groundEllipse(n.center, n.radius)
             strokeP.color = 0xCCFFFFFF.toInt(); strokeP.strokeWidth = maxOf(3f * density, rim * 2f); canvas.drawOval(oval, strokeP)
@@ -1295,6 +1453,18 @@ class IsoRenderer : Renderer {
     }
 
     private fun drawNode(canvas: Canvas, world: World, n: Node, time: Float) {
+        // A server outside the focus steps back (drawn through a translucent layer over its own box).
+        val dim = serverLabels.dimAlpha(n)
+        if (dim < 255) {
+            val c = n.footprintCenter
+            val b = groundBox(c.x, c.y, if (n.isDataCenter) 1.1f else 0.6f, sy(c.x, c.y, n.level * 0.72f + 0.6f) - tw * 0.45f)
+            canvas.saveLayerAlpha(b.left - tw * 0.2f, b.top, b.right + tw * 0.2f, b.bottom + th * 0.2f, dim)
+        }
+        drawNodeBody(canvas, world, n, time)
+        if (dim < 255) canvas.restore()
+    }
+
+    private fun drawNodeBody(canvas: Canvas, world: World, n: Node, time: Float) {
         val busy = world.serverBusy(n)
         val x = n.center.x; val y = n.center.y
         when (n.kind) {
@@ -1340,10 +1510,11 @@ class IsoRenderer : Renderer {
                 fillP.color = if (blink) 0xFFFF4D5E.toInt() else 0xFFB33A46.toInt()
                 canvas.drawCircle(sx(mx, my), sy(mx, my, top + 0.38f), maxOf(1.5f, tw * 0.03f), fillP)
                 // The service's sign floats over the roof, like a shop sign: the same pictogram as its packets.
-                val badge = maxOf(tw * 0.17f, SIGN_MIN_DP * density) * badgePop(world, n)
+                val badge = maxOf(tw * 0.17f, SIGN_MIN_DP * density) * badgePop(world, n) * focusPop(n, time)
                 val signY = sy(x, y, top) - badge * 0.9f
                 fillP.color = 0x30000000; canvas.drawCircle(sx(x, y) + badge * 0.12f, signY + badge * 0.18f, badge, fillP)
                 ServiceGlyphs.sign(canvas, service, sx(x, y), signY, badge, col.shade(-0.2f))
+                groundBox(x, y, 0.39f, signY - badge).let { serverLabels.add(n, it.left, it.top, it.right, it.bottom) }
 
             }
             NodeKind.CLIENT -> {
@@ -1357,7 +1528,7 @@ class IsoRenderer : Renderer {
                 val bx = sx(x, y); val by = sy(x, y, 0.2f)
                 canvas.save()
                 canvas.translate(bx, by)
-                canvas.skew(0f, DEVICE_SHEAR)
+                canvas.skew(0f, deviceShear())
                 canvas.translate(-bx, -by)
                 icons.depthX = 0.16f; icons.depthY = -0.16f
                 icons.device(canvas, d, bx, by - icon, icon)
@@ -1421,6 +1592,11 @@ class IsoRenderer : Renderer {
                 }
                 // The problem badge hangs at the bubble's left end: what is wrong, next to what is waiting.
                 badge?.let { ProblemBadges.draw(canvas, it, qx - r - pad - r * 1.9f, qy, r * 1.6f) }
+                // Plates keep clear of the device, its bubble, its badge and its overload ring.
+                if (slots > 0) serverLabels.obstacle(oval.left - (if (badge != null) r * 3.6f else 0f), oval.top, oval.right, oval.bottom + r * 0.7f, hardEdge = true)
+                val b = groundBox(x, y, if (n.overload > 0f) 0.62f else 0.3f, sy(x, y, 0.2f) - icon * 2.1f)
+                b.union(bx - icon * 1.3f, b.top, bx + icon * 1.3f, b.bottom)
+                serverLabels.obstacle(b.left, b.top, b.right, b.bottom, hardEdge = true)
             }
             NodeKind.ROUTER -> {
                 val dark = world.isDark(n)
@@ -1462,6 +1638,7 @@ class IsoRenderer : Renderer {
                 fillP.color = 0x30000000; canvas.drawCircle(sx(x, y) + badge * 0.12f, signY + badge * 0.18f, badge, fillP)
                 ServiceGlyphs.networkSign(canvas, sx(x, y), signY, badge, if (dark) 0xFF56606C.toInt() else ROUTER_SIDE, ROUTER_SIDE)
                 if (dark || warning) powerBadge(canvas, sx(x, y) + badge * 1.6f, signY, dark, time)
+                labelObstacle(groundBox(x, y, 0.33f, signY - badge))
             }
             NodeKind.ACCESS_POINT -> {
                 val dark = world.isDark(n)
@@ -1470,8 +1647,12 @@ class IsoRenderer : Renderer {
                 icons.accessPoint(canvas, sx(x, y), sy(x, y, 0.3f) - tw * 0.06f, tw * 0.15f, RadioStyles.color(n), time, dark)
                 if (!dark) channelBadge(canvas, n, sx(x, y) + tw * 0.22f, sy(x, y, 0.3f) - tw * 0.2f, world.interferers(n).isNotEmpty())
                 if (dark || warning) powerBadge(canvas, sx(x, y) - tw * 0.2f, sy(x, y, 0.3f) - tw * 0.3f, dark, time)
+                labelObstacle(groundBox(x, y, 0.3f, sy(x, y, 0.3f) - tw * 0.4f).apply { right = maxOf(right, sx(x, y) + tw * 0.32f) })
             }
-            NodeKind.CELL_TOWER -> drawCellTower(canvas, n, x, y, time)
+            NodeKind.CELL_TOWER -> {
+                drawCellTower(canvas, n, x, y, time)
+                labelObstacle(groundBox(x, y, 0.3f, sy(x, y, 2.3f)).apply { right = maxOf(right, sx(x, y) + tw * 0.4f) })
+            }
         }
     }
 
@@ -1707,10 +1888,11 @@ class IsoRenderer : Renderer {
             box(canvas, c.x + ROOF_UNITS[2 * p], c.y + ROOF_UNITS[2 * p + 1], 0.42f, 0.16f, 0xFF5B6674.toInt(), 0xFFB9C2CC.toInt(), z0 = roof)
         }
         // The same floating service sign as on a rack server, a size larger.
-        val badge = maxOf(tw * 0.24f, SIGN_MIN_DP * density) * pop
+        val badge = maxOf(tw * 0.24f, SIGN_MIN_DP * density) * pop * focusPop(n, time)
         val bx = sx(c.x, c.y); val by = sy(c.x, c.y, roof) - badge * 1.1f
         fillP.color = 0x30000000; canvas.drawCircle(bx + badge * 0.12f, by + badge * 0.18f, badge, fillP)
         ServiceGlyphs.sign(canvas, service, bx, by, badge, col.shade(-0.2f))
+        groundBox(c.x, c.y, 0.93f, by - badge).let { serverLabels.add(n, it.left, it.top, it.right, it.bottom) }
     }
 
     /**
@@ -1740,6 +1922,17 @@ class IsoRenderer : Renderer {
             if (v > bestV) { bestV = v; best = f }
         }
         return best
+    }
+
+    /**
+     * Shear of the device icons: [DEVICE_SHEAR] at the corner views, easing to none at the side-on views, where the
+     * tile edges run level and the plinth shows one wall straight on; flatter with a low view's squash, never steeper
+     * than in the classic view, as a steep view would skew the upright icons out of shape.
+     */
+    private fun deviceShear(): Float {
+        val a = (camera.angle + 45f) % 90f - 45f
+        val corner = if (a == 0f) 1f else kotlin.math.cos(Math.toRadians(2.0 * a)).toFloat()
+        return DEVICE_SHEAR * corner * minOf(camera.squash * 2f, 1f)
     }
 
     private val depthOrder = IntArray(4)
@@ -1881,6 +2074,15 @@ class IsoRenderer : Renderer {
         /** Spread (cells) of the passes of the board's shadow on the table, and the alpha of each. */
         val BOARD_SHADOW_SPREAD = floatArrayOf(0.9f, 0.7f, 0.5f, 0.32f, 0.16f, 0.04f)
         const val BOARD_SHADOW_ALPHA = 0x06
+        /** Reach (cells) of the passes of the shadow at the foot of the board's edges ([drawBoardFoot]), and their alpha. */
+        val FOOT_SHADOW_SPREAD = floatArrayOf(0.44f, 0.38f, 0.32f, 0.26f, 0.2f, 0.15f, 0.1f, 0.06f, 0.03f)
+        const val FOOT_SHADOW_ALPHA = 0x07
+        /** How far out (cells) a river falling off the board reaches the outskirts, how much foam lightens it, and its streaks. */
+        const val FALL_RUN = 0.4f
+        const val FALL_FOAM = 0.28f
+        const val FALL_STREAK = 0x73FFFFFF
+        const val FALL_STREAK_LOCKED = 0x40FFFFFF
+        val FALL_STREAKS = floatArrayOf(0.3f, 0.68f)
         /** Smallest width of a radio's rim on a phone, in dp. */
         const val RADIO_RIM_MIN_DP = 2f
 

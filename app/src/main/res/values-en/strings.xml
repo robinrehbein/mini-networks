@@ -10,6 +10,36 @@
     <string name="hud_clock_day">Day · %1$s</string>
     <string name="hud_clock_night">Night · %1$s · backups at %2$s</string>
     <string name="button_router">Router (%1$d)</string>
+    <!-- Toolbar network & ports -->
+    <string name="toolbar_cables">Cables</string>
+    <string name="toolbar_network">Network</string>
+    <string name="toolbar_router">Router</string>
+    <string name="toolbar_access_point">Wi-Fi</string>
+    <string name="toolbar_cell_tower">Tower</string>
+    <plurals name="toolbar_ports">
+        <item quantity="one">%1$d port</item>
+        <item quantity="other">%1$d ports</item>
+    </plurals>
+    <string name="hint_drop_tool">Drag onto a free cell and let go</string>
+    <plurals name="ports_full">
+        <item quantity="one">%1$s has only %2$d port – put a router in between</item>
+        <item quantity="other">%1$s has only %2$d ports – put a router in between</item>
+    </plurals>
+    <plurals name="ports_full_short">
+        <item quantity="one">%1$s: only %2$d port</item>
+        <item quantity="other">%1$s: only %2$d ports</item>
+    </plurals>
+    <string name="ports_add_router">Put a router in between</string>
+    <plurals name="tip_ports">
+        <item quantity="one">Tip: the dots under a device are its ports, ● in use, ○ free. A router has %1$d: drag one from the bar below between the devices.</item>
+        <item quantity="other">Tip: the dots under a device are its ports, ● in use, ○ free. A router has %1$d: drag one from the bar below between the devices.</item>
+    </plurals>
+    <string name="tutorial_ports_title">Ports</string>
+    <string name="tutorial_ports_text">Two new PCs! The first PC already uses both of its ports, see the two dots? Drag a router from the bar below to the new PCs.</string>
+    <string name="tutorial_ports_connect_text">Now connect both PCs and the mail server to the router. It has 6 ports and passes on their mail.</string>
+    <string name="legend_router_desc">Connects many devices: 6 ports instead of 2 like a PC. Drag it from the bar below onto a free cell.</string>
+    <string name="legend_ports_title">Ports</string>
+    <string name="legend_ports_desc">The dots under a device: ● in use, ○ free. Devices and Wi-Fi have 2, servers and towers 4, routers 6.</string>
     <string name="hint_place_router">Tap a free cell</string>
     <string name="button_access_point">Wi-Fi (%1$d)</string>
     <string name="button_cell_tower">Tower (%1$d)</string>
@@ -45,6 +75,20 @@
     <string name="service_video_call">Video calls</string>
     <string name="service_camera_upload">Camera upload</string>
     <string name="service_cloud_backup">Cloud backup</string>
+
+    <!-- Server names & matching -->
+    <string name="server_mail">Mail server</string>
+    <string name="server_call">Phone exchange</string>
+    <string name="server_gaming">Game server</string>
+    <string name="server_streaming">Streaming server</string>
+    <string name="server_video_call">Video server</string>
+    <string name="server_camera_upload">Camera cloud</string>
+    <string name="server_cloud_backup">Backup server</string>
+    <string name="device_wants_server">%1$s wants %2$s → %3$s</string>
+    <string name="device_needs_servers">%1$s needs: %2$s</string>
+    <string name="legend_device_servers">Connect to: %1$s</string>
+    <string name="legend_data_center_desc">Not a type of its own: the top tier of any server. It still delivers only its one service, with more power and more ports.</string>
+
     <string name="device_pc">PC</string>
     <string name="device_phone">Phone</string>
     <string name="device_laptop">Laptop</string>
@@ -66,7 +110,6 @@
     <string name="node_router">Router</string>
     <string name="node_access_point">Wi-Fi access point</string>
     <string name="node_cell_tower">Cell tower</string>
-    <string name="node_server">%1$s server</string>
 
     <!-- Week news and cable feedback -->
     <string name="news_with_year">%1$d · %2$s</string>
@@ -76,7 +119,6 @@
     <string name="connect_error_same_node">Same node</string>
     <string name="connect_error_already_connected">Already connected</string>
     <string name="connect_error_not_invented">%1$s not invented yet</string>
-    <string name="connect_error_ports_full">%1$s: all ports in use</string>
     <string name="connect_error_no_budget">Not enough budget</string>
 
     <!-- Week rewards -->
@@ -110,6 +152,11 @@
     <string name="settings_haptics">Haptics</string>
     <string name="settings_overview">Flat overview</string>
     <string name="settings_free_rotation">Free rotation</string>
+    <!-- Camera controls -->
+    <string name="a11y_rotate_left">Turn the map counterclockwise</string>
+    <string name="a11y_rotate_right">Turn the map clockwise</string>
+    <string name="a11y_tilt_low">Lower view, more from the side</string>
+    <string name="a11y_tilt_high">Steeper view, more from above</string>
     <string name="settings_colorblind">Colorblind aid</string>
     <string name="settings_language">The language follows your system language</string>
 
@@ -157,7 +204,7 @@
     <string name="tutorial_cable_text">The PC wants to send a mail. Drag with your finger from the PC to the mail server.</string>
     <string name="tutorial_router_title">Place a router</string>
     <string name="tutorial_router_text">A device has only 2 ports, a router has 6. Tap “Router” below, then a free cell near the phones.</string>
-    <string name="tutorial_router_connect_text">Now connect both phones and the telephony server to the router. It shares out the calls.</string>
+    <string name="tutorial_router_connect_text">Now connect both phones and the phone exchange to the router. It shares out the calls.</string>
     <string name="tutorial_bandwidth_title">Bandwidth</string>
     <string name="tutorial_bandwidth_text">1998: The TV wants to stream. Connect it to the streaming server.</string>
     <string name="tutorial_bandwidth_narrow_text">Too narrow! Streaming needs bandwidth %1$d, ISDN carries only %2$d. Pick DSL below, it carries %3$d.</string>
@@ -192,6 +239,13 @@
     <string name="cable_error_no_budget">Not enough budget, the upgrade costs %1$d</string>
     <string name="hint_cable_remove">%1$s cable · tap again to remove it (+%2$d)</string>
     <string name="hint_cable_removed">Cable removed, refund: +%1$d</string>
+    <!-- Cable reroute -->
+    <string name="hint_cable_select">%1$s cable · drag an end to re-route · tap again to remove (+%2$d)</string>
+    <string name="hint_cable_select_free">%1$s cable · drag an end to re-route · tap again to remove</string>
+    <string name="hint_cable_rerouted">Cable re-routed</string>
+    <string name="hint_cable_rerouted_paid">Cable re-routed · −%1$d</string>
+    <string name="hint_cable_rerouted_refund">Cable re-routed, refund: +%1$d</string>
+    <string name="reroute_error_incident">Excavator at this cable · re-route it once it is gone</string>
     <string name="place_error_no_stock">No %1$s left in stock</string>
     <string name="place_error_locked">This cell is not open yet</string>
     <string name="place_error_occupied">This cell is taken</string>
@@ -208,10 +262,10 @@
     <string name="hint_service_needs">%1$s needs bandwidth %2$d</string>
     <string name="hint_service_needs_ping">%1$s needs bandwidth %2$d, ping at most %3$d ms</string>
     <string name="device_wants">%1$s wants %2$s</string>
-    <string name="problem_no_route">%1$s: %2$s – no way to a server</string>
-    <string name="problem_too_narrow">%1$s: %2$s – no cable wide enough (bandwidth %3$d)</string>
-    <string name="problem_ping">%1$s: %2$s – ping %3$d ms, allowed %4$d ms</string>
-    <string name="problem_jam">%1$s: %2$s – jammed, cables or server too full</string>
+    <string name="problem_no_route">%1$s → %2$s: no way – connect them with cables</string>
+    <string name="problem_too_narrow">%1$s → %2$s: no cable wide enough (bandwidth %3$d)</string>
+    <string name="problem_ping">%1$s → %2$s: ping %3$d ms, allowed %4$d ms</string>
+    <string name="problem_jam">%1$s → %2$s: jammed, cables or server too full</string>
     <string name="game_over_no_route">%1$s couldn’t reach a %2$s server</string>
     <string name="game_over_too_narrow">%1$s needed a wider cable for %2$s</string>
     <string name="game_over_ping">%2$s on %1$s lagged: %3$d ms, max %4$d ms</string>
@@ -479,8 +533,8 @@
     <string name="reviewer_access_enabled">Reviewer access enabled</string>
     <string name="reviewer_access_invalid">Invalid review code</string>
     <string name="menu_legend">What\'s what?</string>
-    <string name="legend_section_services">Services</string>
-    <string name="legend_section_devices">Devices</string>
+    <string name="legend_section_services">Servers</string>
+    <string name="legend_section_devices">Devices → servers</string>
     <string name="legend_section_network">Your network</string>
     <string name="legend_section_signs">Signs</string>
     <string name="legend_service_ping">Bandwidth %1$d · ping at most %2$d ms</string>

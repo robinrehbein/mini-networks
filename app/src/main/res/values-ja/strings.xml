@@ -9,6 +9,32 @@
     <string name="hud_clock_day">昼 · %1$s</string>
     <string name="hud_clock_night">夜 · %1$s · バックアップ %2$s</string>
     <string name="button_router">ルーター (%1$d)</string>
+    <!-- Toolbar network & ports -->
+    <string name="toolbar_cables">ケーブル</string>
+    <string name="toolbar_network">ネットワーク</string>
+    <string name="toolbar_router">ルーター</string>
+    <string name="toolbar_access_point">Wi-Fi</string>
+    <string name="toolbar_cell_tower">基地局</string>
+    <plurals name="toolbar_ports">
+        <item quantity="other">ポート%1$d個</item>
+    </plurals>
+    <string name="hint_drop_tool">空きマスまでドラッグして指を離す</string>
+    <plurals name="ports_full">
+        <item quantity="other">%1$sのポートは%2$d個だけ。間にルーターを置こう</item>
+    </plurals>
+    <plurals name="ports_full_short">
+        <item quantity="other">%1$s：ポートは%2$d個だけ</item>
+    </plurals>
+    <string name="ports_add_router">間にルーターを置こう</string>
+    <plurals name="tip_ports">
+        <item quantity="other">ヒント：端末の下の点はポートです。●使用中、○空き。ルーターは%1$d個：下のバーから端末の間にドラッグしよう。</item>
+    </plurals>
+    <string name="tutorial_ports_title">ポート</string>
+    <string name="tutorial_ports_text">新しいPCが2台！最初のPCはもう両方のポートを使っています。2つの点が見えますか？下のバーから新しいPCのそばにルーターをドラッグしよう。</string>
+    <string name="tutorial_ports_connect_text">2台のPCとメールサーバーをルーターにつなごう。ポートは6個あり、メールを振り分けます。</string>
+    <string name="legend_router_desc">たくさんの端末をつなぐ：PCの2個に対してポート6個。下のバーから空きマスにドラッグ。</string>
+    <string name="legend_ports_title">ポート</string>
+    <string name="legend_ports_desc">端末の下の点：●使用中、○空き。端末とWi-Fiは2個、サーバーと基地局は4個、ルーターは6個。</string>
     <string name="hint_place_router">空いているマスをタップ</string>
     <string name="button_access_point">Wi-Fi (%1$d)</string>
     <string name="button_cell_tower">基地局 (%1$d)</string>
@@ -42,6 +68,20 @@
     <string name="service_video_call">ビデオ通話</string>
     <string name="service_camera_upload">カメラ映像</string>
     <string name="service_cloud_backup">クラウドバックアップ</string>
+
+    <!-- Server names & matching -->
+    <string name="server_mail">メールサーバー</string>
+    <string name="server_call">電話交換機</string>
+    <string name="server_gaming">ゲームサーバー</string>
+    <string name="server_streaming">動画配信サーバー</string>
+    <string name="server_video_call">ビデオ通話サーバー</string>
+    <string name="server_camera_upload">カメラクラウド</string>
+    <string name="server_cloud_backup">バックアップサーバー</string>
+    <string name="device_wants_server">%1$s：%2$s → %3$s</string>
+    <string name="device_needs_servers">%1$sに必要：%2$s</string>
+    <string name="legend_device_servers">つなぐ先：%1$s</string>
+    <string name="legend_data_center_desc">独立した種類ではなく、どのサーバーにもある最高レベルです。提供するサービスは同じ1つだけで、性能とポートが増えます。</string>
+
     <string name="device_pc">PC</string>
     <string name="device_phone">電話</string>
     <string name="device_laptop">ノートPC</string>
@@ -63,7 +103,6 @@
     <string name="node_router">ルーター</string>
     <string name="node_access_point">Wi-Fiアクセスポイント</string>
     <string name="node_cell_tower">携帯基地局</string>
-    <string name="node_server">%1$sサーバー</string>
 
     <!-- Week news and cable feedback -->
     <string name="news_with_year">%1$d年 · %2$s</string>
@@ -73,7 +112,6 @@
     <string name="connect_error_same_node">同じノードです</string>
     <string name="connect_error_already_connected">すでに接続済み</string>
     <string name="connect_error_not_invented">%1$sはまだ発明されていません</string>
-    <string name="connect_error_ports_full">%1$s：ポートがいっぱいです</string>
     <string name="connect_error_no_budget">予算が足りません</string>
 
     <!-- Week rewards -->
@@ -107,6 +145,11 @@
     <string name="settings_haptics">振動</string>
     <string name="settings_overview">フラット表示</string>
     <string name="settings_free_rotation">自由回転</string>
+    <!-- Camera controls -->
+    <string name="a11y_rotate_left">地図を反時計回りに回す</string>
+    <string name="a11y_rotate_right">地図を時計回りに回す</string>
+    <string name="a11y_tilt_low">低い視点(より横から)</string>
+    <string name="a11y_tilt_high">高い視点(より上から)</string>
     <string name="settings_colorblind">色覚サポート</string>
     <string name="settings_language">言語は端末の設定に従います</string>
 
@@ -152,7 +195,7 @@
     <string name="tutorial_cable_text">PCがメールを送りたがっています。PCからメールサーバーまで指でなぞりましょう。</string>
     <string name="tutorial_router_title">ルーターを置こう</string>
     <string name="tutorial_router_text">端末のポートは2つだけ、ルーターなら6つ。下の「ルーター」をタップして、電話の近くの空きマスをタップしましょう。</string>
-    <string name="tutorial_router_connect_text">次に、2台の電話と通話サーバーをルーターにつなぎましょう。ルーターが通話を振り分けます。</string>
+    <string name="tutorial_router_connect_text">次に、2台の電話と電話交換機をルーターにつなぎましょう。ルーターが通話を振り分けます。</string>
     <string name="tutorial_bandwidth_title">帯域</string>
     <string name="tutorial_bandwidth_text">1998年：テレビが動画を見たがっています。動画配信サーバーにつなぎましょう。</string>
     <string name="tutorial_bandwidth_narrow_text">帯域が足りません！動画配信には帯域%1$dが必要ですが、ISDNは%2$dしか運べません。下でDSLを選びましょう。DSLなら%3$d運べます。</string>
@@ -186,6 +229,13 @@
     <string name="cable_error_no_budget">予算不足：強化には%1$d必要です</string>
     <string name="hint_cable_remove">%1$sケーブル · もう一度タップで撤去（+%2$d）</string>
     <string name="hint_cable_removed">ケーブルを撤去、払い戻し：+%1$d</string>
+    <!-- Cable reroute -->
+    <string name="hint_cable_select">%1$sケーブル · 端をドラッグで引き直し · もう一度タップで撤去（+%2$d）</string>
+    <string name="hint_cable_select_free">%1$sケーブル · 端をドラッグで引き直し · もう一度タップで撤去</string>
+    <string name="hint_cable_rerouted">ケーブルを引き直しました</string>
+    <string name="hint_cable_rerouted_paid">ケーブルを引き直しました · −%1$d</string>
+    <string name="hint_cable_rerouted_refund">ケーブルを引き直し、払い戻し：+%1$d</string>
+    <string name="reroute_error_incident">このケーブルにショベルカー · 去ってから引き直せます</string>
     <string name="place_error_no_stock">%1$sの在庫がありません</string>
     <string name="place_error_locked">このマスはまだ開放されていません</string>
     <string name="place_error_occupied">このマスはすでに使われています</string>
@@ -202,10 +252,10 @@
     <string name="hint_service_needs">%1$sには帯域%2$dが必要です</string>
     <string name="hint_service_needs_ping">%1$sには帯域%2$dとPing %3$dミリ秒以内が必要です</string>
     <string name="device_wants">%1$s：%2$sを要求</string>
-    <string name="problem_no_route">%1$s：%2$s ― サーバーへの経路がありません</string>
-    <string name="problem_too_narrow">%1$s：%2$s ― 帯域の足りるケーブルがありません（帯域%3$d）</string>
-    <string name="problem_ping">%1$s：%2$s ― Ping %3$dミリ秒、上限%4$dミリ秒</string>
-    <string name="problem_jam">%1$s：%2$s ― 渋滞中、ケーブルかサーバーが満杯</string>
+    <string name="problem_no_route">%1$s → %2$s：経路がありません。ケーブルでつなぎましょう</string>
+    <string name="problem_too_narrow">%1$s → %2$s：帯域の足りるケーブルがありません（帯域%3$d）</string>
+    <string name="problem_ping">%1$s → %2$s：Ping %3$dミリ秒、上限%4$dミリ秒</string>
+    <string name="problem_jam">%1$s → %2$s：渋滞中、ケーブルかサーバーが満杯</string>
     <string name="game_over_no_route">%1$sは%2$sサーバーにつながらなかった</string>
     <string name="game_over_too_narrow">%1$sの%2$sには、もっと太いケーブルが必要だった</string>
     <string name="game_over_ping">%1$sの%2$sが遅延：%3$d ms（上限%4$d ms）</string>
@@ -444,8 +494,8 @@
     <string name="reviewer_access_enabled">審査用アクセスを有効にしました</string>
     <string name="reviewer_access_invalid">審査コードが無効です</string>
     <string name="menu_legend">これは何？</string>
-    <string name="legend_section_services">サービス</string>
-    <string name="legend_section_devices">デバイス</string>
+    <string name="legend_section_services">サーバー</string>
+    <string name="legend_section_devices">デバイス → サーバー</string>
     <string name="legend_section_network">ネットワーク</string>
     <string name="legend_section_signs">サイン</string>
     <string name="legend_service_ping">帯域 %1$d・Ping 最大 %2$d ms</string>

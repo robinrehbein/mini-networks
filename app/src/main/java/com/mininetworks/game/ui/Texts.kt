@@ -17,6 +17,7 @@ import com.mininetworks.game.game.Incidents
 import com.mininetworks.game.game.Node
 import com.mininetworks.game.game.NodeKind
 import com.mininetworks.game.game.RadioType
+import com.mininetworks.game.game.RerouteError
 import com.mininetworks.game.game.Scenario
 import com.mininetworks.game.game.Scenarios
 import com.mininetworks.game.game.Service
@@ -94,7 +95,30 @@ class Texts(private val context: Context) {
         },
     )
 
-    fun server(s: Service) = context.getString(R.string.node_server, service(s))
+    /**
+     * Name of the server type that delivers [s] ("Mail-Server", "Telefonzentrale"): every service has its own; a data
+     * center is only a server's top tier ([dataCenter]), never a type of its own.
+     */
+    fun server(s: Service) = context.getString(
+        when (s) {
+            Service.MAIL -> R.string.server_mail
+            Service.CALL -> R.string.server_call
+            Service.GAMING -> R.string.server_gaming
+            Service.STREAMING -> R.string.server_streaming
+            Service.VIDEO_CALL -> R.string.server_video_call
+            Service.CAMERA_UPLOAD -> R.string.server_camera_upload
+            Service.CLOUD_BACKUP -> R.string.server_cloud_backup
+        },
+    )
+
+    /** The top server tier ("Rechenzentrum"), as the stage a server reaches. */
+    fun dataCenter() = context.getString(R.string.server_tier_data_center)
+
+    /** [service] with its pictogram in front, drawn inline where the text is shown ([InlineGlyphs]). */
+    fun serviceWithGlyph(s: Service) = InlineGlyphs.of(s) + service(s)
+
+    /** [server] with its service's pictogram in front ([InlineGlyphs]). */
+    fun serverWithGlyph(s: Service) = InlineGlyphs.of(s) + server(s)
 
     fun node(n: Node) = when (n.kind) {
         NodeKind.CLIENT -> device(n.device!!)
@@ -129,10 +153,26 @@ class Texts(private val context: Context) {
         ConnectError.SAME_NODE -> context.getString(R.string.connect_error_same_node)
         ConnectError.ALREADY_CONNECTED -> context.getString(R.string.connect_error_already_connected)
         ConnectError.NOT_INVENTED -> context.getString(R.string.connect_error_not_invented, cable(type))
-        ConnectError.FROM_PORTS_FULL -> context.getString(R.string.connect_error_ports_full, node(from))
-        ConnectError.TO_PORTS_FULL -> context.getString(R.string.connect_error_ports_full, node(to))
+        ConnectError.FROM_PORTS_FULL -> portsFull(from, R.plurals.ports_full_short)
+        ConnectError.TO_PORTS_FULL -> portsFull(to, R.plurals.ports_full_short)
         ConnectError.NO_BUDGET -> context.getString(R.string.connect_error_no_budget)
     }
+
+    /** Why a cable cannot be re-routed onto [to]; null when nothing needs saying ([RerouteError.UNCHANGED]). */
+    fun rerouteError(e: RerouteError, to: Node): String? = when (e) {
+        RerouteError.SAME_NODE -> context.getString(R.string.connect_error_same_node)
+        RerouteError.ALREADY_CONNECTED -> context.getString(R.string.connect_error_already_connected)
+        RerouteError.PORTS_FULL -> portsFull(to, R.plurals.ports_full_short)
+        RerouteError.NO_BUDGET -> context.getString(R.string.connect_error_no_budget)
+        RerouteError.INCIDENT -> context.getString(R.string.reroute_error_incident)
+        RerouteError.UNCHANGED, RerouteError.GONE -> null
+    }
+
+    /** "[n] has only 2 ports" in the wording of [plural] ([R.plurals.ports_full] or its short form). */
+    fun portsFull(n: Node, plural: Int): String = context.resources.getQuantityString(plural, n.maxPorts, node(n), n.maxPorts)
+
+    /** "6 ports", for the toolbar tiles and the accessibility labels. */
+    fun ports(count: Int): String = context.resources.getQuantityString(R.plurals.toolbar_ports, count, count)
 
     /** The HUD line for incident [i]: the announcement with its countdown, or the effect and how long it lasts. */
     fun incident(i: Incident): String {

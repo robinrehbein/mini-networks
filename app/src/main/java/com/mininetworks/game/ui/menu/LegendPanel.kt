@@ -25,6 +25,8 @@ sealed interface LegendIcon {
     data class Request(val service: Service) : LegendIcon
     data class Response(val service: Service) : LegendIcon
     data class Server(val service: Service) : LegendIcon
+    /** A server of [service] at its top tier. */
+    data class DataCenter(val service: Service) : LegendIcon
     data class OfDevice(val device: Device) : LegendIcon
     data class Cable(val type: CableType) : LegendIcon
     data object Router : LegendIcon
@@ -32,15 +34,22 @@ sealed interface LegendIcon {
     data object CellTower : LegendIcon
     data class Problem(val problem: RouteProblem) : LegendIcon
     data object Overload : LegendIcon
+    /** A PC with its row of port dots, one in use and one free, as under every node on the map. */
+    data object Ports : LegendIcon
 }
 
-/** One entry of the [LegendPanel]; texts are ready to show. [services] are drawn as tokens under the title. */
+/**
+ * One entry of the [LegendPanel]; texts are ready to show. [services] are drawn as tokens under the title; with
+ * [labels] (one per service, e.g. the server that answers it) each token is followed by its label, and the pairs flow
+ * into as many lines as they need, never split.
+ */
 data class LegendEntry(
     val id: String,
     val icon: LegendIcon,
     val title: String,
     val description: String,
     val services: List<Service> = emptyList(),
+    val labels: List<String> = emptyList(),
     /** Read by screen readers instead of the tokens, e.g. "wants Mail, Gaming". */
     val servicesLabel: String? = null,
 )
@@ -49,8 +58,9 @@ data class LegendEntry(
 data class LegendSection(val id: String, val title: String, val entries: List<LegendEntry>)
 
 /**
- * "What's what?": every symbol of the map explained with the very drawing the map uses, grouped into services,
- * devices, the network's parts and the warning signs. Drawn on the game canvas in the look of the achievements screen:
+ * "What's what?": every symbol of the map explained with the very drawing the map uses, grouped into which device
+ * needs which server, the server types (and the data center as the top tier of any of them), the warning signs and
+ * the network's parts. Drawn on the game canvas in the look of the achievements screen:
  * a back pill, the title, then per section a heading and a grid of tiles; it scrolls when it does not fit. Only the
  * back pill is tappable; [hit] is valid for the last drawn frame.
  */
@@ -158,7 +168,7 @@ class LegendPanel(context: Context) {
             val titleLines = wrap(e.title, inner, TITLE_LINES).size
             text.typeface = Typeface.DEFAULT
             text.textSize = descSize
-            val body = titleSize * 1.3f * titleLines + (if (e.services.isNotEmpty()) tokenR * 2.6f else 0f) +
+            val body = titleSize * 1.3f * titleLines + (if (e.services.isNotEmpty()) tokenR * 2.6f * pairLines(e, inner, tokenR, descSize) else 0f) +
                 (if (e.description.isEmpty()) 0f else wrap(e.description, inner, MAX_LINES).size * descSize * 1.3f)
             return pad + maxOf(body, iconBox) + pad
         }
@@ -250,7 +260,22 @@ class LegendPanel(context: Context) {
             canvas.drawText(line, x, y + titleSize, text)
             y += titleSize * 1.3f
         }
-        if (e.services.isNotEmpty()) {
+        if (e.labels.isNotEmpty()) {
+            // Token and label side by side, pair after pair, wrapping between pairs.
+            text.typeface = Typeface.DEFAULT
+            text.textSize = descSize
+            text.color = ink
+            var tx = x
+            for ((s, name) in e.services.zip(e.labels)) {
+                val shown = fit(name, inner - tokenR * 2.8f)
+                val pw = tokenR * 2.8f + text.measureText(shown)
+                if (tx > x && tx + pw > x + inner) { tx = x; y += tokenR * 2.6f }
+                ServiceGlyphs.token(canvas, s, tx + tokenR * 1.2f, y + tokenR * 1.3f, tokenR)
+                canvas.drawText(shown, tx + tokenR * 2.8f, y + tokenR * 1.3f + descSize * 0.36f, text)
+                tx += pw + tokenR * 1.6f
+            }
+            y += tokenR * 2.6f
+        } else if (e.services.isNotEmpty()) {
             var tx = x + tokenR * 1.2f
             for (s in e.services) {
                 if (tx + tokenR > r.right - pad) break
@@ -274,6 +299,7 @@ class LegendPanel(context: Context) {
             is LegendIcon.Request -> ServiceGlyphs.token(canvas, icon.service, cx, cy, h * 0.58f)
             is LegendIcon.Response -> ServiceGlyphs.response(canvas, icon.service, cx, cy, h * 0.55f)
             is LegendIcon.Server -> icons.server(canvas, icon.service, 2, false, cx - h * 0.12f, cy + h * 0.12f, h * 0.55f, time)
+            is LegendIcon.DataCenter -> icons.dataCenter(canvas, icon.service, false, cx - h * 0.08f, cy + h * 0.06f, h * 0.62f, time)
             is LegendIcon.OfDevice -> icons.device(canvas, icon.device, cx, cy, h * 0.5f)
             is LegendIcon.Cable -> {
                 val st = CableStyles.of(icon.type)
@@ -291,6 +317,17 @@ class LegendPanel(context: Context) {
             LegendIcon.AccessPoint -> icons.accessPoint(canvas, cx, cy + h * 0.15f, h * 0.45f, 0xFF3BA55C.toInt(), time)
             LegendIcon.CellTower -> icons.cellTower(canvas, cx, cy + h * 0.1f, h * 0.45f, time)
             is LegendIcon.Problem -> ProblemBadges.draw(canvas, icon.problem, cx, cy, h * 0.5f)
+            LegendIcon.Ports -> {
+                icons.device(canvas, Device.PC, cx, cy - h * 0.22f, h * 0.42f)
+                val r = h * 0.11f
+                val py = cy + h * 0.58f
+                fillP.color = 0xFFFFFFFF.toInt()
+                canvas.drawRoundRect(cx - r * 3.3f, py - r * 1.9f, cx + r * 3.3f, py + r * 1.9f, r * 1.9f, r * 1.9f, fillP)
+                lineP.color = 0xFF3A4350.toInt(); lineP.strokeWidth = r * 0.3f
+                canvas.drawRoundRect(cx - r * 3.3f, py - r * 1.9f, cx + r * 3.3f, py + r * 1.9f, r * 1.9f, r * 1.9f, lineP)
+                fillP.color = 0xFF3A4350.toInt(); canvas.drawCircle(cx - r * 1.4f, py, r, fillP)
+                lineP.strokeWidth = r * 0.45f; canvas.drawCircle(cx + r * 1.4f, py, r * 0.78f, lineP)
+            }
             LegendIcon.Overload -> {
                 // The map's timer ring: dark track, white casing, the red arc that runs out, and the "!" sign.
                 arc.set(cx - h * 0.62f, cy - h * 0.62f, cx + h * 0.62f, cy + h * 0.62f)
@@ -307,8 +344,27 @@ class LegendPanel(context: Context) {
         }
     }
 
-    /** True if the tile of [e] cannot show its title or its description in full. */
+    /** Lines the token and label pairs of [e] take in a text column [inner] wide (1 for tokens alone). */
+    private fun pairLines(e: LegendEntry, inner: Float, tokenR: Float, descSize: Float): Int {
+        if (e.labels.isEmpty()) return 1
+        text.typeface = Typeface.DEFAULT
+        text.textSize = descSize
+        var lines = 1
+        var tx = 0f
+        for (name in e.labels) {
+            val pw = tokenR * 2.8f + minOf(text.measureText(name), inner - tokenR * 2.8f)
+            if (tx > 0f && tx + pw > inner) { lines++; tx = 0f }
+            tx += pw + tokenR * 1.6f
+        }
+        return lines
+    }
+
+    /** True if the tile of [e] cannot show its title, a token label or its description in full. */
     private fun shortened(e: LegendEntry, inner: Float, titleSize: Float, descSize: Float): Boolean {
+        text.typeface = Typeface.DEFAULT
+        text.textSize = descSize
+        val tokenR = maxOf(9f * density, descSize * 0.72f)
+        if (e.labels.any { text.measureText(it) > inner - tokenR * 2.8f }) return true
         text.typeface = Typeface.DEFAULT_BOLD
         text.textSize = titleSize
         if (TextWrap.wrap(e.title, inner, TITLE_LINES + 20) { text.measureText(it) }.size > TITLE_LINES) return true

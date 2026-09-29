@@ -615,6 +615,58 @@ class World(
         networkChanged()
     }
 
+    /**
+     * What re-routing [c] to run from [newA] to [newB] with [bend] costs: the new layout's price in [c]'s technology
+     * minus what [c] cost so far. Negative when the new way is cheaper; that much comes back (see [reroute]).
+     */
+    fun rerouteCost(c: Cable, newA: Node, newB: Node, bend: Bend? = null): Int = cableCost(planLayout(newA, newB, bend), c.type) - c.cost
+
+    /**
+     * Null when [c] can be re-routed to run from [newA] to [newB] along [planLayout] with [bend], otherwise the reason.
+     * An end of [c] that stays keeps its port; a new end needs a free one. A cable with an excavator announced at it or
+     * a cut on it cannot move ([RerouteError.INCIDENT]): digging it up elsewhere would call the excavator off for free
+     * (removing it gives no refund, see [refundOf]), and a cut is repaired first.
+     */
+    fun rerouteError(c: Cable, newA: Node, newB: Node, bend: Bend? = null): RerouteError? = when {
+        c !in cableList -> RerouteError.GONE
+        newA === newB || newA.cell == newB.cell -> RerouteError.SAME_NODE
+        cableBetween(newA, newB).let { it != null && it !== c } -> RerouteError.ALREADY_CONNECTED
+        incidentList.any { it.cable === c } -> RerouteError.INCIDENT
+        planLayout(newA, newB, bend).waypoints.let { it == c.layout.waypoints || it == c.layout.waypoints.asReversed() } ->
+            RerouteError.UNCHANGED
+        needsPort(c, newA) && ports(newA) >= newA.maxPorts || needsPort(c, newB) && ports(newB) >= newB.maxPorts -> RerouteError.PORTS_FULL
+        !canPay(maxOf(0, rerouteCost(c, newA, newB, bend))) -> RerouteError.NO_BUDGET
+        else -> null
+    }
+
+    private fun needsPort(c: Cable, n: Node) = n !== c.a && n !== c.b
+
+    /**
+     * Re-routes [c] in one step, like re-drawing a line in Mini Metro: it runs from [newA] to [newB] along [planLayout]
+     * with [bend] (new ends, or only the other bend between the same ends). Pays [rerouteCost], or refunds it when the
+     * new way is cheaper; so re-routing never gives back more than [removeCable] would. The cable keeps its technology,
+     * what it counted ([GameCounters]: a re-route is neither a new cable nor new fiber) and [Cable.upgradedAt]; it is
+     * replaced by a new [Cable] at the same place in [cables] whose [Cable.builtAt] is now, so the new way plays the
+     * laying animation. Packets on a link that still exists (same ends) keep going; those on a link that is gone go back
+     * into their client's queue, like on a removed cable. Returns false (and changes nothing) on a [rerouteError].
+     */
+    fun reroute(c: Cable, newA: Node, newB: Node, bend: Bend? = null): Boolean {
+        if (gameOver || rerouteError(c, newA, newB, bend) != null) return false
+        val layout = planLayout(newA, newB, bend)
+        val cost = cableCost(layout, c.type)
+        val moved = Cable(newA, newB, c.type, cost, layout, waterCellsOn(layout)).also {
+            it.builtAt = time
+            it.upgradedAt = c.upgradedAt
+            it.countedLaid = c.countedLaid
+            it.countedFiber = c.countedFiber
+            it.countedUpgrades = c.countedUpgrades
+        }
+        pay(cost - c.cost)
+        cableList[cableList.indexOf(c)] = moved
+        networkChanged()
+        return true
+    }
+
     /** Null when [c] can be repaired now, otherwise the reason. */
     fun repairError(c: Cable): RepairError? = when {
         !isCut(c) -> RepairError.NOT_CUT

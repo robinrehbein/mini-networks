@@ -3,6 +3,7 @@ package com.mininetworks.game.ui
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.view.MotionEvent
+import com.mininetworks.game.R
 import com.mininetworks.game.game.CableType
 import com.mininetworks.game.game.Cell
 import com.mininetworks.game.game.DebugApi
@@ -13,6 +14,7 @@ import com.mininetworks.game.game.RadioType
 import com.mininetworks.game.game.Wifi
 import com.mininetworks.game.game.Service
 import com.mininetworks.game.game.World
+import com.mininetworks.game.render.Camera
 import com.mininetworks.game.render.TwoFingerGesture
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -99,6 +101,78 @@ class GameViewGestureTest {
         assertTrue("double tap fits the unlocked area again", camera.followsArea)
         repeat(240) { camera.step(1f / 60f) }
         assertEquals(camera.fitScale(view.activeRenderer.mapBounds(world.unlocked)), camera.scale, 1e-3f)
+    }
+
+    /** Draws a frame, so the HUD's tiles are where the next touches expect them. */
+    private fun draw() {
+        val bmp = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)
+        view.drawCurrent(Canvas(bmp))
+    }
+
+    /** Drags from the HUD tile [id] to the centre of [cell] (screen positions from the renderer's own mapping). */
+    private fun dragTile(id: String, cell: Cell) {
+        val tile = view.hudTarget(id)!!
+        val to = view.activeRenderer.toScreen(cell.center)
+        view.injectTouch(MotionEvent.ACTION_DOWN, tile.centerX(), tile.centerY())
+        view.injectTouch(MotionEvent.ACTION_MOVE, (tile.centerX() + to.x) / 2f, (tile.centerY() + to.y) / 2f)
+        view.injectTouch(MotionEvent.ACTION_MOVE, to.x, to.y)
+        draw()
+        view.injectTouch(MotionEvent.ACTION_UP, to.x, to.y)
+    }
+
+    @Test
+    fun routerTileDraggedOntoTheMapPlacesARouterOnTheTurnedMap() {
+        // A turned camera (45°): the drop uses the renderer's picking, never screen axes.
+        val r = view.activeRenderer
+        r.rotateBy(45f, r.camera.centerX, r.camera.centerY, world)
+        repeat(120) { r.camera.step(1f / 60f) }
+        draw()
+        val stock = world.routersAvailable
+        val cell = Cell(world.unlocked.left + 5, world.unlocked.top + 3)
+        dragTile("router", cell)
+        val router = world.nodes.single { it.kind == NodeKind.ROUTER }
+        assertEquals(cell, router.cell)
+        assertEquals(stock - 1, world.routersAvailable)
+        assertFalse("a drag does not leave placing armed", view.placingArmed)
+
+        // Onto a taken cell: nothing placed, the reason is shown.
+        draw()
+        dragTile("router", cell)
+        assertEquals(1, world.nodes.count { it.kind == NodeKind.ROUTER })
+        assertEquals(RuntimeEnvironment.getApplication().getString(R.string.place_error_occupied), view.shownHint)
+
+        // Let go over the toolbar: nothing happens.
+        draw()
+        val tile = view.hudTarget("router")!!
+        view.injectTouch(MotionEvent.ACTION_DOWN, tile.centerX(), tile.centerY())
+        view.injectTouch(MotionEvent.ACTION_MOVE, tile.centerX() - 80f, tile.centerY())
+        view.injectTouch(MotionEvent.ACTION_UP, tile.centerX() - 80f, tile.centerY())
+        assertEquals(1, world.nodes.count { it.kind == NodeKind.ROUTER })
+        assertEquals(stock - 1, world.routersAvailable)
+    }
+
+    @Test
+    fun cableOntoAFullPcExplainsPortsAndPulsesTheRouterTile() {
+        val app = RuntimeEnvironment.getApplication()
+        val pc = world.addClient(Device.PC, 10, 7)
+        val a = world.addClient(Device.PC, 12, 7)
+        val b = world.addClient(Device.PC, 10, 9)
+        val mail = world.addServer(Service.MAIL, 14, 9)
+        assertTrue(world.connect(pc, a, CableType.ISDN))
+        assertTrue(world.connect(pc, b, CableType.ISDN))
+        draw()
+        val from = view.activeRenderer.toScreen(mail.center)
+        val to = view.activeRenderer.toScreen(pc.center)
+        view.injectTouch(MotionEvent.ACTION_DOWN, from.x, from.y)
+        view.injectTouch(MotionEvent.ACTION_MOVE, (from.x + to.x) / 2f, (from.y + to.y) / 2f)
+        view.injectTouch(MotionEvent.ACTION_UP, to.x, to.y)
+        assertNull(world.cableBetween(pc, mail))
+        val pcName = app.getString(R.string.device_pc)
+        assertEquals(app.resources.getQuantityString(R.plurals.ports_full, 2, pcName, 2), view.shownHint)
+        assertTrue("the router tile pulses", view.routerPulsing)
+        // Once the hint has had its time, the one-time tip explains the dots.
+        repeat(5 * 60) { view.advance(1f / 60f) }
+        assertEquals(app.resources.getQuantityString(R.plurals.tip_ports, 6, 6), view.shownHint)
     }
 
     @Test
@@ -204,15 +278,15 @@ class GameViewGestureTest {
 
     /** docs/TOP100.md B5: turning with two fingers, snapping on release, the compass, and hits after turning. */
     @Test
-    fun twoFingersTurnTheMapWhichSnapsToRightAnglesAndTheCompassTurnsItBack() {
+    fun twoFingersTurnTheMapWhichSnapsToEighthTurnsAndTheCompassTurnsItBack() {
         val pc = world.addClient(Device.PC, 10, 7)
         val mail = world.addServer(Service.MAIL, 14, 9)
         val under = view.activeRenderer.toWorld(800f, 450f)
-        // 72° of finger twist: the first 12° are the dead zone of a pinch, the map follows the other 60°.
-        twist(60f + TwoFingerGesture.ROTATE_THRESHOLD)
-        assertTrue("turned while the fingers move", camera.angle in 50f..70f || camera.isRotating)
+        // 90° of finger twist: the first 12° are the dead zone of a pinch, the map follows the other 78°.
+        twist(78f + TwoFingerGesture.ROTATE_THRESHOLD)
+        assertTrue("turned while the fingers move", camera.angle in 68f..88f || camera.isRotating)
         repeat(90) { view.advance(1f / 60f) }
-        assertEquals("snapped to the nearest right angle", 90f, camera.angle, 0f)
+        assertEquals("snapped to the nearest multiple of 45°", 90f, camera.angle, 0f)
         val back = view.activeRenderer.toScreen(under)
         assertEquals("turned around the fingers' midpoint", 800f, back.x, 1f)
         assertEquals(450f, back.y, 1f)
@@ -233,7 +307,132 @@ class GameViewGestureTest {
         repeat(90) { view.advance(1f / 60f) }
         assertEquals("the compass turns back to north", 0f, camera.angle, 0f)
         view.drawCurrent(Canvas(bmp))
-        assertNull("no compass while facing north", view.hudTarget("compass"))
+        assertNotNull("the compass stays in the view controls while facing north", view.hudTarget("compass"))
+    }
+
+    private fun tap(id: String) {
+        val bmp = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)
+        view.drawCurrent(Canvas(bmp))
+        val r = view.hudTarget(id) ?: throw AssertionError("no HUD button $id")
+        view.injectTouch(MotionEvent.ACTION_DOWN, r.centerX(), r.centerY())
+        view.injectTouch(MotionEvent.ACTION_UP, r.centerX(), r.centerY())
+    }
+
+    /** The rotate buttons turn by 45° around the centre of the view, the tilt buttons pitch it; taps stay exact. */
+    @Test
+    fun rotateAndTiltButtonsStepTheView() {
+        val pc = world.addClient(Device.PC, 10, 7)
+        val mail = world.addServer(Service.MAIL, 14, 9)
+        val cx = camera.centerX; val cy = camera.centerY
+        val under = view.activeRenderer.toWorld(cx, cy)
+        tap("rotate:right")
+        repeat(90) { view.advance(1f / 60f) }
+        assertEquals("a quarter of a right angle: straight onto a side", 45f, camera.angle, 0f)
+        val back = view.activeRenderer.toScreen(under)
+        assertEquals("turned around the centre of the view", cx, back.x, 1f)
+        assertEquals(cy, back.y, 1f)
+        tap("rotate:left")
+        tap("rotate:left")
+        repeat(90) { view.advance(1f / 60f) }
+        assertEquals(315f, camera.angle, 0f)
+
+        tap("tilt:high")
+        repeat(90) { view.advance(1f / 60f) }
+        assertEquals(Camera.DEFAULT_TILT + Camera.TILT_STEP, camera.tilt, 1e-3f)
+        tap("tilt:low")
+        tap("tilt:low")
+        repeat(90) { view.advance(1f / 60f) }
+        assertEquals("one step below the classic pitch is the low end", Camera.TILT_MIN, camera.tilt, 0f)
+        val bmp = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)
+        view.accessibilityLayer.forceActive = true
+        view.drawCurrent(Canvas(bmp))
+        assertNull("at the low end the flatter button is off", view.hudTarget("tilt:low"))
+        assertFalse(view.accessibilityLayer.nodes.first { it.key == "hud:tilt:low" }.actionable)
+
+        // Dragging a cable on the turned, tilted map hits the same nodes.
+        val a = view.activeRenderer.toScreen(pc.center)
+        val b = view.activeRenderer.toScreen(mail.center)
+        view.injectTouch(MotionEvent.ACTION_DOWN, a.x, a.y)
+        view.injectTouch(MotionEvent.ACTION_MOVE, (a.x + b.x) / 2f, (a.y + b.y) / 2f)
+        view.injectTouch(MotionEvent.ACTION_UP, b.x, b.y)
+        assertNotNull("a cable dragged on the turned and tilted map", world.cableBetween(pc, mail))
+    }
+
+    /** Two fingers side by side dragged down tilt the iso view steeper; the flat overview has no pitch and pans. */
+    @Test
+    fun twoFingersDraggedDownTogetherTiltTheView() {
+        fun drag(dy: Float) {
+            val start = floatArrayOf(700f, 450f, 900f, 450f)
+            view.injectTouch(MotionEvent.ACTION_DOWN, start[0], start[1], floatArrayOf(start[0], start[1]))
+            view.injectTouch(MotionEvent.ACTION_POINTER_DOWN, start[2], start[3], start)
+            var p = start
+            for (k in 1..8) {
+                p = floatArrayOf(700f, 450f + dy * k / 8f, 900f, 450f + dy * k / 8f)
+                view.injectTouch(MotionEvent.ACTION_MOVE, p[0], p[1], p)
+            }
+            view.injectTouch(MotionEvent.ACTION_POINTER_UP, p[2], p[3], floatArrayOf(p[0], p[1]))
+            view.injectTouch(MotionEvent.ACTION_UP, p[0], p[1], floatArrayOf())
+        }
+        val scale = camera.scale
+        drag(160f)
+        assertTrue("steeper after dragging down", camera.tilt > Camera.DEFAULT_TILT + 5f)
+        assertTrue("tilting never zooms in on a steeper, taller map", camera.scale <= scale * 1.001f)
+        assertTrue("the playable area stays in view", camera.shows(view.activeRenderer.mapBounds(world.unlocked)))
+        val steep = camera.tilt
+        drag(-120f)
+        assertTrue("flatter after dragging up", camera.tilt < steep - 5f)
+        assertEquals("a tilt stays where it was left", camera.tilt, camera.tilt.also { repeat(30) { view.advance(1f / 60f) } }, 0f)
+
+        val bmp = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)
+        view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 0f, style = "Flat")
+        val pitch = camera.tilt
+        val under = view.activeRenderer.toWorld(800f, 450f)
+        drag(100f)
+        assertEquals("the overview has no pitch", pitch, camera.tilt, 0f)
+        assertEquals("it pans instead", 550f, view.activeRenderer.toScreen(under).y, 1f)
+    }
+
+    /**
+     * Two fingers dragged to the steep and the low end, and the tilt buttons stepping to both ends: the playable area
+     * stays on screen between the HUD insets all the way, and the view comes back to its zoom at the classic pitch.
+     */
+    @Test
+    fun tiltingToTheExtremesKeepsThePlayableAreaInView() {
+        // A small map that the automatic framing shows whole (a big one is framed at a readable zoom and panned).
+        world = World(cols = 12, rows = 8, seed = 2L, spawnInitialNodes = false)
+        view.drawSnapshot(Canvas(Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)), world, 1600, 900, time = 0f, style = "Iso")
+        val area = { view.activeRenderer.mapBounds(world.unlocked) }
+        assertTrue("the start shows the whole area", camera.shows(area()))
+        val scale = camera.scale
+        fun drag(dy: Float) {
+            val start = floatArrayOf(600f, 450f, 1000f, 450f)
+            view.injectTouch(MotionEvent.ACTION_DOWN, start[0], start[1], floatArrayOf(start[0], start[1]))
+            view.injectTouch(MotionEvent.ACTION_POINTER_DOWN, start[2], start[3], start)
+            var p = start
+            for (k in 1..20) {
+                p = floatArrayOf(600f, 450f + dy * k / 20f, 1000f, 450f + dy * k / 20f)
+                view.injectTouch(MotionEvent.ACTION_MOVE, p[0], p[1], p)
+                assertTrue("in view while the fingers tilt (step $k)", camera.shows(area()))
+            }
+            view.injectTouch(MotionEvent.ACTION_POINTER_UP, p[2], p[3], floatArrayOf(p[0], p[1]))
+            view.injectTouch(MotionEvent.ACTION_UP, p[0], p[1], floatArrayOf())
+        }
+        drag(420f)
+        assertEquals("dragged to the steep end", Camera.TILT_MAX, camera.tilt, 0f)
+        assertTrue(camera.shows(area()))
+        drag(-420f)
+        assertEquals("dragged to the low end", Camera.TILT_MIN, camera.tilt, 0f)
+        assertTrue(camera.shows(area()))
+        while (camera.canTilt(1)) {
+            tap("tilt:high")
+            repeat(60) { view.advance(1f / 60f); assertTrue("in view while the buttons tilt", camera.shows(area())) }
+        }
+        assertEquals(Camera.TILT_MAX, camera.tilt, 0f)
+        tap("tilt:low"); tap("tilt:low"); tap("tilt:low")
+        repeat(90) { view.advance(1f / 60f) }
+        assertEquals(Camera.DEFAULT_TILT, camera.tilt, 1e-3f)
+        assertTrue(camera.shows(area()))
+        assertEquals("back at the classic pitch, back at the zoom", scale, camera.scale, scale * 0.02f)
     }
 
     @Test

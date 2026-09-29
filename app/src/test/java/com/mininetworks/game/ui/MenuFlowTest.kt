@@ -407,7 +407,7 @@ class MenuFlowTest {
     @Config(qualifiers = "de")
     fun newsListsItemsWithTheLocalSeparator() {
         val news = WeekNews(2010, emptyList(), listOf(Device.WATCH), listOf(Service.CALL))
-        assertEquals("Neu: Smartwatch, Telefonie-Server", Texts(app).news(news, withYear = false))
+        assertEquals("Neu: Smartwatch, Telefonzentrale", Texts(app).news(news, withYear = false))
     }
 
     @Test

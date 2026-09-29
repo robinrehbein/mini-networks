@@ -10,6 +10,36 @@
     <string name="hud_clock_day">Dag · %1$s</string>
     <string name="hud_clock_night">Nacht · %1$s · back-ups om %2$s</string>
     <string name="button_router">Router (%1$d)</string>
+    <!-- Toolbar network & ports -->
+    <string name="toolbar_cables">Kabels</string>
+    <string name="toolbar_network">Netwerk</string>
+    <string name="toolbar_router">Router</string>
+    <string name="toolbar_access_point">Wifi</string>
+    <string name="toolbar_cell_tower">Mast</string>
+    <plurals name="toolbar_ports">
+        <item quantity="one">%1$d poort</item>
+        <item quantity="other">%1$d poorten</item>
+    </plurals>
+    <string name="hint_drop_tool">Sleep naar een vrij vak en laat los</string>
+    <plurals name="ports_full">
+        <item quantity="one">%1$s heeft maar %2$d poort – zet er een router tussen</item>
+        <item quantity="other">%1$s heeft maar %2$d poorten – zet er een router tussen</item>
+    </plurals>
+    <plurals name="ports_full_short">
+        <item quantity="one">%1$s: maar %2$d poort</item>
+        <item quantity="other">%1$s: maar %2$d poorten</item>
+    </plurals>
+    <string name="ports_add_router">Zet er een router tussen</string>
+    <plurals name="tip_ports">
+        <item quantity="one">Tip: de stippen onder een apparaat zijn zijn poorten, ● bezet, ○ vrij. Een router heeft er %1$d: sleep er een uit de balk onderaan tussen de apparaten.</item>
+        <item quantity="other">Tip: de stippen onder een apparaat zijn zijn poorten, ● bezet, ○ vrij. Een router heeft er %1$d: sleep er een uit de balk onderaan tussen de apparaten.</item>
+    </plurals>
+    <string name="tutorial_ports_title">Poorten</string>
+    <string name="tutorial_ports_text">Twee nieuwe pc’s! De eerste pc gebruikt al allebei zijn poorten, zie je de twee stippen? Sleep een router uit de balk onderaan naar de nieuwe pc’s.</string>
+    <string name="tutorial_ports_connect_text">Verbind nu beide pc’s en de mailserver met de router. Hij heeft 6 poorten en verdeelt hun mail.</string>
+    <string name="legend_router_desc">Verbindt veel apparaten: 6 poorten in plaats van 2 zoals een pc. Sleep hem uit de balk onderaan naar een vrij vak.</string>
+    <string name="legend_ports_title">Poorten</string>
+    <string name="legend_ports_desc">De stippen onder een apparaat: ● bezet, ○ vrij. Apparaten en wifi hebben er 2, servers en masten 4, routers 6.</string>
     <string name="hint_place_router">Tik op een vrij vak</string>
     <string name="button_access_point">Wifi (%1$d)</string>
     <string name="button_cell_tower">Mast (%1$d)</string>
@@ -45,6 +75,20 @@
     <string name="service_video_call">Videobellen</string>
     <string name="service_camera_upload">Camera-upload</string>
     <string name="service_cloud_backup">Cloudback-up</string>
+
+    <!-- Server names & matching -->
+    <string name="server_mail">Mailserver</string>
+    <string name="server_call">Telefooncentrale</string>
+    <string name="server_gaming">Gameserver</string>
+    <string name="server_streaming">Streamingserver</string>
+    <string name="server_video_call">Videoserver</string>
+    <string name="server_camera_upload">Cameracloud</string>
+    <string name="server_cloud_backup">Back-upserver</string>
+    <string name="device_wants_server">%1$s wil %2$s → %3$s</string>
+    <string name="device_needs_servers">%1$s heeft nodig: %2$s</string>
+    <string name="legend_device_servers">Verbind met: %1$s</string>
+    <string name="legend_data_center_desc">Geen eigen soort: het hoogste niveau van elke server. Levert nog steeds alleen zijn eigen dienst, met meer kracht en meer poorten.</string>
+
     <string name="device_pc">Pc</string>
     <string name="device_phone">Telefoon</string>
     <string name="device_laptop">Laptop</string>
@@ -66,7 +110,6 @@
     <string name="node_router">Router</string>
     <string name="node_access_point">Wifi-accesspoint</string>
     <string name="node_cell_tower">Zendmast</string>
-    <string name="node_server">Server voor %1$s</string>
 
     <!-- Week news and cable feedback -->
     <string name="news_with_year">%1$d · %2$s</string>
@@ -76,7 +119,6 @@
     <string name="connect_error_same_node">Zelfde knooppunt</string>
     <string name="connect_error_already_connected">Al verbonden</string>
     <string name="connect_error_not_invented">%1$s is nog niet uitgevonden</string>
-    <string name="connect_error_ports_full">%1$s: alle poorten bezet</string>
     <string name="connect_error_no_budget">Budget reikt niet</string>
 
     <!-- Week rewards -->
@@ -110,6 +152,11 @@
     <string name="settings_haptics">Trillen</string>
     <string name="settings_overview">Plat overzicht</string>
     <string name="settings_free_rotation">Vrij draaien</string>
+    <!-- Camera controls -->
+    <string name="a11y_rotate_left">Kaart tegen de klok in draaien</string>
+    <string name="a11y_rotate_right">Kaart met de klok mee draaien</string>
+    <string name="a11y_tilt_low">Lager zicht, meer van opzij</string>
+    <string name="a11y_tilt_high">Steiler zicht, meer van bovenaf</string>
     <string name="settings_colorblind">Kleurenblindmodus</string>
     <string name="settings_language">De taal volgt de systeemtaal</string>
 
@@ -157,7 +204,7 @@
     <string name="tutorial_cable_text">De pc wil een mail versturen. Sleep met je vinger van de pc naar de mailserver.</string>
     <string name="tutorial_router_title">Plaats een router</string>
     <string name="tutorial_router_text">Een apparaat heeft maar 2 poorten, een router 6. Tik onderaan op ‘Router’ en dan op een vrij vak bij de telefoons.</string>
-    <string name="tutorial_router_connect_text">Verbind nu beide telefoons en de belserver met de router. Die verdeelt de gesprekken.</string>
+    <string name="tutorial_router_connect_text">Verbind nu beide telefoons en de telefooncentrale met de router. Die verdeelt de gesprekken.</string>
     <string name="tutorial_bandwidth_title">Bandbreedte</string>
     <string name="tutorial_bandwidth_text">1998: de tv wil streamen. Verbind hem met de streamingserver.</string>
     <string name="tutorial_bandwidth_narrow_text">Te smal! Streaming heeft bandbreedte %1$d nodig, ISDN draagt maar %2$d. Kies onderaan DSL, dat draagt %3$d.</string>
@@ -192,6 +239,13 @@
     <string name="cable_error_no_budget">Te weinig budget, upgraden kost %1$d</string>
     <string name="hint_cable_remove">%1$s-kabel · tik nog eens om weg te halen (+%2$d)</string>
     <string name="hint_cable_removed">Kabel weggehaald, terug: +%1$d</string>
+    <!-- Cable reroute -->
+    <string name="hint_cable_select">%1$s-kabel · sleep een uiteinde om om te leggen · tik nog eens om weg te halen (+%2$d)</string>
+    <string name="hint_cable_select_free">%1$s-kabel · sleep een uiteinde om om te leggen · tik nog eens om weg te halen</string>
+    <string name="hint_cable_rerouted">Kabel omgelegd</string>
+    <string name="hint_cable_rerouted_paid">Kabel omgelegd · −%1$d</string>
+    <string name="hint_cable_rerouted_refund">Kabel omgelegd, terug: +%1$d</string>
+    <string name="reroute_error_incident">Graafmachine bij deze kabel · leg hem om als die weg is</string>
     <string name="place_error_no_stock">Geen voorraad meer: %1$s</string>
     <string name="place_error_locked">Dit vak is nog niet vrijgegeven</string>
     <string name="place_error_occupied">Dit vak is al bezet</string>
@@ -208,10 +262,10 @@
     <string name="hint_service_needs">%1$s heeft bandbreedte %2$d nodig</string>
     <string name="hint_service_needs_ping">%1$s heeft bandbreedte %2$d nodig en een ping van hooguit %3$d ms</string>
     <string name="device_wants">%1$s wil: %2$s</string>
-    <string name="problem_no_route">%1$s: %2$s – geen weg naar een server</string>
-    <string name="problem_too_narrow">%1$s: %2$s – geen kabel breed genoeg (bandbreedte %3$d)</string>
-    <string name="problem_ping">%1$s: %2$s – ping %3$d ms, toegestaan %4$d ms</string>
-    <string name="problem_jam">%1$s: %2$s – file, kabels of server te vol</string>
+    <string name="problem_no_route">%1$s → %2$s: geen weg – verbind ze met een kabel</string>
+    <string name="problem_too_narrow">%1$s → %2$s: geen kabel breed genoeg (bandbreedte %3$d)</string>
+    <string name="problem_ping">%1$s → %2$s: ping %3$d ms, toegestaan %4$d ms</string>
+    <string name="problem_jam">%1$s → %2$s: file, kabels of server te vol</string>
     <string name="game_over_no_route">%1$s bereikte geen %2$s-server</string>
     <string name="game_over_too_narrow">%1$s had een bredere kabel nodig voor %2$s</string>
     <string name="game_over_ping">%2$s op %1$s haperde: %3$d ms, max %4$d ms</string>
@@ -479,8 +533,8 @@
     <string name="reviewer_access_enabled">Toegang voor reviewers ingeschakeld</string>
     <string name="reviewer_access_invalid">Ongeldige reviewcode</string>
     <string name="menu_legend">Wat is wat?</string>
-    <string name="legend_section_services">Diensten</string>
-    <string name="legend_section_devices">Apparaten</string>
+    <string name="legend_section_services">Servers</string>
+    <string name="legend_section_devices">Apparaten → servers</string>
     <string name="legend_section_network">Jouw netwerk</string>
     <string name="legend_section_signs">Tekens</string>
     <string name="legend_service_ping">Bandbreedte %1$d · ping hooguit %2$d ms</string>
