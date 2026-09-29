@@ -12,7 +12,7 @@ data class GameSettings(
     val overviewMode: Boolean = false,
     /** Alternative service colors that stay apart with red-green color blindness. */
     val colorblind: Boolean = false,
-    /** Two-finger rotation stays at any angle; off, the map snaps to the nearest multiple of 90° on release. */
+    /** Two-finger rotation stays at any angle; off, the map snaps to the nearest multiple of 45° on release. */
     val freeRotation: Boolean = false,
     /** Cosmetic cable colors (docs/TOP100.md C5); only a skin unlocked by an achievement is used. */
     val cableSkin: CableSkin = CableSkin.CLASSIC,

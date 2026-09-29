@@ -152,6 +152,11 @@
     <string name="settings_haptics">Trillen</string>
     <string name="settings_overview">Plat overzicht</string>
     <string name="settings_free_rotation">Vrij draaien</string>
+    <!-- Camera controls -->
+    <string name="a11y_rotate_left">Kaart tegen de klok in draaien</string>
+    <string name="a11y_rotate_right">Kaart met de klok mee draaien</string>
+    <string name="a11y_tilt_low">Lager zicht, meer van opzij</string>
+    <string name="a11y_tilt_high">Steiler zicht, meer van bovenaf</string>
     <string name="settings_colorblind">Kleurenblindmodus</string>
     <string name="settings_language">De taal volgt de systeemtaal</string>
 

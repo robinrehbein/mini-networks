@@ -159,6 +159,11 @@
     <string name="settings_haptics">Vibrations</string>
     <string name="settings_overview">Vue à plat</string>
     <string name="settings_free_rotation">Rotation libre</string>
+    <!-- Camera controls -->
+    <string name="a11y_rotate_left">Tourner la carte dans le sens antihoraire</string>
+    <string name="a11y_rotate_right">Tourner la carte dans le sens horaire</string>
+    <string name="a11y_tilt_low">Vue plus basse, davantage de côté</string>
+    <string name="a11y_tilt_high">Vue plus plongeante, davantage d’en haut</string>
     <string name="settings_colorblind">Mode daltonien</string>
     <string name="settings_language">La langue suit celle du système</string>
 

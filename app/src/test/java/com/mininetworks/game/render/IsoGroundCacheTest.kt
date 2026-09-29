@@ -75,6 +75,24 @@ class IsoGroundCacheTest {
         assertTrue(settled.sameAs(frame(direct, w)))
     }
 
+    /** The ground depends on the pitch (squash, relief heights, board edge): a tilt redraws it and caches it again. */
+    @Test
+    fun tiltingRebuildsTheCache() {
+        val w = world()
+        for (pitch in listOf(Camera.TILT_MIN, Camera.TILT_MAX)) {
+            val r = fresh(w)
+            frame(r, w); frame(r, w)
+            assertTrue(r.groundCached(w, 800, 450))
+            r.camera.tiltBy(pitch - r.camera.tilt)
+            assertFalse("a new pitch invalidates the ground", r.groundCached(w, 800, 450))
+            frame(r, w)
+            val settled = frame(r, w)
+            assertTrue(r.groundCached(w, 800, 450))
+            val direct = IsoRenderer().also { it.layout(800, 450, w); it.camera.tiltBy(pitch - it.camera.tilt) }
+            assertTrue("$pitch°: the cached ground looks like a direct one", settled.sameAs(frame(direct, w)))
+        }
+    }
+
     @Test
     fun anExcavatorNeverStandsOnADecoration() {
         fun dry(w: World, x: Int, y: Int) = x in 0 until w.cols && y in 0 until w.rows && w.isFree(x, y)

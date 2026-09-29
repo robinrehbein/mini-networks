@@ -23,6 +23,10 @@ ausgewähltes Kabel neu verlegen: Griff an einem Ende auf einen anderen Knoten z
 Router, WLAN und Mast unter „Netzwerk“ aufs Feld ziehen (oder antippen, dann ein freies Feld antippen) ·
 die Punkte unter jedem Gerät sind seine Anschlüsse (● belegt, ○ frei: PC 2, Server 4, Router 6); sind sie voll,
 kommt ein Router dazwischen · „Pause“ oder Zurück öffnet das Pause-Menü ·
+Kamera: ziehen oder zwei Finger = verschieben, spreizen = zoomen, zwei Finger drehen = Karte drehen (rastet in
+45°-Schritten ein: vier Ecken, vier Seiten), zwei Finger nebeneinander hoch/runter ziehen = flacher/steiler neigen;
+die Knöpfe oben rechts drehen um 45° (⟲ ⟳), der Kompass dreht zurück nach Norden, die Würfel neigen flacher/steiler ·
+Doppeltipp = spielbare Fläche einpassen ·
 der flache Übersichtsmodus, Ton, Haptik und eine Farbenblind-Palette stehen in den Einstellungen.
 Das Spiel speichert automatisch beim Pausieren und Verlassen; „Fortsetzen“ im Hauptmenü lädt den Stand.
 

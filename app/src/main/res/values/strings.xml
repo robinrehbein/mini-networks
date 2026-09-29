@@ -155,6 +155,11 @@
     <string name="settings_haptics">Haptik</string>
     <string name="settings_overview">Flache Übersicht</string>
     <string name="settings_free_rotation">Frei drehen</string>
+    <!-- Camera controls -->
+    <string name="a11y_rotate_left">Karte gegen den Uhrzeigersinn drehen</string>
+    <string name="a11y_rotate_right">Karte im Uhrzeigersinn drehen</string>
+    <string name="a11y_tilt_low">Flacher blicken, mehr von der Seite</string>
+    <string name="a11y_tilt_high">Steiler blicken, mehr von oben</string>
     <string name="settings_colorblind">Farbenblind-Palette</string>
     <string name="settings_language">Die Sprache folgt der Systemsprache</string>
 

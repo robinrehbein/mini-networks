@@ -152,6 +152,11 @@
     <string name="settings_haptics">Titreşim</string>
     <string name="settings_overview">Düz görünüm</string>
     <string name="settings_free_rotation">Serbest döndürme</string>
+    <!-- Camera controls -->
+    <string name="a11y_rotate_left">Haritayı saat yönünün tersine çevir</string>
+    <string name="a11y_rotate_right">Haritayı saat yönünde çevir</string>
+    <string name="a11y_tilt_low">Daha alçak bakış, daha çok yandan</string>
+    <string name="a11y_tilt_high">Daha dik bakış, daha çok yukarıdan</string>
     <string name="settings_colorblind">Renk körü modu</string>
     <string name="settings_language">Dil, sistem dilini izler</string>
 

@@ -29,12 +29,16 @@ import kotlin.math.floor
 import kotlin.math.hypot
 import kotlin.math.sin
 
-/** The iso squash: one map unit per tile width, a tile half as high as it is wide. */
-object IsoProjection : MapProjection {
+/**
+ * The iso squash: one map unit per tile width, a tile [squash] times as high as it is wide ([Camera.squash], the sine
+ * of the camera's pitch; 1/2 is the classic look). Linear at every pitch, and exact at the classic one.
+ */
+class IsoProjection(val squash: Float = 0.5f) : MapProjection {
     override fun projectX(x: Float, y: Float) = (x - y) / 2f
-    override fun projectY(x: Float, y: Float) = (x + y) / 4f
-    override fun unprojectX(mx: Float, my: Float) = mx + 2f * my
-    override fun unprojectY(mx: Float, my: Float) = 2f * my - mx
+    override fun projectY(x: Float, y: Float) = (x + y) * squash / 2f
+    override fun unprojectX(mx: Float, my: Float) = mx + my / squash
+    override fun unprojectY(mx: Float, my: Float) = my / squash - mx
+    override fun tilted(squash: Float) = if (squash == this.squash) this else IsoProjection(squash)
 }
 
 /**
@@ -42,9 +46,16 @@ object IsoProjection : MapProjection {
  *
  * The map can be turned to any angle ([Camera.angle]): every world point is first turned around the world origin and
  * then squashed ([IsoProjection]), so tiles, cables, packets, radio circles and shadows all follow. What stands up from
- * the ground is built from its faces: a wall is drawn only while it faces the viewer, and its shade comes from the
+ * the ground is built from its faces: a wall is drawn only while it faces the viewer (at the side-on views, 45° off a
+ * corner, only the one wall straight ahead; the two beside it are edge-on and left out), and its shade comes from the
  * direction it faces on screen, so the light stays at the upper left however the map is turned. Things with height
- * are painted back to front by their depth in the turned map ([depthOf]).
+ * are painted back to front by their depth in the turned map ([depthOf]); at a side-on view a row across the screen
+ * shares one depth, drawn in insertion order, as nothing in it overlaps.
+ *
+ * The camera's pitch ([Camera.tilt]) sets how much the ground is squashed ([Camera.squash]) and how far every height
+ * rises ([Camera.lift]), both through [sx] and [sy]: buildings, relief, masts, packets in flight, the signs and
+ * queues above nodes and the board's edge all grow when the view is low and shrink when it is steep, while labels,
+ * badges and icons keep their screen size.
  */
 class IsoRenderer : Renderer {
     override val name = "Iso"
@@ -64,14 +75,16 @@ class IsoRenderer : Renderer {
     private val lockedWaterB get() = pal.lockedWaterB
     private val edge = 0x8C2F3A34.toInt()
 
-    override val camera = Camera().apply { projection = IsoProjection }
+    override val camera = Camera().apply { projection = IsoProjection() }
+    /** Buildings, relief and packets stand up from the ground, so the camera's pitch applies. */
+    override val tilts get() = true
     override var density = 1f
     override val serverLabels = ServerLabels()
     /** A tile at least [READABLE_TILE_DP] wide on first launch, close to the store framing: devices and packets read at phone size. */
     override val readableScale get() = READABLE_TILE_DP * density
     /** Tile width and height in pixels at the current zoom. */
     private val tw get() = camera.scale
-    private val th get() = camera.scale / 2f
+    private val th get() = camera.scale * camera.squash
     override val unitPx get() = tw * 0.7f
 
     private val fillP = fill(0)
@@ -102,14 +115,15 @@ class IsoRenderer : Renderer {
         var focusX = 0f
         var focusY = 0f
         var angle = 0f
+        var tilt = 0f
         var width = 0
         var height = 0
 
         fun matches(c: Camera, w: Int, h: Int) =
-            scale == c.scale && focusX == c.focusX && focusY == c.focusY && angle == c.angle && width == w && height == h
+            scale == c.scale && focusX == c.focusX && focusY == c.focusY && angle == c.angle && tilt == c.tilt && width == w && height == h
 
         fun set(c: Camera, w: Int, h: Int) {
-            scale = c.scale; focusX = c.focusX; focusY = c.focusY; angle = c.angle; width = w; height = h
+            scale = c.scale; focusX = c.focusX; focusY = c.focusY; angle = c.angle; tilt = c.tilt; width = w; height = h
         }
     }
 
@@ -137,8 +151,14 @@ class IsoRenderer : Renderer {
     private val cutDash = DashCache()
     private val airDash = DashCache()
 
-    /** The (turned) diamond of [area] plus room for tall buildings above and the board edge below. */
-    override fun mapBounds(area: CellRect, angle: Float) = turnedBounds(area, angle, IsoProjection, 0.3f, 1.1f, 0.4f, 0.4f)
+    /**
+     * The (turned) diamond of [area] seen at pitch [tilt], plus room for tall buildings above and the board edge below;
+     * both grow and shrink with the height of things at that pitch ([Camera.lift]).
+     */
+    override fun mapBounds(area: CellRect, angle: Float, tilt: Float): MapRect {
+        val grow = Camera.liftOf(tilt) / Camera.liftOf(Camera.DEFAULT_TILT) - 1f
+        return turnedBounds(area, angle, IsoProjection(Camera.squashOf(tilt)), 0.3f, 1.1f + 0.75f * grow, 0.4f, 0.4f + 0.25f * grow)
+    }
 
     /** Screen x of world point ([x], [y]) on the ground: turned by the camera's angle, then squashed. */
     private fun sx(x: Float, y: Float): Float {
@@ -146,10 +166,10 @@ class IsoRenderer : Renderer {
         return camera.toScreenX(((c - s) * x - (s + c) * y) / 2f)
     }
 
-    /** Screen y of world point ([x], [y]) at height [z] (in tile widths). */
+    /** Screen y of world point ([x], [y]) at height [z] (in tile widths), squashed and lifted at the camera's pitch. */
     private fun sy(x: Float, y: Float, z: Float = 0f): Float {
         val c = camera.cosA; val s = camera.sinA
-        return camera.toScreenY(((c + s) * x + (c - s) * y) / 4f - z / 2f)
+        return camera.toScreenY(((c + s) * x + (c - s) * y) * camera.squash / 2f - z * camera.lift)
     }
 
     /** Depth of world point ([x], [y]) in the turned map: larger is nearer the viewer (x + y when not turned). */
@@ -424,22 +444,27 @@ class IsoRenderer : Renderer {
     private var spriteScale = Float.NaN
     private var spriteDensity = Float.NaN
     private var spriteColorblind = false
+    /** Pitch the sprites were drawn at: the packet floats higher over its shadow the lower the view. */
+    private var spriteLift = Float.NaN
     private var lastPacketScale = Float.NaN
+    private var lastPacketLift = Float.NaN
     private var spritesOn = false
     /** Pixel of each sprite that sits on the packet's ground point. */
     private val spriteX = IntArray(sprites.size)
     private val spriteY = IntArray(sprites.size)
 
-    /** Called once per frame: sprites are used while the zoom holds still, and rebuilt when their look changes. */
+    /** Called once per frame: sprites are used while zoom and tilt hold still, and rebuilt when their look changes. */
     private fun preparePacketSprites() {
         val scale = camera.scale
-        val still = scale == lastPacketScale
+        val lift = camera.lift
+        val still = scale == lastPacketScale && lift == lastPacketLift
         lastPacketScale = scale
+        lastPacketLift = lift
         spritesOn = still && scale > 0f
         if (!spritesOn) return
-        if (scale != spriteScale || density != spriteDensity || ServiceColors.colorblind != spriteColorblind) {
+        if (scale != spriteScale || lift != spriteLift || density != spriteDensity || ServiceColors.colorblind != spriteColorblind) {
             for (i in sprites.indices) { sprites[i]?.recycle(); sprites[i] = null }
-            spriteScale = scale; spriteDensity = density; spriteColorblind = ServiceColors.colorblind
+            spriteScale = scale; spriteLift = lift; spriteDensity = density; spriteColorblind = ServiceColors.colorblind
         }
     }
 
@@ -646,7 +671,7 @@ class IsoRenderer : Renderer {
         val w = c.width.toFloat(); val h = c.height.toFloat()
         if (w <= 0f || h <= 0f) return
         // World cells the screen shows, as seen on the sunken level.
-        val drop = OUTSKIRT_DROP * tw / 2f
+        val drop = OUTSKIRT_DROP * tw * camera.lift
         var minX = Float.MAX_VALUE; var minY = Float.MAX_VALUE; var maxX = -Float.MAX_VALUE; var maxY = -Float.MAX_VALUE
         for (k in 0 until 4) {
             val p = camera.screenToWorld(if (k % 2 == 0) 0f else w, (if (k < 2) 0f else h) - drop)
@@ -1298,7 +1323,7 @@ class IsoRenderer : Renderer {
             // other discs.
             fillP.color = col and 0x00FFFFFF or 0x2E000000; canvas.drawOval(oval, fillP)
             val glow = tw * 0.16f
-            oval.inset(glow / 2f, glow / 4f)
+            oval.inset(glow / 2f, glow / 2f * camera.squash)
             strokeP.color = col and 0x00FFFFFF or 0x26000000; strokeP.strokeWidth = glow; canvas.drawOval(oval, strokeP)
             groundEllipse(n.center, n.radius)
             strokeP.color = 0xCCFFFFFF.toInt(); strokeP.strokeWidth = maxOf(3f * density, rim * 2f); canvas.drawOval(oval, strokeP)
@@ -1429,7 +1454,7 @@ class IsoRenderer : Renderer {
                 val bx = sx(x, y); val by = sy(x, y, 0.2f)
                 canvas.save()
                 canvas.translate(bx, by)
-                canvas.skew(0f, DEVICE_SHEAR)
+                canvas.skew(0f, deviceShear())
                 canvas.translate(-bx, -by)
                 icons.depthX = 0.16f; icons.depthY = -0.16f
                 icons.device(canvas, d, bx, by - icon, icon)
@@ -1823,6 +1848,17 @@ class IsoRenderer : Renderer {
             if (v > bestV) { bestV = v; best = f }
         }
         return best
+    }
+
+    /**
+     * Shear of the device icons: [DEVICE_SHEAR] at the corner views, easing to none at the side-on views, where the
+     * tile edges run level and the plinth shows one wall straight on; flatter with a low view's squash, never steeper
+     * than in the classic view, as a steep view would skew the upright icons out of shape.
+     */
+    private fun deviceShear(): Float {
+        val a = (camera.angle + 45f) % 90f - 45f
+        val corner = if (a == 0f) 1f else kotlin.math.cos(Math.toRadians(2.0 * a)).toFloat()
+        return DEVICE_SHEAR * corner * minOf(camera.squash * 2f, 1f)
     }
 
     private val depthOrder = IntArray(4)

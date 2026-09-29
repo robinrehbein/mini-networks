@@ -171,9 +171,13 @@ import kotlin.math.roundToInt
  *    in a game a tip explains the dots. While the finger is on a device, the servers of the services it asks for light
  *    up and the others dim ([ServerFocus]; from a router or radio: the servers the devices behind it wait for)
  *  - drag on empty ground or with two fingers: pan; pinch: zoom; turn two fingers: rotate the map around their midpoint
- *    (all at once); on release it eases to the nearest multiple of 90° unless "free rotation" is on in the settings;
- *    the compass button (only while the map is turned) turns it back to north; double tap on empty ground: fit the
- *    playable area
+ *    (all at once); on release it eases to the nearest multiple of 45° (four corner and four side-on views) unless
+ *    "free rotation" is on in the settings; two fingers side by side dragged up or down: tilt the iso view flatter or
+ *    steeper ([Camera.tilt]; the flat overview has no tilt), which locks out pan, zoom and turn for that gesture;
+ *    double tap on empty ground: fit the playable area
+ *  - view controls below the counters: turn left, compass (points to north; a tap turns the map back), turn right (each
+ *    tap eases 45° around the centre of the view), and in the iso view flatter and steeper; a hint that finds no room
+ *    in a low window with large text hides them while it shows
  *  - the bottom toolbar ([layoutToolbar]) has two captioned groups: "Kabel" picks a cable technology (ISDN, DSL,
  *    Koax, Glasfaser; the coin is the price per cell; picking one names its bandwidth, speed and price), "Netzwerk"
  *    holds the devices that join several others (router, and WLAN and mast while some are in stock), each tile with
@@ -547,6 +551,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private val selectionPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
     private val selectionPath = android.graphics.Path()
     private val compassPaint = fill(0)
+    /** Hairline between the segments of a view-control pill. */
+    private val pillDivider = fill(0x26262B33)
 
     private data class Button(val id: String, val rect: RectF)
     private val buttons = mutableListOf<Button>()
@@ -1519,7 +1525,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
      * counters too where the panel reaches under them.
      */
     private fun tutorialTop(): Float {
-        val m = HudTop(surfaceWidth - safeInsets.left - safeInsets.right - 32 * density, compassShown)
+        val m = HudTop(surfaceWidth - safeInsets.left - safeInsets.right - 32 * density, viewControls())
         val panelRight = tutorialOverlay.reservedRight(surfaceWidth)
         val underCounters = m.stacked || panelRight > surfaceWidth - safeInsets.right - 16 * density - m.rightW - 8 * density
         val block = if (underCounters) m.bottom else m.leftBottom
@@ -1529,10 +1535,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     /**
      * The HUD's top rows, measured for a row [width] px wide: the date with its week bar (and clock) at the left, the
      * packets, budget and vouchers at the right. Offsets are from the top of the HUD area. When both blocks do not fit
-     * side by side (a narrow window with large text), the counters move below the date. With [compass], the compass
-     * button sits right-aligned below the counters.
+     * side by side (a narrow window with large text), the counters move below the date. The view [controls] (pills of
+     * segment ids, see [viewControls]) sit right-aligned below the counters: side by side where they take at most half
+     * the row, else one pill per row.
      */
-    private inner class HudTop(width: Float, compass: Boolean = false) {
+    private inner class HudTop(width: Float, controls: List<List<String>> = emptyList()) {
         val date: String = context.getString(R.string.hud_date, world.year, world.week)
         val clock: String? = clockLabel()
         val delivered: String = resources.getQuantityString(R.plurals.hud_delivered, world.delivered, world.delivered)
@@ -1553,8 +1560,18 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         val stockBaseline = deliveredBaseline + hudSub.textSize * 1.5f
         val voucherBaseline = stockBaseline + hudSub.textSize * 1.5f
         val countersBottom = (if (vouchers != null) voucherBaseline else stockBaseline) + hudSub.descent()
-        val compassTop = countersBottom + 8 * density
-        val rightBottom = if (compass) compassTop + buttonHeight else countersBottom
+        val controlsTop = countersBottom + 8 * density
+        private fun rowWidth(pills: List<List<String>>) = pills.sumOf { it.size } * buttonHeight + (pills.size - 1) * CONTROL_GAP_DP * density
+        /** The pills of [controls] in rows, top down. */
+        val controlRows: List<List<List<String>>> = when {
+            controls.isEmpty() -> emptyList()
+            rowWidth(controls) <= width / 2f -> listOf(controls)
+            else -> controls.map { listOf(it) }
+        }
+        val controlsW = controlRows.maxOfOrNull { rowWidth(it) } ?: 0f
+        val rightBottom =
+            if (controlRows.isEmpty()) countersBottom
+            else controlsTop + controlRows.size * buttonHeight + (controlRows.size - 1) * CONTROL_GAP_DP * density
         val bottom = maxOf(leftBottom, rightBottom)
     }
 
@@ -1562,12 +1579,118 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private val compassShown get() = renderer.camera.angle != 0f
 
     /**
-     * The compass button: a needle whose red tip points to where the top of the unturned map lies now; a tap turns the
+     * The view controls below the counters, as pills of segment ids: turn left, the compass and turn right (every 45°
+     * a corner or a side-on view), and in a style with height ([Renderer.tilts]) flatter and steeper. The tutorial
+     * keeps its HUD calm: only the compass, and only while the map is turned.
+     */
+    private fun viewControls(): List<List<String>> = when {
+        tutorial != null -> if (compassShown) listOf(listOf("compass")) else emptyList()
+        renderer.tilts -> listOf(listOf("rotate:left", "compass", "rotate:right"), listOf("tilt:low", "tilt:high"))
+        else -> listOf(listOf("rotate:left", "compass", "rotate:right"))
+    }
+
+    /**
+     * One pill of view controls over [r]: a round button per segment of [ids], with hairlines between them, each a
+     * 48 dp touch target of its own. A tilt button at the end of the range is dimmed and does nothing.
+     */
+    private fun drawViewPill(canvas: Canvas, r: RectF, ids: List<String>) {
+        val h = r.height()
+        canvas.drawRoundRect(r, h / 2, h / 2, btnFill)
+        for ((i, id) in ids.withIndex()) {
+            val seg = RectF(r.left + i * h, r.top, r.left + (i + 1) * h, r.bottom)
+            if (i > 0) canvas.drawRect(seg.left - 0.5f * density, seg.top + h * 0.26f, seg.left + 0.5f * density, seg.bottom - h * 0.26f, pillDivider)
+            val enabled = when (id) {
+                "tilt:low" -> renderer.camera.canTilt(-1)
+                "tilt:high" -> renderer.camera.canTilt(1)
+                else -> true
+            }
+            iconInk.color = if (enabled) 0xFF262B33.toInt() else 0x59262B33
+            when (id) {
+                "compass" -> drawCompass(canvas, seg)
+                "rotate:left" -> drawTurnIcon(canvas, seg, clockwise = false)
+                "rotate:right" -> drawTurnIcon(canvas, seg, clockwise = true)
+                else -> drawTiltIcon(canvas, seg, steep = id == "tilt:high")
+            }
+            if (enabled) buttons += Button(id, seg)
+            val label = when (id) {
+                "compass" -> R.string.a11y_compass
+                "rotate:left" -> R.string.a11y_rotate_left
+                "rotate:right" -> R.string.a11y_rotate_right
+                "tilt:low" -> R.string.a11y_tilt_low
+                else -> R.string.a11y_tilt_high
+            }
+            hudNodes += UiNode("hud:$id", seg, context.getString(label), UiNode.Kind.BUTTON, enabled = enabled)
+        }
+    }
+
+    /** A circular arrow in [r] that runs [clockwise] or against it, its head at the top where the circle opens. */
+    private fun drawTurnIcon(canvas: Canvas, r: RectF, clockwise: Boolean) {
+        val cx = r.centerX(); val cy = r.centerY(); val rad = r.height() * 0.19f
+        val style = iconInk.style
+        val width = iconInk.strokeWidth
+        iconInk.style = Paint.Style.STROKE
+        iconInk.strokeWidth = 2.5f * density
+        // The circle is open at the top between -125° and -55°; it runs from one side of the gap round to the other.
+        val start = if (clockwise) -55f else -125f
+        val sweep = if (clockwise) 290f else -290f
+        canvas.drawArc(cx - rad, cy - rad, cx + rad, cy + rad, start, sweep, false, iconInk)
+        iconInk.style = Paint.Style.FILL
+        val end = Math.toRadians((start + sweep).toDouble())
+        val px = cx + rad * kotlin.math.cos(end).toFloat(); val py = cy + rad * kotlin.math.sin(end).toFloat()
+        // Unit tangent in the direction of travel and the normal to it.
+        val k = if (clockwise) 1f else -1f
+        val tx = -kotlin.math.sin(end).toFloat() * k; val ty = kotlin.math.cos(end).toFloat() * k
+        val a = rad * 0.62f
+        selectionPath.reset()
+        selectionPath.moveTo(px + tx * a, py + ty * a)
+        selectionPath.lineTo(px - tx * a * 0.35f - ty * a * 0.85f, py - ty * a * 0.35f + tx * a * 0.85f)
+        selectionPath.lineTo(px - tx * a * 0.35f + ty * a * 0.85f, py - ty * a * 0.35f - tx * a * 0.85f)
+        selectionPath.close()
+        canvas.drawPath(selectionPath, iconInk)
+        iconInk.style = style
+        iconInk.strokeWidth = width
+    }
+
+    /**
+     * A block in [r] as the tilt buttons show the view they lead to: seen from low down ([steep] false: a flat roof
+     * and tall walls) or from high up (a deep roof and short walls). The roof is tinted, the edges are drawn in ink.
+     */
+    private fun drawTiltIcon(canvas: Canvas, r: RectF, steep: Boolean) {
+        val s = r.height() * 0.2f
+        val k = if (steep) 0.8f else 0.34f
+        val wall = if (steep) 0.34f * s else 1.05f * s
+        val cx = r.centerX()
+        val top = r.centerY() - (2 * k * s + wall) / 2f
+        val midY = top + k * s
+        val style = iconInk.style
+        val width = iconInk.strokeWidth
+        val ink = iconInk.color
+        selectionPath.reset()
+        selectionPath.moveTo(cx, top); selectionPath.lineTo(cx + s, midY); selectionPath.lineTo(cx, midY + k * s); selectionPath.lineTo(cx - s, midY); selectionPath.close()
+        iconInk.style = Paint.Style.FILL
+        iconInk.color = ink and 0x00FFFFFF or ((ink ushr 24) * 0x40 / 0xFF shl 24)
+        canvas.drawPath(selectionPath, iconInk)
+        iconInk.color = ink
+        iconInk.style = Paint.Style.STROKE
+        iconInk.strokeWidth = 2f * density
+        iconInk.strokeJoin = Paint.Join.ROUND
+        // The outline, then the roof's front edges and the front corner.
+        selectionPath.reset()
+        selectionPath.moveTo(cx, top); selectionPath.lineTo(cx + s, midY); selectionPath.lineTo(cx + s, midY + wall)
+        selectionPath.lineTo(cx, midY + k * s + wall); selectionPath.lineTo(cx - s, midY + wall); selectionPath.lineTo(cx - s, midY); selectionPath.close()
+        selectionPath.moveTo(cx - s, midY); selectionPath.lineTo(cx, midY + k * s); selectionPath.lineTo(cx + s, midY)
+        selectionPath.moveTo(cx, midY + k * s); selectionPath.lineTo(cx, midY + k * s + wall)
+        canvas.drawPath(selectionPath, iconInk)
+        iconInk.style = style
+        iconInk.strokeWidth = width
+    }
+
+    /**
+     * The compass in [r]: a needle whose red tip points to where the top of the unturned map lies now; a tap turns the
      * map back to north.
      */
     private fun drawCompass(canvas: Canvas, r: RectF) {
         val h = r.height()
-        canvas.drawRoundRect(r, h / 2, h / 2, btnFill)
         val cam = renderer.camera
         // The world direction that points up on the unturned map, as it points on screen now.
         val proj = cam.projection
@@ -1619,8 +1742,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             hudNodes += UiNode("hud:menu", RectF(r), context.getString(R.string.a11y_menu), UiNode.Kind.BUTTON)
             return
         }
-        val compass = compassShown
-        val m = HudTop(right - left, compass)
+        val m = HudTop(right - left, viewControls())
         // Soft plates under the date and the counters keep them readable over a busy map at phone size.
         val plateX = 10 * density
         val plateY = 7 * density
@@ -1651,27 +1773,28 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         m.vouchers?.let { canvas.drawText(it, right, top + m.voucherBaseline, hudSub) }
         hudSub.textAlign = Paint.Align.LEFT
         // When both blocks do not fit side by side (a narrow window with large text), the counters sit below the date.
-        val rightW = if (m.stacked) right - left else maxOf(m.rightW, if (compass) buttonHeight else 0f)
+        val rightW = if (m.stacked) right - left else m.rightW
         val rightBottom = top + m.rightBottom
         hudNodes += UiNode(
             "hud:status", RectF(right - m.rightW, top + m.rightTop, right, top + m.countersBottom),
             listOfNotNull(m.delivered, m.stock, m.vouchers).joinToString(". "), UiNode.Kind.TEXT,
         )
-        if (compass) {
-            val r = RectF(right - buttonHeight, top + m.compassTop, right, top + m.compassTop + buttonHeight)
-            drawCompass(canvas, r)
-            buttons += Button("compass", r)
-            hudNodes += UiNode("hud:compass", RectF(r), context.getString(R.string.a11y_compass), UiNode.Kind.BUTTON)
-        }
+        // The view controls (turn, compass, tilt: docs/TOP100.md B5) go right-aligned below the counters, a row per pill
+        // where they do not fit side by side; they are drawn last, as a hint that finds no other room hides them.
+        var controlsShown = m.controlRows.isNotEmpty()
 
-        // Centered lines (week news, incidents, the paused pill) stack from the top; one that would run into the date
-        // or the counters moves below them.
+        // Centered lines (week news, incidents, the paused pill) stack from the top; one that would run into the date,
+        // the counters or the view controls moves below them.
         val center = (left + right) / 2f
-        val blocksBottom = maxOf(leftBottom, rightBottom) + 6 * density
+        val headBottom = maxOf(leftBottom, top + m.countersBottom) + 6 * density
+        var blocksBottom = maxOf(leftBottom, rightBottom) + 6 * density
         val freeHalf = minOf(center - (left + leftW) , (right - rightW) - center) - 12 * density
+        val controlsTop = top + m.controlsTop - 6 * density
+        val controlsFree = (right - m.controlsW) - center - 12 * density
         var cursor = top
         fun place(w: Float, h: Float): Float {
-            if (cursor < blocksBottom && w / 2f > freeHalf) cursor = blocksBottom
+            if (cursor < headBottom && w / 2f > freeHalf) cursor = headBottom
+            if (controlsShown && cursor < blocksBottom && cursor + h > controlsTop && w / 2f > controlsFree) cursor = blocksBottom
             val at = cursor
             cursor += h + 4 * density
             return at
@@ -1692,7 +1815,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         var banner = if (userPaused && world.rewardOffer == null) placePausedBanner(center, right - left, ::place) else null
 
         val bh = buttonHeight
-        val bar = layoutToolbar(left, right, bottom - bh, tall = bottom - top - m.bottom >= 6 * bh)
+        val bar = layoutToolbar(left, right, bottom - bh, tall = bottom - top - maxOf(m.leftBottom, m.countersBottom) >= 6 * bh)
         toolbarTop = bar.trayTop
         toolbarRaised = bar.raised
         drawTray(canvas, bar)
@@ -1713,6 +1836,17 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             // As many lines as fit between the top rows (and the centered lines) and the buttons (floor: a line that
             // would reach into the rows above does not count).
             var room = floor((hintY - hudSub.textSize - maxOf(cursor, blocksBottom)) / lineH).toInt() + 1
+            if (room < 1 && controlsShown) {
+                // Not even one line below the view controls (a low window with large text): they step aside while the
+                // hint shows, and the paused pill may go back up beside the counters.
+                controlsShown = false
+                blocksBottom = headBottom
+                if (banner != null) {
+                    cursor = cursorWithoutBanner
+                    banner = placePausedBanner(center, right - left, ::place)
+                }
+                room = floor((hintY - hudSub.textSize - maxOf(cursor, blocksBottom)) / lineH).toInt() + 1
+            }
             if (room < 1 && banner != null) {
                 // Not even one line below the paused pill: the pause button shows the stopped clock anyway.
                 banner = null
@@ -1731,6 +1865,19 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             hudNodes += UiNode("hud:hint", RectF(left, hintY - (lines.size - 1) * lineH - hudSub.textSize, left + w, hintY + hudSub.descent()), InlineGlyphs.plain(it), UiNode.Kind.TEXT)
         }
         banner?.let { drawPausedBanner(canvas, it) }
+        if (controlsShown) {
+            val controlGap = CONTROL_GAP_DP * density
+            var rowTop = top + m.controlsTop
+            for (row in m.controlRows) {
+                var end = right
+                for (pill in row.asReversed()) {
+                    val w = pill.size * bh
+                    drawViewPill(canvas, RectF(end - w, rowTop, end, rowTop + bh), pill)
+                    end -= w + controlGap
+                }
+                rowTop += bh + controlGap
+            }
+        }
     }
 
     /** How the cable chips name and price themselves, from full names with a coin down to no name at all. */
@@ -2436,13 +2583,15 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 endDrag()
                 cameraGesture = true
                 renderer.camera.stopRotation()
+                renderer.camera.stopTilt()
                 startPinch(e)
             }
             MotionEvent.ACTION_MOVE -> when {
                 cameraGesture -> if (e.pointers.size >= 4) {
                     val before = renderer.camera.angle
-                    pinch.move(e.pointers[0], e.pointers[1], e.pointers[2], e.pointers[3], renderer.camera)
-                    if (renderer.camera.angle != before) renderer.updateLimits(world)
+                    val pitch = renderer.camera.tilt
+                    pinch.move(e.pointers[0], e.pointers[1], e.pointers[2], e.pointers[3], renderer.camera, tilt = renderer.tilts)
+                    if (renderer.camera.angle != before || renderer.camera.tilt != pitch) renderer.updateLimits(world)
                 }
                 grab != null -> {
                     if (!grabbing && hypot(e.x - downX, e.y - downY) >= TAP_SLOP_DP * density) {
@@ -2613,12 +2762,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     /** (Re)starts the two-finger gesture from the fingers still down, or stops it if fewer than two remain. */
     private fun startPinch(e: Input.Touch) {
         val p = e.pointers
+        pinch.density = density
         if (p.size >= 4) pinch.start(p[0], p[1], p[2], p[3]) else stopPinch()
     }
 
     /**
-     * Ends the two-finger gesture: unless "free rotation" is on, the map eases to the nearest multiple of 90° around
-     * the point where the fingers were (docs/TOP100.md B5).
+     * Ends the two-finger gesture: unless "free rotation" is on, the map eases to the nearest multiple of 45° (a corner
+     * or a side-on view) around the point where the fingers were (docs/TOP100.md B5). A tilt stays where it was left.
      */
     private fun stopPinch() {
         if (!pinch.isActive) return
@@ -3031,6 +3181,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             id == "menu" -> openPauseMenu()
             id == "pause" -> userPaused = !userPaused
             id == "compass" -> renderer.camera.rotateTo(0f)
+            // Rotate and tilt buttons: animated steps around the centre of the view (the camera renews the limits).
+            id == "rotate:left" -> renderer.camera.rotateStep(-1)
+            id == "rotate:right" -> renderer.camera.rotateStep(1)
+            id == "tilt:low" -> renderer.camera.tiltStep(-1)
+            id == "tilt:high" -> renderer.camera.tiltStep(1)
             id == "router" -> togglePlacing(NodeKind.ROUTER, if (world.unlimited) Int.MAX_VALUE else world.routersAvailable)
             id.startsWith("radio:") -> RadioType.valueOf(id.removePrefix("radio:")).let {
                 togglePlacing(it.kind, if (world.unlimited) Int.MAX_VALUE else world.radiosAvailable(it))
@@ -3854,8 +4009,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         saveStats()
         world = w
         jamHintShown = false
-        // A new map starts facing north.
-        renderers.forEach { it.camera.resetRotation() }
+        // A new map starts facing north, at the classic pitch.
+        renderers.forEach { it.camera.resetRotation(); it.camera.resetTilt() }
         growth.clear()
         celebrateAt = null
         celebratedWeek = w.rewardOffer?.week ?: -1
@@ -3975,7 +4130,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             next.rotateBy(turn, next.camera.centerX, next.camera.centerY, world)
             renderer = next
         }
-        // Free rotation switched on keeps a turned map as it is; switched off, it snaps to the nearest right angle.
+        // Free rotation switched on keeps a turned map as it is; switched off, it snaps to the nearest multiple of 45°.
         if (!s.freeRotation) renderers.forEach { it.camera.settleRotation(snap = true) }
     }
 
@@ -4098,6 +4253,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         const val ROUTER_PULSE_SECONDS = 1.6f
         const val SELECTION_COLOR = 0xFFFFC21A.toInt()
         const val COMPASS_NORTH = 0xFFD7263D.toInt()
+        /** Gap between the pills of the view controls, side by side or in rows, in dp. */
+        const val CONTROL_GAP_DP = 8f
         const val STATE_IN_GAME = "mininetworks.inGame"
         const val STATE_IN_TUTORIAL = "mininetworks.inTutorial"
         /** A finger that moves less than this is a tap. */
