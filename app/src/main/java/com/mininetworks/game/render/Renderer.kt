@@ -105,21 +105,42 @@ interface Renderer {
     val tilts: Boolean get() = false
 
     /**
-     * Tilts the view by [degrees] of pitch around the screen point ([pivotX], [pivotY]) and renews the pan limit, which
-     * depends on the pitch; nothing happens in a style without height ([tilts]).
+     * Tilts the view by [degrees] of pitch around the screen point ([pivotX], [pivotY]), renews the limits, which
+     * depend on the pitch, and keeps the view framed ([keepFramed]); nothing happens in a style without height ([tilts]).
      */
     fun tiltBy(degrees: Float, pivotX: Float, pivotY: Float, world: World) {
         if (!tilts) return
-        camera.tiltBy(degrees, pivotX, pivotY)
-        updateLimits(world)
+        keepFramed(world) { camera.tiltBy(degrees, pivotX, pivotY) }
     }
 
-    /** Advances the camera's animations by [dt] seconds, renewing the pan limit while the angle or the pitch changes. */
-    fun stepCamera(dt: Float, world: World) {
-        val before = camera.angle
+    /**
+     * Runs [tilt], which may change the camera's pitch (a tilt step, a frame of the tilt animation, a two-finger move),
+     * and if it did, renews the zoom and pan limits for the new pitch and keeps the playable area framed: a steeper view
+     * makes the map taller, a flatter one shorter, around the tilt's pivot ([Camera.tiltedAroundX]). While the zoom is
+     * at or beyond the automatic framing ([autoScale]), it follows that framing's zoom in proportion, so tilting back
+     * gives the same zoom back, and the camera pans as little as needed to keep the framing (all of the playable area
+     * where it fits) on screen. A player zoomed in closer than the framing keeps the zoom and the view.
+     */
+    fun keepFramed(world: World, tilt: () -> Unit) {
         val pitch = camera.tilt
-        camera.step(dt)
-        if (camera.angle != before || camera.tilt != pitch) updateLimits(world)
+        val framed = autoScale(world)
+        tilt()
+        if (camera.tilt == pitch) return
+        updateLimits(world)
+        if (camera.scale > framed * FRAMED_TOLERANCE) return
+        camera.rescale(autoScale(world) / framed, camera.tiltedAroundX, camera.tiltedAroundY)
+        camera.bringIntoView(frame(world))
+    }
+
+    /**
+     * Advances the camera's animations by [dt] seconds, renewing the limits while the angle or the pitch changes and
+     * keeping the view framed while it tilts ([keepFramed]).
+     */
+    fun stepCamera(dt: Float, world: World) {
+        if (camera.isTilting) keepFramed(world) { camera.stepTilt(dt) }
+        val before = camera.angle
+        camera.step(dt, tilt = false)
+        if (camera.angle != before) updateLimits(world)
     }
 
     /** Sets the view size and fits the camera to the world's unlocked area. */
@@ -137,6 +158,10 @@ interface Renderer {
         updateLimits(world)
         camera.fit(frame(world), animate, atLeast = framingMinScale(world))
     }
+
+    /** The zoom the automatic framing ([fitArea]) settles on at the current angle and pitch. */
+    fun autoScale(world: World): Float =
+        maxOf(camera.fitScale(frame(world)), framingMinScale(world)).coerceIn(camera.minScale, camera.maxScale)
 
     /** Call when the unlocked area grew: widens the limits and, unless the player moved the view, follows the area. */
     fun onAreaChanged(world: World) {
@@ -156,12 +181,15 @@ interface Renderer {
 
     /**
      * The zoom the automatic framing does not go below: [readableScale]; but in a portrait view, whose width is the
-     * scarce direction, never so far in that a built node would be pushed off the side of the screen.
+     * scarce direction, never so far in that a built node would be pushed off the side of the screen. A view steeper
+     * than the classic pitch shows tiles taller, so there tiles need not be as wide: the floor keeps their height on
+     * screen instead (the scarce direction of a landscape phone), and the taller map still fits as before.
      */
     fun framingMinScale(world: World): Float {
-        if (!camera.isTall) return readableScale
-        val content = contentBounds(world) ?: return readableScale
-        return minOf(readableScale, camera.fitScale(content))
+        val readable = readableScale * minOf(1f, Camera.squashOf(Camera.DEFAULT_TILT) / camera.squash)
+        if (!camera.isTall) return readable
+        val content = contentBounds(world) ?: return readable
+        return minOf(readable, camera.fitScale(content))
     }
 
     /**
@@ -262,6 +290,8 @@ interface Renderer {
         /** Angles the zoom-out limit is worked out for; the widest one counts. */
         val LIMIT_ANGLES = floatArrayOf(0f, 30f, 45f, 60f, 90f, 120f, 135f, 150f)
         const val ZOOM_OUT_SLACK = 0.9f
+        /** A zoom up to this factor above the automatic framing still counts as at it for [keepFramed]. */
+        const val FRAMED_TOLERANCE = 1.01f
         const val ZOOM_IN_COLS = 4
         const val ZOOM_IN_ROWS = 3
         /** Zoom factor of [focusOn]. */

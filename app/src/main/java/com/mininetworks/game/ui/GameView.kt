@@ -2589,9 +2589,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             MotionEvent.ACTION_MOVE -> when {
                 cameraGesture -> if (e.pointers.size >= 4) {
                     val before = renderer.camera.angle
-                    val pitch = renderer.camera.tilt
-                    pinch.move(e.pointers[0], e.pointers[1], e.pointers[2], e.pointers[3], renderer.camera, tilt = renderer.tilts)
-                    if (renderer.camera.angle != before || renderer.camera.tilt != pitch) renderer.updateLimits(world)
+                    val move = { pinch.move(e.pointers[0], e.pointers[1], e.pointers[2], e.pointers[3], renderer.camera, tilt = renderer.tilts) }
+                    // A move that may tilt keeps the playable area framed at the new pitch (and renews the limits).
+                    if (renderer.tilts && !pinch.turning) renderer.keepFramed(world, move) else move()
+                    if (renderer.camera.angle != before) renderer.updateLimits(world)
                 }
                 grab != null -> {
                     if (!grabbing && hypot(e.x - downX, e.y - downY) >= TAP_SLOP_DP * density) {
@@ -3181,7 +3182,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             id == "menu" -> openPauseMenu()
             id == "pause" -> userPaused = !userPaused
             id == "compass" -> renderer.camera.rotateTo(0f)
-            // Rotate and tilt buttons: animated steps around the centre of the view (the camera renews the limits).
+            // Rotate and tilt buttons: animated steps around the centre of the view (stepping the camera renews the
+            // limits and, while tilting, keeps the area framed).
             id == "rotate:left" -> renderer.camera.rotateStep(-1)
             id == "rotate:right" -> renderer.camera.rotateStep(1)
             id == "tilt:low" -> renderer.camera.tiltStep(-1)

@@ -131,6 +131,10 @@ class Camera {
     /** True while the view eases to a new pitch. */
     val isTilting get() = tiltTarget != null
 
+    /** Screen point the last [tiltBy] pitched around, which [rescale] keeps in place while the renderer reframes. */
+    var tiltedAroundX = 0f; private set
+    var tiltedAroundY = 0f; private set
+
     /** Screen centre of the inset viewport, where [focus] is shown. */
     val centerX get() = insets.left + (viewWidth - insets.left - insets.right) / 2f
     val centerY get() = insets.top + (viewHeight - insets.top - insets.bottom) / 2f
@@ -238,6 +242,8 @@ class Camera {
     fun tiltBy(degrees: Float, pivotX: Float = centerX, pivotY: Float = centerY) {
         val next = (tilt + degrees).coerceIn(TILT_MIN, TILT_MAX)
         if (next == tilt) return
+        tiltedAroundX = pivotX
+        tiltedAroundY = pivotY
         val pivot = screenToWorld(pivotX, pivotY)
         val target = if (animating) mapToWorld(targetX, targetY) else null
         setTilt(next)
@@ -367,6 +373,32 @@ class Camera {
         clampFocus()
     }
 
+    /**
+     * Scales by [factor] (clamped to the zoom range) around ([pivotX], [pivotY]) for the renderer's own reframing, e.g.
+     * while tilting ([Renderer.keepFramed]): unlike [zoomBy] it is no player move, so [followsArea] and a running fit or
+     * glide stay (the glide's zoom scales along).
+     */
+    fun rescale(factor: Float, pivotX: Float, pivotY: Float) {
+        val m = toMap(pivotX, pivotY)
+        scale = (scale * factor).coerceIn(minScale, maxScale)
+        if (animating) targetScale = (targetScale * factor).coerceIn(minScale, maxScale)
+        focusX = m.x - (pivotX - centerX) / scale
+        focusY = m.y - (pivotY - centerY) / scale
+        clampFocus()
+    }
+
+    /**
+     * Pans as little as possible so that [r] lies inside the inset viewport, along each axis on which it fits at the
+     * current zoom (along the other it is left alone: the player pans there). Nothing moves during a running fit or
+     * glide, which already aims somewhere. Like [rescale], no player move.
+     */
+    fun bringIntoView(r: MapRect) {
+        if (animating) return
+        focusX += shortfall(toScreenX(r.left), toScreenX(r.right), insets.left, viewWidth - insets.right) / scale
+        focusY += shortfall(toScreenY(r.top), toScreenY(r.bottom), insets.top, viewHeight - insets.bottom) / scale
+        clampFocus()
+    }
+
     /** Moves the picture by ([dx], [dy]) pixels, like dragging a sheet of paper. */
     fun panBy(dx: Float, dy: Float) {
         userMoved()
@@ -377,11 +409,11 @@ class Camera {
 
     /**
      * Advances a running [fit] animation, a running rotation ([rotateTo], [settleRotation]) and a running tilt
-     * ([tiltTo]) by [dt] seconds.
+     * ([tiltTo]) by [dt] seconds; without [tilt] the pitch stays, for a caller that steps it itself ([stepTilt]).
      */
-    fun step(dt: Float) {
+    fun step(dt: Float, tilt: Boolean = true) {
         stepRotation(dt)
-        stepTilt(dt)
+        if (tilt) stepTilt(dt)
         if (!animating) return
         val k = 1f - exp(-rate * dt)
         scale += (targetScale - scale) * k
@@ -407,7 +439,8 @@ class Camera {
         }
     }
 
-    private fun stepTilt(dt: Float) {
+    /** Advances a running tilt animation ([tiltTo]) alone by [dt] seconds; [step] does it along with the rest. */
+    fun stepTilt(dt: Float) {
         val target = tiltTarget ?: return
         val left = target - tilt
         if (abs(left) < TILT_DONE_DEG) {
@@ -475,6 +508,17 @@ class Camera {
         fun liftOf(pitch: Float): Float =
             if (pitch == DEFAULT_TILT) DEFAULT_SQUASH
             else (DEFAULT_SQUASH * cos(Math.toRadians(pitch.toDouble())) / cos(Math.toRadians(DEFAULT_TILT.toDouble()))).toFloat()
+
+        /**
+         * Pixels the span [a]..[b] must move to lie inside [lo]..[hi], 0 if it does already or does not fit (then it
+         * is not moved at all); positive moves the picture's content up or left.
+         */
+        private fun shortfall(a: Float, b: Float, lo: Float, hi: Float): Float = when {
+            b - a > hi - lo + EPS -> 0f
+            a < lo -> a - lo
+            b > hi -> b - hi
+            else -> 0f
+        }
 
         /** Signed turn in degrees (-180 until 180) that takes [from] to [to]. */
         fun shortestTurn(from: Float, to: Float): Float {

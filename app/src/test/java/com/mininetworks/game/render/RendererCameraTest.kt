@@ -283,4 +283,56 @@ class RendererCameraTest {
             }
         }
     }
+
+    /** True if all of the playable area (with its buildings and board edge) lies between the HUD insets. */
+    private fun showsArea(r: Renderer, w: World) = r.camera.shows(r.mapBounds(w.unlocked))
+
+    /**
+     * Tilting keeps the playable area framed: from the automatic framing, the iso view tilted to either end of the
+     * range (at once, and step by step as the buttons animate it, from the corner and a side-on view) still shows all
+     * of the unlocked area between the HUD rows, and tilting back gives the zoom back.
+     */
+    @Test
+    fun tiltingToTheExtremesKeepsTheAreaInView() {
+        val w = World(seed = 2L, spawnInitialNodes = false)
+        for (angle in listOf(0f, 45f)) {
+            val r = IsoRenderer().also { it.layout(1600, 900, w, insets) }
+            r.rotateBy(angle, r.camera.centerX, r.camera.centerY, w)
+            r.fitArea(w, animate = false)
+            assertTrue("fits at the classic pitch at $angle°", showsArea(r, w))
+            val scale = r.camera.scale
+            for (pitch in listOf(Camera.TILT_MAX, Camera.TILT_MIN, Camera.TILT_MAX)) {
+                r.tiltBy(pitch - r.camera.tilt, r.camera.centerX, r.camera.centerY, w)
+                assertEquals(pitch, r.camera.tilt, 0f)
+                assertTrue("all of the area on screen at $pitch° pitch, $angle°", showsArea(r, w))
+            }
+            assertTrue("a steep view zooms out for the taller map", r.camera.scale < scale * 0.8f)
+            // The buttons: animated steps.
+            while (r.camera.canTilt(-1)) {
+                r.camera.tiltStep(-1)
+                repeat(40) { r.stepCamera(1f / 60f, w); assertTrue("while tilting flatter at $angle°", showsArea(r, w)) }
+            }
+            assertEquals(Camera.TILT_MIN, r.camera.tilt, 0f)
+            r.camera.tiltTo(Camera.DEFAULT_TILT)
+            repeat(120) { r.stepCamera(1f / 60f, w) }
+            assertEquals("tilting back gives the zoom back", scale, r.camera.scale, scale * 1e-3f)
+            assertTrue(showsArea(r, w))
+            assertTrue("the automatic framing still follows the area", r.camera.followsArea)
+        }
+    }
+
+    /** A player zoomed in closer than the framing keeps the zoom when tilting; the limits follow the pitch. */
+    @Test
+    fun tiltingKeepsAPlayersCloseZoom() {
+        val w = World(seed = 2L, spawnInitialNodes = false)
+        val r = IsoRenderer().also { it.layout(1600, 900, w, insets) }
+        r.camera.zoomBy(2f, 700f, 400f)
+        val scale = r.camera.scale
+        val min = r.camera.minScale
+        r.tiltBy(Camera.TILT_MAX - r.camera.tilt, 700f, 400f, w)
+        assertEquals("zoomed in: the zoom stays", scale, r.camera.scale, 0f)
+        assertTrue("a steep view may zoom out further, so the taller grid still fits", r.camera.minScale < min)
+        val centre = r.toWorld(r.camera.centerX, r.camera.centerY)
+        assertTrue("the view centre stays over the grid", centre.x in -0.5f..w.cols + 0.5f && centre.y in -0.5f..w.rows + 0.5f)
+    }
 }
