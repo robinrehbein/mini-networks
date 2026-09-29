@@ -339,6 +339,7 @@ class IsoRenderer : Renderer {
                 DragJuice.bubble(
                     canvas, it, d.detail, sx(end.x, end.y), sy(end.x, end.y), maxOf(th * 2.2f, 40f * density), size, density,
                     if (d.blocked) alarm else 0xFF2F3A34.toInt(), if (d.detailWarning) alarm else 0xFF5B6674.toInt(), col,
+                    DragJuice.bounds(canvas, camera.insets),
                 )
                 DragJuice.lastBubble.let { b -> serverLabels.obstacle(b.left, b.top, b.right, b.bottom, hardEdge = true) }
             }

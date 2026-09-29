@@ -915,6 +915,31 @@ object DragJuice {
     /** Screen box of the last [bubble], so the server plates ([ServerLabels]) can keep clear of it. */
     val lastBubble = RectF()
 
+    private val boundsRect = RectF()
+
+    /** The room for a [bubble] on [canvas]: the screen inside the camera's [insets] (safe area and HUD), or all of it where they leave none. */
+    fun bounds(canvas: Canvas, insets: ViewInsets): RectF {
+        boundsRect.set(insets.left, insets.top, canvas.width - insets.right, canvas.height - insets.bottom)
+        if (boundsRect.width() < 40f || boundsRect.height() < 40f) boundsRect.set(0f, 0f, canvas.width.toFloat(), canvas.height.toFloat())
+        return boundsRect
+    }
+
+    /**
+     * Puts a bubble of [w] by [h] for the point ([x], [y]) into [out], keeping [margin] to [bounds]: its bottom [lift]
+     * above the point, or, where its top would leave [bounds] (a [tail] tip included), its top [lift] below the point;
+     * then pushed inside vertically. Returns the centre x, clamped so the bubble stays between the side bounds.
+     */
+    internal fun place(w: Float, h: Float, x: Float, y: Float, lift: Float, tail: Float, margin: Float, bounds: RectF, out: RectF): Float {
+        val cx = if (w + 2 * margin >= bounds.width()) bounds.centerX() else x.coerceIn(bounds.left + margin + w / 2f, bounds.right - margin - w / 2f)
+        var top = y - lift - h
+        if (top < bounds.top + margin) top = y + lift
+        val low = bounds.bottom - margin - tail - h
+        val high = bounds.top + margin + tail
+        top = if (low < high) high else top.coerceIn(high, low)
+        out.set(cx - w / 2f, top, cx + w / 2f, top + h)
+        return cx
+    }
+
     /** The glow under a preview line [path] of stroke width [width] pixels in [color]. */
     fun glow(canvas: Canvas, path: Path, color: Int, width: Float) {
         glowP.color = color and 0xFFFFFF or 0x38000000
@@ -974,11 +999,12 @@ object DragJuice {
 
     /**
      * The bubble with [label] (and a smaller [detail] line) whose tail points at ([x], [y]), its bottom [lift] pixels
-     * above that point; [size] is the label's text size.
+     * above that point; [size] is the label's text size. The bubble stays inside [bounds] (the screen minus the safe
+     * area and the HUD): where it would clip at the top it flips below the point, tail up.
      */
     fun bubble(
         canvas: Canvas, label: String, detail: String?, x: Float, y: Float, lift: Float, size: Float, density: Float,
-        labelColor: Int, detailColor: Int, accent: Int,
+        labelColor: Int, detailColor: Int, accent: Int, bounds: RectF = RectF(0f, 0f, canvas.width.toFloat(), canvas.height.toFloat()),
     ) {
         textP.textSize = size
         val w1 = textP.measureText(label)
@@ -989,22 +1015,24 @@ object DragJuice {
         val padY = size * 0.5f
         val w = maxOf(w1, w2) + 2 * padX
         val h = size * 1.15f + (if (detail != null) detailSize * 1.25f else 0f) + 2 * padY
-        val bottom = y - lift
-        val cx = x.coerceIn(w / 2f + 8 * density, canvas.width - w / 2f - 8 * density)
-        rect.set(cx - w / 2f, bottom - h, cx + w / 2f, bottom)
+        val cx = place(w, h, x, y, lift, size * 0.5f, 8 * density, bounds, rect)
+        val flipped = rect.top > y
+        val bottom = rect.bottom
         val r = minOf(h / 2f, size * 0.9f)
         rect.offset(0f, 3f * density)
         canvas.drawRoundRect(rect, r, r, shadowP)
         rect.offset(0f, -3f * density)
         tail.reset()
         val tx = if (rect.width() > 2 * r) x.coerceIn(rect.left + r, rect.right - r) else rect.centerX()
-        tail.moveTo(tx - size * 0.45f, bottom - 1f)
-        tail.lineTo(tx, bottom + size * 0.5f)
-        tail.lineTo(tx + size * 0.45f, bottom - 1f)
+        val edge = if (flipped) rect.top + 1f else bottom - 1f
+        val tip = if (flipped) rect.top - size * 0.5f else bottom + size * 0.5f
+        tail.moveTo(tx - size * 0.45f, edge)
+        tail.lineTo(tx, tip)
+        tail.lineTo(tx + size * 0.45f, edge)
         tail.close()
         canvas.drawPath(tail, bubbleP)
         canvas.drawRoundRect(rect, r, r, bubbleP)
-        lastBubble.set(rect.left, rect.top, rect.right, bottom + size * 0.5f)
+        lastBubble.set(rect.left, if (flipped) tip else rect.top, rect.right, if (flipped) bottom else tip)
         ringP.color = accent; ringP.strokeWidth = 2.5f * density
         canvas.drawRoundRect(rect, r, r, ringP)
         textP.textSize = size; textP.color = labelColor

@@ -510,6 +510,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private val hudText = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF262B33.toInt(); typeface = Typeface.DEFAULT_BOLD; textSize = textScale.px(16f) }
     private val hudSub = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF3A4350.toInt(); textSize = textScale.px(13f) }
     private val hudPlate = fill(0xB8FFFFFF.toInt())
+    /** The plate under the hint line: the tray's frosted look, a little denser so text stays readable over buildings. */
+    private val hintPlate = fill(0xD2F4F6F1.toInt())
     private val btnFill = fill(0xE6FFFFFF.toInt())
     private val btnActive = fill(0xFF262B33.toInt())
     private val holdRing = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND }
@@ -1821,7 +1823,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         drawTray(canvas, bar)
         drawToolbar(canvas, bar)
         // Above the whole toolbar, the raised network row too: a long word must never run into it.
-        val hintY = (bar.raised?.top ?: bar.trayTop) - hudSub.descent() - 4 * density
+        val hintPadX = HINT_PAD_X_DP * density
+        val hintPadY = HINT_PAD_Y_DP * density
+        val hintY = (bar.raised?.top ?: bar.trayTop) - hudSub.descent() - hintPadY - 4 * density
         // No hint under a menu card: the game-over card and the pause menu cover that spot.
         val hintText = when {
             screen != Screen.PLAYING -> null
@@ -1835,7 +1839,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             val lineH = hudSub.textSize * 1.3f
             // As many lines as fit between the top rows (and the centered lines) and the buttons (floor: a line that
             // would reach into the rows above does not count).
-            var room = floor((hintY - hudSub.textSize - maxOf(cursor, blocksBottom)) / lineH).toInt() + 1
+            var room = floor((hintY - hudSub.textSize - hintPadY - maxOf(cursor, blocksBottom)) / lineH).toInt() + 1
             if (room < 1 && controlsShown) {
                 // Not even one line below the view controls (a low window with large text): they step aside while the
                 // hint shows, and the paused pill may go back up beside the counters.
@@ -1845,24 +1849,27 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                     cursor = cursorWithoutBanner
                     banner = placePausedBanner(center, right - left, ::place)
                 }
-                room = floor((hintY - hudSub.textSize - maxOf(cursor, blocksBottom)) / lineH).toInt() + 1
+                room = floor((hintY - hudSub.textSize - hintPadY - maxOf(cursor, blocksBottom)) / lineH).toInt() + 1
             }
             if (room < 1 && banner != null) {
                 // Not even one line below the paused pill: the pause button shows the stopped clock anyway.
                 banner = null
-                room = floor((hintY - hudSub.textSize - maxOf(cursorWithoutBanner, blocksBottom)) / lineH).toInt() + 1
+                room = floor((hintY - hudSub.textSize - hintPadY - maxOf(cursorWithoutBanner, blocksBottom)) / lineH).toInt() + 1
             }
             // Service pictograms in the text ([InlineGlyphs]) are laid out as gaps and painted as tokens into them.
             val glyphs = InlineGlyphs.services(it)
-            val lines = wrapText(InlineGlyphs.layout(it), right - left, hudSub, room.coerceIn(1, MAX_HINT_LINES))
+            val lines = wrapText(InlineGlyphs.layout(it), right - left - 2 * hintPadX, hudSub, room.coerceIn(1, MAX_HINT_LINES))
+            val w = lines.maxOf { l -> hudSub.measureText(l) }
+            // A calm frosted plate (the tray's look) keeps the text readable over buildings; it hugs the wrapped lines.
+            val plate = RectF(left, hintY - (lines.size - 1) * lineH - hudSub.textSize - hintPadY, left + w + 2 * hintPadX, hintY + hudSub.descent() + hintPadY)
+            canvas.drawRoundRect(plate, HINT_RADIUS_DP * density, HINT_RADIUS_DP * density, hintPlate)
             var glyph = 0
             lines.forEachIndexed { i, line ->
                 val ly = hintY - (lines.size - 1 - i) * lineH
-                canvas.drawText(line, left, ly, hudSub)
-                if (glyphs.isNotEmpty()) glyph = InlineGlyphs.drawTokens(canvas, line, left, ly, hudSub, glyphs, glyph)
+                canvas.drawText(line, left + hintPadX, ly, hudSub)
+                if (glyphs.isNotEmpty()) glyph = InlineGlyphs.drawTokens(canvas, line, left + hintPadX, ly, hudSub, glyphs, glyph)
             }
-            val w = lines.maxOf { l -> hudSub.measureText(l) }
-            hudNodes += UiNode("hud:hint", RectF(left, hintY - (lines.size - 1) * lineH - hudSub.textSize, left + w, hintY + hudSub.descent()), InlineGlyphs.plain(it), UiNode.Kind.TEXT)
+            hudNodes += UiNode("hud:hint", plate, InlineGlyphs.plain(it), UiNode.Kind.TEXT)
         }
         banner?.let { drawPausedBanner(canvas, it) }
         if (controlsShown) {
@@ -4216,6 +4223,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         const val HINT_SECONDS = 2.5f
         /** Lines a long hint (or one in large text) wraps into above the bottom buttons. */
         const val MAX_HINT_LINES = 3
+        /** Padding (dp) around the hint line's text inside its backdrop plate, and the plate's corner radius. */
+        const val HINT_PAD_X_DP = 10f
+        const val HINT_PAD_Y_DP = 5f
+        const val HINT_RADIUS_DP = 12f
         /** How long the camera shows the failed device before the game-over card. */
         const val GAME_OVER_FOCUS_SECONDS = 1.6f
         /** Longer hints: what a new service needs, why a device is stuck. */

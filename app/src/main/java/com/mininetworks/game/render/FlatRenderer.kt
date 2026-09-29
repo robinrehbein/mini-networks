@@ -304,6 +304,7 @@ class FlatRenderer : Renderer {
                 DragJuice.bubble(
                     canvas, it, d.detail, s.x, s.y, maxOf(cell * 0.9f, 40f * density), maxOf(cell * 0.38f, LABEL_MIN_DP * 1.2f * density), density,
                     if (d.blocked) alarm else ink, if (d.detailWarning) alarm else ink, col,
+                    DragJuice.bounds(canvas, camera.insets),
                 )
                 DragJuice.lastBubble.let { b -> serverLabels.obstacle(b.left, b.top, b.right, b.bottom, hardEdge = true) }
             }
