@@ -685,31 +685,104 @@ class IsoRenderer : Renderer {
         val seed = world.seed
         c.save()
         c.translate(0f, drop)
-        for (pass in 0 until 2) for (y in y0..y1) for (x in x0..x1) {
-            if (x in 0 until cols && y in 0 until rows) continue
-            val ex = x.coerceIn(0, cols - 1); val ey = y.coerceIn(0, rows - 1)
-            if ((depthOf(x + 0.5f, y + 0.5f) > depthOf(ex + 0.5f, ey + 0.5f)) != front) continue
-            val dist = maxOf(abs(x - ex), abs(y - ey))
-            // Only a light haze that deepens slowly: the countryside fills the screen and stays calm (judge panel:
-            // a portrait screen showed pale fog above and below the board).
-            val fade = (dist / OUTSKIRT_FADE).coerceAtMost(1f) * OUTSKIRT_HAZE + 0.04f
-            // A river leaves the board straight on: only cells beyond one edge (not a corner) continue it.
-            val water = (x in 0 until cols || y in 0 until rows) && world.terrainAt(ex, ey) == Terrain.WATER
-            val even = (x + y) % 2 == 0
-            if (pass == 0) {
-                quad(x.toFloat(), y.toFloat(), 1f, 1f, 0f)
-                val base = if (water) (if (even) blend(waterA, lockedWaterA, 0.5f) else blend(waterB, lockedWaterB, 0.5f))
-                    else if (even) blend(landA, lockedLandA, 0.55f) else blend(landB, lockedLandB, 0.55f)
-                fillP.color = blend(base.shade(Scenery.tileVariation(seed, x, y) * TILE_VARIATION), pal.background, fade)
-                c.drawPath(path, fillP)
-            } else if (!water && dist <= OUTSKIRT_DECOR) {
-                val d = Scenery.outskirt(seed, x, y, dist) ?: continue
-                decorWash = OUTSKIRT_DECOR_WASH + fade * 0.5f
-                drawDecor(c, seed, Cell(x, y), d, open = false)
+        for (pass in 0 until 2) {
+            // Between the tiles and the decorations: the board's foot and the rivers falling off it.
+            if (pass == 1) drawBoardFoot(c, world, front)
+            for (y in y0..y1) for (x in x0..x1) {
+                if (x in 0 until cols && y in 0 until rows) continue
+                val ex = x.coerceIn(0, cols - 1); val ey = y.coerceIn(0, rows - 1)
+                if ((depthOf(x + 0.5f, y + 0.5f) > depthOf(ex + 0.5f, ey + 0.5f)) != front) continue
+                val dist = maxOf(abs(x - ex), abs(y - ey))
+                // Only a light haze that deepens slowly: the countryside fills the screen and stays calm (judge panel:
+                // a portrait screen showed pale fog above and below the board).
+                val fade = (dist / OUTSKIRT_FADE).coerceAtMost(1f) * OUTSKIRT_HAZE + 0.04f
+                // A river leaves the board straight on: only cells beyond one edge (not a corner) continue it.
+                val water = (x in 0 until cols || y in 0 until rows) && world.terrainAt(ex, ey) == Terrain.WATER
+                val even = (x + y) % 2 == 0
+                if (pass == 0) {
+                    quad(x.toFloat(), y.toFloat(), 1f, 1f, 0f)
+                    val base = if (water) (if (even) blend(waterA, lockedWaterA, 0.5f) else blend(waterB, lockedWaterB, 0.5f))
+                        else if (even) blend(landA, lockedLandA, 0.55f) else blend(landB, lockedLandB, 0.55f)
+                    fillP.color = blend(base.shade(Scenery.tileVariation(seed, x, y) * TILE_VARIATION), pal.background, fade)
+                    c.drawPath(path, fillP)
+                } else if (!water && dist <= OUTSKIRT_DECOR) {
+                    val d = Scenery.outskirt(seed, x, y, dist) ?: continue
+                    decorWash = OUTSKIRT_DECOR_WASH + fade * 0.5f
+                    drawDecor(c, seed, Cell(x, y), d, open = false)
+                }
             }
         }
         decorWash = LOCKED_DECOR_WASH
         c.restore()
+    }
+
+    /**
+     * Where the board meets the outskirts, on the sunken level (the canvas of [drawOutskirts]; height 0 is theirs and
+     * [OUTSKIRT_DROP] the board's), for the part nearer the viewer than the board if [front], else the rest.
+     *
+     * A soft shadow along the foot of every board edge: the step down to the outskirts reads even where a wall is seen
+     * edge-on and shows nothing (the side-on views), so the board never seems to sit lower than its surroundings.
+     * And every river that leaves the board falls to the outskirts' level over a short slope of foaming water, its
+     * earth banks shown where they face the viewer; the river runs on without a jog at any angle and pitch.
+     */
+    private fun drawBoardFoot(c: Canvas, world: World, front: Boolean) {
+        val w = world.cols.toFloat(); val h = world.rows.toFloat()
+        for (e in BOARD_EDGES.indices step 6) {
+            val nx = BOARD_EDGES[e + 4]; val ny = BOARD_EDGES[e + 5]
+            if (facing(nx, ny) != front) continue
+            val ax = BOARD_EDGES[e] * w; val ay = BOARD_EDGES[e + 1] * h; val bx = BOARD_EDGES[e + 2] * w; val by = BOARD_EDGES[e + 3] * h
+            fillP.color = FOOT_SHADOW_ALPHA shl 24
+            for (spread in FOOT_SHADOW_SPREAD) {
+                poly(ax, ay, 0f, bx, by, 0f, bx + nx * spread, by + ny * spread, 0f, ax + nx * spread, ay + ny * spread, 0f)
+                c.drawPath(path, fillP)
+            }
+        }
+        val cols = world.cols; val rows = world.rows
+        for (k in 0 until 4) {
+            val nx = NEIGHBOURS[2 * k]; val ny = NEIGHBOURS[2 * k + 1]
+            if (facing(nx.toFloat(), ny.toFloat()) != front) continue
+            val along = if (nx != 0) rows else cols
+            for (i in 0 until along) {
+                // The board cell on this edge and where its edge lies.
+                val ex = if (nx > 0) cols - 1 else if (nx < 0) 0 else i
+                val ey = if (ny > 0) rows - 1 else if (ny < 0) 0 else i
+                if (world.terrainAt(ex, ey) != Terrain.WATER) continue
+                drawFall(c, world.unlocked.contains(ex, ey), ex, ey, nx, ny)
+            }
+        }
+    }
+
+    /**
+     * The river on board cell ([ex], [ey]) falling over the board edge with outward normal ([nx], [ny]) onto the
+     * outskirts ([drawBoardFoot]): a slope of lighter water [FALL_RUN] cells out from the top of the edge down to the
+     * sunken level, foam along its lip and foot, and the earth under it on the sides that face the viewer.
+     */
+    private fun drawFall(c: Canvas, lit: Boolean, ex: Int, ey: Int, nx: Int, ny: Int) {
+        val top = OUTSKIRT_DROP
+        // The lip: the cell's edge on the board's edge, from a to b; the foot lies FALL_RUN further out.
+        val ax = ex + if (nx > 0) 1f else 0f; val ay = ey + if (ny > 0) 1f else 0f
+        val bx = if (nx != 0) ax else ax + 1f; val by = if (ny != 0) ay else ay + 1f
+        val ox = nx * FALL_RUN; val oy = ny * FALL_RUN
+        // Earth sides first: the triangles under the slope at both ends of the lip, where they face the viewer.
+        val bank = if (lit) landB.shade(BANK_SHADE) else wash(landB.shade(BANK_SHADE))
+        val tx = (bx - ax); val ty = (by - ay)
+        fillP.color = bank
+        if (facing(-tx, -ty)) { poly(ax, ay, top, ax + ox, ay + oy, 0f, ax, ay, 0f); c.drawPath(path, fillP) }
+        if (facing(tx, ty)) { poly(bx, by, top, bx + ox, by + oy, 0f, bx, by, 0f); c.drawPath(path, fillP) }
+        val water = if (lit) blend(waterA, waterB, 0.5f) else blend(lockedWaterA, lockedWaterB, 0.5f)
+        poly(ax, ay, top, bx, by, top, bx + ox, by + oy, 0f, ax + ox, ay + oy, 0f)
+        fillP.color = blend(water, 0xFFFFFFFF.toInt(), FALL_FOAM)
+        c.drawPath(path, fillP)
+        strokeP.strokeWidth = tw * 0.022f
+        strokeP.color = if (lit) FOAM else FOAM_LOCKED
+        c.drawLine(sx(ax, ay), sy(ax, ay, top), sx(bx, by), sy(bx, by, top), strokeP)
+        c.drawLine(sx(ax + ox, ay + oy), sy(ax + ox, ay + oy), sx(bx + ox, by + oy), sy(bx + ox, by + oy), strokeP)
+        // Two streaks down the slope, so it reads as falling water rather than a tilted tile.
+        strokeP.color = if (lit) FALL_STREAK else FALL_STREAK_LOCKED
+        for (f in FALL_STREAKS) {
+            val px = ax + tx * f; val py = ay + ty * f
+            c.drawLine(sx(px, py), sy(px, py, top), sx(px + ox, py + oy), sy(px + ox, py + oy), strokeP)
+        }
     }
 
     /**
@@ -2001,6 +2074,15 @@ class IsoRenderer : Renderer {
         /** Spread (cells) of the passes of the board's shadow on the table, and the alpha of each. */
         val BOARD_SHADOW_SPREAD = floatArrayOf(0.9f, 0.7f, 0.5f, 0.32f, 0.16f, 0.04f)
         const val BOARD_SHADOW_ALPHA = 0x06
+        /** Reach (cells) of the passes of the shadow at the foot of the board's edges ([drawBoardFoot]), and their alpha. */
+        val FOOT_SHADOW_SPREAD = floatArrayOf(0.44f, 0.38f, 0.32f, 0.26f, 0.2f, 0.15f, 0.1f, 0.06f, 0.03f)
+        const val FOOT_SHADOW_ALPHA = 0x07
+        /** How far out (cells) a river falling off the board reaches the outskirts, how much foam lightens it, and its streaks. */
+        const val FALL_RUN = 0.4f
+        const val FALL_FOAM = 0.28f
+        const val FALL_STREAK = 0x73FFFFFF
+        const val FALL_STREAK_LOCKED = 0x40FFFFFF
+        val FALL_STREAKS = floatArrayOf(0.3f, 0.68f)
         /** Smallest width of a radio's rim on a phone, in dp. */
         const val RADIO_RIM_MIN_DP = 2f
 

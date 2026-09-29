@@ -546,4 +546,28 @@ class CameraTest {
         assertFalse(g.tilting)
         assertEquals(Camera.DEFAULT_TILT, c.tilt, 0f)
     }
+
+    /** The renderer's reframing while tilting: [Camera.rescale] and [Camera.bringIntoView] are no player moves. */
+    @Test
+    fun rescaleAndBringIntoViewKeepFollowingTheArea() {
+        val c = camera()
+        val area = MapRect(-8f, -2f, 12f, 9f)
+        c.fit(area)
+        assertTrue(c.followsArea)
+        val pivot = c.toMap(300f, 200f)
+        c.rescale(0.8f, 300f, 200f)
+        assertNear(pivot, c.toMap(300f, 200f))
+        assertTrue("reframing is no player move", c.followsArea)
+        // Pushed half off to the right, the area comes back just far enough to touch the right edge.
+        c.panBy(400f, 0f)
+        assertFalse(c.shows(area))
+        c.bringIntoView(area)
+        assertTrue(c.shows(area))
+        assertEquals(1000f, c.toScreenX(area.right), 0.5f)
+        // An area too tall for the view is left alone along that axis.
+        val tall = MapRect(-1f, -40f, 1f, 40f)
+        val y = c.focusY
+        c.bringIntoView(tall)
+        assertEquals(y, c.focusY, 0f)
+    }
 }

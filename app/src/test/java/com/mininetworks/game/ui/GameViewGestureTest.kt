@@ -376,7 +376,8 @@ class GameViewGestureTest {
         val scale = camera.scale
         drag(160f)
         assertTrue("steeper after dragging down", camera.tilt > Camera.DEFAULT_TILT + 5f)
-        assertEquals("tilting does not zoom", scale, camera.scale, scale * 1e-3f)
+        assertTrue("tilting never zooms in on a steeper, taller map", camera.scale <= scale * 1.001f)
+        assertTrue("the playable area stays in view", camera.shows(view.activeRenderer.mapBounds(world.unlocked)))
         val steep = camera.tilt
         drag(-120f)
         assertTrue("flatter after dragging up", camera.tilt < steep - 5f)
@@ -389,6 +390,49 @@ class GameViewGestureTest {
         drag(100f)
         assertEquals("the overview has no pitch", pitch, camera.tilt, 0f)
         assertEquals("it pans instead", 550f, view.activeRenderer.toScreen(under).y, 1f)
+    }
+
+    /**
+     * Two fingers dragged to the steep and the low end, and the tilt buttons stepping to both ends: the playable area
+     * stays on screen between the HUD insets all the way, and the view comes back to its zoom at the classic pitch.
+     */
+    @Test
+    fun tiltingToTheExtremesKeepsThePlayableAreaInView() {
+        // A small map that the automatic framing shows whole (a big one is framed at a readable zoom and panned).
+        world = World(cols = 12, rows = 8, seed = 2L, spawnInitialNodes = false)
+        view.drawSnapshot(Canvas(Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)), world, 1600, 900, time = 0f, style = "Iso")
+        val area = { view.activeRenderer.mapBounds(world.unlocked) }
+        assertTrue("the start shows the whole area", camera.shows(area()))
+        val scale = camera.scale
+        fun drag(dy: Float) {
+            val start = floatArrayOf(600f, 450f, 1000f, 450f)
+            view.injectTouch(MotionEvent.ACTION_DOWN, start[0], start[1], floatArrayOf(start[0], start[1]))
+            view.injectTouch(MotionEvent.ACTION_POINTER_DOWN, start[2], start[3], start)
+            var p = start
+            for (k in 1..20) {
+                p = floatArrayOf(600f, 450f + dy * k / 20f, 1000f, 450f + dy * k / 20f)
+                view.injectTouch(MotionEvent.ACTION_MOVE, p[0], p[1], p)
+                assertTrue("in view while the fingers tilt (step $k)", camera.shows(area()))
+            }
+            view.injectTouch(MotionEvent.ACTION_POINTER_UP, p[2], p[3], floatArrayOf(p[0], p[1]))
+            view.injectTouch(MotionEvent.ACTION_UP, p[0], p[1], floatArrayOf())
+        }
+        drag(420f)
+        assertEquals("dragged to the steep end", Camera.TILT_MAX, camera.tilt, 0f)
+        assertTrue(camera.shows(area()))
+        drag(-420f)
+        assertEquals("dragged to the low end", Camera.TILT_MIN, camera.tilt, 0f)
+        assertTrue(camera.shows(area()))
+        while (camera.canTilt(1)) {
+            tap("tilt:high")
+            repeat(60) { view.advance(1f / 60f); assertTrue("in view while the buttons tilt", camera.shows(area())) }
+        }
+        assertEquals(Camera.TILT_MAX, camera.tilt, 0f)
+        tap("tilt:low"); tap("tilt:low"); tap("tilt:low")
+        repeat(90) { view.advance(1f / 60f) }
+        assertEquals(Camera.DEFAULT_TILT, camera.tilt, 1e-3f)
+        assertTrue(camera.shows(area()))
+        assertEquals("back at the classic pitch, back at the zoom", scale, camera.scale, scale * 0.02f)
     }
 
     @Test
