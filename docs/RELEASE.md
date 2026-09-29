@@ -233,7 +233,8 @@ Berechtigungen im gemergten Release-Manifest (`app/build/intermediates/merged_ma
 geprüft in T8): `INTERNET`, `ACCESS_NETWORK_STATE`, `WAKE_LOCK`, `FOREGROUND_SERVICE` (SDKs),
 `com.google.android.gms.permission.AD_ID`, `ACCESS_ADSERVICES_AD_ID`/`_ATTRIBUTION`/`_TOPICS` (Mobile Ads, Privacy
 Sandbox), `com.android.vending.BILLING` (Billing) und die interne Signatur-Berechtigung
-`com.mininetworks.game.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` (AndroidX Core, nur für die eigene App). Keine
+`com.mininetworks.game.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` (AndroidX Core, nur für die eigene App) sowie
+`VIBRATE` (eigene, für die Haptik-Einstellung; normale Berechtigung ohne Nachfrage). Keine
 Standort-, Kontakt-, Kamera-, Mikrofon- oder Speicher-Berechtigung. Die Frage „Verwendet die App die Werbe-ID?“ ist
 daher mit **Ja, Werbung oder Marketing** zu beantworten.
 

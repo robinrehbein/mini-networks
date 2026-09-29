@@ -130,7 +130,7 @@ class MenuPanel(context: Context) {
     private data class Slot(val row: Int, val col: Int, val span: Boolean)
 
     /** Sizes of one arrangement of a page: [s] scales text and spacing, [cols] columns of entries. */
-    private inner class Layout(val page: MenuPage, val s: Float, val cols: Int, val width: Float, val split: Boolean = false) {
+    private inner class Layout(val page: MenuPage, val s: Float, val cols: Int, val width: Float, val split: Boolean = false, val compact: Boolean = false) {
         val u = density * s
         /** A split card's text pane is tighter around its text, so the text itself can stay large on a low phone. */
         val pad = (if (split) SPLIT_PAD_DP else PAD_DP) * u
@@ -139,7 +139,14 @@ class MenuPanel(context: Context) {
         val lineSize = scale.px(if (page.hero) 17f else 15f) * s
         val labelSize = scale.px(labelSp(page)) * s
         /** The main menu's logo mark above the title. */
-        val logoSize = (if (page.hero) HERO_LOGO_DP else LOGO_DP) * u
+        val logoSize = (if (page.hero && compact) COMPACT_LOGO_DP else if (page.hero) HERO_LOGO_DP else LOGO_DP) * u
+        /**
+         * A compact main menu (a low landscape phone, where the full card would shrink until its pills looked like fat
+         * buttons on a narrow strip): a slim header band, the logo beside the title, "continue" beside Play and the
+         * remove-ads link beside the best score. [topPad] is the room above the title row, band included.
+         */
+        val bandH = if (compact) COMPACT_BAND_DP * u else 0f
+        val topPad = if (compact) bandH + 10f * u else pad
         val footerSize = scale.px(if (page.hero) 15f else 13f) * s
         val itemH = maxOf(TOUCH_DP * density, labelSize + 24f * u)
         val linkSize = scale.px(15f) * s
@@ -165,6 +172,8 @@ class MenuPanel(context: Context) {
          * primary entry of a split card's text pane (game over: "again" above "share" and "main menu").
          */
         val spanFirst = (page.hero || split) && cols > 1 && (grid.firstOrNull() as? MenuItem.Button)?.primary == true
+        /** A compact main menu shares Play's row with "continue" (Play keeps the larger part). */
+        val pairFirst = compact && spanFirst && grid.getOrNull(1)?.action == MenuAction.CONTINUE
         val colW = (inner - (cols - 1) * gap) / cols
         /**
          * Row and column of each grid entry, and whether it spans the row. In a split pane an entry whose label would
@@ -189,6 +198,10 @@ class MenuPanel(context: Context) {
                 }
             }
             out.map { sl -> if (out.count { it.row == sl.row } == 1) sl.copy(col = 0, span = true) else sl }
+        } else if (pairFirst) {
+            grid.indices.map { k ->
+                if (k < 2) Slot(0, k, false) else (k - 2 + cols).let { i -> Slot(i / cols, i % cols, false) }
+            }
         } else {
             grid.indices.map { k ->
                 // With a spanning first entry the others count from the second row.
@@ -197,7 +210,7 @@ class MenuPanel(context: Context) {
             }
         }
         val rows = (slots.maxOfOrNull { it.row } ?: -1) + 1
-        val titleH = titleSize * 1.25f + (if (page.hero) logoSize + 8f * u else 0f)
+        val titleH = if (compact) maxOf(logoSize, titleSize * 1.25f) else titleSize * 1.25f + (if (page.hero) logoSize + 8f * u else 0f)
         val titleGap = (if (split) 4f else 10f) * u
         val scoreSize = scale.px(if (split) SPLIT_SCORE_SP else 44f) * s
         val scoreH = if (page.score != null) scoreSize * 1.3f else 0f
@@ -208,11 +221,26 @@ class MenuPanel(context: Context) {
         val primaryExtra = if (page.hero && grid.any { it is MenuItem.Button && it.primary }) itemH * 0.2f else 0f
         val itemsH = rows * itemH + rows * gap + primaryExtra + links.size * linkH
         /** On the main menu the footer (the best score) is a badge. */
-        val footerH = if (page.footer != null) footerSize * (if (page.hero) 2.9f else 2f) else 0f
+        /** The remove-ads link and the best score share one row in a compact main menu. */
+        val linkRow = compact && links.size == 1 && page.footer != null
+        val footerH = if (page.footer != null && !linkRow) footerSize * (if (page.hero) 2.9f else 2f) else 0f
         val pictureW = page.picture?.let { minOf(inner, PICTURE_MAX_H_DP * u * it.aspect) } ?: 0f
         val pictureH = page.picture?.let { pictureW / it.aspect } ?: 0f
         val pictureBlock = if (page.picture != null) pictureH + 12f * u else 0f
-        val height = 2 * pad + titleH + titleGap + scoreH + highlightH + linesH + pictureBlock + itemsH + footerH
+        val height = topPad + pad + titleH + titleGap + scoreH + highlightH + linesH + pictureBlock + itemsH + footerH
+    }
+
+    /**
+     * True if every secondary entry's label fits its column at full size with its icon, so a compact main menu's row
+     * of three reads alike instead of some pills dropping their icon and shrinking their text.
+     */
+    private fun Layout.labelsFit(): Boolean {
+        text.typeface = Typeface.DEFAULT_BOLD
+        text.textSize = labelSize
+        return slots.withIndex().all { (k, slot) ->
+            val item = grid[k]
+            slot.row == 0 || slot.span || text.measureText(item.label) * 1.03f + 16f * u + labelSize * 0.85f * 1.4f <= colW
+        }
     }
 
     fun draw(canvas: Canvas, page: MenuPage, width: Int, height: Int, pressed: MenuAction? = null, safe: ViewInsets = ViewInsets.NONE) {
@@ -235,7 +263,7 @@ class MenuPanel(context: Context) {
         val top = safe.top + (areaH - ch) / 2f - SLAB_DP * u / 2f
         card.set(left, top, left + cw, top + ch)
         slab(canvas, card, 18f * u, SLAB_DP * u, 0xFFFAFAF7.toInt(), 0xFFE3E6E1.toInt().shade(-0.2f), shadow = true)
-        if (page.hero) header(canvas, card, 18f * u, l.pad + l.logoSize * 0.62f, u)
+        if (page.hero) header(canvas, card, 18f * u, if (l.compact) l.bandH else l.pad + l.logoSize * 0.62f, u)
         drawContent(canvas, l, card.left, card.top, pressed)
     }
 
@@ -353,8 +381,8 @@ class MenuPanel(context: Context) {
         val u = l.u
         val cx = paneLeft + l.width / 2f
         val inner = l.inner
-        var y = paneTop + l.pad
-        if (page.hero) {
+        var y = paneTop + l.topPad
+        if (page.hero && !l.compact) {
             logo.draw(canvas, cx, y + l.logoSize / 2f, l.logoSize)
             y += l.logoSize + 8f * u
         }
@@ -362,11 +390,26 @@ class MenuPanel(context: Context) {
         text.typeface = display
         text.color = if (page.hero) BRAND else ink
         text.textSize = l.titleSize
-        // A title shrinks further than other texts before it is cut: the game's name on a narrow portrait window.
-        val title = fitShrinking(page.title, inner, l.titleSize, l.titleSize * 0.5f)
-        canvas.drawText(title, cx, y + l.titleSize, text)
-        drawnNodes += UiNode("menu:title", textBounds(cx, y, inner, l.titleSize * 1.25f), page.title, UiNode.Kind.HEADING, shortened = title != page.title, textPx = text.textSize)
-        y += l.titleSize * 1.25f + l.titleGap
+        if (l.compact) {
+            // The logo and the title side by side, centred together in the title row.
+            val logoGap = 10f * u
+            val title = fitShrinking(page.title, inner - l.logoSize - logoGap, l.titleSize, l.titleSize * 0.5f)
+            val tw = text.measureText(title)
+            val groupLeft = cx - (l.logoSize + logoGap + tw) / 2f
+            logo.draw(canvas, groupLeft + l.logoSize / 2f, y + l.titleH / 2f, l.logoSize)
+            text.textAlign = Paint.Align.LEFT
+            val tTop = y + (l.titleH - l.titleSize * 1.25f) / 2f
+            canvas.drawText(title, groupLeft + l.logoSize + logoGap, tTop + l.titleSize, text)
+            text.textAlign = Paint.Align.CENTER
+            drawnNodes += UiNode("menu:title", RectF(groupLeft, y, groupLeft + l.logoSize + logoGap + tw, y + l.titleH), page.title, UiNode.Kind.HEADING, shortened = title != page.title, textPx = text.textSize)
+            y += l.titleH + l.titleGap
+        } else {
+            // A title shrinks further than other texts before it is cut: the game's name on a narrow portrait window.
+            val title = fitShrinking(page.title, inner, l.titleSize, l.titleSize * 0.5f)
+            canvas.drawText(title, cx, y + l.titleSize, text)
+            drawnNodes += UiNode("menu:title", textBounds(cx, y, inner, l.titleSize * 1.25f), page.title, UiNode.Kind.HEADING, shortened = title != page.title, textPx = text.textSize)
+            y += l.titleSize * 1.25f + l.titleGap
+        }
         page.score?.let {
             text.color = BRAND
             text.typeface = display
@@ -462,20 +505,25 @@ class MenuPanel(context: Context) {
         }
 
         val colW = l.colW
-        var extra = 0f
         val gridBottom = y + l.itemsH - l.links.size * l.linkH
+        // Play (the first entry, in the first row) is taller by primaryExtra; the rows below move down by it.
+        val playW = inner * 0.58f
         for ((k, item) in (l.grid + l.links).withIndex()) {
             val isLink = item is MenuItem.Button && item.link
             if (isLink) {
-                r.set(paneLeft + l.pad, gridBottom + (k - l.grid.size) * l.linkH, paneLeft + l.pad + inner, gridBottom + (k - l.grid.size + 1) * l.linkH)
+                val linkW = if (l.linkRow) (inner - l.gap) / 2f else inner
+                r.set(paneLeft + l.pad, gridBottom + (k - l.grid.size) * l.linkH, paneLeft + l.pad + linkW, gridBottom + (k - l.grid.size + 1) * l.linkH)
             } else {
                 val slot = l.slots[k]
-                val x = paneLeft + l.pad + slot.col * (colW + l.gap)
-                val itemTop = y + slot.row * (l.itemH + l.gap) + extra
-                val big = l.primaryExtra > 0f && item is MenuItem.Button && item.primary
-                val w = if (slot.span) inner else colW
-                r.set(x, itemTop, x + w, itemTop + l.itemH + if (big) l.primaryExtra else 0f)
-                if (big) extra += l.primaryExtra
+                var x = paneLeft + l.pad + slot.col * (colW + l.gap)
+                val itemTop = y + slot.row * (l.itemH + l.gap) + if (slot.row > 0) l.primaryExtra else 0f
+                val tall = l.primaryExtra > 0f && slot.row == 0 && (l.pairFirst || (item is MenuItem.Button && item.primary))
+                var w = if (slot.span) inner else colW
+                if (l.pairFirst && slot.row == 0) {
+                    x = paneLeft + l.pad + if (slot.col == 0) 0f else playW + l.gap
+                    w = if (slot.col == 0) playW else inner - playW - l.gap
+                }
+                r.set(x, itemTop, x + w, itemTop + l.itemH + if (tall) l.primaryExtra else 0f)
             }
             val big = !isLink && l.primaryExtra > 0f && item is MenuItem.Button && item.primary
             val down = item.action == pressed
@@ -492,7 +540,12 @@ class MenuPanel(context: Context) {
                 checked = item is MenuItem.Toggle && item.on, enabled = enabled, shortened = shortened, textPx = drawnPx,
             )
         }
+        if (l.linkRow) page.footer?.let {
+            val half = (inner - l.gap) / 2f
+            badge(canvas, it, paneLeft + l.pad + half + l.gap + half / 2f, gridBottom, l, half + 64f * u, rowH = l.linkH)
+        }
         y += l.itemsH
+        if (page.hero && l.linkRow) return
         if (page.hero) page.footer?.let { badge(canvas, it, cx, y, l, inner); return }
         page.footer?.let {
             text.textAlign = Paint.Align.CENTER
@@ -533,11 +586,11 @@ class MenuPanel(context: Context) {
             val natural = maxOf(CARD_W_DP * u, cols * label + (cols - 1) * GAP_DP * u + 2 * PAD_DP * u)
             return minOf(natural, maxW)
         }
-        fun best(cols: Int): Layout {
+        fun best(cols: Int, compact: Boolean = false): Layout {
             var s = 1f
             while (true) {
-                val l = Layout(page, s, cols, widthFor(s, cols))
-                if (l.height <= maxH || s <= MIN_SCALE) return l
+                val l = Layout(page, s, cols, widthFor(s, cols), compact = compact)
+                if ((l.height <= maxH && (!compact || l.labelsFit())) || s <= MIN_SCALE) return l
                 s -= 0.02f
             }
         }
@@ -549,7 +602,11 @@ class MenuPanel(context: Context) {
             val secondary = page.items.count { it !is MenuItem.Button || (!it.link && !it.primary) }
             val options = listOf(one) + (2..minOf(3, maxOf(2, secondary))).map { best(it) }
             val fitting = options.filter { it.height <= maxH }
-            return if (fitting.isEmpty()) options.minBy { it.height } else fitting.maxBy { it.s + (if (it.cols == 1) 0.04f else 0f) }
+            val pick = if (fitting.isEmpty()) options.minBy { it.height } else fitting.maxBy { it.s + (if (it.cols == 1) 0.04f else 0f) }
+            // A low landscape window: the compact card wins where it keeps the text clearly larger.
+            if (pick.s >= 1f || areaW <= areaH) return pick
+            val compact = (2..3).map { best(it, compact = true) }.filter { it.height <= maxH }.maxByOrNull { it.s } ?: return pick
+            return if (compact.s > pick.s + 0.05f) compact else pick
         }
         val two = best(2)
         val pick = if (two.s > one.s + 0.05f) two else one
@@ -675,7 +732,7 @@ class MenuPanel(context: Context) {
     }
 
     /** The main menu's best score as a gold badge with a trophy under the entries. */
-    private fun badge(canvas: Canvas, label: String, cx: Float, top: Float, l: Layout, inner: Float) {
+    private fun badge(canvas: Canvas, label: String, cx: Float, top: Float, l: Layout, inner: Float, rowH: Float = l.footerH) {
         val u = l.u
         text.textAlign = Paint.Align.LEFT
         text.typeface = Typeface.DEFAULT_BOLD
@@ -683,7 +740,7 @@ class MenuPanel(context: Context) {
         val h = l.footerSize * 2.2f
         val icon = h * 0.52f
         val w = text.measureText(shown) + icon + h * 0.9f
-        val bt = top + (l.footerH - h) / 2f
+        val bt = top + (rowH - h) / 2f
         val rect = RectF(cx - w / 2f, bt, cx + w / 2f, bt + h)
         fillP.color = 0xFFFFF1CC.toInt()
         canvas.drawRoundRect(rect, h / 2f, h / 2f, fillP)
@@ -828,6 +885,9 @@ class MenuPanel(context: Context) {
         const val LOGO_DP = 64f
         /** The logo mark over the game's name on the main menu. */
         const val HERO_LOGO_DP = 76f
+        /** The logo beside the title in a compact main menu, and that card's slim header band. */
+        const val COMPACT_LOGO_DP = 56f
+        const val COMPACT_BAND_DP = 22f
         /** The one brand colour, deep indigo (launcher icon, store caption bar, feature graphic): the game's name, hero numbers, header. */
         const val BRAND = Brand.COLOR
         const val BRAND_DARK = Brand.DARK
