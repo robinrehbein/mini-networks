@@ -2,6 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Short pulses for the haptics setting (a normal permission, granted at install). -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
     <!-- appCategory "game": Android 16+ keeps the landscape lock on large screens for games. -->
     <application
         android:enableOnBackInvokedCallback="true"

@@ -177,7 +177,8 @@ import kotlin.math.roundToInt
  *    double tap on empty ground: fit the playable area
  *  - view controls below the counters: turn left, compass (points to north; a tap turns the map back), turn right (each
  *    tap eases 45° around the centre of the view), and in the iso view flatter and steeper; a hint that finds no room
- *    in a low window with large text hides them while it shows
+ *    in a low window with large text hides them while it shows; a few seconds after the map last moved they fade out
+ *    (only the compass stays while the map is turned) and any pan, pinch or turn brings them back
  *  - the bottom toolbar ([layoutToolbar]) has two captioned groups: "Kabel" picks a cable technology (ISDN, DSL,
  *    Koax, Glasfaser; the coin is the price per cell; picking one names its bandwidth, speed and price), "Netzwerk"
  *    holds the devices that join several others (router, and WLAN and mast while some are in stock), each tile with
@@ -1580,13 +1581,25 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     /** The compass shows while the map is turned away from north or still easing back (docs/TOP100.md B5). */
     private val compassShown get() = renderer.camera.angle != 0f
 
+    /** [animTime] of the last camera move (pan, pinch, turn, tilt, a view control) or game start. */
+    private var viewTouchedAt = 0f
+
+    /**
+     * How visible the view controls are: fully for [VIEW_CONTROLS_SECONDS] after the map last moved, then fading out,
+     * so they leave the map to the game (only the compass stays while the map is turned). A screen reader keeps them.
+     */
+    private val viewControlsAlpha: Float
+        get() = if (accessibility.active) 1f
+        else ((VIEW_CONTROLS_SECONDS + VIEW_CONTROLS_FADE_SECONDS - (animTime - viewTouchedAt)) / VIEW_CONTROLS_FADE_SECONDS).coerceIn(0f, 1f)
+
     /**
      * The view controls below the counters, as pills of segment ids: turn left, the compass and turn right (every 45°
      * a corner or a side-on view), and in a style with height ([Renderer.tilts]) flatter and steeper. The tutorial
-     * keeps its HUD calm: only the compass, and only while the map is turned.
+     * keeps its HUD calm, and so does a map left alone for a while ([viewControlsAlpha]): only the compass, and only
+     * while the map is turned.
      */
     private fun viewControls(): List<List<String>> = when {
-        tutorial != null -> if (compassShown) listOf(listOf("compass")) else emptyList()
+        tutorial != null || viewControlsAlpha == 0f -> if (compassShown) listOf(listOf("compass")) else emptyList()
         renderer.tilts -> listOf(listOf("rotate:left", "compass", "rotate:right"), listOf("tilt:low", "tilt:high"))
         else -> listOf(listOf("rotate:left", "compass", "rotate:right"))
     }
@@ -1880,6 +1893,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         }
         banner?.let { drawPausedBanner(canvas, it) }
         if (controlsShown) {
+            // Fading out after the map was left alone (the compass alone, once they are gone, stays solid).
+            val alpha = if (m.controlRows.singleOrNull()?.singleOrNull()?.size == 1) 1f else viewControlsAlpha
+            val layer = if (alpha < 1f) canvas.saveLayerAlpha(null, (alpha * 255).toInt()) else null
             val controlGap = CONTROL_GAP_DP * density
             var rowTop = top + m.controlsTop
             for (row in m.controlRows) {
@@ -1891,6 +1907,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 }
                 rowTop += bh + controlGap
             }
+            layer?.let { canvas.restoreToCount(it) }
         }
     }
 
@@ -2596,12 +2613,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 holdAp = null
                 endDrag()
                 cameraGesture = true
+                viewTouchedAt = animTime
                 renderer.camera.stopRotation()
                 renderer.camera.stopTilt()
                 startPinch(e)
             }
             MotionEvent.ACTION_MOVE -> when {
                 cameraGesture -> if (e.pointers.size >= 4) {
+                    viewTouchedAt = animTime
                     val before = renderer.camera.angle
                     val move = { pinch.move(e.pointers[0], e.pointers[1], e.pointers[2], e.pointers[3], renderer.camera, tilt = renderer.tilts) }
                     // A move that may tilt keeps the playable area framed at the new pitch (and renews the limits).
@@ -2797,11 +2816,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         if (last == null) {
             if (hypot(e.x - downX, e.y - downY) >= TAP_SLOP_DP * density) panFrom = Vec2(e.x, e.y).also {
                 renderer.camera.panBy(e.x - downX, e.y - downY)
+                viewTouchedAt = animTime
             }
             return
         }
         renderer.camera.panBy(e.x - last.x, e.y - last.y)
         panFrom = Vec2(e.x, e.y)
+        viewTouchedAt = animTime
     }
 
     private fun isDoubleTap(e: Input.Touch): Boolean {
@@ -3195,13 +3216,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         when {
             id == "menu" -> openPauseMenu()
             id == "pause" -> userPaused = !userPaused
-            id == "compass" -> renderer.camera.rotateTo(0f)
+            id == "compass" -> renderer.camera.rotateTo(0f).also { viewTouchedAt = animTime }
             // Rotate and tilt buttons: animated steps around the centre of the view (stepping the camera renews the
             // limits and, while tilting, keeps the area framed).
-            id == "rotate:left" -> renderer.camera.rotateStep(-1)
-            id == "rotate:right" -> renderer.camera.rotateStep(1)
-            id == "tilt:low" -> renderer.camera.tiltStep(-1)
-            id == "tilt:high" -> renderer.camera.tiltStep(1)
+            id == "rotate:left" -> renderer.camera.rotateStep(-1).also { viewTouchedAt = animTime }
+            id == "rotate:right" -> renderer.camera.rotateStep(1).also { viewTouchedAt = animTime }
+            id == "tilt:low" -> renderer.camera.tiltStep(-1).also { viewTouchedAt = animTime }
+            id == "tilt:high" -> renderer.camera.tiltStep(1).also { viewTouchedAt = animTime }
             id == "router" -> togglePlacing(NodeKind.ROUTER, if (world.unlimited) Int.MAX_VALUE else world.routersAvailable)
             id.startsWith("radio:") -> RadioType.valueOf(id.removePrefix("radio:")).let {
                 togglePlacing(it.kind, if (world.unlimited) Int.MAX_VALUE else world.radiosAvailable(it))
@@ -3982,6 +4003,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private fun continueGame() {
         if (gameInProgress) {
             screen = Screen.PLAYING
+            viewTouchedAt = animTime
             return
         }
         val saved = saves.load()
@@ -4001,6 +4023,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         screen = Screen.PLAYING
         showWorld(w)
         gameInProgress = true
+        viewTouchedAt = animTime
         cableType = w.unlockedCables.first()
         dailyExpiredHinted = false
         if (fresh) {
@@ -4150,10 +4173,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         if (!s.freeRotation) renderers.forEach { it.camera.settleRotation(snap = true) }
     }
 
+    private val vibrator by lazy { Haptics(context) }
+
     private fun haptic(kind: Int) {
         if (!settings.haptics) return
         hapticPulses++
-        post { performHapticFeedback(kind) }
+        post { vibrator.pulse(kind) }
     }
 
     /** The system click sound for buttons, if sound is on. */
@@ -4238,6 +4263,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         /** The hint plate's top and bottom padding where a full one would push the paused pill or view controls away. */
         const val HINT_PAD_TIGHT_DP = 1f
         const val HINT_RADIUS_DP = 12f
+        /** Seconds the view controls stay after the map last moved, and how long they then take to fade out. */
+        const val VIEW_CONTROLS_SECONDS = 4f
+        const val VIEW_CONTROLS_FADE_SECONDS = 0.6f
         /** How long the camera shows the failed device before the game-over card. */
         const val GAME_OVER_FOCUS_SECONDS = 1.6f
         /** Longer hints: what a new service needs, why a device is stuck. */

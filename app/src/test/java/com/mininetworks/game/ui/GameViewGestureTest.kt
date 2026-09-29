@@ -318,6 +318,27 @@ class GameViewGestureTest {
         view.injectTouch(MotionEvent.ACTION_UP, r.centerX(), r.centerY())
     }
 
+    /** The view controls fade out once the map is left alone, the compass stays while turned, and a pan brings them back. */
+    @Test
+    fun viewControlsFadeWhenTheMapRestsAndReturnOnPan() {
+        val bmp = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888)
+        view.drawCurrent(Canvas(bmp))
+        assertNotNull("shown at the start", view.hudTarget("rotate:right"))
+        tap("rotate:right")
+        repeat(6 * 60) { view.advance(1f / 60f) }
+        view.drawCurrent(Canvas(bmp))
+        assertNull("gone once the map rests", view.hudTarget("rotate:right"))
+        assertNull(view.hudTarget("tilt:high"))
+        assertNotNull("the compass stays while the map is turned", view.hudTarget("compass"))
+
+        view.injectTouch(MotionEvent.ACTION_DOWN, 800f, 450f)
+        view.injectTouch(MotionEvent.ACTION_MOVE, 900f, 450f)
+        view.injectTouch(MotionEvent.ACTION_MOVE, 950f, 460f)
+        view.injectTouch(MotionEvent.ACTION_UP, 950f, 460f)
+        view.drawCurrent(Canvas(bmp))
+        assertNotNull("back after a pan", view.hudTarget("rotate:right"))
+    }
+
     /** The rotate buttons turn by 45° around the centre of the view, the tilt buttons pitch it; taps stay exact. */
     @Test
     fun rotateAndTiltButtonsStepTheView() {
