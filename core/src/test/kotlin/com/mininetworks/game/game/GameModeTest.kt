@@ -158,7 +158,7 @@ class GameModeTest {
         repeat(3) { assertTrue(w.upgradeServer(mail)) }
         val cut = w.cableBetween(r, mail)!!
         w.announceExcavator(cut)
-        repeat(60 * 6) { w.update(1f / 60f) }
+        repeat(60 * (Incidents.WARNING_SECONDS.toInt() + 1)) { w.update(1f / 60f) }
         assertTrue(w.isCut(cut))
         assertTrue(w.repair(cut))
         pc.pending.addLast(Service.MAIL)

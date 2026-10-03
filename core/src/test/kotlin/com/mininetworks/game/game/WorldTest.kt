@@ -145,6 +145,47 @@ class WorldTest {
         assertEquals(NodeKind.CLIENT, w.failedNode?.kind)
     }
 
+    /** Requests without a route fill the queue up to the overload limit, but no further: the device still overloads. */
+    @Test
+    fun unroutedRequestsStopAtTheQueueLimit() {
+        val w = world()
+        w.addServer(Service.MAIL, 4, 1)
+        val pc = w.addClient(Device.PC, 1, 1)
+        repeat(60 * 180) {
+            if (w.gameOver) return@repeat
+            w.step()
+            assertTrue("queue ${pc.pending.size}", pc.pending.size <= World.Tuning.MAX_PENDING)
+        }
+        assertTrue("an ignored device still ends the game", w.gameOver)
+        assertEquals(pc, w.failedNode)
+        assertEquals(World.Tuning.MAX_PENDING, pc.pending.size)
+    }
+
+    /** Connecting a device that waited a long time takes it below the limit with its first request; the ring empties at once. */
+    @Test
+    fun aLateConnectedDeviceRecoversAtOnce() {
+        val w = world()
+        w.grant(100)
+        val mail = w.addServer(Service.MAIL, 4, 1)
+        val pc = w.addClient(Device.PC, 1, 1)
+        while (pc.overload < 0.6f) {
+            check(!w.gameOver)
+            w.step()
+        }
+        assertEquals("no endless backlog", World.Tuning.MAX_PENDING, pc.pending.size)
+        val ring = pc.overload
+        assertTrue(w.connect(pc, mail, CableType.ISDN))
+        repeat(60) { w.step() }
+        assertTrue("queue ${pc.pending.size}", pc.pending.size < World.Tuning.MAX_PENDING)
+        assertTrue("ring ${pc.overload} after $ring", pc.overload < ring)
+        // The ring empties at 1 / RECOVER_SECONDS per second: still there a second before that, gone a second after.
+        val left = pc.overload * World.Tuning.RECOVER_SECONDS
+        repeat(((left - 1f) * 60).toInt()) { w.step() }
+        assertTrue("ring ${pc.overload} a second early", pc.overload > 0f)
+        repeat(2 * 60) { w.step() }
+        assertEquals("the ring empties within RECOVER_SECONDS", 0f, pc.overload, 1e-3f)
+    }
+
     @Test
     fun waterMakesCablesMoreExpensive() {
         val w = World(seed = 3L, spawnInitialNodes = false)

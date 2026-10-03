@@ -52,7 +52,13 @@ class World(
         const val ROUTER_MS = 4f
         const val MAX_PENDING = 6
         const val OVERLOAD_SECONDS = 18f
-        const val RECOVER_SECONDS = 30f
+        /**
+         * A full overload ring empties in this long once the device is served again; short, so a device saved at the
+         * last moment is safe soon (docs/BALANCING.md, T-Human). Intended side effect: a device that keeps hitting
+         * [MAX_PENDING] only overloads if it sits at the limit more than RECOVER / (RECOVER + fill time) of the time,
+         * about 45 % at full speed and 70 % in the [EARLY_WEEKS] (with 30 s it was 37.5 % and 55 %).
+         */
+        const val RECOVER_SECONDS = 15f
         const val DISPATCH_COOLDOWN = 0.45f
         /** Budget and routers at the start of [Scenarios.RIVER_TOWN]; other scenarios set their own (docs/BALANCING.md). */
         const val START_BUDGET = 50
@@ -125,7 +131,7 @@ class World(
          * that has a server can be reached with one direct cable of an invented technology, within its ping limit
          * ([EARLY_PING_SHARE] of it, room for a router on the way) and for at most [EARLY_CABLE_BUDGET].
          */
-        const val EARLY_WEEKS = 2
+        const val EARLY_WEEKS = 3
         const val EARLY_PING_SHARE = 0.8f
         const val EARLY_CABLE_BUDGET = 24
         /** Grace in those weeks too: overload rings fill this much slower, so the first week's pay can still come. */
@@ -1341,8 +1347,19 @@ class World(
         return false
     }
 
-    /** In a mode without game over a queue holds at most [Tuning.MAX_PENDING] requests; further ones are lost. */
-    private fun queueHasRoom(n: Node) = mode.endsOnOverload || n.pending.size < Tuning.MAX_PENDING
+    /**
+     * True if [n] may queue one more request for [service]. In a mode without game over a queue holds at most
+     * [Tuning.MAX_PENDING] requests; further ones are lost.
+     *
+     * In a normal game a request that has a route always queues: a backlog behind a busy route is the jam the overload
+     * ring measures. A request for a service [n] has no route to ([routeFor]: not connected, cable cut, too narrow or
+     * too slow) only fills the queue up to [Tuning.MAX_PENDING] and is lost beyond that. A forgotten device still
+     * reaches the limit and overloads at the usual speed, so ignoring devices does not pay; but its queue no longer
+     * grows without end while it waits, so once the player connects it (or the cut cable is repaired), its first sent
+     * request takes it below the limit and the ring starts to empty at once, instead of after a long backlog drained.
+     */
+    private fun queueHasRoom(n: Node, service: Service) =
+        n.pending.size < Tuning.MAX_PENDING || (mode.endsOnOverload && routeFor(n, service) != null)
 
     /**
      * Queues the client's next request. A streaming device ([Device.stream]) asks for its stream in a fixed rhythm;
@@ -1352,14 +1369,14 @@ class World(
         val device = n.device!!
         val stream = device.stream
         if (stream != null) {
-            if (stream in served && queueHasRoom(n)) n.pending.addLast(stream)
+            if (stream in served && queueHasRoom(n, stream)) n.pending.addLast(stream)
             n.requestTimer += Tuning.STREAM_SECONDS
             return
         }
         val wants = device.services.filter { it.demand == Demand.RANDOM && it in served }
         if (wants.isNotEmpty()) {
             val s = wants[rng.nextInt(wants.size)]
-            if (queueHasRoom(n)) n.pending.addLast(s)
+            if (queueHasRoom(n, s)) n.pending.addLast(s)
         }
         n.requestTimer = (max(Tuning.MIN_REQUEST_SECONDS, Tuning.REQUEST_SECONDS - weeksPlayed * Tuning.REQUEST_SPEEDUP) +
             rng.nextFloat() * Tuning.REQUEST_JITTER) * if (rule == DailyRule.RUSH_HOUR) Tuning.RUSH_REQUEST_FACTOR else 1f
@@ -1381,7 +1398,7 @@ class World(
             if (n.kind != NodeKind.CLIENT) continue
             for (s in n.device!!.services) {
                 if (s.demand != Demand.NIGHTLY || s !in served || s in n.pending) continue
-                repeat(Tuning.BACKUP_BURST) { if (queueHasRoom(n)) n.pending.addLast(s) }
+                repeat(Tuning.BACKUP_BURST) { if (queueHasRoom(n, s)) n.pending.addLast(s) }
             }
         }
     }

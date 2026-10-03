@@ -25,16 +25,22 @@ import kotlin.math.sign
  *
  * The [strategy] narrows this down for the one-sided bots of docs/BALANCING.md (G2): [BotStrategy.singleCable] lays
  * and upgrades to one cable technology only, [BotStrategy.WIRELESS_ONLY] never cables a device and serves them through
- * radios alone. [BotStrategy.BALANCED] is the full bot above.
+ * radios alone. [BotStrategy.BALANCED] is the full bot above. [BotStrategy.HUMAN] decides like it but at a human pace:
+ * it looks less often, makes at most [BotStrategy.maxActions] decisions per look and repairs a cut cable only after
+ * [BotStrategy.repairDelaySeconds].
  */
 class GreedyBot(private val w: World, private val strategy: BotStrategy = BotStrategy.BALANCED) {
 
     /** Smoothed number of requests waiting at each server, sampled on every [act]. */
     private val serverQueue = HashMap<Node, Float>()
 
+    /** Decisions this look may still make ([BotStrategy.maxActions]). */
+    private var actionsLeft = 0
+
     /** One look at the map: repairs, radios, servers and backbone, missing routes (worst devices first), busy servers, congestion. */
     fun act() {
         if (w.gameOver || w.rewardOffer != null) return
+        actionsLeft = strategy.maxActions
         sampleServers()
         repairCuts()
         placeRadios()
@@ -81,8 +87,9 @@ class GreedyBot(private val w: World, private val strategy: BotStrategy = BotStr
 
     private fun upgradeBusyServers() {
         for ((s, queue) in serverQueue.entries.sortedByDescending { it.value }) {
+            if (!mayAct) return
             if (queue < BUSY_QUEUE || w.serverUpgradeError(s) != null) continue
-            if (w.serverVouchers > 0 || w.budget - World.Tuning.SERVER_UPGRADE_COST[s.level - 1] >= RESERVE) w.upgradeServer(s)
+            if (w.serverVouchers > 0 || w.budget - World.Tuning.SERVER_UPGRADE_COST[s.level - 1] >= RESERVE) acted(w.upgradeServer(s))
         }
     }
 
@@ -93,16 +100,20 @@ class GreedyBot(private val w: World, private val strategy: BotStrategy = BotStr
      */
     private fun linkServers() {
         for (s in w.nodes.filter { it.kind == NodeKind.SERVER }) {
+            if (!mayAct) return
             if (w.cables.any { it.connects(s) && it.other(s).kind == NodeKind.ROUTER } || w.ports(s) >= s.maxPorts) continue
             val type = typesByPrice(BACKBONE_NEED).firstOrNull() ?: return
             if (w.routersAvailable > 0) {
                 val cell = w.nearestFree(s.cell) ?: continue
                 if (w.cableCost(w.planLayout(cell, s.cell), type) > w.budget) continue
-                w.placeRouter(cell.x, cell.y)?.let { w.connect(it, s, type) }
+                w.placeRouter(cell.x, cell.y)?.let {
+                    w.connect(it, s, type)
+                    acted(true)
+                }
                 continue
             }
             val hub = w.nodes.filter { it.kind == NodeKind.ROUTER && w.ports(it) < it.maxPorts - 1 }.minByOrNull { steps(it, s) } ?: continue
-            if (w.cableCost(hub, s, type) <= w.budget - RESERVE) w.connect(hub, s, type)
+            if (w.cableCost(hub, s, type) <= w.budget - RESERVE) acted(w.connect(hub, s, type))
         }
     }
 
@@ -111,6 +122,7 @@ class GreedyBot(private val w: World, private val strategy: BotStrategy = BotStr
      * lays the cheapest router-to-router cable between two groups, if affordable. One cable per look.
      */
     private fun linkBackbone() {
+        if (!mayAct) return
         val routers = w.nodes.filter { it.kind == NodeKind.ROUTER }
         val group = HashMap<Node, Int>()
         for (r in routers) {
@@ -133,13 +145,23 @@ class GreedyBot(private val w: World, private val strategy: BotStrategy = BotStr
             if (best == null || cost < best.third) best = Triple(a, b, cost)
         }
         val (a, b, cost) = best ?: return
-        if (cost <= w.budget - RESERVE) w.connect(a, b, type)
+        if (cost <= w.budget - RESERVE) acted(w.connect(a, b, type))
     }
 
     // ---------------------------------------------------------------- incidents
 
+    /** Repairs every cut cable that has been cut for at least [BotStrategy.repairDelaySeconds]. */
     private fun repairCuts() {
-        for (c in w.cables.toList()) if (w.isCut(c) && w.repairError(c) == null) w.repair(c)
+        for (c in w.cables.toList()) {
+            if (!mayAct) return
+            if (w.isCut(c) && cutSeconds(c) >= strategy.repairDelaySeconds && w.repairError(c) == null) acted(w.repair(c))
+        }
+    }
+
+    /** How long [c] has been cut, in game seconds. */
+    private fun cutSeconds(c: Cable): Float {
+        val cut = w.incidents.firstOrNull { it.cable === c && it.struck } ?: return 0f
+        return Incidents.CUT_SECONDS - cut.remaining
     }
 
     // ---------------------------------------------------------------- devices
@@ -156,12 +178,13 @@ class GreedyBot(private val w: World, private val strategy: BotStrategy = BotStr
      */
     private fun fixMissing(c: Node) {
         for (s in wanted(c)) {
+            if (!mayAct) return
             if (w.routeFor(c, s) != null) continue
             val path = cablePath(c, s)
             if (path != null && path.cables.any { w.isCut(it) || w.isDark(it.a) || w.isDark(it.b) }) continue
-            if (path != null && upgradePath(path, s)) continue
+            if (path != null && acted(upgradePath(path, s))) continue
             if (!strategy.cablesDevices) continue
-            if (!attach(c, s)) growServer(s)
+            if (!acted(attach(c, s))) acted(growServer(s))
         }
     }
 
@@ -343,16 +366,17 @@ class GreedyBot(private val w: World, private val strategy: BotStrategy = BotStr
      * one takes the load off).
      */
     private fun relieve(c: Node) {
+        if (!mayAct) return
         val s = c.pending.firstOrNull { w.routeFor(c, it) != null } ?: return
         val route = w.routeFor(c, s)!!
         val narrow = route.nodes.zipWithNext { a, b -> w.cableBetween(a, b) }.filterNotNull().minByOrNull { it.capacity } ?: return
         val next = typesByPrice(narrow.capacity + 1).firstOrNull { it.capacity > narrow.capacity }
         if (next != null) {
-            if (w.cableCost(narrow.layout, next) - narrow.cost <= w.budget - RESERVE) w.upgrade(narrow, next)
+            if (w.cableCost(narrow.layout, next) - narrow.cost <= w.budget - RESERVE) acted(w.upgrade(narrow, next))
             return
         }
         val busiest = route.nodes.zipWithNext { a, b -> w.cableBetween(a, b) }.filterNotNull().maxBy { w.linkLoad(it).toFloat() / it.capacity }
-        attach(c, s, route.oneWayMs * SHORTCUT, busiest)
+        acted(attach(c, s, route.oneWayMs * SHORTCUT, busiest))
     }
 
     // ---------------------------------------------------------------- radios
@@ -363,6 +387,7 @@ class GreedyBot(private val w: World, private val strategy: BotStrategy = BotStr
      */
     private fun placeRadios() {
         for (type in RadioType.entries) {
+            if (!mayAct) return
             if (w.radiosAvailable(type) == 0) continue
             var best: Pair<Cell, Int>? = null
             val area = w.unlocked
@@ -381,10 +406,23 @@ class GreedyBot(private val w: World, private val strategy: BotStrategy = BotStr
             if (w.cableCost(w.planLayout(cell, hub.cell), cableType) > w.budget) continue
             val radio = w.placeRadio(type, cell.x, cell.y) ?: continue
             w.connect(radio, hub, cableType)
+            acted(true)
         }
     }
 
     // ---------------------------------------------------------------- helpers
+
+    /** True while this look may still make a decision. */
+    private val mayAct get() = actionsLeft > 0
+
+    /**
+     * Counts a decision against [BotStrategy.maxActions] if [done]; returns [done]. A decision is what a player does in one
+     * go: a cable with the upgrades its route needs, a router with its cables, a radio with its cable, a repair.
+     */
+    private fun acted(done: Boolean): Boolean {
+        if (done) actionsLeft--
+        return done
+    }
 
     /**
      * Invented cables that carry [need], cheapest first and the widest on a price tie; if none is wide enough, the
@@ -402,7 +440,7 @@ class GreedyBot(private val w: World, private val strategy: BotStrategy = BotStr
 
     /** Moves every cell tower to the next mobile generation as soon as it is invented and affordable. */
     private fun upgradeCellTowers() {
-        for (t in w.nodes.filter { it.kind == NodeKind.CELL_TOWER }) while (w.cellUpgradeError(t) == null) w.upgradeCell(t)
+        for (t in w.nodes.filter { it.kind == NodeKind.CELL_TOWER }) while (mayAct && w.cellUpgradeError(t) == null) acted(w.upgradeCell(t))
     }
 
     /** Devices a radio must reach before the bot places it there. */
@@ -483,11 +521,30 @@ class GreedyBot(private val w: World, private val strategy: BotStrategy = BotStr
  * What a [GreedyBot] may use: the cable technologies in [cables], and cables to devices only if [cablesDevices]
  * (otherwise devices get through radios alone); [chains] lets it hang a device off another device as a last resort.
  * [id] names the bot in docs/BALANCING.md.
+ *
+ * And how fast it plays: it looks at the map every [thinkSeconds] of game time and makes at most [maxActions] decisions
+ * per look, repairs a cut cable only once it has been cut for [repairDelaySeconds], and picks a weekly reward only after
+ * [rewardDelaySeconds] (the world stands still while the offer is open, so that delay costs no game time).
  */
-data class BotStrategy(val id: String, val cables: Set<CableType>, val cablesDevices: Boolean, val chains: Boolean = true) {
+data class BotStrategy(
+    val id: String,
+    val cables: Set<CableType>,
+    val cablesDevices: Boolean,
+    val chains: Boolean = true,
+    val thinkSeconds: Float = BotRunner.THINK_SECONDS,
+    val maxActions: Int = Int.MAX_VALUE,
+    val repairDelaySeconds: Float = 0f,
+    val rewardDelaySeconds: Float = 0f,
+) {
     companion object {
         /** The full greedy bot: every invented cable where it is cheapest, radios from rewards on top. */
         val BALANCED = BotStrategy("balanced", CableType.entries.toSet(), cablesDevices = true)
+
+        /**
+         * The balanced bot at a human pace: one decision every 2.5 s, cuts repaired after 3 s, rewards picked after 2 s.
+         * Not one-sided, so not part of [all] (G2).
+         */
+        val HUMAN = BALANCED.copy(id = "human", thinkSeconds = 2.5f, maxActions = 1, repairDelaySeconds = 3f, rewardDelaySeconds = 2f)
 
         /** Devices only through radios; cables only between routers, servers and radios, never to a device. */
         val WIRELESS_ONLY = BotStrategy("wireless_only", CableType.entries.toSet(), cablesDevices = false)
@@ -495,7 +552,7 @@ data class BotStrategy(val id: String, val cables: Set<CableType>, val cablesDev
         /** Lays and upgrades to [type] only, from the week it is invented. */
         fun singleCable(type: CableType) = BotStrategy("only_${type.name.lowercase()}", setOf(type), cablesDevices = true)
 
-        /** The balanced bot and every one-sided bot of G2. */
+        /** The balanced bot and every one-sided bot of G2 (not [HUMAN]). */
         val all get() = listOf(BALANCED) + CableType.entries.map(::singleCable) + WIRELESS_ONLY
     }
 }
@@ -517,7 +574,7 @@ data class BotRun(
 /** Plays [GreedyBot] games at the game's fixed step. */
 object BotRunner {
     const val STEP = 1f / 60f
-    /** The bot looks at the map this often, in game seconds. */
+    /** The balanced bot looks at the map this often, in game seconds ([BotStrategy.thinkSeconds]). */
     const val THINK_SECONDS = 0.5f
 
     /**
@@ -537,10 +594,15 @@ object BotRunner {
         val start = w.time
         val end = start + maxWeeks * World.Tuning.WEEK_SECONDS
         var think = 0f
+        var rewardWait = 0f
         while (!w.gameOver && w.time < end && w.delivered < stopAtPackets) {
-            if (w.rewardOffer != null) { bot.chooseReward(); continue }
+            if (w.rewardOffer != null) {
+                rewardWait += STEP
+                if (rewardWait >= strategy.rewardDelaySeconds) { bot.chooseReward(); rewardWait = 0f }
+                continue
+            }
             think -= STEP
-            if (think <= 0f) { bot.act(); think = THINK_SECONDS }
+            if (think <= 0f) { bot.act(); think = strategy.thinkSeconds }
             w.update(STEP)
         }
         val cause = w.failure?.let { f ->
