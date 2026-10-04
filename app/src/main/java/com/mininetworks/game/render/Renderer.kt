@@ -260,7 +260,7 @@ interface Renderer {
             val m = mapBounds(CellRect(cell.x, cell.y, cell.x + 1, cell.y + 1))
             l = minOf(l, m.left); t = minOf(t, m.top); r = maxOf(r, m.right); b = maxOf(b, m.bottom)
         }
-        for (c in world.cables) for (p in c.layout.waypoints) {
+        for (c in world.cables) for (p in c.path) {
             val m = toMap(p)
             l = minOf(l, m.x); t = minOf(t, m.y); r = maxOf(r, m.x); b = maxOf(b, m.y)
         }
@@ -294,8 +294,8 @@ interface Renderer {
         camera.glideTo(m.x, m.y, camera.scale * zoom, gentle = true)
     }
 
-    /** How a cable runs in world space; always the layout stored in the model, so every style agrees. */
-    fun cablePath(c: Cable): List<Vec2> = c.layout.waypoints
+    /** How a cable runs in world space: its layout moved to its lane beside other cables ([Cable.path]), so every style agrees. */
+    fun cablePath(c: Cable): List<Vec2> = c.path
 
     fun draw(canvas: Canvas, world: World, drag: DragPreview?, time: Float)
 

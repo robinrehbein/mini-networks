@@ -1538,7 +1538,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     /** Screen points of the selected cable's grab handles (start end first), empty without them, for tests. */
     internal fun handleTargets(): List<Vec2> =
-        (selection as? Cable)?.takeIf(::canReroute)?.let { c -> handlePoints(c.layout).map(renderer::toScreen) } ?: emptyList()
+        (selection as? Cable)?.takeIf(::canReroute)?.let { c -> handlePoints(c).map(renderer::toScreen) } ?: emptyList()
 
     /** True while a tap has armed placing a router or radio, for tests. */
     internal val placingArmed: Boolean get() = placing != null
@@ -1678,9 +1678,17 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     }
 
     /**
-     * World points of the two grab handles on [layout], start end first: on the cable just outside its end nodes, at
-     * least [HANDLE_GAP_DP] from the node's center on screen, never past 40 % of the cable, so they never meet.
+     * World points of the two grab handles on [cable], start end first: on the cable (in its lane) just outside its end
+     * nodes, at least [HANDLE_GAP_DP] from the node's center on screen, never past 40 % of the cable, so they never meet.
      */
+    private fun handlePoints(cable: Cable): List<Vec2> {
+        val length = cable.layout.length
+        if (length <= 0f) return listOf(cable.path.first(), cable.path.last())
+        val gap = maxOf(HANDLE_GAP_CELLS, HANDLE_GAP_DP * density / renderer.unitPx).coerceAtMost(length * 0.4f)
+        return listOf(cable.pointAt(gap / length), cable.pointAt(1f - gap / length))
+    }
+
+    /** The grab handles on a [layout] not laid yet (a re-route being dragged), at the middle of its cells. */
     private fun handlePoints(layout: CableLayout): List<Vec2> {
         val length = layout.length
         if (length <= 0f) return listOf(layout.start, layout.end)
@@ -1696,7 +1704,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private fun grabAt(sx: Float, sy: Float): Grab? {
         val c = (selection as? Cable)?.takeIf { canReroute(it) } ?: return null
         val p = Vec2(sx, sy)
-        val (ha, hb) = handlePoints(c.layout).map(renderer::toScreen)
+        val (ha, hb) = handlePoints(c).map(renderer::toScreen)
         val da = hypot(ha.x - p.x, ha.y - p.y)
         val db = hypot(hb.x - p.x, hb.y - p.y)
         val node = pickNode(sx, sy)
@@ -3333,7 +3341,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 }
                 selectionPaint.strokeWidth = maxOf(12 * density, renderer.unitPx * 0.3f)
                 canvas.drawPath(selectionPath, selectionPaint)
-                if (canReroute(sel)) for (h in handlePoints(sel.layout)) {
+                if (canReroute(sel)) for (h in handlePoints(sel)) {
                     val q = renderer.toScreen(h)
                     DragJuice.handle(canvas, q.x, q.y, CableStyles.of(sel.type).color, density)
                 }
@@ -3583,7 +3591,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     }
 
     /** True if ([sx], [sy]) is on one of [c]'s drawn handles (with a finger's margin), not just near it. */
-    private fun onHandle(c: Cable, sx: Float, sy: Float) = handlePoints(c.layout).any {
+    private fun onHandle(c: Cable, sx: Float, sy: Float) = handlePoints(c).any {
         val q = renderer.toScreen(it)
         hypot(q.x - sx, q.y - sy) <= (DragJuice.HANDLE_DP + HANDLE_TAP_MARGIN_DP) * density
     }

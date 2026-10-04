@@ -86,6 +86,43 @@ wiegen dort schwerer. Die Reihenfolge hält für beide Bots (ausgewogen: Abstän
 Wochen. G2 hält: Der beste einseitige Bot liegt in der Kleinstadt 81 %, in Zukunft 2030 59 % unter dem ausgewogenen. Die Grenzen von
 G1 (8–14 Wochen) blieben unverändert.
 
+## Was in T-Clutter geändert wurde
+
+Rückmeldung vom Handy: „Es werden zu schnell zu viele Elemente auf dem Bildschirm, man kann die Kabel nicht mehr voneinander
+trennen.“ Gemessen mit dem Bot im Spieltempo in der Kleinstadt (20 Seeds, Mittel je Wochenanfang; vor T-Clutter):
+
+| Woche | Geräte | Kabel | Felder mit 2+ Kabeln | höchster Stapel auf einem Feld | Karte | Geräte je Feld |
+|---|---|---|---|---|---|---|
+| 2 | 6,1 | 9,7 | 6 | 3,3 | 16×10 | 0,04 |
+| 4 | 13,3 | 26,2 | 24 | 4,5 | 18×12 | 0,06 |
+| 6 | 21,0 | 38,5 | 39 | 5,3 | 20×14 | 0,08 |
+| 8 | 29,2 | 52,4 | 58 | 6,3 | 22×16 | 0,08 |
+| 10 | 38,5 | 65,2 | 70 | 6,8 | 24×18 | 0,09 |
+
+Zwei Ursachen, zwei Maßnahmen:
+
+1. **Kabel lagen exakt übereinander.** Ab Woche 4 laufen im Mittel 4–7 Kabel über dasselbe Feld, und man sah nur das oberste.
+   Jetzt bekommt jeder gerade Abschnitt eine eigene Spur (`CableLanes`, wie die Linien in Mini Metro): Kabel über denselben
+   Feldkanten laufen nebeneinander, höchstens `MAX_LANES` = 4 Spuren mit `SPACING` = 0,30 Feld Abstand, ein einzelnes Kabel bleibt in
+   der Mitte seiner Felder. Ein verlegtes Kabel behält seine Spur, wenn ein neues dazukommt. Das ändert nur das Bild und den Weg
+   der Pakete (`Cable.path`), nicht Routen, Kosten oder Speicherstand.
+2. **Die Geräte kamen schneller, als die Karte wächst** (0,04 Geräte je Feld in Woche 2, 0,09 in Woche 10), und die Kamera zeigt
+   immer die ganze Karte, die Felder werden also zusätzlich kleiner. Jetzt erscheint kein neuer Kunde mehr, solange die Karte
+   `Scenario.clientDensity` Kunden je freigeschaltetem Feld trägt (`World.isCrowded`, Prüfung alle 2 s); jeder neue Ring macht
+   Platz für ein paar weitere. Die Tagesregel „Andrang“ hat keine Grenze.
+
+| Szenerie | `clientDensity` | Warum |
+|---|---|---|
+| Kleinstadt | 0,07 | Hier fiel das Problem auf; die Karte bleibt auf dem Handy lesbar |
+| Großstadt | 0,075 | Etwas dichter, damit sie weiter 0,5 Wochen schwerer als Insel & Hafen bleibt (G1) |
+| Insel & Hafen, Bergdorf | 0,09 | Wirkt praktisch nicht: beide scheitern vor der Dichtegrenze; so bleiben ihre Werte unverändert |
+| Zukunft 2030 | 0,10 | Wie oben |
+
+Folge für die Werte (ausgewogener Bot / Bot im Spieltempo, Wochen): Kleinstadt 10,1 → 13,0 / 9,8 → 11,8, Großstadt 8,9 → 9,1 /
+9,3 → 9,5, die übrigen unverändert. Das Spiel wird in der Kleinstadt also noch etwas leichter, die Reihenfolge der Szenerien (G1)
+und G2 halten. Beachten: Die Punktzahlen der Kleinstadt steigen (Median 1273 → etwa 1900), die Freischalt-Ziele
+(`Scenarios.METROPOLIS_TARGET` 1000, `ISLAND_TARGET` 650) sind damit lockerer als die geplanten 0,8 Mediane.
+
 ## Was in T6 geändert wurde
 
 | Wert | vorher | jetzt | Warum |
@@ -134,10 +171,10 @@ Ausgewogener Bot (G1):
 <!-- summary:start -->
 | Szenerie | Wochen (Median) | Wochen (Min–Max) | Pakete (Median) | Pakete (Min–Max) | bis Woche 25 | häufigstes Ende |
 |---|---|---|---|---|---|---|
-| river_town | 10,1 | 5,9–13,2 | 1273 | 395–2658 | 0/20 | LAPTOP:CLOUD_BACKUP:jam (4×) |
-| metropolis | 8,9 | 4,8–11,7 | 949 | 259–1905 | 0/20 | TV:STREAMING:jam (4×) |
-| island_harbor | 8,1 | 3,3–11,8 | 729 | 121–1627 | 0/20 | TV:STREAMING:jam (6×) |
-| mountain_village | 6,7 | 2,8–11,5 | 518 | 88–1924 | 0/20 | CAMERA:CAMERA_UPLOAD:jam (5×) |
+| river_town | 13,0 | 6,4–25,0 | 1898 | 472–8180 | 2/20 | TV:STREAMING:jam (4×) |
+| metropolis | 9,1 | 4,8–13,1 | 970 | 259–2070 | 0/20 | TV:STREAMING:jam (4×) |
+| island_harbor | 8,1 | 3,3–14,2 | 727 | 121–2488 | 0/20 | TV:STREAMING:jam (7×) |
+| mountain_village | 6,7 | 2,8–17,1 | 518 | 88–3946 | 0/20 | CAMERA:CAMERA_UPLOAD:jam (3×) |
 | future_2030 | 5,8 | 2,0–11,8 | 583 | 63–2309 | 0/20 | CAMERA:CAMERA_UPLOAD:jam (8×) |
 <!-- summary:end -->
 
@@ -152,9 +189,9 @@ gibt es ihr Werkzeug nicht), nicht an einer schwachen Umsetzung; darum prüft de
 <!-- strategies:start -->
 | Szenerie | ausgewogen | only_isdn | only_dsl | only_coax | only_fiber | wireless_only |
 |---|---|---|---|---|---|---|
-| river_town | 1273 (10,1 W.) | 119 (3,3 W., −91 %) | 238 (4,4 W., −81 %) | 0 (1,7 W., −100 %) | 0 (1,7 W., −100 %) | 0 (1,7 W., −100 %) |
-| metropolis | 949 (8,9 W.) | 57 (2,6 W., −94 %) | 246 (4,7 W., −74 %) | 475 (6,3 W., −50 %) | 0 (1,7 W., −100 %) | 0 (1,7 W., −100 %) |
-| island_harbor | 729 (8,1 W.) | 13 (1,7 W., −98 %) | 244 (5,0 W., −67 %) | 345 (5,5 W., −53 %) | 0 (1,7 W., −100 %) | 1 (1,7 W., −100 %) |
+| river_town | 1898 (13,0 W.) | 119 (3,3 W., −94 %) | 233 (4,4 W., −88 %) | 0 (1,7 W., −100 %) | 0 (1,7 W., −100 %) | 0 (1,7 W., −100 %) |
+| metropolis | 970 (9,1 W.) | 57 (2,6 W., −94 %) | 246 (4,7 W., −75 %) | 477 (6,3 W., −51 %) | 0 (1,7 W., −100 %) | 0 (1,7 W., −100 %) |
+| island_harbor | 727 (8,1 W.) | 13 (1,7 W., −98 %) | 244 (5,0 W., −66 %) | 345 (5,5 W., −53 %) | 0 (1,7 W., −100 %) | 1 (1,7 W., −100 %) |
 | mountain_village | 518 (6,7 W.) | 25 (1,8 W., −95 %) | 279 (4,8 W., −46 %) | 138 (3,3 W., −73 %) | 0 (1,7 W., −100 %) | 0 (1,7 W., −100 %) |
 | future_2030 | 583 (5,8 W.) | 23 (1,5 W., −96 %) | 152 (3,1 W., −74 %) | 239 (3,7 W., −59 %) | 56 (1,9 W., −90 %) | 29 (1,8 W., −95 %) |
 <!-- strategies:end -->
@@ -174,10 +211,10 @@ von G2; seine Kleinstadt-Partien prüft der Wächter `humanBotLastsLongEnough`, 
 <!-- human:start -->
 | Szenerie | Wochen (Median) | Wochen (Min–Max) | Pakete (Median) | Pakete (Min–Max) | bis Woche 25 | häufigstes Ende |
 |---|---|---|---|---|---|---|
-| river_town | 9,8 | 6,2–16,1 | 1112 | 447–3261 | 0/20 | TV:STREAMING:jam (9×) |
-| metropolis | 9,3 | 5,8–14,2 | 990 | 338–2820 | 0/20 | TV:STREAMING:jam (7×) |
-| island_harbor | 6,9 | 3,3–10,8 | 483 | 119–1412 | 0/20 | LAPTOP:CLOUD_BACKUP:jam (4×) |
-| mountain_village | 6,6 | 2,9–9,7 | 532 | 108–1142 | 0/20 | LAPTOP:CALL:unrouted (4×) |
+| river_town | 11,8 | 6,6–25,0 | 1594 | 485–6728 | 1/20 | TV:STREAMING:jam (6×) |
+| metropolis | 9,5 | 5,8–17,2 | 980 | 338–4212 | 0/20 | CAMERA:CAMERA_UPLOAD:jam (8×) |
+| island_harbor | 6,9 | 3,3–10,8 | 483 | 119–1412 | 0/20 | TV:STREAMING:jam (4×) |
+| mountain_village | 6,6 | 2,9–9,9 | 532 | 108–1154 | 0/20 | LAPTOP:CALL:unrouted (4×) |
 | future_2030 | 5,9 | 3,8–12,1 | 518 | 220–1795 | 0/20 | CAMERA:CAMERA_UPLOAD:jam (9×) |
 <!-- human:end -->
 
@@ -193,9 +230,9 @@ Die drei Kleinstadt-Läufe heute:
 <!-- guard:start -->
 | Seed | Wochen | Pakete | Ende |
 |---|---|---|---|
-| 1 | 9,7 | 1112 | PHONE:CALL:jam |
-| 2 | 6,9 | 542 | SMARTPHONE:MAIL:unrouted |
-| 3 | 10,5 | 1396 | TV:STREAMING:jam |
+| 1 | 15,8 | 2875 | CAMERA:CAMERA_UPLOAD:jam |
+| 2 | 7,1 | 533 | SMARTPHONE:MAIL:unrouted |
+| 3 | 9,9 | 939 | TV:STREAMING:jam |
 <!-- guard:end -->
 
 ## Neu messen

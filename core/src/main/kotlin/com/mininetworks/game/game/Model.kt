@@ -347,7 +347,20 @@ class Cable(
     internal var countedFiber = false
     internal var countedUpgrades = 0
 
-    override fun pointFrom(from: Node, f: Float, out: FloatArray) = layout.pointAt(if (from === a) f else 1f - f, out)
+    /**
+     * How the cable is drawn and travelled in world space: [layout]'s waypoints with each run moved to its lane beside
+     * other cables over the same cells ([CableLanes]). Set whenever the network changes; not saved.
+     */
+    var path: List<Vec2> = layout.waypoints
+        internal set
+
+    /** Point at fraction [f] of the way along [path] (0 = [a], 1 = [b]). */
+    fun pointAt(f: Float): Vec2 = Geometry.pointAlong(path, f)
+
+    /** Like [pointAt], but writes x and y into [out] instead of allocating. */
+    fun pointAt(f: Float, out: FloatArray) = Geometry.pointAlong(path, f, out)
+
+    override fun pointFrom(from: Node, f: Float, out: FloatArray) = pointAt(if (from === a) f else 1f - f, out)
 }
 
 /** A path from a client to a server. [pingMs] is the round trip: request there plus response back the same way. */

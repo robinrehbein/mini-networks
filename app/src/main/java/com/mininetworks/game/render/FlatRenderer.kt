@@ -121,13 +121,18 @@ class FlatRenderer : Renderer {
         turnCanvas(canvas)
         drawLockedArea(canvas, world, grid)
 
+        // Cables side by side in their lanes ([CableLanes]): all halos first, so one cable's halo never covers its neighbour.
+        for (c in world.cables) {
+            val grow = Juice.growth(world.time, c.builtAt, c.layout.length)
+            if (grow < 1f) partialPolyline(cablePath(c), grow) else polyline(cablePath(c))
+            cableP.color = land; cableP.strokeWidth = cell * (CableStyles.of(c.type).width * FLAT_LINE + 0.12f); canvas.drawPath(path, cableP)
+        }
         for (c in world.cables) {
             val grow = Juice.growth(world.time, c.builtAt, c.layout.length)
             if (grow < 1f) partialPolyline(cablePath(c), grow) else polyline(cablePath(c))
             val st = CableStyles.of(c.type)
             // Bold metro-map lines: the overview reads as a line map, not a wiring plan.
             val lw = st.width * FLAT_LINE
-            cableP.color = land; cableP.strokeWidth = cell * (lw + 0.12f); canvas.drawPath(path, cableP)
             cableP.color = st.color; cableP.strokeWidth = cell * lw; canvas.drawPath(path, cableP)
             st.core?.let { cableP.color = it; cableP.strokeWidth = cell * st.coreWidth * FLAT_LINE; canvas.drawPath(path, cableP) }
             if (world.isJammed(c)) JamStyles.draw(canvas, path, cell * lw, time, c.type, cableP.pathEffect)
@@ -336,7 +341,7 @@ class FlatRenderer : Renderer {
     private fun drawCableJuice(canvas: Canvas, world: World, c: com.mininetworks.game.game.Cable, grow: Float) {
         val st = CableStyles.of(c.type)
         if (grow < 1f) {
-            c.layout.pointAt(grow, pos)
+            c.pointAt(grow, pos)
             val x = gx(pos[0]); val y = gy(pos[1])
             fillP.color = 0x66FFFFFF; canvas.drawCircle(x, y, cell * 0.16f, fillP)
             fillP.color = st.color; canvas.drawCircle(x, y, cell * 0.08f, fillP)
@@ -355,7 +360,7 @@ class FlatRenderer : Renderer {
             cableP.color = 0xFFFFFF or ((Juice.fade(g) * 0.55f).toInt() shl 24)
             cableP.strokeWidth = cell * (st.width + 0.1f)
             canvas.drawPath(path, cableP)
-            c.layout.pointAt(g, pos)
+            c.pointAt(g, pos)
             fillP.color = 0xFFFFFFFF.toInt()
             Juice.sparkle(canvas, path, gx(pos[0]), gy(pos[1]), cell * 0.16f, fillP)
         }
