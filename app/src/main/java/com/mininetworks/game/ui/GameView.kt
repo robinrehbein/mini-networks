@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.os.Build
@@ -48,12 +49,14 @@ import com.mininetworks.game.game.Cosmetics
 import com.mininetworks.game.game.DailyChallenge
 import com.mininetworks.game.game.DailyStreak
 import com.mininetworks.game.game.Demand
+import com.mininetworks.game.game.Failure
 import com.mininetworks.game.game.IncidentKind
 import com.mininetworks.game.game.Incidents
 import com.mininetworks.game.game.FixedStep
 import com.mininetworks.game.game.GameMode
 import com.mininetworks.game.game.PlayerStats
 import com.mininetworks.game.game.GrowthRecorder
+import com.mininetworks.game.game.LossTip
 import com.mininetworks.game.game.Node
 import com.mininetworks.game.game.NodeKind
 import com.mininetworks.game.game.PlaceError
@@ -65,6 +68,7 @@ import com.mininetworks.game.game.Scenario
 import com.mininetworks.game.game.Scenarios
 import com.mininetworks.game.game.Service
 import com.mininetworks.game.game.ServerUpgradeError
+import com.mininetworks.game.game.SoundCue
 import com.mininetworks.game.game.SoundCues
 import com.mininetworks.game.game.Tutorial
 import com.mininetworks.game.game.TutorialFocus
@@ -89,6 +93,8 @@ import com.mininetworks.game.render.DragPreview
 import com.mininetworks.game.render.FlatRenderer
 import com.mininetworks.game.render.IncidentStyles
 import com.mininetworks.game.render.IsoRenderer
+import com.mininetworks.game.render.ProblemBadges
+import com.mininetworks.game.render.QueueGauge
 import com.mininetworks.game.render.Renderer
 import com.mininetworks.game.render.ServerFocus
 import com.mininetworks.game.render.ServerLabels
@@ -98,6 +104,7 @@ import com.mininetworks.game.render.TwoFingerGesture
 import com.mininetworks.game.render.ViewInsets
 import com.mininetworks.game.render.fill
 import com.mininetworks.game.render.shade
+import com.mininetworks.game.render.stroke
 import com.mininetworks.game.ui.menu.AchievementTile
 import com.mininetworks.game.ui.menu.AchievementsPanel
 import com.mininetworks.game.ui.menu.DailyPreview
@@ -206,10 +213,11 @@ import kotlin.math.roundToInt
  *    (the menu button stays tappable above the dialog; resuming returns to the choice)
  *
  * Sound ([SoundPlayer]): a pluck per delivery pitched by service, a click when a cable locks in (or is re-routed), a
- * soft warning when a device starts to overload and a chime at each new week ([SoundCues] reads them from the world
- * while playing).
+ * soft warning when a device starts to overload, rising higher and louder as the fullest ring on the map passes 50 % and
+ * 80 % (once until that ring has emptied), a falling line when the game is lost and a chime at each new week ([SoundCues] reads them from the world while playing).
  * Haptics: a tick when a dragged cable (or a re-routed end) snaps onto a target node and a pulse when it is laid or
- * re-routed; a long press that grabs a cable pulses too.
+ * re-routed; a long press that grabs a cable pulses too; a heavy click when the fullest ring passes 80 % and a long buzz
+ * on game over.
  */
 class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback {
 
@@ -336,6 +344,23 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
      * (or on the next tap). Null otherwise.
      */
     private var failFocusUntil: Float? = null
+    /** "Telefon überlastet": the callout under the device that lost the game, while the camera glides to it. */
+    private var failCallout: String? = null
+    private val calloutBox = RectF()
+    private var calloutShown = false
+    /** The callout's side of the device, fixed for the whole glide; null until the first frame decides it. */
+    private var calloutBelow: Boolean? = null
+    /** [failCallout] shortened to [calloutFitWidth] ([fitText]), refitted only when the room changes. */
+    private var calloutFitted = ""
+    private var calloutFitWidth = -1f
+
+    /** The failed device's callout as last drawn, or null when none showed; for tests. */
+    internal val failCalloutBox: RectF? get() = if (calloutShown) calloutBox else null
+
+    /** The failed device's callout text, for tests. */
+    internal val failCalloutText: String? get() = failCallout
+    private val calloutPath = Path()
+    private val calloutFill = Paint(Paint.ANTI_ALIAS_FLAG)
     /** A finger went down during the game-over focus; only its release skips the focus, not a gesture from before. */
     private var focusSkipArmed = false
     private var newBest = false
@@ -402,6 +427,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private var toolbarRaised: RectF? = null
     /** [animTime] when a cable last failed on full ports; the router tile pulses from then on for a moment. */
     private var routerPulseAt = Float.NEGATIVE_INFINITY
+    /** When an action last failed for lack of budget: the HUD's budget line flashes red ([BUDGET_FLASH_SECONDS]). */
+    private var budgetFlashAt = Float.NEGATIVE_INFINITY
     /** Set once this game explained the port dots, after the first cable that failed on full ports. */
     private var portsTipShown = false
     private var cableType = CableType.ISDN
@@ -419,6 +446,27 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private var pendingAdSeconds = 0f
     /** Set once this game pointed out a server that cannot keep up. */
     private var busyHintShown = false
+    /** Keys of the one-time coaching tips shown on this install ([Coaching]); read from the settings on first use. */
+    private val coachingSeen by lazy { settingsStore.coachingSeen.toMutableSet() }
+    /** [animTime] of the last coaching tip: the next one waits [Coaching.GAP_SECONDS]. */
+    private var coachedAt = Float.NEGATIVE_INFINITY
+    /**
+     * A coaching tip due for the hint line: it goes before the queued explanations. Its text is built when it shows
+     * ([showCoach]), from the situation then; a tip whose situation is over by then waits for the next time.
+     */
+    private var coachWaiting: Coaching? = null
+    /** [animTime] from which [coach] looks for a due tip again: a few times a second is enough. */
+    private var nextCoachCheck = 0f
+    /**
+     * The coaching tip the hint line shows now. It counts as seen on this install once it was on the map for most of its
+     * time ([COACH_READ_SHARE] of [coachSeconds], counted in [coachShownFor]; its timer stands while anything covers
+     * it); a hint that cuts it short earlier sends it back to [coachWaiting].
+     */
+    private var hintCoach: Coaching? = null
+    private var coachSeconds = 0f
+    private var coachShownFor = 0f
+    /** Where the legend's back pill leads: the pause menu it was opened from, or the game for the HUD's "?" button. */
+    private var legendReturn = Screen.PAUSED
     /** Hints shown one after the other once the screen is free, e.g. what a new week's services need. */
     private val hintQueue = ArrayDeque<String>()
     /** The week news already turned into hints. */
@@ -427,6 +475,46 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     /** Short feedback above the bottom bar, e.g. why a server tap did not upgrade; shown until [hintUntil]. */
     private var hint: String? = null
     private var hintUntil = 0f
+    /** The shown [hint] is an explanation to read ([LONG_HINT_SECONDS]): it may take one line more than others. */
+    private var hintLong = false
+    /** The shown [hint] says why an action was refused: a reddish plate with a "!" mark, for [ERROR_HINT_SECONDS]. */
+    private var hintError = false
+    /** What the shown [hint] is about (a tapped server, cable, a tool kind); a new hint about it replaces even an error. */
+    private var hintSubject: Any? = null
+    /**
+     * The info hint that came while an error was showing, shown once the error had its time: only the newest (info
+     * replaces info). Errors never wait: the newest one shows at once, with its buzz.
+     */
+    private val pendingHints = ArrayDeque<PendingHint>()
+    private class PendingHint(val text: String, val seconds: Float, val subject: Any?)
+    /** The spoken text of the hint line ([hintSpokenFor] as an error or not), kept while the same hint shows. */
+    private var hintSpoken = ""
+    private var hintSpokenFor: String? = null
+    private var hintSpokenError = false
+    /** Lines the coaching tip [coachWantFor] wraps into at [coachWantWidth] and [coachWantSize], kept per tip. */
+    private var coachWant = 1
+    private var coachWantFor: String? = null
+    private var coachWantWidth = 0f
+    private var coachWantSize = 0f
+    /** The same at the full hint width ([coachWantWidth] is the capped card's), for windows too low for the card. */
+    private var coachWantFull = 1
+    private var coachWantFullWidth = 0f
+
+    /** Lines coaching tip [tip] wraps into at text width [capped] (the card) and [full] (the whole row), cached per tip. */
+    private fun coachLines(tip: String, capped: Float, full: Float, wide: Boolean): Int {
+        if (coachWantFor !== tip || coachWantWidth != capped || coachWantFullWidth != full || coachWantSize != hudSub.textSize) {
+            val layout = InlineGlyphs.layout(tip)
+            coachWant = wrapText(layout, capped, hudSub, COACH_HINT_LINES).size
+            coachWantFull = if (full == capped) coachWant else wrapText(layout, full, hudSub, COACH_HINT_LINES).size
+            coachWantFor = tip
+            coachWantWidth = capped
+            coachWantFullWidth = full
+            coachWantSize = hudSub.textSize
+        }
+        return if (wide) coachWantFull else coachWant
+    }
+    /** The drop hint ([dropHint]) of this frame names why the cell under the finger does not work. */
+    private var dropHintError = false
 
     private var dragFrom: Node? = null
     private var dragEnd: Vec2? = null
@@ -500,6 +588,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     /** Node and cable counts the cameras last checked; a change may put something new outside a portrait framing. */
     private var framedNodes = -1
     private var framedCables = -1
+    /** [toolbarKey] the cameras' bottom inset was last measured for; the toolbar can grow without the map growing. */
+    private var framedToolbar = -1
     private var growthHintPending = false
 
     /** Text sizes that follow the system font size (docs/TOP100.md A7) and grow on tablets. */
@@ -510,9 +600,25 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private val toast = AchievementToast(textScale)
     private val hudText = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF262B33.toInt(); typeface = Typeface.DEFAULT_BOLD; textSize = textScale.px(16f) }
     private val hudSub = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF3A4350.toInt(); textSize = textScale.px(13f) }
+    /** The failed device's callout text ([drawFailCallout]): bold white on alarm red. */
+    private val calloutText = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFFFFFF.toInt(); typeface = Typeface.DEFAULT_BOLD; textSize = textScale.px(16f) }
+    /** The budget line where bold 16 sp does not fit the row (a narrow phone with large text): bold, a step smaller. */
+    private val hudStockSmall = Paint(hudText).apply { textSize = textScale.px(13f) }
     private val hudPlate = fill(0xB8FFFFFF.toInt())
     /** The plate under the hint line: the tray's frosted look, a little denser so text stays readable over buildings. */
     private val hintPlate = fill(0xD2F4F6F1.toInt())
+    /** An error hint's plate: the same frosted look tinted red, with a thin red rim, its text a dark red. */
+    private val hintErrorPlate = fill(0xFAFBE4E2.toInt())
+    /** A coaching tip's card: opaque white with an accent stripe, so it reads as advice and not as map noise. */
+    private val coachPlate = fill(0xFFFFFFFF.toInt())
+    /** Behind the budget while it is short of a cable ([budgetLow]): a pale amber pill under the dark amber text. */
+    private val budgetLowPill = fill(0x4DF5A623)
+    private val coachStripe = fill(0xFF1F8A70.toInt())
+    private val hintErrorRim = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; color = 0x80D7263D.toInt() }
+    private val hintErrorText = Paint(hudSub).apply { color = 0xFF6B1420.toInt(); typeface = android.graphics.Typeface.DEFAULT_BOLD }
+    /** The error hint's "!" mark: a white "!" in a red disc, so the kind does not rest on colour alone. */
+    private val hintMarkFill = fill(PORTS_FULL_RED)
+    private val hintMarkText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; color = 0xFFFFFFFF.toInt() }
     private val btnFill = fill(0xE6FFFFFF.toInt())
     private val btnActive = fill(0xFF262B33.toInt())
     private val holdRing = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND }
@@ -521,12 +627,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private val chipLabelSmall = Paint(btnText).apply { textSize = minOf(btnText.textSize, 14f * 1.3f * density) }
     /** Cable chip names a step smaller, so the full names fit a portrait row instead of being cut short. */
     private val chipLabelCompact = Paint(btnText).apply { textSize = btnText.textSize * 0.82f }
-    private val barBg = fill(0x33262B33)
+    private val barBg = fill(0x4D262B33)
     private val glyphPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND }
     private val barFg = fill(0xFF262B33.toInt())
     private val bigText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; color = 0xFF262B33.toInt(); textSize = textScale.px(15f) }
     private val incidentText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; textSize = textScale.px(14f) }
     private val iconInk = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeCap = Paint.Cap.ROUND; strokeWidth = 3 * density }
+    /** The "?" on the HUD's legend button. */
+    private val helpGlyph = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD }
     private val coinFill = fill(COIN_COLOR)
     private val chipBadgeRim = fill(0xFFFFFFFF.toInt())
     /** The frosted tray under the bottom toolbar: the map stops visibly behind the buttons instead of running under them. */
@@ -553,6 +661,49 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private val pinText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; textSize = textScale.px(12f); color = 0xFFFFFFFF.toInt() }
     private val selectionPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
     private val selectionPath = android.graphics.Path()
+    private val offscreenFill = fill(0)
+    private val offscreenRing = stroke(0).apply { strokeCap = Paint.Cap.ROUND }
+    private val offscreenArrow = android.graphics.Path()
+    /** HUD elements and off-screen chips already laid out in this frame, which a further chip keeps clear of. */
+    private val offscreenTaken = ArrayList<RectF>()
+    private val offscreenTroubled = ArrayList<Node>()
+    private val offscreenArea = RectF()
+    private val offscreenInner = RectF()
+    private val offscreenProbe = RectF()
+    /** Before the queue reaches the limit the chip's ring is dashed, so it reads apart from the red one without colour. */
+    private var offscreenDash: android.graphics.DashPathEffect? = null
+    private var offscreenDashRing = 0f
+    /**
+     * Most urgent first: a running ring before a nearly full queue, but a ring left full (a jam in a mode without game
+     * over) last. Compares primitives, as it sorts every frame.
+     */
+    private val offscreenOrder = Comparator<Node> { a, b ->
+        val leftFull = (if (a.overload >= 1f) 1 else 0) - (if (b.overload >= 1f) 1 else 0)
+        when {
+            leftFull != 0 -> leftFull
+            a.overload != b.overload -> java.lang.Float.compare(b.overload, a.overload)
+            else -> java.lang.Float.compare(b.pressure, a.pressure)
+        }
+    }
+    /** Chip boxes and their arrows' hit boxes of this frame, reused as the chips' [Button] rects. */
+    private val offscreenBoxes = Array(MAX_OFFSCREEN_CHIPS) { RectF() }
+    private val offscreenArrowHits = Array(MAX_OFFSCREEN_CHIPS) { RectF() }
+    private val offscreenArrowIds = arrayOfNulls<String>(MAX_OFFSCREEN_CHIPS)
+
+    /** Per device with a chip: its ids and TalkBack label, rebuilt only when what the label says changes. */
+    private class OffscreenChip(n: Node) {
+        val id = "offscreen:${n.id}"
+        val key = "hud:$id"
+        var label = ""
+        var full = false
+        var side = -1
+        var waiting = -1
+        /** The frame ([offscreenFrame]) the device last counted as in trouble. */
+        var seen = 0
+    }
+    private val offscreenChips = java.util.IdentityHashMap<Node, OffscreenChip>()
+    private var offscreenWorld: World? = null
+    private var offscreenFrame = 0
     private val compassPaint = fill(0)
     /** Hairline between the segments of a view-control pill. */
     private val pillDivider = fill(0x26262B33)
@@ -642,7 +793,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             }
             "legend" -> if (screen == Screen.LEGEND && id == LegendPanel.BACK) {
                 click()
-                screen = Screen.PAUSED
+                screen = legendReturn
             }
             "tutorial" -> if (screen == Screen.PLAYING && tutorial != null && tutorialOverlay.targetOf(id) != null) {
                 click()
@@ -839,8 +990,17 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 }
             }
             val now = (animTime * 1000).toLong()
-            for (cue in soundCues.poll(world)) sounds.play(cue, now)
+            for (cue in soundCues.poll(world)) {
+                sounds.play(cue, now)
+                val pulse = when (cue) {
+                    SoundCue.OverloadCritical -> HapticFeedbackConstants.LONG_PRESS
+                    SoundCue.GameOver -> Haptics.ALARM
+                    else -> continue
+                }
+                haptic(pulse, alarm = true)
+            }
             if (tutorial == null) {
+                coach()
                 newsHints()
                 busyServerHint()
                 jamHint()
@@ -853,7 +1013,22 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         askReviewIfDue()
         followArea()
         if (selection != null && animTime >= selectionUntil && grab == null) selection = null
-        if (screen == Screen.PLAYING && animTime >= hintUntil && world.rewardOffer == null) hintQueue.removeFirstOrNull()?.let { showHint(it, LONG_HINT_SECONDS) }
+        if (hintCoach != null) {
+            // A coaching tip that anything covers (a menu, the week reward, the placing instruction, a tool drag, the
+            // hidden HUD) keeps its time for the map; one that had it all counts as read.
+            if (!coachOnScreen()) hintUntil += animStep
+            else if (animTime >= hintUntil) retireCoach()
+            else coachShownFor += animStep
+        }
+        // Hints that waited behind an error or a tip come first, then a coaching tip, then the queued explanations (none
+        // over a reward offer).
+        if (screen == Screen.PLAYING && animTime >= hintUntil && world.rewardOffer == null) {
+            val waiting = pendingHints.removeFirstOrNull()
+            val tip = coachWaiting
+            if (waiting != null) displayHint(waiting.text, waiting.seconds, false, waiting.subject)
+            else if (tip != null) showCoach(tip)
+            else hintQueue.removeFirstOrNull()?.let { showHint(it, LONG_HINT_SECONDS) }
+        }
         toast.update(animTime)
         renderer.stepCamera(animStep, world)
     }
@@ -968,8 +1143,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private fun followArea() {
         if (world.unlocked != framedArea) {
             framedArea = world.unlocked
+            framedToolbar = toolbarKey()
+            refreshToolbarInset()
             renderers.forEach { it.onAreaChanged(world) }
             growthHintPending = true
+        } else if (screen == Screen.PLAYING && toolbarKey() != framedToolbar) {
+            // A new cable chip or network tile (a week reward) may wrap the toolbar into a taller tray or a raised row.
+            framedToolbar = toolbarKey()
+            if (refreshToolbarInset()) renderers.forEach { it.onAreaChanged(world) }
         }
         if (world.nodes.size != framedNodes || world.cables.size != framedCables) {
             framedNodes = world.nodes.size
@@ -998,9 +1179,93 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         for (r in news.radios) if (world.radiosAvailable(r) == 0) hintQueue += context.getString(R.string.hint_radio_reward, texts.radio(r))
     }
 
+    /**
+     * The next one-time coaching tip ([Coaching]) that is due, at most one per [Coaching.GAP_SECONDS] and one at a
+     * time; it shows before the queued explanations ([showCoach]) and counts as shown on this install once it was on
+     * the map for its full time ([retireCoach]). None in a daily challenge, none while the week reward is open; the
+     * pause tip not while the clock already stands.
+     */
+    private fun coach() {
+        if (world.daily != null || world.gameOver || world.rewardOffer != null) return
+        if (coachWaiting != null || hintCoach != null) return
+        // The tips need no frame-exact timing: a few checks a second keep their cost off most frames.
+        if (animTime < nextCoachCheck || coachingSeen.size == Coaching.entries.size) return
+        nextCoachCheck = animTime + COACH_CHECK_SECONDS
+        // Within the gap only a tip that cannot wait (the excavator's warning lasts seconds).
+        val urgentOnly = animTime - coachedAt < Coaching.GAP_SECONDS
+        val (tip, _) = Coaching.next(world, coachingSeen, paused = userPaused, urgentOnly = urgentOnly) ?: return
+        // The news line that introduces a new service comes before the tip about old devices wanting it.
+        if (tip == Coaching.NEW_SERVICE && hintQueue.isNotEmpty()) return
+        coachWaiting = tip
+    }
+
+    /**
+     * Puts the waiting coaching [tip] on the hint line, for longer than other explanations: it says more. Its situation
+     * is looked at again first: a tip that no longer applies (the excavator gone, the jam cleared, the clock already
+     * stopped) is dropped unread and comes back the next time it is due; one that still does names today's subject.
+     */
+    private fun showCoach(tip: Coaching) {
+        coachWaiting = null
+        val subject = if (tip.appliesTo(world) && !(tip == Coaching.PAUSE && userPaused)) tip.due(world) else null
+        if (subject == null) return
+        val text = coachingText(tip, subject)
+        coachSeconds = maxOf(COACH_HINT_SECONDS, text.length * COACH_SECONDS_PER_CHAR)
+        displayHint(text, coachSeconds, false, null)
+        hintCoach = tip
+        coachShownFor = 0f
+        coachedAt = animTime
+        // The tip says more than the short per-game reminder about the same server.
+        if (tip == Coaching.SERVER_QUEUE) busyHintShown = true
+    }
+
+    /** True while the hint line really shows the coaching tip: no menu, reward dialog, placing or tool drag over it. */
+    private fun coachOnScreen(): Boolean =
+        screen == Screen.PLAYING && world.rewardOffer == null && placing == null && toolDrag == null && !hudHidden
+
+    /**
+     * The shown coaching tip leaves the hint line: read once it was on the map for most of its time (stored as seen),
+     * else it waits to show again once the line is free.
+     */
+    private fun retireCoach() {
+        val tip = hintCoach ?: return
+        hintCoach = null
+        if (animTime >= hintUntil || coachShownFor >= coachSeconds * COACH_READ_SHARE) learned(tip)
+        else coachWaiting = tip
+    }
+
+    /**
+     * The player read [tip] or just did what it teaches (upgraded a server, repaired a cable, placed a radio, stopped
+     * the clock): it is stored as seen on this install and never comes again, not even a waiting copy.
+     */
+    private fun learned(tip: Coaching) {
+        if (coachWaiting == tip) coachWaiting = null
+        if (hintCoach == tip) hintCoach = null
+        if (tip.key in coachingSeen) return
+        coachingSeen += tip.key
+        settingsStore.markCoachingSeen(tip.key)
+    }
+
+    private fun coachingText(tip: Coaching, subject: Any): String = when (tip) {
+        Coaching.INCIDENT -> context.getString(R.string.coach_incident)
+        Coaching.PAUSE -> context.getString(R.string.coach_pause)
+        Coaching.SERVER_QUEUE -> context.getString(R.string.coach_server_queue, texts.node(subject as Node))
+        Coaching.JAM -> context.getString(R.string.coach_jam, texts.node(subject as Node))
+        Coaching.CABLE_UPGRADE -> context.getString(R.string.coach_cable_upgrade)
+        Coaching.NEW_SERVICE -> Coaching.newService(subject).let { (n, s) -> context.getString(R.string.coach_new_service, texts.node(n), texts.service(s)) }
+        Coaching.RADIO_STOCK -> context.getString(R.string.coach_radio_stock, texts.radio(subject as RadioType))
+    }
+
+    /** The coaching tips shown on this install, for tests. */
+    internal val coachingShown: Set<String> get() = coachingSeen
+
+    /** The explanations waiting to be shown, for tests. */
+    internal val queuedHints: List<String> get() = hintQueue.toList()
+
     /** The first time in a game that requests queue at a server, say that tapping it upgrades it. */
     private fun busyServerHint() {
         if (busyHintShown || world.rewardOffer != null) return
+        // The coaching tip about it, still to come, says the same at more length.
+        if (world.daily == null && Coaching.SERVER_QUEUE.key !in coachingSeen && Coaching.SERVER_QUEUE.appliesTo(world)) return
         val busy = world.nodes.firstOrNull { it.kind == NodeKind.SERVER && world.waitingAt(it) >= BUSY_HINT_WAITING } ?: return
         busyHintShown = true
         hintQueue.addFirst(context.getString(R.string.hint_server_busy, texts.node(busy)))
@@ -1040,6 +1305,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     private fun drawFrame(canvas: Canvas) {
         val playing = screen == Screen.PLAYING
+        pinCount = 0
         renderer.serverLabels.focus = if (playing) serverFocus() else null
         renderer.draw(canvas, world, if (playing) dragPreview() else null, animTime)
         if (playing) {
@@ -1049,10 +1315,17 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         }
         if (hudVisible && !hudHidden) drawHud(canvas) else hudNodes.clear()
         if (playing) drawToolGhost(canvas)
+        val callout = playing && drawFailCallout(canvas)
+        calloutShown = callout
+        // Read out too: during the glide it names the device that failed before the card comes.
+        if (callout) failCallout?.let { hudNodes += UiNode("hud:callout", RectF(calloutBox), it, UiNode.Kind.TEXT) }
         // The server plates of the next frame keep clear of the HUD just drawn (its bottom tray included).
         renderer.serverLabels.clearReserved()
         for (n in hudNodes) renderer.serverLabels.reserve(n.bounds)
         if (hudNodes.isNotEmpty() && !trayBox.isEmpty) renderer.serverLabels.reserve(trayBox)
+        if (callout) renderer.serverLabels.reserve(calloutBox)
+        // ... and of the incidents' countdown pins.
+        overlayPins(renderer.serverLabels)
         if (playing) tutorial?.let {
             tutorialOverlay.place(safeInsets.left + 16 * density, tutorialTop(), tutorialBottom())
             tutorialOverlay.draw(canvas, it, tutorialFocus(it), renderer, world, ::hudTarget, surfaceWidth, animTime, tutorialPressed)
@@ -1140,14 +1413,20 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             tutorial = null
             gameInProgress = screen == Screen.PLAYING
             hintedNews = world.lastNews
+            // Another game: an error of the one before neither holds back nor waits for its hints.
+            clearHints()
         }
         if (screen != null) this.screen = screen
+        val restyled = style != null && style != renderer.name
         if (style != null) renderer = renderers.firstOrNull { it.name == style } ?: throw IllegalArgumentException("unknown style $style")
         animTime = time
         surfaceWidth = width
         surfaceHeight = height
         if (changed) layoutRenderers()
         checkGameOver()
+        // A fresh layout has no HUD boxes and pins yet that the server plates keep clear of (they are taken from the
+        // frame before): a first pass lays them out, as the frame before would on a device.
+        if (changed || restyled) drawFrame(canvas)
         drawFrame(canvas)
     }
 
@@ -1166,6 +1445,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     /** The active style, for tests. */
     internal val activeRenderer: Renderer get() = renderer
+
+    /** Top edge of the toolbar's frosted tray as last drawn (NaN before the first frame), for tests. */
+    internal val toolbarTopEdge: Float get() = toolbarTop
+
+    /** The toolbar's raised network row as last drawn, or null, for tests. */
+    internal val toolbarRaisedBox: RectF? get() = toolbarRaised?.let { RectF(it) }
 
     /** The screen on top, for tests. */
     internal val currentScreen: Screen get() = run { ensureLoaded(); screen }
@@ -1214,11 +1499,17 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
      */
     internal fun hudTarget(id: String): RectF? = buttons.firstOrNull { it.id == id }?.rect
 
+    /** Bounds of the HUD element [key] ("hud:status" …) in the frame just drawn, for tests. */
+    internal fun hudBounds(key: String): RectF? = hudNodes.firstOrNull { it.key == key }?.bounds
+
     /** The accessibility layer, for tests; set [CanvasAccessibility.forceActive] to collect elements without a service. */
     internal val accessibilityLayer: CanvasAccessibility get() = accessibility
 
     /** The last sounds played (only while sound is on) with their rate, newest last, for tests. */
     internal val playedSounds: List<Pair<Sound, Float>> get() = sounds.played
+
+    /** The volume of each of [playedSounds], for tests. */
+    internal val playedVolumes: List<Float> get() = sounds.volumes
 
     /** The accent line of the menu card on top (a new best, the daily streak), or null, for tests. */
     internal val menuHighlight: String? get() = menuPage()?.highlight
@@ -1231,6 +1522,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     /** The hint line above the bottom bar right now, or null, for tests. */
     internal val shownHint: String? get() = hint?.takeIf { animTime < hintUntil }?.let(InlineGlyphs::plain)
+
+    /** Whether [shownHint] is an error (a refused action), drawn on the reddish plate with a "!" mark; for tests. */
+    internal val shownHintIsError: Boolean get() = shownHint != null && hintError
+
+    /** Hints waiting behind a showing error, in order; for tests. */
+    internal val pendingHintTexts: List<String> get() = pendingHints.map { InlineGlyphs.plain(it.text) }
 
     /** True while the clock is stopped in place by the pause button, for tests. */
     internal val pausedInPlace: Boolean get() = userPaused
@@ -1248,8 +1545,30 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     /** True while the router tile pulses after a cable failed on full ports, for tests. */
     internal val routerPulsing: Boolean get() = animTime - routerPulseAt in 0f..ROUTER_PULSE_SECONDS
 
+    /**
+     * The budget line's layout in the HUD as last laid out, for tests: its text size, whether budget and routers take a
+     * line each, and whether the counters sit below the date.
+     */
+    internal val hudStockLayout: Triple<Float, Boolean, Boolean>
+        get() = HudTop(surfaceWidth - safeInsets.left - safeInsets.right - 32 * density, viewControls())
+            .let { Triple(it.stockPaint.textSize, it.stockTwoLines, it.stacked) }
+
+    /** Text size of the date and the packets, for tests. */
+    internal val hudTextSize: Float get() = hudText.textSize
+
+    /** True while the HUD's budget line flashes after an action failed for lack of budget, for tests. */
+    internal val budgetFlashing: Boolean get() = !world.unlimited && animTime - budgetFlashAt in 0f..BUDGET_FLASH_SECONDS
+
     /** Number of haptic pulses sent (only counted while haptics are on), for tests. */
     internal var hapticPulses = 0
+        private set
+
+    /** Number of error pulses ([Haptics.ERROR]) among [hapticPulses], for tests. */
+    internal var errorPulses = 0
+        private set
+
+    /** Haptic pulses of the overload alarm (a ring past 80 %, a lost game) among [hapticPulses], for tests. */
+    internal var alarmPulses = 0
         private set
 
     /**
@@ -1396,7 +1715,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         select(cable)
         if (!canReroute(cable)) {
             holdFired = true
-            showHint(context.getString(R.string.reroute_error_incident))
+            refuse(context.getString(R.string.reroute_error_incident), subject = cable)
             return
         }
         val p = Vec2(dragEndScreen?.x ?: downX, dragEndScreen?.y ?: downY)
@@ -1409,14 +1728,23 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         trackDrag(p.x, p.y)
     }
 
-    /** Releasing a grab that moved: re-routes the cable if the finger is on a node that works; anything else cancels. */
+    /**
+     * Releasing a grab that moved: re-routes the cable if the finger is on a node that works; on a node that does not,
+     * says why; anywhere else it cancels.
+     */
     private fun finishReroute(sx: Float, sy: Float) {
         trackDrag(sx, sy)
         val g = grab ?: return
         val plan = reroutePlan() ?: return
         val target = plan.target ?: return
         val c = g.cable
-        if (world.rerouteError(c, plan.fixed, target, plan.bend) != null) return
+        val error = world.rerouteError(c, plan.fixed, target, plan.bend)
+        if (error != null) {
+            // Dropped where it cannot go: say why (the drag's label is gone now), except for an unchanged layout.
+            if (error == RerouteError.PORTS_FULL) portsFull(target)
+            else texts.rerouteError(error, target)?.let { refuse(it, noBudget = error == RerouteError.NO_BUDGET, subject = c) }
+            return
+        }
         val diff = world.rerouteCost(c, plan.fixed, target, plan.bend)
         if (!world.reroute(c, plan.fixed, target, plan.bend)) return
         world.cableBetween(plan.fixed, target)?.let(::select)
@@ -1428,6 +1756,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 diff > 0 -> context.getString(R.string.hint_cable_rerouted_paid, diff)
                 else -> context.getString(R.string.hint_cable_rerouted_refund, -diff)
             },
+            subject = c,
         )
     }
 
@@ -1546,23 +1875,64 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         val date: String = context.getString(R.string.hud_date, world.year, world.week)
         val clock: String? = clockLabel()
         val delivered: String = resources.getQuantityString(R.plurals.hud_delivered, world.delivered, world.delivered)
-        val stock: String =
-            if (world.unlimited) context.getString(R.string.hud_resources_unlimited) else context.getString(R.string.hud_resources, world.budget, world.routersAvailable)
+        /**
+         * The budget and router line with its coin and router markers ([InlineGlyphs]); [stock] is it as read aloud.
+         * The budget part is [stockLayout] up to [stockBudgetEnd], the router part starts at [stockRouterStart].
+         */
+        val stockText: String = stockLine()
+        val stockLayout: String = stockLayoutCache
+        val stock: String = stockPlainCache
+        val stockBudgetEnd = stockBudgetEndCache
+        val stockRouterStart = stockRouterStartCache
         val vouchers: String? =
             if (world.serverVouchers > 0) resources.getQuantityString(R.plurals.hud_vouchers, world.serverVouchers, world.serverVouchers) else null
         val barW = 110 * density
         val dateBaseline = hudText.textSize
         val barY = dateBaseline + 8 * density
-        val clockBaseline = barY + 4 * density + 6 * density + hudSub.textSize
+        val clockBaseline = barY + WEEK_BAR_DP * density + 6 * density + hudSub.textSize
         val leftW = maxOf(hudText.measureText(date), barW, clock?.let { hudSub.measureText(it) } ?: 0f)
-        val leftBottom = if (clock != null) clockBaseline + hudSub.descent() else barY + 4 * density
-        val rightW = maxOf(hudText.measureText(delivered), hudSub.measureText(stock), vouchers?.let { hudSub.measureText(it) } ?: 0f)
+        val leftBottom = if (clock != null) clockBaseline + hudSub.descent() else barY + WEEK_BAR_DP * density
+        /**
+         * The line as prominent as the date and the packets (bold 16 sp) where it fits beside the date; else a step
+         * smaller, then budget and routers on a line each, and only then the counters move below the date (with the
+         * same steps over the whole row). The tutorial keeps its HUD calm where its panel reaches under the counters (a
+         * narrow window), so the panel stays low and clear of the toolbar: bold a step smaller there.
+         */
+        val stockPaint: Paint
+        val stockTwoLines: Boolean
+        /** Width of the line with budget and routers on a line each. */
+        private fun twoLineW(p: Paint) = maxOf(p.measureText(stockLayout, 0, stockBudgetEnd), p.measureText(stockLayout, stockRouterStart, stockLayout.length))
+        init {
+            val oneW = hudText.measureText(stockLayout)
+            val othersW = maxOf(hudText.measureText(delivered), vouchers?.let { hudSub.measureText(it) } ?: 0f)
+            val calm = tutorial != null &&
+                tutorialOverlay.reservedRight(surfaceWidth) > surfaceWidth - safeInsets.right - 16 * density - maxOf(othersW, oneW) - 8 * density
+            val first = if (calm) hudStockSmall else hudText
+            // A plain choice without a local closure: the HUD is laid out every frame.
+            val beside = width - leftW - 16 * density
+            var pick = if (othersW <= beside) stockFit(first, beside) else STOCK_NONE
+            if (pick == STOCK_NONE) pick = stockFit(first, width)
+            stockPaint = if (pick == STOCK_FIRST_ONE || pick == STOCK_FIRST_TWO) first else hudStockSmall
+            stockTwoLines = pick != STOCK_FIRST_ONE && pick != STOCK_SMALL_ONE
+        }
+        /** Which step of the stock line fits in [room] with [first] as the large paint: one of the STOCK_ codes. */
+        private fun stockFit(first: Paint, room: Float): Int = when {
+            first.measureText(stockLayout) <= room -> STOCK_FIRST_ONE
+            hudStockSmall.measureText(stockLayout) <= room -> STOCK_SMALL_ONE
+            twoLineW(first) <= room -> STOCK_FIRST_TWO
+            twoLineW(hudStockSmall) <= room -> STOCK_SMALL_TWO
+            else -> STOCK_NONE
+        }
+        val stockW: Float = if (stockTwoLines) twoLineW(stockPaint) else stockPaint.measureText(stockLayout)
+        val rightW = maxOf(hudText.measureText(delivered), stockW, vouchers?.let { hudSub.measureText(it) } ?: 0f)
         val stacked = leftW + rightW + 16 * density > width
         val rightTop = if (stacked) leftBottom + 8 * density else 0f
         val deliveredBaseline = rightTop + hudText.textSize
-        val stockBaseline = deliveredBaseline + hudSub.textSize * 1.5f
-        val voucherBaseline = stockBaseline + hudSub.textSize * 1.5f
-        val countersBottom = (if (vouchers != null) voucherBaseline else stockBaseline) + hudSub.descent()
+        val stockBaseline = deliveredBaseline + stockPaint.textSize * 1.35f
+        /** The router line's baseline where budget and routers take a line each, else [stockBaseline]. */
+        val routerBaseline = if (stockTwoLines) stockBaseline + stockPaint.textSize * 1.25f else stockBaseline
+        val voucherBaseline = routerBaseline + stockPaint.descent() + hudSub.textSize * 1.2f
+        val countersBottom = if (vouchers != null) voucherBaseline + hudSub.descent() else routerBaseline + stockPaint.descent()
         val controlsTop = countersBottom + 8 * density
         private fun rowWidth(pills: List<List<String>>) = pills.sumOf { it.size } * buttonHeight + (pills.size - 1) * CONTROL_GAP_DP * density
         /** The pills of [controls] in rows, top down. */
@@ -1736,8 +2106,29 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         if (toolbarTop.isNaN()) surfaceHeight - safeInsets.bottom - 16 * density - buttonHeight - captionHeight - 12 * density
         else toolbarTop - 8 * density
 
-    /** Room the HUD's bottom row and its group captions take below the map. */
-    private val hudBottomReserve get() = maxOf(68 * density, 16 * density + buttonHeight + captionHeight + 4 * density)
+    /** Room the HUD's bottom row and its group captions take below the map, the tray's top padding included. */
+    private val hudBottomReserve get() = maxOf(68 * density, 16 * density + buttonHeight + captionHeight + (TRAY_PAD_DP + 4) * density)
+
+    /**
+     * Room the framing keeps free above the bottom edge of the safe area for the toolbar as it will be laid out now:
+     * its frosted tray (two rows of chips in a tall window) and a raised network row, plus a little air, so no node
+     * sits under the toolbar at rest; at least [hudBottomReserve]. The raised row only covers the right part of a
+     * landscape window, but the inset spans the whole width (a camera has one bottom inset): the map gives up one
+     * button row of height there, accepted so no node ever sits under the network tiles.
+     */
+    private fun toolbarReserve(): Float {
+        val pad = 16 * density
+        val left = safeInsets.left + pad
+        val right = surfaceWidth - safeInsets.right - pad
+        val top = safeInsets.top + pad
+        val bottom = surfaceHeight - safeInsets.bottom - pad
+        if (right <= left || bottom <= top) return hudBottomReserve
+        val m = HudTop(right - left, viewControls())
+        val bh = buttonHeight
+        val bar = layoutToolbar(left, right, bottom - bh, tall = bottom - top - maxOf(m.leftBottom, m.countersBottom) >= 6 * bh)
+        val trayTop = minOf(bar.trayTop, bar.raised?.top ?: Float.MAX_VALUE)
+        return maxOf(hudBottomReserve, surfaceHeight - safeInsets.bottom - trayTop + 4 * density)
+    }
 
     private fun drawHud(canvas: Canvas) {
         // Everything stays inside the safe area (display cutout), with a margin of [pad] (docs/TOP100.md A5). Rows are
@@ -1761,15 +2152,22 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         // Soft plates under the date and the counters keep them readable over a busy map at phone size.
         val plateX = 10 * density
         val plateY = 7 * density
-        canvas.drawRoundRect(left - plateX, top - plateY, left + m.leftW + plateX, top + m.leftBottom + plateY, 14 * density, 14 * density, hudPlate)
+        // Side by side in a narrow window, the plates' inner margins shrink so a gap stays between them.
+        val between = (right - m.rightW) - (left + m.leftW)
+        val innerX = if (m.stacked) plateX else ((between - HUD_PLATE_GAP_DP * density) / 2f).coerceIn(2 * density, plateX)
+        canvas.drawRoundRect(left - plateX, top - plateY, left + m.leftW + innerX, top + m.leftBottom + plateY, 14 * density, 14 * density, hudPlate)
         canvas.drawRoundRect(
-            right - m.rightW - plateX - coinGap(), top + m.rightTop - plateY, right + plateX, top + m.countersBottom + plateY,
+            right - m.rightW - innerX, top + m.rightTop - plateY, right + plateX, top + m.countersBottom + plateY,
             14 * density, 14 * density, hudPlate,
         )
         canvas.drawText(m.date, left, top + m.dateBaseline, hudText)
         val barY = top + m.barY
-        canvas.drawRoundRect(left, barY, left + m.barW, barY + 4 * density, 2 * density, 2 * density, barBg)
-        canvas.drawRoundRect(left, barY, left + m.barW * world.weekProgress, barY + 4 * density, 2 * density, 2 * density, barFg)
+        // The week bar: a 6 dp track with a hairline frame, so it reads over a busy map and on the white plate alike.
+        val barH = WEEK_BAR_DP * density
+        canvas.drawRoundRect(left, barY, left + m.barW, barY + barH, barH / 2f, barH / 2f, barBg)
+        if (world.weekProgress > 0f) {
+            canvas.drawRoundRect(left, barY, left + maxOf(barH, m.barW * world.weekProgress), barY + barH, barH / 2f, barH / 2f, barFg)
+        }
         m.clock?.let { canvas.drawText(it, left, top + m.clockBaseline, hudSub) }
         val leftW = m.leftW
         val leftBottom = top + m.leftBottom
@@ -1778,13 +2176,40 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         hudText.textAlign = Paint.Align.RIGHT
         canvas.drawText(m.delivered, right, top + m.deliveredBaseline, hudText)
         hudText.textAlign = Paint.Align.LEFT
-        hudSub.textAlign = Paint.Align.RIGHT
-        canvas.drawText(m.stock, right, top + m.stockBaseline, hudSub)
-        if (!world.unlimited) {
-            // A coin in front of the budget line, as on the cable chips' prices.
-            val r = hudSub.textSize * 0.42f
-            canvas.drawCircle(right - hudSub.measureText(m.stock) - 5 * density - r, top + m.stockBaseline - hudSub.textSize * 0.34f, r, coinFill)
+        // Too little budget for an action: the line turns red and shakes briefly, so it also reads without the colour.
+        // Too little for a short cable of the picked type ([budgetLow]): the line stays in the warning tint.
+        val flashing = budgetFlashing
+        val flash = if (flashing) 1f - (animTime - budgetFlashAt) / BUDGET_FLASH_SECONDS else 0f
+        val shake = if (flashing) kotlin.math.sin((animTime - budgetFlashAt) * 40f) * 3f * density * flash else 0f
+        val sp = m.stockPaint
+        val stockColor = sp.color
+        val layout = m.stockLayout
+        val n = layout.length
+        val budgetEnd = m.stockBudgetEnd
+        // Only the budget part takes the colour; on one line the router part follows it, else it gets a line of its own.
+        val budgetX = right + shake - (if (m.stockTwoLines) sp.measureText(layout, 0, budgetEnd) else sp.measureText(layout))
+        val routerStart = if (m.stockTwoLines) m.stockRouterStart else budgetEnd
+        val routerX = if (m.stockTwoLines) right - sp.measureText(layout, routerStart, n) else budgetX + sp.measureText(layout, 0, budgetEnd)
+        sp.color = when {
+            flashing -> PORTS_FULL_RED
+            budgetLow -> BUDGET_LOW_TINT
+            else -> stockColor
         }
+        if (budgetLow && !flashing) {
+            // Not by the tint alone (colourblind players): a pale amber pill behind the budget marks it as short too.
+            val px = BUDGET_LOW_PILL_PAD_DP * density
+            val pt = top + m.stockBaseline + sp.ascent() - px / 2f
+            val pb = top + m.stockBaseline + sp.descent() + px / 2f
+            canvas.drawRoundRect(budgetX - px, pt, budgetX + sp.measureText(layout, 0, budgetEnd) + px, pb, (pb - pt) / 2f, (pb - pt) / 2f, budgetLowPill)
+        }
+        canvas.drawText(layout, 0, budgetEnd, budgetX, top + m.stockBaseline, sp)
+        sp.color = stockColor
+        canvas.drawText(layout, routerStart, n, routerX, top + m.routerBaseline, sp)
+        // The coin and the router sign in front of their numbers; the coin stays gold (money, not an alarm light).
+        val coin = COIN_COLOR
+        InlineGlyphs.drawLine(canvas, m.stockText, layout, 0, budgetEnd, budgetX, top + m.stockBaseline, sp, coin)
+        InlineGlyphs.drawLine(canvas, m.stockText, layout, routerStart, n, routerX, top + m.routerBaseline, sp, coin)
+        hudSub.textAlign = Paint.Align.RIGHT
         m.vouchers?.let { canvas.drawText(it, right, top + m.voucherBaseline, hudSub) }
         hudSub.textAlign = Paint.Align.LEFT
         // When both blocks do not fit side by side (a narrow window with large text), the counters sit below the date.
@@ -1792,7 +2217,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         val rightBottom = top + m.rightBottom
         hudNodes += UiNode(
             "hud:status", RectF(right - m.rightW, top + m.rightTop, right, top + m.countersBottom),
-            listOfNotNull(m.delivered, m.stock, m.vouchers).joinToString(". "), UiNode.Kind.TEXT,
+            listOfNotNull(m.delivered, m.stock, if (budgetLow) context.getString(R.string.hud_budget_low) else null, m.vouchers).joinToString(". "),
+            UiNode.Kind.TEXT,
         )
         // The view controls (turn, compass, tilt: docs/TOP100.md B5) go right-aligned below the counters, a row per pill
         // where they do not fit side by side; they are drawn last, as a hint that finds no other room hides them.
@@ -1824,15 +2250,22 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 hudNodes += UiNode("hud:news", RectF(center - w / 2f, at, center + w / 2f, at + bigText.textSize * 1.3f), text, UiNode.Kind.TEXT)
             }
         }
-        if (world.rewardOffer == null) drawIncidentLine(canvas, center, right - left, ::place)
+        val cursorBeforeIncident = cursor
+        var incidentShown = world.rewardOffer == null && placeIncidentLine(right - left, center, ::place)
         // The paused pill is drawn after the hint: where both do not fit (large text, long words), the hint wins.
         val cursorWithoutBanner = cursor
-        var banner = if (userPaused && world.rewardOffer == null) placePausedBanner(center, right - left, ::place) else null
+        // An achievement toast takes the top centre while it shows: the pill goes below it, never half under it.
+        fun placeBanner(): PausedBanner? {
+            if (toast.showing != null) cursor = maxOf(cursor, toast.reservedTop())
+            return placePausedBanner(center, right - left, ::place)
+        }
+        var banner = if (userPaused && world.rewardOffer == null) placeBanner() else null
 
         val bh = buttonHeight
         val bar = layoutToolbar(left, right, bottom - bh, tall = bottom - top - maxOf(m.leftBottom, m.countersBottom) >= 6 * bh)
         toolbarTop = bar.trayTop
         toolbarRaised = bar.raised
+        chipBadges = bar.chip.price == ChipPrice.BADGE
         drawTray(canvas, bar)
         drawToolbar(canvas, bar)
         // Above the whole toolbar, the raised network row too: a long word must never run into it.
@@ -1844,53 +2277,108 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         val hintText = when {
             screen != Screen.PLAYING -> null
             toolDrag != null -> dropHint()
-            placing != null -> context.getString(R.string.hint_place_router)
+            // Why a placement was refused shows over the standing "tap a free cell" while placing stays armed.
+            placing != null && !(hintError && animTime < hintUntil && hintSubject == placing) -> context.getString(R.string.hint_place_router)
             animTime < hintUntil -> hint
             else -> null
         }
-        // A long hint (or large text) wraps into up to three lines that grow upwards from above the buttons.
+        val hintIsError = when {
+            toolDrag != null -> dropHintError
+            hintText == null || hintText !== hint -> false
+            else -> hintError
+        }
+        // A long hint (or large text) wraps into up to three lines (four for an explanation) that grow upwards from above
+        // the buttons.
         hintText?.let {
             val lineH = hudSub.textSize * 1.3f
             // As many lines as fit between the top rows (and the centered lines) and the buttons (floor: a line that
             // would reach into the rows above does not count).
             var room = floor((hintY - hudSub.textSize - hintPadY - maxOf(cursor, blocksBottom)) / lineH).toInt() + 1
-            if (room < 1) {
+            // A coaching tip wants all its lines: its second sentence is the advice.
+            val coach = it === hint && hintCoach != null
+            // A coaching tip is a card of its own: capped in width (it wraps rather than spanning the map), with an
+            // accent stripe before the text.
+            // Measured once per tip and width, not every frame. In a window too low for the card's lines the tip
+            // spans the row again (without the stripe) rather than losing its advice.
+            val stripe = COACH_STRIPE_DP * density
+            val cappedText = minOf(right - left, COACH_MAX_W_DP * density) - 2 * hintPadX - stripe
+            val fullText = right - left - 2 * hintPadX
+            val wide = coach && room < coachLines(it, cappedText, fullText, wide = false)
+            val hintW = if (coach && !wide) cappedText + 2 * hintPadX + stripe else right - left
+            val want = if (coach) coachLines(it, cappedText, fullText, wide) else 1
+            if (room < want) {
                 // Tight (a low window with large text): a thinner plate first, before anything else steps aside.
                 hintPadY = HINT_PAD_TIGHT_DP * density
                 hintY = hintBase - hintPadY
                 room = floor((hintY - hudSub.textSize - hintPadY - maxOf(cursor, blocksBottom)) / lineH).toInt() + 1
             }
-            if (room < 1 && controlsShown) {
-                // Not even one line below the view controls (a low window with large text): they step aside while the
-                // hint shows, and the paused pill may go back up beside the counters.
+            if (room < want && controlsShown) {
+                // Not even one line below the view controls (a low window with large text; for a coaching tip, not all
+                // of its lines): they step aside while the hint shows, and the paused pill may go back up beside the
+                // counters.
                 controlsShown = false
                 blocksBottom = headBottom
                 if (banner != null) {
                     cursor = cursorWithoutBanner
-                    banner = placePausedBanner(center, right - left, ::place)
+                    banner = placeBanner()
                 }
                 room = floor((hintY - hudSub.textSize - hintPadY - maxOf(cursor, blocksBottom)) / lineH).toInt() + 1
             }
-            if (room < 1 && banner != null) {
+            if (room < want && banner != null) {
                 // Not even one line below the paused pill: the pause button shows the stopped clock anyway.
                 banner = null
                 room = floor((hintY - hudSub.textSize - hintPadY - maxOf(cursorWithoutBanner, blocksBottom)) / lineH).toInt() + 1
             }
+            if (room < want && incidentShown && hintCoach == Coaching.INCIDENT) {
+                // Still too low for the tip about the excavator: it says what the incident pill says, and the pin on
+                // the map keeps the countdown.
+                incidentShown = false
+                room = floor((hintY - hudSub.textSize - hintPadY - maxOf(cursorBeforeIncident, blocksBottom)) / lineH).toInt() + 1
+            }
             // Service pictograms in the text ([InlineGlyphs]) are laid out as gaps and painted as tokens into them.
             val glyphs = InlineGlyphs.services(it)
-            val lines = wrapText(InlineGlyphs.layout(it), right - left - 2 * hintPadX, hudSub, room.coerceIn(1, MAX_HINT_LINES))
-            val w = lines.maxOf { l -> hudSub.measureText(l) }
+            // An error leads with its "!" mark; the text wraps in the room beside it.
+            val markD = if (hintIsError) hudSub.textSize * HINT_MARK_SCALE else 0f
+            val markW = if (hintIsError) markD + HINT_MARK_GAP_DP * density else if (coach && !wide) COACH_STRIPE_DP * density else 0f
+            val textPaint = if (hintIsError) hintErrorText else hudSub
+            val lines = wrapText(InlineGlyphs.layout(it), hintW - 2 * hintPadX - markW, textPaint, room.coerceIn(1, hintLines(it)))
+            val w = lines.maxOf { l -> textPaint.measureText(l) }
             // A calm frosted plate (the tray's look) keeps the text readable over buildings; it hugs the wrapped lines.
-            val plate = RectF(left, hintY - (lines.size - 1) * lineH - hudSub.textSize - hintPadY, left + w + 2 * hintPadX, hintY + hudSub.descent() + hintPadY)
-            canvas.drawRoundRect(plate, HINT_RADIUS_DP * density, HINT_RADIUS_DP * density, hintPlate)
+            val plate = RectF(left, hintY - (lines.size - 1) * lineH - hudSub.textSize - hintPadY, left + w + 2 * hintPadX + markW, hintY + hudSub.descent() + hintPadY)
+            val radius = HINT_RADIUS_DP * density
+            canvas.drawRoundRect(plate, radius, radius, if (hintIsError) hintErrorPlate else if (coach) coachPlate else hintPlate)
+            val textX = left + hintPadX + markW
+            if (coach && !wide) {
+                val sw = COACH_STRIPE_DP * density / 2f
+                canvas.drawRoundRect(left + hintPadX, plate.top + hintPadY, left + hintPadX + sw, plate.bottom - hintPadY, sw / 2f, sw / 2f, coachStripe)
+            }
+            if (hintIsError) {
+                hintErrorRim.strokeWidth = density
+                canvas.drawRoundRect(plate, radius, radius, hintErrorRim)
+                // Beside the first line: in a tall plate the mark leads the text instead of floating in the middle.
+                val r = minOf(markD / 2f, plate.height() / 2f - density)
+                val cx = left + hintPadX + markD / 2f
+                val cy = if (lines.size == 1) plate.centerY() else hintY - (lines.size - 1) * lineH - hudSub.textSize * 0.35f
+                canvas.drawCircle(cx, cy, r, hintMarkFill)
+                hintMarkText.textSize = r * 1.5f
+                canvas.drawText("!", cx, cy - (hintMarkText.ascent() + hintMarkText.descent()) / 2f, hintMarkText)
+            }
             var glyph = 0
             lines.forEachIndexed { i, line ->
                 val ly = hintY - (lines.size - 1 - i) * lineH
-                canvas.drawText(line, left + hintPadX, ly, hudSub)
-                if (glyphs.isNotEmpty()) glyph = InlineGlyphs.drawTokens(canvas, line, left + hintPadX, ly, hudSub, glyphs, glyph)
+                canvas.drawText(line, textX, ly, textPaint)
+                if (glyphs.isNotEmpty()) glyph = InlineGlyphs.drawTokens(canvas, line, textX, ly, textPaint, glyphs, glyph)
             }
-            hudNodes += UiNode("hud:hint", plate, InlineGlyphs.plain(it), UiNode.Kind.TEXT)
+            // Read out as an error too: the red plate and the mark are visual only.
+            if (hintSpokenFor !== it || hintSpokenError != hintIsError) {
+                // Built once per hint, not every frame it shows.
+                hintSpoken = InlineGlyphs.plain(it).let { t -> if (hintIsError) context.getString(R.string.hint_error_prefix, t) else t }
+                hintSpokenFor = it
+                hintSpokenError = hintIsError
+            }
+            hudNodes += UiNode("hud:hint", plate, hintSpoken, UiNode.Kind.TEXT, shortened = lines.last().endsWith(TextWrap.ELLIPSIS))
         }
+        if (incidentShown) drawIncidentLine(canvas)
         banner?.let { drawPausedBanner(canvas, it) }
         if (controlsShown) {
             // Fading out after the map was left alone (the compass alone, once they are gone, stays solid).
@@ -1909,6 +2397,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             }
             layer?.let { canvas.restoreToCount(it) }
         }
+        if (screen == Screen.PLAYING && tutorial == null && !world.gameOver && failFocusUntil == null) drawOffscreenChips(canvas)
     }
 
     /** How the cable chips name and price themselves, from full names with a coin down to no name at all. */
@@ -1971,6 +2460,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     /** Radius of the price coins and stock badges. */
     private val coinR get() = maxOf(9 * density, coinText.textSize * 0.8f)
+
+    /** Radius of a cable chip's price badge (without its rim), for tests. */
+    internal val chipBadgeRadius get() = coinR * 0.9f
+
+    /** True if the toolbar last drawn shows the cable prices on badges over the chips' corners, for tests. */
+    internal var chipBadges = false
+        private set
 
     private fun chipWidth(t: CableType, style: ChipStyle): Float {
         val label = style.label(t)
@@ -2043,8 +2539,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         val gap = TOOL_GAP_DP * density
         val menu = RectF(right - bh, y, right, y + bh)
         val pause = RectF(menu.left - gap - bh, y, menu.left - gap, y + bh)
-        val controls = listOf("menu" to menu, "pause" to pause)
-        val controlsEdge = pause.left - gap
+        val help = RectF(pause.left - gap - bh, y, pause.left - gap, y + bh)
+        val controls = listOf("menu" to menu, "pause" to pause, "help" to help)
+        val controlsEdge = help.left - gap
         val tools = networkTools()
         val groupGap = GROUP_GAP_DP * density
         val cables = world.unlockedCables
@@ -2058,6 +2555,31 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         }
         fun trayTop(captions: List<Caption>, rowTops: List<Float>) =
             minOf(captions.minOfOrNull { it.baseline - captionText.textSize } ?: Float.MAX_VALUE, rowTops.min()) - TRAY_PAD_DP * density
+        /**
+         * With the cables on a row of their own above: the network tiles' paint (null: icon, dots and stock only) and
+         * the controls. Where the tiles do not fit beside all three controls (a narrow portrait phone with radios in
+         * stock), the "?" moves up to the right end of the cable row if that has room, else onto a row of its own
+         * above that end (the tray grows to hold it), so nothing overlaps.
+         */
+        fun stackedControls(
+            paints: List<Paint>, chips: List<Pair<CableType, RectF>>, cableTop: Float, style: ChipStyle,
+        ): Pair<Paint?, List<Pair<String, RectF>>> {
+            val fitsAll = paints.firstOrNull { left + tilesWidth(tools, it) <= controlsEdge }
+            if (fitsAll != null || left + tilesWidth(tools, null) <= controlsEdge) return fitsAll to controls
+            // A price badge sticks out over its chip's top right corner ([drawToolbar]): the "?" keeps clear of it.
+            val badge = style.price == ChipPrice.BADGE
+            val br = coinR * 0.9f
+            val pastRight = if (badge) br * 0.3f + 2 * density else 0f
+            val overTop = if (badge) br * 0.65f + 2 * density else 0f
+            val rowFree = (chips.lastOrNull()?.second?.right ?: left) + pastRight + gap <= right - bh
+            val upTop = if (rowFree) cableTop else cableTop - maxOf(gap, overTop + BADGE_CLEAR_DP * density) - bh
+            val up = RectF(right - bh, upTop, right, upTop + bh)
+            val twoEdge = pause.left - gap
+            val paint = paints.firstOrNull { left + tilesWidth(tools, it) <= twoEdge }
+            return paint to listOf("menu" to menu, "pause" to pause, "help" to up)
+        }
+        /** The top of the "?" where [stackedControls] lifted it above the cable row, for the tray. */
+        fun helpTop(ctrls: List<Pair<String, RectF>>) = ctrls.first { it.first == "help" }.second.top
         val styles = chipStyles()
         for (style in styles) {
             val cw = chipsWidth(style)
@@ -2094,17 +2616,21 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             }
             if (tall && left + cw <= right) {
                 val cableTop = y - bh - gap - captionHeight
-                val tilePaint = listOf(style.paint, chipLabelCompact).distinct().firstOrNull { left + tilesWidth(tools, it) <= controlsEdge }
+                val chips = chipsAt(style, cableTop)
+                val (tilePaint, ctrls) = stackedControls(listOf(style.paint, chipLabelCompact).distinct(), chips, cableTop, style)
                 val captions = listOf(
                     caption("cables", R.string.toolbar_cables, left + CAPTION_INSET_DP * density, cableTop),
                     caption("network", R.string.toolbar_network, left + CAPTION_INSET_DP * density, y),
                 )
-                return Toolbar(chipsAt(style, cableTop), style, tilesAt(tilePaint, left, y), tilePaint, controls, captions, null, trayTop(captions, listOf(cableTop)))
+                return Toolbar(chips, style, tilesAt(tilePaint, left, y), tilePaint, ctrls, captions, null, trayTop(captions, listOf(cableTop, helpTop(ctrls))))
             }
         }
         val last = styles.last()
+        val cableTop = y - bh - gap - captionHeight
+        val chips = chipsAt(last, cableTop)
+        val ctrls = stackedControls(emptyList(), chips, cableTop, last).second
         val captions = listOf(caption("network", R.string.toolbar_network, left + CAPTION_INSET_DP * density, y))
-        return Toolbar(chipsAt(last, y - bh - gap - captionHeight), last, tilesAt(null, left, y), null, controls, captions, null, trayTop(captions, listOf(y - bh - gap - captionHeight)))
+        return Toolbar(chips, last, tilesAt(null, left, y), null, ctrls, captions, null, trayTop(captions, listOf(cableTop, helpTop(ctrls))))
     }
 
     /**
@@ -2140,8 +2666,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             buttons += Button(id, r)
             hudNodes += UiNode(
                 "hud:$id", RectF(r),
-                context.getString(if (id == "menu") R.string.a11y_menu else R.string.a11y_pause),
-                if (id == "menu") UiNode.Kind.BUTTON else UiNode.Kind.TOGGLE, checked = id == "pause" && userPaused,
+                context.getString(
+                    when (id) {
+                        "menu" -> R.string.a11y_menu
+                        "help" -> R.string.menu_legend
+                        else -> R.string.a11y_pause
+                    },
+                ),
+                if (id == "pause") UiNode.Kind.TOGGLE else UiNode.Kind.BUTTON, checked = id == "pause" && userPaused,
             )
         }
         for (c in bar.captions) {
@@ -2322,15 +2854,63 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     /** The hint line while a tile is dragged: where to let go, or why the cell under the finger does not work. */
     private fun dropHint(): String {
+        dropHintError = false
         val kind = toolDrag ?: return context.getString(R.string.hint_drop_tool)
         val at = toolDragAt ?: return context.getString(R.string.hint_drop_tool)
         if (overToolbar(at.x, at.y)) return context.getString(R.string.hint_drop_tool)
         val cell = cellAt(at.x, at.y)
-        return world.placeError(kind, cell.x, cell.y)?.let { placeErrorText(kind, it) } ?: context.getString(R.string.hint_drop_tool)
+        return world.placeError(kind, cell.x, cell.y)?.let { dropHintError = true; placeErrorText(kind, it) } ?: context.getString(R.string.hint_drop_tool)
     }
 
-    /** Room left of the counters for the coin in front of the budget line. */
-    private fun coinGap() = if (world.unlimited) 0f else hudSub.textSize * 0.84f + 5 * density
+    private var stockKey = Long.MIN_VALUE
+    private var stockCache = ""
+    private var stockLayoutCache = ""
+    private var stockPlainCache = ""
+    private var stockBudgetEndCache = 0
+    private var stockRouterStartCache = 0
+
+    /**
+     * The HUD's budget and router line, "Budget ● 42  ·  Router ● 3" with the coin and the router sign as [InlineGlyphs]
+     * markers (a bare ∞ in a game without limits). Built again only when a number changes, so the HUD does not allocate
+     * it every frame; [stockLayoutCache] and [stockPlainCache] follow it.
+     */
+    private fun stockLine(): String {
+        val key = if (world.unlimited) Long.MAX_VALUE else (world.budget.toLong() shl 32) or (world.routersAvailable.toLong() and 0xFFFFFFFFL)
+        if (key != stockKey) {
+            stockKey = key
+            val budget = if (world.unlimited) UNLIMITED else world.budget.toString()
+            val routers = if (world.unlimited) UNLIMITED else world.routersAvailable.toString()
+            // A game without limits has no prices: no coin and no router sign before the ∞ (docs/TOP100.md).
+            stockCache =
+                if (world.unlimited) context.getString(R.string.hud_resources, budget, routers)
+                else context.getString(R.string.hud_resources, InlineGlyphs.coin() + budget, InlineGlyphs.router() + routers)
+            stockLayoutCache = InlineGlyphs.layout(stockCache)
+            stockPlainCache = InlineGlyphs.plain(stockCache)
+            // Every language writes "Budget …  ·  Router …": the budget part ends before the dot, the router part
+            // starts after it and its spaces (without a dot, the whole line is the budget part).
+            val dot = stockCache.indexOf('·')
+            if (dot < 0) {
+                stockBudgetEndCache = stockCache.length
+                stockRouterStartCache = stockCache.length
+            } else {
+                var end = dot
+                while (end > 0 && stockCache[end - 1] == ' ') end--
+                var start = dot + 1
+                while (start < stockCache.length && stockCache[start] == ' ') start++
+                stockBudgetEndCache = end
+                stockRouterStartCache = start
+            }
+        }
+        return stockCache
+    }
+
+    /**
+     * True while the budget would not pay for a short cable ([SHORT_CABLE_CELLS] cells) of the picked type: the HUD
+     * shows the budget line in a warning tint, before a drag is refused for lack of budget. The yardstick is the bare
+     * price per cell, without the surcharge for crossing water or hills ([World.cableCost]), so a cable over rough
+     * ground can still be refused while the line is calm; it holds whichever tool is armed.
+     */
+    internal val budgetLow: Boolean get() = !world.unlimited && world.budget < SHORT_CABLE_CELLS * cableType.costPerCell
 
     /**
      * A short piece of cable [t] from [x0] to [x1] at [y], as on the map: its colour, its thickness (which grows with
@@ -2355,6 +2935,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     }
 
     /** [s] broken into at most [maxLines] lines of [maxWidth] in [paint] (at spaces, and between CJK characters); the last one is shortened if needed. */
+    /** Lines the hint line may wrap [text] into: more for a coaching tip and an explanation than for other hints. */
+    private fun hintLines(text: String) = when {
+        text !== hint -> MAX_HINT_LINES
+        hintCoach != null -> COACH_HINT_LINES
+        hintLong -> MAX_HINT_LINES + 1
+        else -> MAX_HINT_LINES
+    }
+
     private fun wrapText(s: String, maxWidth: Float, paint: Paint, maxLines: Int): List<String> =
         TextWrap.wrap(s, maxWidth, maxLines) { paint.measureText(it) }
 
@@ -2366,6 +2954,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         val cx = r.centerX(); val cy = r.centerY(); val u = h * 0.16f
         when {
             id == "menu" -> for (k in -1..1) canvas.drawLine(cx - u * 1.3f, cy + k * u, cx + u * 1.3f, cy + k * u, iconInk)
+            // The legend: a bold "?" in the ink of the other icons, sized to the button and not to the font scale.
+            id == "help" -> {
+                helpGlyph.color = iconInk.color
+                helpGlyph.textSize = h * 0.5f
+                canvas.drawText("?", cx, cy - (helpGlyph.ascent() + helpGlyph.descent()) / 2f, helpGlyph)
+            }
             active -> {
                 selectionPath.reset()
                 selectionPath.moveTo(cx - u * 0.8f, cy - u * 1.2f)
@@ -2410,14 +3004,23 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
      * One centered line for the most urgent incident (a cut cable first, then the one due soonest), amber while
      * announced, red once struck, with "(+n)" for the others; each also gets a countdown pin on the map.
      */
-    private fun drawIncidentLine(canvas: Canvas, center: Float, maxWidth: Float, place: (Float, Float) -> Float) {
+    /** The incident pill's box, colour and (fitted and full) text, as [placeIncidentLine] placed it for this frame. */
+    private val incidentPill = RectF()
+    private var incidentPillColor = 0
+    private var incidentPillText = ""
+    private var incidentPillFull = ""
+
+    /**
+     * Places the incident line (the most urgent incident, and how many more) at the top of the HUD; false if there is
+     * none. [drawIncidentLine] draws it once the hint below had its say.
+     */
+    private fun placeIncidentLine(maxWidth: Float, center: Float, place: (Float, Float) -> Float): Boolean {
         val incidents = world.incidents
-        if (incidents.isEmpty()) return
+        if (incidents.isEmpty()) return false
         val first = incidents.minWith(compareBy({ !(it.struck && it.kind == IncidentKind.EXCAVATOR) }, { if (it.struck) it.remaining else it.warning }))
         // A pill in the incident's colour with a warning sign, like the other HUD plates (judge panel: plain amber
         // text on the pale map had too little contrast).
-        val pillColor = if (first.struck) IncidentStyles.CUT else IncidentStyles.WARNING.shade(-0.3f)
-        incidentText.color = 0xFFFFFFFF.toInt()
+        incidentPillColor = if (first.struck) IncidentStyles.CUT else IncidentStyles.WARNING.shade(-0.3f)
         val full = texts.incident(first).let { if (incidents.size > 1) context.getString(R.string.incident_more, it, incidents.size - 1) else it }
         val h = incidentText.textSize * 2f
         val icon = h * 0.62f
@@ -2425,7 +3028,21 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         val text = fitText(full, maxWidth - icon - pad * 2.4f, incidentText)
         val w = incidentText.measureText(text) + icon + pad * 2.4f
         val top = place(w, h)
-        val r = RectF(center - w / 2f, top, center + w / 2f, top + h)
+        incidentPill.set(center - w / 2f, top, center + w / 2f, top + h)
+        incidentPillText = text
+        incidentPillFull = full
+        return true
+    }
+
+    private fun drawIncidentLine(canvas: Canvas) {
+        val r = incidentPill
+        val h = r.height()
+        val icon = h * 0.62f
+        val pad = h * 0.45f
+        val pillColor = incidentPillColor
+        val text = incidentPillText
+        val full = incidentPillFull
+        incidentText.color = 0xFFFFFFFF.toInt()
         pinFill.color = 0x33000000
         canvas.drawRoundRect(r.left, r.top + 2 * density, r.right, r.bottom + 2 * density, h / 2f, h / 2f, pinFill)
         pinFill.color = pillColor
@@ -2440,31 +3057,252 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         canvas.drawRect(ix - icon * 0.05f, iy - icon * 0.2f, ix + icon * 0.05f, iy + icon * 0.14f, pinFill)
         canvas.drawCircle(ix, iy + icon * 0.26f, icon * 0.06f, pinFill)
         canvas.drawText(text, r.left + pad + icon + pad * 0.6f + incidentText.measureText(text) / 2f, r.centerY() + incidentText.textSize * 0.36f, incidentText)
-        hudNodes += UiNode("hud:incident", r, full, UiNode.Kind.TEXT)
+        hudNodes += UiNode("hud:incident", RectF(r), full, UiNode.Kind.TEXT)
     }
 
     private val incidentIcon = android.graphics.Path()
 
-    /** A countdown pin over every incident's spot on the map, so the line at the top points at its cable or node. */
+    /** Screen boxes of the countdown pins drawn this frame, reused, so the next frame's server plates keep clear. */
+    private val pinBoxes = ArrayList<RectF>()
+    private var pinCount = 0
+
+    /** The countdown pins' boxes of the last frame, for tests. */
+    internal fun incidentPinBoxes(): List<RectF> = pinBoxes.subList(0, pinCount).map { RectF(it) }
+
+    private val pinPill = RectF()
+
+    /** Height of the pins' pills in the last frame; below it a pin's box holds only its thin stem. */
+    private var pinH = 0f
+
+    /** Registers the last frame's pins with the server plates: each pill and its thin stem, not the space beside it. */
+    private fun overlayPins(labels: ServerLabels) {
+        labels.clearOverlays()
+        val half = 2 * density
+        for (j in 0 until pinCount) pinBoxes[j].let {
+            labels.overlay(it.left, it.top, it.right, it.top + pinH)
+            labels.overlay(it.centerX() - half, it.top + pinH, it.centerX() + half, it.bottom)
+        }
+    }
+
+    /** The boxes [overlayPins] registered in the last frame, for tests. */
+    internal fun incidentPinOverlays(): List<RectF> = pinBoxes.subList(0, pinCount).flatMap {
+        listOf(RectF(it.left, it.top, it.right, it.top + pinH), RectF(it.centerX() - 2 * density, it.top + pinH, it.centerX() + 2 * density, it.bottom))
+    }
+
+    /**
+     * A countdown pin over every incident's spot on the map, so the line at the top points at its cable or node. Pins
+     * that would cover each other stack upwards (the stem grows to its spot); the server plates treat each pin as an
+     * obstacle ([ServerLabels.overlay]) where they can, and a pin moves up past a plate that could not, so a pin never
+     * hides a server's name (only its thin stem may cross one).
+     */
     private fun drawIncidentPins(canvas: Canvas) {
         if (world.rewardOffer != null) return
         // The countdown grows with the zoom (up to 1.8×), so close in it reads as large as the cut it belongs to.
         val base = textScale.px(12f)
         val k = (renderer.unitPx / (PIN_UNIT_DP * density)).coerceIn(1f, PIN_MAX_SCALE)
         pinText.textSize = base * k
+        val gap = 3 * density * k
         for (i in world.incidents) {
             val at = renderer.toScreen(i.node?.center ?: i.spot)
             val seconds = ceil(if (i.struck) i.remaining else i.warning).toInt().coerceAtLeast(1)
             val text = context.getString(R.string.incident_countdown, seconds)
             val w = pinText.measureText(text) + 12 * density * k
             val h = 20 * density * k
-            val bottom = at.y - maxOf(renderer.unitPx * 0.9f, 26 * density)
+            val stem = at.y - maxOf(renderer.unitPx * 0.9f, 26 * density) + 5 * density * k
+            var bottom = stem - 5 * density * k
+            // Up past every earlier pin it would touch and every server plate its pill would cover (a plate that found
+            // no spot clear of the pins took one anyway), until it is clear of all of them.
+            val labels = renderer.serverLabels
+            var moved = true
+            while (moved) {
+                moved = false
+                for (j in 0 until pinCount + labels.placedPlates) {
+                    val o = if (j < pinCount) pinBoxes[j] else labels.placedPlate(j - pinCount)
+                    if (at.x + w / 2f + gap <= o.left || at.x - w / 2f - gap >= o.right || bottom + gap <= o.top || bottom - h - gap >= o.bottom) continue
+                    bottom = o.top - gap
+                    moved = true
+                }
+            }
+            // ... but never off the screen or under a HUD box (those of the last frame, as for the plates): there it
+            // stays below the top HUD band instead (a spot below that band keeps its pin below it).
+            pinPill.set(at.x - w / 2f, bottom - h, at.x + w / 2f, bottom)
+            val hud = labels.reservedHit(pinPill, gap)
+            if (bottom - h < safeInsets.top + gap || hud != null) {
+                // Below the HUD box it ran into (the incident line over the map too), else above it.
+                val ceiling = maxOf(renderer.camera.insets.top, hud?.bottom ?: 0f) + gap
+                if (stem > ceiling + h) bottom = maxOf(bottom, ceiling + h)
+                else if (hud != null && hud.top - gap - h >= safeInsets.top + gap) bottom = hud.top - gap
+            }
+            pinH = h
+            if (pinCount == pinBoxes.size) pinBoxes += RectF()
+            pinBoxes[pinCount++].set(at.x - w / 2f, bottom - h, at.x + w / 2f, stem)
             pinFill.color = if (i.struck) IncidentStyles.CUT else IncidentStyles.WARNING.shade(-0.2f)
             canvas.drawRoundRect(at.x - w / 2f, bottom - h, at.x + w / 2f, bottom, h / 2f, h / 2f, pinFill)
-            canvas.drawLine(at.x, bottom, at.x, bottom + 5 * density * k, pinFill.also { it.strokeWidth = 2 * density * k })
+            canvas.drawLine(at.x, bottom, at.x, stem, pinFill.also { it.strokeWidth = 2 * density * k })
             canvas.drawText(text, at.x, bottom - h / 2f + pinText.textSize * 0.36f, pinText)
         }
         pinText.textSize = base
+    }
+
+    /** True if client [n] is overloading (its ring runs) or a request or two short of it. */
+    private fun inTrouble(n: Node) = n.kind == NodeKind.CLIENT && QueueGauge.warns(n)
+
+    /**
+     * True if device [n] gets an off-screen chip: it is [inTrouble], or it had a chip last frame ([had]) and its queue is
+     * at most one request under the pre-warning. The chip so outlasts a queue that swings around the limit, and the
+     * other chips keep their places.
+     */
+    private fun wantsChip(n: Node, had: Boolean) =
+        inTrouble(n) || (had && n.kind == NodeKind.CLIENT && n.pending.size >= World.Tuning.PREWARN_PENDING - 1)
+
+    /**
+     * A chip at the edge of the map's view for each device in trouble ([inTrouble], held a little longer by [wantsChip])
+     * outside it, so a jam never builds up unseen: the device's icon in a white disc with an arrow towards it, the red
+     * overload ring running round it (an dashed orange ring while the queue only nears the limit). Chips sit inside the
+     * camera's view (clear of the HUD rows and the toolbar), so they hold in every style, zoom and turn; a device counts
+     * as seen while it is on the surface and not under a HUD element. The most urgent come first; one that would cover
+     * another chip or a HUD element slides along its edge, and one with no room left is dropped. A tap on the disc or its
+     * arrow (or TalkBack, which also hears the side and the queue) glides the camera there.
+     */
+    private fun drawOffscreenChips(canvas: Canvas) {
+        if (world.rewardOffer != null) return
+        if (offscreenWorld !== world) {
+            offscreenChips.clear()
+            offscreenWorld = world
+        }
+        val frame = ++offscreenFrame
+        val nodes = world.nodes
+        val troubled = offscreenTroubled
+        troubled.clear()
+        for (i in nodes.indices) {
+            val n = nodes[i]
+            val chip = offscreenChips[n]
+            if (!wantsChip(n, chip != null)) continue
+            (chip ?: OffscreenChip(n).also { offscreenChips[n] = it }).seen = frame
+            troubled += n
+        }
+        if (offscreenChips.size > troubled.size) offscreenChips.values.removeIf { it.seen != frame }
+        if (troubled.isEmpty()) return
+        val cam = renderer.camera
+        val area = offscreenArea
+        area.set(cam.insets.left, cam.insets.top, surfaceWidth - cam.insets.right, surfaceHeight - cam.insets.bottom)
+        // Chips for devices under the toolbar sit above its tray, never in it (where none would find room).
+        if (!toolbarTop.isNaN()) area.bottom = minOf(area.bottom, toolbarTop)
+        val r = OFFSCREEN_CHIP_DP / 2f * density
+        val reach = r * 1.5f + 4 * density
+        val inner = offscreenInner
+        inner.set(area.left + reach, area.top + reach, area.right - reach, area.bottom - reach)
+        if (inner.width() <= 0f || inner.height() <= 0f) return
+        troubled.sortWith(offscreenOrder)
+        offscreenTaken.clear()
+        for (n in hudNodes) offscreenTaken += n.bounds
+        if (!trayBox.isEmpty) offscreenTaken += trayBox
+        toolbarRaised?.let { offscreenTaken += it }
+        val fixed = offscreenTaken.size
+        val cx = inner.centerX(); val cy = inner.centerY()
+        val step = 2 * r + 8 * density
+        val pad = 4 * density
+        val edge = 12 * density
+        var placed = 0
+        for (n in troubled) {
+            if (placed >= MAX_OFFSCREEN_CHIPS) break
+            val at = n.footprintCenter
+            val px = cam.worldToScreenX(at.x, at.y); val py = cam.worldToScreenY(at.x, at.y)
+            if (px >= edge && px <= surfaceWidth - edge && py >= edge && py <= surfaceHeight - edge) {
+                var covered = false
+                for (i in 0 until fixed) if (offscreenTaken[i].contains(px, py)) { covered = true; break }
+                if (!covered) continue
+            }
+            // Where the line from the view's middle to the device leaves the chips' room.
+            val dx = px - cx; val dy = py - cy
+            val tx = if (dx > 0f) (inner.right - cx) / dx else if (dx < 0f) (inner.left - cx) / dx else Float.MAX_VALUE
+            val ty = if (dy > 0f) (inner.bottom - cy) / dy else if (dy < 0f) (inner.top - cy) / dy else Float.MAX_VALUE
+            val t = minOf(tx, ty)
+            val ex = cx + dx * t; val ey = cy + dy * t
+            val alongY = tx < ty
+            var found = false
+            val probe = offscreenProbe
+            for (k in 0..OFFSCREEN_SLIDES) {
+                val off = step * ((k + 1) / 2) * (if (k % 2 == 0) 1 else -1)
+                val x = if (alongY) ex else (ex + off).coerceIn(inner.left, inner.right)
+                val y = if (alongY) (ey + off).coerceIn(inner.top, inner.bottom) else ey
+                probe.set(x - r - pad, y - r - pad, x + r + pad, y + r + pad)
+                var free = true
+                for (i in offscreenTaken.indices) if (RectF.intersects(offscreenTaken[i], probe)) { free = false; break }
+                if (free) {
+                    found = true
+                    break
+                }
+            }
+            if (!found) continue
+            val box = offscreenBoxes[placed]
+            box.set(probe.left + pad, probe.top + pad, probe.right - pad, probe.bottom - pad)
+            offscreenTaken += box
+            val angle = kotlin.math.atan2(py - box.centerY(), px - box.centerX())
+            drawOffscreenChip(canvas, n, box.centerX(), box.centerY(), r, angle)
+            val chip = offscreenChips.getValue(n)
+            val side = if (alongY) (if (dx > 0f) SIDE_RIGHT else SIDE_LEFT) else (if (dy > 0f) SIDE_BOTTOM else SIDE_TOP)
+            val full = QueueGauge.full(n)
+            if (chip.full != full || chip.side != side || chip.waiting != n.pending.size) {
+                chip.full = full; chip.side = side; chip.waiting = n.pending.size
+                chip.label = texts.offscreen(n, full, side, n.pending.size)
+            }
+            buttons += Button(chip.id, box)
+            // The arrow reaches past the disc; a tap on it pans too, but a disc always wins over another chip's arrow.
+            val c = kotlin.math.cos(angle); val sn = kotlin.math.sin(angle)
+            val tip = r * 1.5f
+            val hit = offscreenArrowHits[placed]
+            hit.set(box.centerX() + c * tip, box.centerY() + sn * tip, box.centerX() + c * tip, box.centerY() + sn * tip)
+            hit.inset(-r * 0.55f, -r * 0.55f)
+            offscreenArrowIds[placed] = chip.id
+            hudNodes += UiNode(chip.key, RectF(box), chip.label, UiNode.Kind.BUTTON)
+            placed++
+        }
+        for (i in 0 until placed) buttons += Button(offscreenArrowIds[i]!!, offscreenArrowHits[i])
+    }
+
+    /** One off-screen chip of radius [r] around ([x], [y]) for device [n], its arrow pointing along [angle] (radians). */
+    private fun drawOffscreenChip(canvas: Canvas, n: Node, x: Float, y: Float, r: Float, angle: Float) {
+        val overloading = QueueGauge.full(n)
+        val color = QueueGauge.color(n)
+        val beat = if (overloading) 0.5f + 0.5f * kotlin.math.sin(animTime * (5f + 6f * n.overload)) else 0f
+        val c = kotlin.math.cos(angle); val s = kotlin.math.sin(angle)
+        // The arrow first, so the disc's shadow and casing sit over its base.
+        val tip = r * (1.42f + 0.06f * beat); val base = r * 0.82f; val half = r * 0.5f
+        offscreenArrow.reset()
+        offscreenArrow.moveTo(x + c * tip, y + s * tip)
+        offscreenArrow.lineTo(x + c * base - s * half, y + s * base + c * half)
+        offscreenArrow.lineTo(x + c * base + s * half, y + s * base - c * half)
+        offscreenArrow.close()
+        offscreenRing.color = 0xFFFFFFFF.toInt(); offscreenRing.strokeWidth = r * 0.18f
+        offscreenRing.strokeJoin = Paint.Join.ROUND
+        canvas.drawPath(offscreenArrow, offscreenRing)
+        offscreenFill.color = color
+        canvas.drawPath(offscreenArrow, offscreenFill)
+        offscreenFill.color = 0x40000000
+        canvas.drawCircle(x, y + r * 0.12f, r, offscreenFill)
+        offscreenFill.color = 0xFFFFFFFF.toInt()
+        canvas.drawCircle(x, y, r, offscreenFill)
+        // The timer ring as on the map: a dark track and the red arc that runs out; a full orange ring before it starts.
+        val ring = r * 0.8f
+        offscreenRing.strokeWidth = r * 0.2f
+        if (overloading) {
+            offscreenRing.color = 0x402A1418
+            canvas.drawCircle(x, y, ring, offscreenRing)
+            offscreenRing.color = color
+            canvas.drawArc(x - ring, y - ring, x + ring, y + ring, -90f, 360f * n.overload, false, offscreenRing)
+        } else {
+            offscreenRing.color = color
+            if (offscreenDashRing != ring) {
+                val seg = (2 * Math.PI * ring / 12).toFloat()
+                offscreenDash = android.graphics.DashPathEffect(floatArrayOf(seg * 0.6f, seg * 0.4f), 0f)
+                offscreenDashRing = ring
+            }
+            offscreenRing.pathEffect = offscreenDash
+            canvas.drawCircle(x, y, ring, offscreenRing)
+            offscreenRing.pathEffect = null
+        }
+        n.device?.let { toolIcons.device(canvas, it, x, y, r * 0.4f) }
     }
 
     /**
@@ -2687,10 +3525,17 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                             haptic(HapticFeedbackConstants.VIRTUAL_KEY)
                             sounds.play(Sound.CABLE)
                         } else {
-                            when (world.connectError(from, it, cableType, bend)) {
+                            when (val error = world.connectError(from, it, cableType, bend)) {
                                 ConnectError.FROM_PORTS_FULL -> portsFull(from)
                                 ConnectError.TO_PORTS_FULL -> portsFull(it)
-                                else -> Unit
+                                null, ConnectError.SAME_NODE -> Unit
+                                else -> refuse(
+                                    texts.connectFailure(
+                                        error, from, it, cableType, world.cableCost(from, it, cableType, bend),
+                                        world.yearOfWeek(cableType.unlockWeek),
+                                    ),
+                                    noBudget = error == ConnectError.NO_BUDGET,
+                                )
                             }
                         }
                     }
@@ -2747,7 +3592,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                     val kind = if (id == "router") NodeKind.ROUTER else RadioType.valueOf(id.removePrefix("radio:")).kind
                     val stock = if (world.unlimited) Int.MAX_VALUE else RadioType.of(kind)?.let(world::radiosAvailable) ?: world.routersAvailable
                     if (stock <= 0) {
-                        showHint(placeErrorText(kind, PlaceError.NO_STOCK))
+                        refuse(placeErrorText(kind, PlaceError.NO_STOCK), subject = kind)
                         endToolDrag()
                         return true
                     }
@@ -2785,7 +3630,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
      */
     private fun portsFull(n: Node) {
         routerPulseAt = animTime
-        showHint(texts.portsFull(n, R.plurals.ports_full), LONG_HINT_SECONDS)
+        refuse(texts.portsFull(n, R.plurals.ports_full), LONG_HINT_SECONDS)
         if (!portsTipShown) {
             portsTipShown = true
             val ports = NodeKind.ROUTER.maxPorts
@@ -2927,15 +3772,16 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private fun serverTap(server: Node) {
         val error = world.serverUpgradeError(server)
         if (error != null) {
-            showHint(
-                when (error) {
-                    ServerUpgradeError.NOT_A_SERVER -> return
-                    ServerUpgradeError.MAX_LEVEL -> context.getString(R.string.server_error_max_level)
-                    ServerUpgradeError.NO_SPACE -> context.getString(R.string.server_error_no_space)
-                    ServerUpgradeError.NO_BUDGET ->
-                        context.getString(R.string.server_error_no_budget, World.Tuning.SERVER_UPGRADE_COST[server.level - 1])
-                },
-            )
+            val text = when (error) {
+                ServerUpgradeError.NOT_A_SERVER -> return
+                ServerUpgradeError.MAX_LEVEL -> context.getString(R.string.server_error_max_level)
+                ServerUpgradeError.NO_SPACE -> context.getString(R.string.server_error_no_space)
+                ServerUpgradeError.NO_BUDGET ->
+                    context.getString(R.string.server_error_no_budget, World.Tuning.SERVER_UPGRADE_COST[server.level - 1])
+            }
+            // The top tier is a fact, not a refused action: no buzz for it.
+            if (error == ServerUpgradeError.MAX_LEVEL) showHint(text, subject = server)
+            else refuse(text, noBudget = error == ServerUpgradeError.NO_BUDGET, subject = server)
             return
         }
         val next = tierName(server.level + 1)
@@ -2945,6 +3791,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 if (world.serverVouchers > 0) context.getString(R.string.hint_server_preview_voucher, texts.node(server), next)
                 else context.getString(R.string.hint_server_preview, texts.node(server), next, World.Tuning.SERVER_UPGRADE_COST[server.level - 1]),
                 SELECT_SECONDS,
+                subject = server,
+                direct = true,
             )
             return
         }
@@ -2952,7 +3800,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         selection = null
         haptic(HapticFeedbackConstants.VIRTUAL_KEY)
         sounds.play(Sound.CABLE)
-        showHint(context.getString(R.string.hint_server_upgraded, texts.node(server), next))
+        learned(Coaching.SERVER_QUEUE)
+        showHint(context.getString(R.string.hint_server_upgraded, texts.node(server), next), subject = server)
     }
 
     /**
@@ -2963,28 +3812,28 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         val next = tower.cellGeneration?.next
         val error = world.cellUpgradeError(tower)
         if (error != null) {
-            showHint(
-                when (error) {
-                    CellUpgradeError.NOT_A_CELL_TOWER -> return
-                    CellUpgradeError.NEWEST -> context.getString(R.string.cell_error_newest)
-                    CellUpgradeError.NOT_INVENTED ->
-                        context.getString(R.string.cell_error_not_invented, next!!.longLabel, world.yearOfWeek(next.unlockWeek))
-                    CellUpgradeError.NO_BUDGET -> context.getString(R.string.server_error_no_budget, next!!.upgradeCost)
-                },
-            )
+            val text = when (error) {
+                CellUpgradeError.NOT_A_CELL_TOWER -> return
+                CellUpgradeError.NEWEST -> context.getString(R.string.cell_error_newest)
+                CellUpgradeError.NOT_INVENTED ->
+                    context.getString(R.string.cell_error_not_invented, next!!.longLabel, world.yearOfWeek(next.unlockWeek))
+                CellUpgradeError.NO_BUDGET -> context.getString(R.string.server_error_no_budget, next!!.upgradeCost)
+            }
+            if (error == CellUpgradeError.NEWEST) showHint(text, subject = tower)
+            else refuse(text, noBudget = error == CellUpgradeError.NO_BUDGET, subject = tower)
             return
         }
         next!!
         if (selection !== tower) {
             select(tower)
-            showHint(context.getString(R.string.hint_server_preview, texts.node(tower), next.longLabel, next.upgradeCost), SELECT_SECONDS)
+            showHint(context.getString(R.string.hint_server_preview, texts.node(tower), next.longLabel, next.upgradeCost), SELECT_SECONDS, tower, direct = true)
             return
         }
         if (!world.upgradeCell(tower)) return
         selection = null
         haptic(HapticFeedbackConstants.VIRTUAL_KEY)
         sounds.play(Sound.CABLE)
-        showHint(context.getString(R.string.hint_server_upgraded, texts.node(tower), next.longLabel))
+        showHint(context.getString(R.string.hint_server_upgraded, texts.node(tower), next.longLabel), subject = tower)
     }
 
     private fun tierName(level: Int) =
@@ -3008,13 +3857,15 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 null -> if (world.upgrade(cable, cableType)) {
                     haptic(HapticFeedbackConstants.VIRTUAL_KEY)
                     sounds.play(Sound.CABLE)
+                    learned(Coaching.CABLE_UPGRADE)
                     showHint(
                         if (world.unlimited) context.getString(R.string.hint_cable_upgraded_free, texts.cable(cableType))
                         else context.getString(R.string.hint_cable_upgraded, texts.cable(cableType), price),
+                        subject = cable,
                     )
                 }
-                CableUpgradeError.NO_BUDGET -> showHint(context.getString(R.string.cable_error_no_budget, price))
-                CableUpgradeError.NOT_INVENTED -> showHint(context.getString(R.string.connect_error_not_invented, texts.cable(cableType)))
+                CableUpgradeError.NO_BUDGET -> refuse(context.getString(R.string.cable_error_no_budget, price), noBudget = true, subject = cable)
+                CableUpgradeError.NOT_INVENTED -> refuse(context.getString(R.string.connect_error_not_invented, texts.cable(cableType)), subject = cable)
                 CableUpgradeError.NOT_AN_UPGRADE -> Unit
             }
             return
@@ -3031,27 +3882,41 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                     else -> context.getString(R.string.hint_cable_remove, texts.cable(cable.type), refund)
                 },
                 SELECT_SECONDS,
+                cable,
+                direct = true,
             )
             return
         }
         selection = null
         world.removeCable(cable)
         haptic(HapticFeedbackConstants.CLOCK_TICK)
-        showHint(if (world.unlimited) context.getString(R.string.hint_cable_removed_free) else context.getString(R.string.hint_cable_removed, refund))
+        showHint(if (world.unlimited) context.getString(R.string.hint_cable_removed_free) else context.getString(R.string.hint_cable_removed, refund), subject = cable)
     }
 
-    /** A router without cables goes back into stock on a second tap; one with cables does nothing. */
+    /**
+     * A router without cables goes back into stock on a second tap. One with cables (or an incident) is only selected
+     * by the first tap, which may be a look and so leaves other hints alone; the second tap is refused with the reason.
+     */
     private fun routerTap(router: Node) {
-        if (world.pickUpError(router) != null) return
+        world.pickUpError(router)?.let { error ->
+            val text = texts.pickUpError(error) ?: return
+            if (selection !== router) {
+                select(router)
+            } else {
+                selection = null
+                refuse(text, subject = router)
+            }
+            return
+        }
         if (selection !== router) {
             select(router)
-            showHint(context.getString(R.string.hint_router_pick_up), SELECT_SECONDS)
+            showHint(context.getString(R.string.hint_router_pick_up), SELECT_SECONDS, router, direct = true)
             return
         }
         selection = null
         if (world.pickUp(router)) {
             haptic(HapticFeedbackConstants.CLOCK_TICK)
-            showHint(context.getString(R.string.hint_router_picked_up))
+            showHint(context.getString(R.string.hint_router_picked_up), subject = router)
         }
     }
 
@@ -3061,14 +3926,20 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
      * servers it needs; the servers light up meanwhile ([serverFocus]).
      */
     private fun explainClient(client: Node) {
+        // In the order of the device's badge (ProblemBadges.drawFor): a blocked route, a missing server, a jam.
+        val blocked = client.pending.firstOrNull { ProblemBadges.shows(world.routeProblem(client, it)) }
+        val missing = world.firstUnreachableService(client)
         val stuck = client.pending.firstOrNull { world.routeProblem(client, it) != null }
+        val jammed = world.isJammed(client)
+        val jam = if (jammed) world.jamLink(client) else null
         val waiting = client.pending.firstOrNull()
         showHint(
             when {
-                stuck != null -> {
-                    val problem = world.routeProblem(client, stuck)
-                    problemText(client, stuck, problem, if (problem == RouteProblem.PING_TOO_HIGH) world.bestRoute(client, stuck)?.pingMs else null)
-                }
+                blocked != null -> blockedText(client, blocked)
+                missing != null -> texts.noServer(client, missing)
+                stuck != null -> blockedText(client, stuck)
+                jammed && (jam != null || world.jamServer(client) != null) ->
+                    texts.jam(client, client.pending.first { world.routeFor(client, it) != null }, jam)
                 waiting != null -> context.getString(R.string.device_wants_server, texts.node(client), texts.serviceWithGlyph(waiting), texts.server(waiting))
                 else -> context.getString(
                     R.string.device_needs_servers, texts.node(client),
@@ -3076,8 +3947,15 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 )
             },
             LONG_HINT_SECONDS,
+            client,
         )
         focusUntil = animTime + FOCUS_TAP_SECONDS
+    }
+
+    /** [problemText] for [client]'s requests for [s], with the ping of its best route when that is the problem. */
+    private fun blockedText(client: Node, s: Service): String {
+        val problem = world.routeProblem(client, s)
+        return problemText(client, s, problem, if (problem == RouteProblem.PING_TOO_HIGH) world.bestRoute(client, s)?.pingMs else null)
     }
 
     /** "Konsole → Game-Server: Ping 180 ms, erlaubt 140 ms" and the like, for a device, a service and its [RouteProblem]. */
@@ -3093,16 +3971,63 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         }
     }
 
-    /** Why the game ended as one short sentence for the game-over card ("Phone couldn't reach a Calls server"). */
+    /** Why the game ended as one short sentence for the game-over card ("Phone couldn’t reach a Phone exchange"). */
     private fun gameOverReason(n: Node, s: Service, problem: RouteProblem?, pingMs: Float?): String {
         val node = texts.node(n)
         val service = texts.service(s)
         return when (problem) {
-            RouteProblem.NO_ROUTE -> context.getString(R.string.game_over_no_route, node, service)
+            // The server by the name the tip under it uses ("Telefonzentrale"), not the service's.
+            RouteProblem.NO_ROUTE -> context.getString(R.string.game_over_no_route, node, texts.server(s))
             RouteProblem.TOO_NARROW -> context.getString(R.string.game_over_too_narrow, node, service)
             RouteProblem.PING_TOO_HIGH ->
                 context.getString(R.string.game_over_ping, node, service, (pingMs ?: 0f).roundToInt(), s.maxPingMs ?: 0)
             null -> context.getString(R.string.game_over_jam, node, service)
+        }
+    }
+
+    /** The world and its clock [lossReason] last worked out the card's reason and tip for. */
+    private var lossFor: World? = null
+    private var lossAt = -1f
+    private var lossReasonLine: String? = null
+    private var lossTipLine: String? = null
+
+    /**
+     * Why the game was lost, for the card ([gameOverReason]), with the tip against it in [lossTipLine]: worked out once
+     * per lost game, not on every frame the card is drawn. Null if the world names no failed device.
+     */
+    private fun lossReason(): String? {
+        if (lossFor !== world || lossAt != world.time) {
+            lossFor = world
+            lossAt = world.time
+            val f = world.failure
+            lossReasonLine = f?.let { gameOverReason(it.node, it.service, it.problem, it.pingMs) }
+            lossTipLine = f?.let(::lossTipText)
+        }
+        return lossReasonLine
+    }
+
+    /** The one thing to do better next time against [f], from its cause ([World.lossTip]), for the game-over card. */
+    internal fun lossTipText(f: Failure, tip: LossTip = world.lossTip(f)): String {
+        val node = texts.node(f.node)
+        return when (tip) {
+            LossTip.CONNECT -> context.getString(R.string.loss_tip_connect, node, texts.server(f.service))
+            // The device's ports, or else every server's of the service: the one to put a router in front of.
+            LossTip.ROUTER -> context.getString(
+                R.string.loss_tip_router, if (world.ports(f.node) >= f.node.maxPorts) node else texts.server(f.service),
+            )
+            LossTip.NEEDS_SERVER -> context.getString(R.string.loss_tip_needs_server, node, texts.server(f.service))
+            LossTip.REPAIR -> context.getString(R.string.loss_tip_repair)
+            LossTip.OUTAGE -> context.getString(R.string.loss_tip_outage)
+            LossTip.WIDER_CABLE -> {
+                // The technologies wide enough for the service, the invented ones if any (streaming: DSL / Coax / Fiber).
+                val wide = CableType.entries.filter { it.capacity >= f.service.bandwidth }
+                val shown = wide.filter { it in world.unlockedCables }.ifEmpty { wide }
+                context.getString(R.string.loss_tip_wider_cable, texts.service(f.service), shown.joinToString(CABLE_CHOICE_SEPARATOR) { texts.cable(it) })
+            }
+            LossTip.FASTER_CABLE -> context.getString(R.string.loss_tip_faster_cable, texts.service(f.service))
+            LossTip.SECOND_CABLE -> context.getString(R.string.loss_tip_second_cable)
+            LossTip.UPGRADE_SERVER -> context.getString(R.string.loss_tip_upgrade_server, texts.server(f.service))
+            LossTip.SECOND_SERVER -> context.getString(R.string.loss_tip_second_server, texts.server(f.service))
         }
     }
 
@@ -3113,13 +4038,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     private fun repair(cable: Cable) {
         if (world.repairError(cable) == RepairError.NO_BUDGET) {
-            showHint(context.getString(R.string.repair_error_no_budget, Incidents.REPAIR_COST))
+            refuse(context.getString(R.string.repair_error_no_budget, Incidents.REPAIR_COST), noBudget = true, subject = cable)
             return
         }
         if (!world.repair(cable)) return
         haptic(HapticFeedbackConstants.VIRTUAL_KEY)
         sounds.play(Sound.CABLE)
-        showHint(context.getString(R.string.hint_repaired))
+        learned(Coaching.INCIDENT)
+        showHint(context.getString(R.string.hint_repaired), subject = cable)
     }
 
     /**
@@ -3130,15 +4056,16 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         val radio = RadioType.of(kind)
         val error = world.placeError(kind, cx, cy)
         if (error != null) {
-            showHint(placeErrorText(kind, error))
+            refuse(placeErrorText(kind, error), subject = kind)
             if (error == PlaceError.NO_STOCK) placing = null
             return
         }
         val placed = (if (radio == null) world.placeRouter(cx, cy) else world.placeRadio(radio, cx, cy)) ?: return
         placing = null
         haptic(HapticFeedbackConstants.CLOCK_TICK)
-        if (placed.kind == NodeKind.ACCESS_POINT) showHint(context.getString(R.string.hint_access_point, Wifi.UPGRADE_5_GHZ_COST))
-        placed.cellGeneration?.let { showHint(context.getString(R.string.hint_cell_tower, it.longLabel)) }
+        if (radio != null) learned(Coaching.RADIO_STOCK)
+        if (placed.kind == NodeKind.ACCESS_POINT) showHint(context.getString(R.string.hint_access_point, Wifi.UPGRADE_5_GHZ_COST), subject = kind)
+        placed.cellGeneration?.let { showHint(context.getString(R.string.hint_cell_tower, it.longLabel), subject = kind) }
     }
 
     /** Why [kind] cannot go where the player tapped or let go. */
@@ -3157,6 +4084,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         showHint(
             if (clashes == 0) context.getString(R.string.hint_channel, name, ap.channel)
             else resources.getQuantityString(R.plurals.hint_channel_interference, clashes, name, ap.channel, clashes),
+            subject = ap,
         )
     }
 
@@ -3177,6 +4105,79 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         upgradeTo5Ghz(ap)
     }
 
+    /**
+     * While the camera glides to the device that overflowed ([failFocusUntil]): a callout under its red ring with the
+     * device's icon and "Telefon überlastet", pointing up at it, so the player sees which device lost the game even
+     * where its request bubble hides the icon on the map. It fades in, keeps clear of the bottom tray and the screen
+     * edges, and its box goes into [calloutBox]. Returns true if it was drawn.
+     */
+    private fun drawFailCallout(canvas: Canvas): Boolean {
+        val until = failFocusUntil ?: return false
+        val n = world.failedNode ?: return false
+        val label = failCallout ?: return false
+        val cam = renderer.camera
+        val cx = cam.worldToScreenX(n.footprintCenter.x, n.footprintCenter.y)
+        val cy = cam.worldToScreenY(n.footprintCenter.x, n.footprintCenter.y)
+        val fade = ((animTime - (until - GAME_OVER_FOCUS_SECONDS)) / CALLOUT_FADE_SECONDS).coerceIn(0f, 1f)
+        val alpha = (fade * 255).toInt()
+        val h = maxOf(CALLOUT_MIN_DP * density, calloutText.textSize * 2.1f)
+        val icon = h * 0.3f
+        val pad = 12f * density
+        val margin = 16f * density
+        // Long names in large text ("Telecamera di sorveglianza") would run off a phone: the text shrinks to the room.
+        val chrome = pad + 2 * icon + 8f * density + pad
+        val room = surfaceWidth - safeInsets.left - safeInsets.right - 2 * margin - chrome
+        if (room != calloutFitWidth) {
+            calloutFitWidth = room
+            calloutFitted = fitText(label, maxOf(room, 0f), calloutText)
+        }
+        val text = calloutFitted
+        val w = chrome + calloutText.measureText(text)
+        val gap = maxOf(renderer.unitPx * 0.55f, 28f * density)
+        val bottom = if (trayBox.isEmpty) surfaceHeight - safeInsets.bottom - margin else trayBox.top - 8f * density
+        val topLimit = safeInsets.top + margin
+        // Under the ring, or above it (over the request bubble) where the tray leaves no room there once the camera
+        // has arrived (the device then sits at the view's center); decided once so the pill does not jump mid-glide.
+        val below = calloutBelow ?: (cam.centerY + gap + h <= bottom).also { calloutBelow = it }
+        val wanted = if (below) cy + gap else cy - gap - h - renderer.unitPx * 0.6f
+        val top = wanted.coerceIn(topLimit, maxOf(topLimit, bottom - h))
+        val left = (cx - w / 2f).coerceIn(safeInsets.left + margin, maxOf(safeInsets.left + margin, surfaceWidth - safeInsets.right - margin - w))
+        calloutBox.set(left, top, left + w, top + h)
+        // The pointer towards the device.
+        val px = cx.coerceIn(left + h * 0.5f, left + w - h * 0.5f)
+        val tip = h * 0.32f
+        calloutPath.reset()
+        if (below) {
+            calloutPath.moveTo(px - tip, top + 1f); calloutPath.lineTo(px, top - tip); calloutPath.lineTo(px + tip, top + 1f)
+        } else {
+            calloutPath.moveTo(px - tip, top + h - 1f); calloutPath.lineTo(px, top + h + tip); calloutPath.lineTo(px + tip, top + h - 1f)
+        }
+        calloutPath.close()
+        calloutFill.color = CALLOUT_SHADOW
+        calloutFill.alpha = (alpha * 0.25f).toInt()
+        canvas.drawRoundRect(left, top + 3f * density, left + w, top + h + 3f * density, h / 2f, h / 2f, calloutFill)
+        calloutFill.color = PORTS_FULL_RED
+        calloutFill.alpha = alpha
+        canvas.drawRoundRect(calloutBox, h / 2f, h / 2f, calloutFill)
+        canvas.drawPath(calloutPath, calloutFill)
+        // The device's icon on a white disc, then its name in white.
+        val ix = left + pad + icon
+        val iy = top + h / 2f
+        calloutFill.color = 0xFFFFFFFF.toInt()
+        calloutFill.alpha = alpha
+        canvas.drawCircle(ix, iy, icon * 1.25f, calloutFill)
+        n.device?.let {
+            // A layer only while fading in: the icon draws with paints of its own, the layer fades them all at once.
+            val fading = alpha < 255
+            if (fading) canvas.saveLayerAlpha(ix - icon * 1.3f, iy - icon * 1.3f, ix + icon * 1.3f, iy + icon * 1.3f, alpha)
+            toolIcons.device(canvas, it, ix, iy, icon * 0.8f)
+            if (fading) canvas.restore()
+        }
+        calloutText.alpha = alpha
+        canvas.drawText(text, ix + icon * 1.25f + 8f * density, iy + calloutText.textSize * 0.36f, calloutText)
+        return true
+    }
+
     /** A ring around a held 2.4 GHz access point that fills up until the hold switches it to 5 GHz. */
     private fun drawHoldProgress(canvas: Canvas) {
         val ap = holdAp?.takeIf { !it.fiveGhz } ?: return
@@ -3192,30 +4193,89 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     }
 
     private fun upgradeTo5Ghz(ap: Node) {
-        showHint(
-            when (world.wifiUpgradeError(ap)) {
-                null -> {
-                    if (!world.upgradeTo5Ghz(ap)) return
-                    haptic(HapticFeedbackConstants.VIRTUAL_KEY)
-                    context.getString(R.string.hint_5ghz, texts.node(ap))
-                }
-                WifiUpgradeError.NOT_AN_ACCESS_POINT -> return
-                WifiUpgradeError.ALREADY_5_GHZ -> context.getString(R.string.wifi_error_already_5ghz)
-                WifiUpgradeError.NO_BUDGET -> context.getString(R.string.wifi_error_no_budget, Wifi.UPGRADE_5_GHZ_COST)
-            },
-        )
+        when (world.wifiUpgradeError(ap)) {
+            null -> {
+                if (!world.upgradeTo5Ghz(ap)) return
+                haptic(HapticFeedbackConstants.VIRTUAL_KEY)
+                showHint(context.getString(R.string.hint_5ghz, texts.node(ap)), subject = ap)
+            }
+            WifiUpgradeError.NOT_AN_ACCESS_POINT -> Unit
+            // Already done is a fact, not a refused action: no buzz, as for a server at the top tier.
+            WifiUpgradeError.ALREADY_5_GHZ -> showHint(context.getString(R.string.wifi_error_already_5ghz), subject = ap)
+            WifiUpgradeError.NO_BUDGET -> refuse(context.getString(R.string.wifi_error_no_budget, Wifi.UPGRADE_5_GHZ_COST), noBudget = true, subject = ap)
+        }
     }
 
-    private fun showHint(text: String, seconds: Float = HINT_SECONDS) {
+    /**
+     * An info hint for [seconds]; [subject] is what it is about (see [postHint]). A [direct] hint answers the latest tap
+     * and asks for a second one (a price or refund preview, a picked cable): it shows at once, even over an error.
+     */
+    private fun showHint(text: String, seconds: Float = HINT_SECONDS, subject: Any? = null, direct: Boolean = false) =
+        postHint(text, seconds, false, subject, direct)
+
+    /**
+     * Shows [text] now, or lets an info hint wait behind a showing error: an error is not cut short by an unrelated
+     * hint. The newest error shows at once (its buzz and its reason belong together), as does a [direct] hint and a hint
+     * about the error's own [subject] (the retried server, cable or tool), as the error's news is stale then; the same
+     * error again only renews its time. Info hints replace info hints, waiting ones too.
+     */
+    private fun postHint(text: String, seconds: Float, error: Boolean, subject: Any?, direct: Boolean = false) {
+        val errorShown = hint != null && hintError && animTime < hintUntil
+        if (errorShown && text == hint) {
+            if (error) hintUntil = maxOf(hintUntil, animTime + maxOf(seconds, ERROR_HINT_SECONDS))
+            return
+        }
+        // A coaching tip on screen holds back only the queued news (subject-less); an answer to a tap cuts it short, as
+        // does an error.
+        val heldBack = errorShown || (hintCoach != null && subject == null && hint != null && animTime < hintUntil)
+        if (!heldBack || error || direct || (subject != null && subject === hintSubject)) {
+            if (!error) pendingHints.clear()
+            displayHint(text, seconds, error, subject)
+            return
+        }
+        pendingHints.clear()
+        pendingHints.addLast(PendingHint(text, seconds, subject))
+    }
+
+    private fun displayHint(text: String, seconds: Float, error: Boolean, subject: Any?) {
+        retireCoach()
         hint = text
-        hintUntil = animTime + seconds
+        hintError = error
+        hintSubject = subject
+        hintUntil = animTime + if (error) maxOf(seconds, ERROR_HINT_SECONDS) else seconds
+        hintLong = seconds >= LONG_HINT_SECONDS
+    }
+
+    private fun clearHints() {
+        // A tip not yet read comes back the next time it is due.
+        hintCoach = null
+        coachWaiting = null
+        hint = null
+        hintError = false
+        hintSubject = null
+        pendingHints.clear()
+    }
+
+    /**
+     * An action the game refused: says why ([text]) with the error buzz, and for lack of budget ([noBudget]) flashes
+     * the HUD's budget line. No refusal stays silent.
+     */
+    private fun refuse(text: String, seconds: Float = HINT_SECONDS, noBudget: Boolean = false, subject: Any? = null) {
+        postHint(text, seconds, true, subject)
+        if (noBudget) budgetFlashAt = animTime
+        haptic(Haptics.ERROR)
     }
 
     private fun onButton(id: String) {
         click()
         when {
             id == "menu" -> openPauseMenu()
-            id == "pause" -> userPaused = !userPaused
+            id == "help" -> openLegend(from = Screen.PLAYING)
+            id == "pause" -> {
+                userPaused = !userPaused
+                // Found the pause: the tip about it has nothing more to say (where tips run at all).
+                if (userPaused && tutorial == null && world.daily == null && Coaching.PAUSE.appliesTo(world)) learned(Coaching.PAUSE)
+            }
             id == "compass" -> renderer.camera.rotateTo(0f).also { viewTouchedAt = animTime }
             // Rotate and tilt buttons: animated steps around the centre of the view (stepping the camera renews the
             // limits and, while tilting, keeps the area framed).
@@ -3228,15 +4288,16 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 togglePlacing(it.kind, if (world.unlimited) Int.MAX_VALUE else world.radiosAvailable(it))
             }
             id.startsWith("cable:") -> pickCable(CableType.valueOf(id.removePrefix("cable:")))
+            id.startsWith("offscreen:") -> world.nodes.firstOrNull { it.id.toString() == id.removePrefix("offscreen:") }?.let {
+                renderer.focusOn(it, zoom = 1f)
+                viewTouchedAt = animTime
+            }
         }
     }
 
     /** Arms placing [kind] if [stock] allows it; pressing the same button again disarms it. An empty stock says so. */
     private fun togglePlacing(kind: NodeKind, stock: Int) {
-        if (stock <= 0 && placing != kind) {
-            val name = RadioType.of(kind)?.let(texts::radio) ?: context.getString(R.string.node_router)
-            showHint(context.getString(R.string.place_error_no_stock, name))
-        }
+        if (stock <= 0 && placing != kind) refuse(placeErrorText(kind, PlaceError.NO_STOCK), subject = kind)
         placing = if (placing == kind || stock <= 0) null else kind
     }
 
@@ -3248,7 +4309,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         val info = if (world.unlimited) context.getString(R.string.hint_cable_info_free, texts.cable(t), t.capacity, ms)
         else context.getString(R.string.hint_cable_info, texts.cable(t), t.capacity, ms, t.costPerCell)
         val narrow = world.availableServices.filter { it.bandwidth > t.capacity }.sortedBy { it.bandwidth }.firstOrNull()
-        showHint(if (narrow == null) info else context.getString(R.string.hint_two_parts, info, context.getString(R.string.hint_cable_too_narrow, texts.service(narrow))))
+        showHint(
+            if (narrow == null) info else context.getString(R.string.hint_two_parts, info, context.getString(R.string.hint_cable_too_narrow, texts.service(narrow))),
+            direct = true,
+        )
     }
 
     // ---------------------------------------------------------------- menus (game thread)
@@ -3329,7 +4393,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             title = context.getString(R.string.game_over_title),
             highlight = if (newBest) context.getString(R.string.game_over_new_best) else null,
             lines = listOfNotNull(
-                world.failure?.let { gameOverReason(it.node, it.service, it.problem, it.pingMs) },
+                lossReason(),
                 when {
                     newBest -> null
                     world.assisted && world.daily == null -> context.getString(R.string.game_over_assisted, highscores.best(world.scenario.id))
@@ -3338,7 +4402,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 },
             ),
             picture = recapPicture(),
-            alertFirstLine = world.failure != null,
+            alertFirstLine = lossReason() != null,
+            tip = lossTipLine,
             // The packets delivered are the score: a hero number under the title, like on the share card.
             score = resources.getQuantityString(R.plurals.hud_delivered, world.delivered, world.delivered),
             items = listOfNotNull(
@@ -3487,10 +4552,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 achievementsPanel.resetScroll()
                 screen = Screen.ACHIEVEMENTS
             }
-            MenuAction.LEGEND -> {
-                legendPanel.resetScroll()
-                screen = Screen.LEGEND
-            }
+            MenuAction.LEGEND -> openLegend(from = Screen.PAUSED)
             MenuAction.CABLE_SKIN -> updateSettings(settings.copy(cableSkin = Cosmetics.next(Cosmetic.skin, Cosmetics.skins(tracker.unlocked))))
             MenuAction.COLOR_THEME -> updateSettings(settings.copy(colorTheme = Cosmetics.next(Cosmetic.theme, Cosmetics.themes(tracker.unlocked))))
             MenuAction.LEADERBOARDS -> gameServices.showLeaderboards()
@@ -3727,7 +4789,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             Screen.SETTINGS -> screen = settingsReturn
             Screen.APPEARANCE -> screen = Screen.SETTINGS
             Screen.SCENERIES, Screen.DAILY, Screen.ACHIEVEMENTS -> screen = Screen.MAIN_MENU
-            Screen.LEGEND -> screen = Screen.PAUSED
+            Screen.LEGEND -> screen = legendReturn
             Screen.GAME_OVER -> onMenuAction(MenuAction.MAIN_MENU)
             Screen.MAIN_MENU -> mainThread.post { onExit?.invoke() }
         }
@@ -3926,7 +4988,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 }
                 if (id == LegendPanel.BACK && legendPanel.hit(e.x, e.y) == id) {
                     click()
-                    screen = Screen.PAUSED
+                    screen = legendReturn
                 }
             }
             MotionEvent.ACTION_CANCEL -> pressedLegend = null
@@ -3973,6 +5035,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         } + listOf(
             LegendEntry("access_point", LegendIcon.AccessPoint, context.getString(R.string.node_access_point), context.getString(R.string.reward_access_point_desc)),
             LegendEntry("cell_tower", LegendIcon.CellTower, context.getString(R.string.node_cell_tower), context.getString(R.string.legend_cell_tower_desc)),
+            LegendEntry("cable_edit", LegendIcon.Cable(CableType.FIBER), context.getString(R.string.legend_cable_edit_title), context.getString(R.string.legend_cable_edit_desc)),
         )
         val signs = listOf(
             LegendEntry("request", LegendIcon.Request(Service.MAIL), context.getString(R.string.legend_request_title), context.getString(R.string.legend_request_desc)),
@@ -3980,6 +5043,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             LegendEntry("overload", LegendIcon.Overload, context.getString(R.string.legend_overload_title), context.getString(R.string.legend_overload_desc)),
             LegendEntry("too_narrow", LegendIcon.Problem(RouteProblem.TOO_NARROW), context.getString(R.string.legend_too_narrow_title), context.getString(R.string.legend_too_narrow_desc)),
             LegendEntry("ping", LegendIcon.Problem(RouteProblem.PING_TOO_HIGH), context.getString(R.string.legend_ping_title), context.getString(R.string.legend_ping_desc)),
+            LegendEntry("gauge", LegendIcon.Gauge, context.getString(R.string.legend_gauge_title), context.getString(R.string.legend_gauge_desc)),
+            LegendEntry("jam", LegendIcon.Jam, context.getString(R.string.legend_jam_title), context.getString(R.string.legend_jam_desc)),
+            LegendEntry("missing_server", LegendIcon.MissingServer(Service.MAIL), context.getString(R.string.legend_missing_title), context.getString(R.string.legend_missing_desc)),
+            LegendEntry("incident", LegendIcon.Incident, context.getString(R.string.legend_incident_title), context.getString(R.string.legend_incident_desc)),
         )
         return listOf(
             LegendSection("devices", context.getString(R.string.legend_section_devices), devices),
@@ -3987,6 +5054,17 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             LegendSection("signs", context.getString(R.string.legend_section_signs), signs),
             LegendSection("network", context.getString(R.string.legend_section_network), network),
         )
+    }
+
+    /**
+     * The legend "What's what?", from the pause menu or straight from the HUD's "?" button; there it stops the game
+     * like the pause menu does (the clock only runs on the map), and its back pill leads back to the map.
+     */
+    private fun openLegend(from: Screen) {
+        if (from == Screen.PLAYING) openPauseMenu()
+        legendReturn = from
+        legendPanel.resetScroll()
+        screen = Screen.LEGEND
     }
 
     private fun openPauseMenu() {
@@ -4063,8 +5141,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         busyHintShown = false
         portsTipShown = false
         routerPulseAt = Float.NEGATIVE_INFINITY
+        budgetFlashAt = Float.NEGATIVE_INFINITY
         hintQueue.clear()
-        hint = null
+        clearHints()
         hintedNews = w.lastNews
         layoutRenderers()
         clock.reset()
@@ -4105,7 +5184,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         selection = null
         userPaused = false
         // The game is over: pending hints (e.g. what the week's news need) would only peek out under the result card.
-        hint = null
+        clearHints()
         hintQueue.clear()
         val failed = world.failedNode
         if (failed == null) {
@@ -4113,6 +5192,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             return
         }
         renderer.focusOn(failed)
+        failCallout = context.getString(R.string.game_over_callout, texts.node(failed))
+        calloutBelow = null
+        calloutFitWidth = -1f
         failFocusUntil = animTime + GAME_OVER_FOCUS_SECONDS
         focusSkipArmed = false
     }
@@ -4175,9 +5257,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     private val vibrator by lazy { Haptics(context) }
 
-    private fun haptic(kind: Int) {
+    /** One haptic pulse of [kind] if haptics are on; [alarm] marks a pulse of the overload alarm. */
+    private fun haptic(kind: Int, alarm: Boolean = false) {
         if (!settings.haptics) return
         hapticPulses++
+        if (kind == Haptics.ERROR) errorPulses++
+        if (alarm) alarmPulses++
         post { vibrator.pulse(kind) }
     }
 
@@ -4187,24 +5272,55 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     }
 
     /**
+     * The toolbar may have grown since the last [layoutRenderers] (a new cable type, a wider row that wraps): a style
+     * that follows the area keeps its framing clear of the toolbar as it is now; a view the player moved stays put.
+     */
+    private fun refreshToolbarInset(): Boolean {
+        if (surfaceWidth <= 0 || surfaceHeight <= 0 || tutorial != null || hudHidden || screen != Screen.PLAYING) return false
+        val bottom = toolbarReserve() + safeInsets.bottom
+        var changed = false
+        for (r in renderers) {
+            val c = r.camera
+            if (!c.followsArea || kotlin.math.abs(c.insets.bottom - bottom) < 0.5f) continue
+            // The picture stays where it is; the refit that follows glides to the new framing.
+            c.setInsetsKeepingView(c.insets.copy(bottom = bottom))
+            changed = true
+        }
+        return changed
+    }
+
+    /** What decides the toolbar's layout height: the cable chips and the network tiles it shows. */
+    private fun toolbarKey(): Int {
+        // Counted on the cached entries, without the list [World.unlockedCables] builds: this runs every tick.
+        val types = CableType.entries
+        var cables = 0
+        for (i in types.indices) if (world.invented(types[i])) cables++
+        val kinds = RadioType.entries
+        var radios = 0
+        for (i in kinds.indices) if (world.unlimited || world.radiosAvailable(kinds[i]) > 0) radios++
+        return cables * 16 + radios
+    }
+
+    /**
      * Fits every style to the unlocked area, keeping the HUD rows (and the tutorial bubble) free; the demo town sits
      * beside the main menu card. Waits for the first surface size.
      */
     private fun layoutRenderers() {
         if (surfaceWidth <= 0 || surfaceHeight <= 0) return
+        val toolbar = if (screen in MENU_SCREENS && !gameInProgress) 0f else toolbarReserve()
         val insets = if (screen in MENU_SCREENS && !gameInProgress) {
             ViewInsets(surfaceWidth * 0.55f, 24 * density, 16 * density, 24 * density)
         } else if (tutorial != null) {
             tutorialOverlay.place(safeInsets.left + 16 * density, tutorialTop(), tutorialBottom())
-            ViewInsets(tutorialOverlay.reservedRight(surfaceWidth) - safeInsets.left + 8 * density, hudTopReserve, 8 * density, hudBottomReserve)
+            ViewInsets(tutorialOverlay.reservedRight(surfaceWidth) - safeInsets.left + 8 * density, hudTopReserve, 8 * density, toolbar)
         } else if (hudHidden) {
             ViewInsets(8 * density, 8 * density, 8 * density, 8 * density)
         } else if (surfaceWidth > surfaceHeight) {
             // Landscape: the top HUD holds only two corner pills over the iso board's empty corners, so the map may
             // reach up between them (judge panel: the board filled only half of a phone's screen).
-            ViewInsets(8 * density, hudTopReserve * LANDSCAPE_TOP_SHARE, 8 * density, hudBottomReserve)
+            ViewInsets(8 * density, hudTopReserve * LANDSCAPE_TOP_SHARE, 8 * density, toolbar)
         } else {
-            ViewInsets(8 * density, hudTopReserve, 8 * density, hudBottomReserve)
+            ViewInsets(8 * density, hudTopReserve, 8 * density, toolbar)
         }
         val safe = safeInsets
         val inside = ViewInsets(insets.left + safe.left, insets.top + safe.top, insets.right + safe.right, insets.bottom + safe.bottom)
@@ -4222,6 +5338,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         framedArea = world.unlocked
         framedNodes = world.nodes.size
         framedCables = world.cables.size
+        framedToolbar = toolbarKey()
         growthHintPending = false
     }
 
@@ -4231,6 +5348,15 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         /** World-unit size (dp) above which an incident's countdown pin grows with the zoom, and its largest growth. */
         const val PIN_UNIT_DP = 36f
         const val PIN_MAX_SCALE = 1.8f
+        /** Diameter of an off-screen chip, a full touch target; at most this many show, each trying this many slides. */
+        const val OFFSCREEN_CHIP_DP = 48f
+        const val MAX_OFFSCREEN_CHIPS = 4
+        const val OFFSCREEN_SLIDES = 8
+        /** The view's edge an off-screen chip sits on, for its TalkBack label ([Texts.offscreen]). */
+        const val SIDE_LEFT = 0
+        const val SIDE_TOP = 1
+        const val SIDE_RIGHT = 2
+        const val SIDE_BOTTOM = 3
         /** Cells of ground the tutorial's framing keeps around its devices. */
         const val TUTORIAL_MARGIN = 1
         /** The part of [insets] the HUD must keep clear of: the display cutout, in pixels. */
@@ -4255,7 +5381,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         const val TRAIL_SPACING = 0.2f
         const val MAX_TRAIL = 256
         const val HINT_SECONDS = 2.5f
-        /** Lines a long hint (or one in large text) wraps into above the bottom buttons. */
+        /** An error hint stays at least this long: why an action was refused is worth reading. */
+        const val ERROR_HINT_SECONDS = 4.5f
+        /**
+         * Lines a long hint (or one in large text) wraps into above the bottom buttons; one more for an explanation
+         * shown for [LONG_HINT_SECONDS], so its advice is not cut at 200 % text.
+         */
         const val MAX_HINT_LINES = 3
         /** Padding (dp) around the hint line's text inside its backdrop plate, and the plate's corner radius. */
         const val HINT_PAD_X_DP = 10f
@@ -4263,18 +5394,51 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         /** The hint plate's top and bottom padding where a full one would push the paused pill or view controls away. */
         const val HINT_PAD_TIGHT_DP = 1f
         const val HINT_RADIUS_DP = 12f
+        /** The error hint's "!" disc, as a share of the hint's text size, and its gap to the text (dp). */
+        const val HINT_MARK_SCALE = 1.15f
+        const val HINT_MARK_GAP_DP = 6f
         /** Seconds the view controls stay after the map last moved, and how long they then take to fade out. */
         const val VIEW_CONTROLS_SECONDS = 4f
         const val VIEW_CONTROLS_FADE_SECONDS = 0.6f
         /** How long the camera shows the failed device before the game-over card. */
         const val GAME_OVER_FOCUS_SECONDS = 1.6f
+        /** How long the failed device's callout takes to fade in at the start of the camera's glide. */
+        const val CALLOUT_FADE_SECONDS = 0.35f
+        const val CALLOUT_SHADOW = 0xFF000000.toInt()
+        /** Least height of the callout; it is no touch target (any tap skips the glide). */
+        const val CALLOUT_MIN_DP = 36f
         /** Longer hints: what a new service needs, why a device is stuck. */
         const val LONG_HINT_SECONDS = 4f
+        /**
+         * A coaching tip ([Coaching]) stays at least this long, and longer for a long text (seconds per character):
+         * it explains a mechanic in two sentences, and its second one is the advice.
+         */
+        const val COACH_HINT_SECONDS = 8f
+        const val COACH_SECONDS_PER_CHAR = 0.07f
+        /** Lines a coaching tip may wrap into, so its advice is not cut at 200 % text. */
+        const val COACH_HINT_LINES = MAX_HINT_LINES + 3
+        /** A coaching tip's widest card, and its accent stripe with the gap after it. */
+        const val COACH_MAX_W_DP = 440f
+        /** The least gap between the date's plate and the counters' plate side by side. */
+        const val HUD_PLATE_GAP_DP = 8f
+        const val COACH_STRIPE_DP = 12f
+        /** A coaching tip counts as read once it was on screen for this share of its time, even if a hint cut it short. */
+        const val COACH_READ_SHARE = 0.6f
+        /** The steps of the HUD's stock line ([HudTop.stockFit]): paint and lines, or none that fits. */
+        private const val STOCK_NONE = 0
+        private const val STOCK_FIRST_ONE = 1
+        private const val STOCK_SMALL_ONE = 2
+        private const val STOCK_FIRST_TWO = 3
+        private const val STOCK_SMALL_TWO = 4
+        /** Seconds between two looks for a due coaching tip. */
+        const val COACH_CHECK_SECONDS = 0.25f
         /** How long the servers a tapped device needs stay lit, and how long the highlight takes to fade in and out. */
         const val FOCUS_TAP_SECONDS = 2.8f
         const val FOCUS_FADE_SECONDS = 0.25f
         /** Between the servers a device needs in a hint ("PC braucht: Mail-Server · Game-Server"), in every language. */
         const val SERVER_LIST_SEPARATOR = " · "
+        /** Between the cable technologies a loss tip offers ("DSL / Koax / Glasfaser"). */
+        const val CABLE_CHOICE_SEPARATOR = " / "
         /** How long a tapped cable, server or router stays selected for the confirming second tap. */
         const val SELECT_SECONDS = 3f
         /** Requests waiting at one server before the game points out that tapping upgrades it. */
@@ -4284,6 +5448,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         const val COIN_COLOR = 0xFFF5C542.toInt()
         /** Gap between the toolbar's chips and tiles, and between its rows. */
         const val TOOL_GAP_DP = 10f
+        /** Least room between a cable chip's price badge and the "?" lifted above the cable row. */
+        const val BADGE_CLEAR_DP = 8f
         /** Room on each side of the divider between the cable and the network group. */
         const val GROUP_GAP_DP = 12f
         /** Between a group caption's descent and its row; the caption starts [CAPTION_INSET_DP] in from the row. */
@@ -4300,7 +5466,22 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         const val ACCESS_POINT_LED = 0xFF3BA55C.toInt()
         /** Full ports: the router tile's pulse and a red ghost cell; the map's alarm red. */
         const val PORTS_FULL_RED = 0xFFD7263D.toInt()
+        /**
+         * The budget line while it would not pay for a short cable ([budgetLow]): a dark amber, readable on the white
+         * plate and apart from [PORTS_FULL_RED] of the refusal flash for red-green colour blindness too.
+         */
+        const val BUDGET_LOW_TINT = 0xFFB25A00.toInt()
+        /** Thickness of the bar under a low budget ([budgetLow]), its cue beside the tint. */
+        const val BUDGET_LOW_PILL_PAD_DP = 4f
+        /** Cells of a short cable, the yardstick of [budgetLow]. */
+        const val SHORT_CABLE_CELLS = 5
+        /** Height of the week progress bar under the date. */
+        const val WEEK_BAR_DP = 6f
+        /** The budget and router count in a game without limits. */
+        private const val UNLIMITED = "∞"
         const val ROUTER_PULSE_SECONDS = 1.6f
+        /** How long the HUD's budget line flashes red after an action failed for lack of budget. */
+        const val BUDGET_FLASH_SECONDS = 1.2f
         const val SELECTION_COLOR = 0xFFFFC21A.toInt()
         const val COMPASS_NORTH = 0xFFD7263D.toInt()
         /** Gap between the pills of the view controls, side by side or in rows, in dp. */

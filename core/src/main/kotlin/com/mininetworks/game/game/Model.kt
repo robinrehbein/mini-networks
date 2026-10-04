@@ -154,6 +154,17 @@ class ServiceCheck(val service: Service, val problem: RouteProblem?, val pingMs:
  */
 class Failure(val node: Node, val service: Service, val problem: RouteProblem?, val pingMs: Float?)
 
+/**
+ * The one move the game-over card suggests against a [Failure] ([World.lossTip]): lay a cable from the unlinked device
+ * ([CONNECT]), put a router in front of a device whose ports are full ([ROUTER]), link the device to a server of the
+ * service it wanted ([NEEDS_SERVER]), mend what an incident cut or plan a second way around it ([REPAIR]), plan a way
+ * around a router a power outage switched off ([OUTAGE]), upgrade to a wider cable ([WIDER_CABLE]), take a shorter way
+ * or a faster cable against the ping ([FASTER_CABLE]), lay a second or a wider cable against a jam ([SECOND_CABLE]),
+ * upgrade the saturated server behind it ([UPGRADE_SERVER]) or, once it cannot grow, link a second one
+ * ([SECOND_SERVER]). [ROUTER] also covers a service whose servers have all their ports taken.
+ */
+enum class LossTip { CONNECT, ROUTER, NEEDS_SERVER, REPAIR, OUTAGE, WIDER_CABLE, FASTER_CABLE, SECOND_CABLE, UPGRADE_SERVER, SECOND_SERVER }
+
 /** What a week change brought: the UI shows it as "year · New: ...". */
 @Serializable
 data class WeekNews(
@@ -215,6 +226,20 @@ class Node(
 
     /** 0..1, game over when a client reaches 1. */
     var overload = 0f
+
+    /** 0..1: how full a client's queue is, 1 at [World.Tuning.MAX_PENDING] (its ring runs); 0 for other nodes. */
+    val pressure get() = if (kind == NodeKind.CLIENT) (pending.size / World.Tuning.MAX_PENDING.toFloat()).coerceAtMost(1f) else 0f
+
+    /** A client at [World.Tuning.PREWARN_PENDING] or more waiting requests: close to overload or already in it. */
+    val nearOverload get() = kind == NodeKind.CLIENT && pending.size >= World.Tuning.PREWARN_PENDING
+
+    /**
+     * Seconds a client has been held back by a full link on the route of its oldest routed request ([World.jamLink]),
+     * capped once it shows and counting down through [World.Tuning.JAM_HOLD] after the jam lets up; 0 while it is not
+     * jammed. See [World.isJammed]. Not saved: it builds up again within [World.Tuning.JAM_SECONDS].
+     */
+    var jamTime = 0f
+        internal set
 
     /** Server hardware tier 1..MAX_SERVER_LEVEL: more throughput, drawn as a taller stack; the top tier is a data center. */
     var level = 1
@@ -304,6 +329,13 @@ class Cable(
 
     /** [World.time] of the last upgrade to a better technology, for the upgrade effect; minus infinity if none. */
     var upgradedAt = Float.NEGATIVE_INFINITY
+        internal set
+
+    /**
+     * Above [World.Tuning.JAM_SECONDS] while this cable holds back a jammed client, counting down through
+     * [World.Tuning.JAM_HOLD] after; 0 otherwise (see [World.isJammed]). Not saved, like [Node.jamTime].
+     */
+    var jamTime = 0f
         internal set
 
     /**

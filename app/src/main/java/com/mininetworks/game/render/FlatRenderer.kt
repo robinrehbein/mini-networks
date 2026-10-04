@@ -65,6 +65,7 @@ class FlatRenderer : Renderer {
     private val openRect = RectF()
     private val radioScratch = ArrayList<Node>()
     private val labelBox = RectF()
+    private val queuePlate = RectF()
 
     /** Cell centers of the single river of the map with water signature [riverMap], top to bottom; empty if none. */
     private var riverMap = 0L
@@ -129,9 +130,7 @@ class FlatRenderer : Renderer {
             cableP.color = land; cableP.strokeWidth = cell * (lw + 0.12f); canvas.drawPath(path, cableP)
             cableP.color = st.color; cableP.strokeWidth = cell * lw; canvas.drawPath(path, cableP)
             st.core?.let { cableP.color = it; cableP.strokeWidth = cell * st.coreWidth * FLAT_LINE; canvas.drawPath(path, cableP) }
-            if (world.cableLoad(c) >= c.capacity) {
-                cableP.color = alarm and 0x80FFFFFF.toInt(); cableP.strokeWidth = cell * 0.05f; canvas.drawPath(path, cableP)
-            }
+            if (world.isJammed(c)) JamStyles.draw(canvas, path, cell * lw, time, c.type, cableP.pathEffect)
             if (world.isCut(c)) {
                 cutP.pathEffect = cutDash.get(cell * 0.12f, 0.7f, 0f)
                 cutP.strokeWidth = cell * st.width * 0.6f
@@ -230,9 +229,23 @@ class FlatRenderer : Renderer {
                 NodeKind.CLIENT -> {
                     val icon = maxOf(cell * 0.3f, ICON_MIN_DP * density)
                     icons.device(canvas, n.device!!, nx, ny, icon)
-                    val r = maxOf(cell * 0.08f, REQUEST_MIN_DP * density)
+                    // Close to overload the queue sits on an orange plate with a pip row of how full it is; it grows once full.
+                    val warn = QueueGauge.warns(n)
+                    val r = maxOf(cell * 0.08f, REQUEST_MIN_DP * density) * (if (QueueGauge.full(n)) QueueGauge.GROW else 1f)
                     val qx = nx + maxOf(cell * 0.52f, icon * 1.6f)
                     val qy = ny - cell * 0.12f
+                    if (warn) {
+                        val shown = minOf(n.pending.size, 8)
+                        val pip = QueueGauge.pip(r, density)
+                        queuePlate.set(qx - r * 1.5f, qy - r * 1.5f,
+                            maxOf(qx + (maxOf(shown, 1) - 1).coerceAtMost(3) * r * 2.75f + r * 1.5f, qx - r * 1.5f + QueueGauge.width(pip) + r * 1.6f),
+                            qy + ((maxOf(shown, 1) + 3) / 4 - 1) * r * 3f + r * 1.6f + pip * 2f + r * 0.6f)
+                        fillP.color = QueueGauge.fillColor(n)
+                        canvas.drawRoundRect(queuePlate, r * 1.5f, r * 1.5f, fillP)
+                        strokeP.color = QueueGauge.color(n); strokeP.strokeWidth = r * 0.25f
+                        canvas.drawRoundRect(queuePlate, r * 1.5f, r * 1.5f, strokeP)
+                        QueueGauge.draw(canvas, n, queuePlate.centerX(), queuePlate.bottom - r * 0.5f - pip, pip)
+                    }
                     for (i in 0 until minOf(n.pending.size, 8)) {
                         val svc = n.pending[i]
                         val px = qx + (i % 4) * r * 2.75f
@@ -244,7 +257,7 @@ class FlatRenderer : Renderer {
                             canvas.drawCircle(px, py, r * 1.45f, strokeP)
                         }
                     }
-                    ProblemBadges.of(world, n)?.let { ProblemBadges.draw(canvas, it, nx - icon * 1.25f, ny - icon * 1.1f, r * 1.9f) }
+                    ProblemBadges.drawFor(canvas, world, n, ProblemBadges.of(world, n), nx - icon * 1.25f, ny - icon * 1.1f, r * 1.9f)
                     if (n.overload > 0f) {
                         arcRect.set(nx - cell * 0.48f, ny - cell * 0.48f, nx + cell * 0.48f, ny + cell * 0.48f)
                         strokeP.color = alarm; strokeP.strokeWidth = maxOf(cell * 0.07f, RING_MIN_DP * density)
@@ -253,7 +266,8 @@ class FlatRenderer : Renderer {
                     // Plates keep clear of the device, its queue, its badge and its overload ring.
                     val reach = maxOf(icon * 1.3f, cell * 0.55f)
                     val queueRight = if (n.pending.isEmpty()) nx + reach else qx + (minOf(n.pending.size, 4) - 1) * r * 2.75f + r * 1.5f
-                    serverLabels.obstacle(nx - icon * 1.25f - r * 2.5f, ny - maxOf(reach, icon * 1.1f + r * 2.5f), maxOf(nx + reach, queueRight), ny + reach, hardEdge = true)
+                    val queueBottom = if (warn) queuePlate.bottom else ny + reach
+                    serverLabels.obstacle(nx - icon * 1.25f - r * 2.5f, ny - maxOf(reach, icon * 1.1f + r * 2.5f), maxOf(nx + reach, queueRight), maxOf(ny + reach, queueBottom), hardEdge = true)
                 }
             }
             if (n.kind != NodeKind.SERVER && n.kind != NodeKind.CLIENT) {
@@ -269,6 +283,8 @@ class FlatRenderer : Renderer {
             val nx = screenX(c.x, c.y); val ny = screenY(c.x, c.y)
             val k = if (n.isDataCenter) 2f else 1f
             PortDots.draw(canvas, world, n, nx, ny + cell * 0.46f * k, cell, density, e, nx, ny, cell * 0.55f * k, cell * 0.55f * k)
+            // A server's name plate never hides its free ports.
+            if (n.kind == NodeKind.SERVER) PortDots.lastRow.let { serverLabels.obstacle(it.left, it.top, it.right, it.bottom, hardEdge = true) }
         }
 
         for (n in world.nodes) {
@@ -304,13 +320,13 @@ class FlatRenderer : Renderer {
                 DragJuice.bubble(
                     canvas, it, d.detail, s.x, s.y, maxOf(cell * 0.9f, 40f * density), maxOf(cell * 0.38f, LABEL_MIN_DP * 1.2f * density), density,
                     if (d.blocked) alarm else ink, if (d.detailWarning) alarm else ink, col,
-                    DragJuice.bounds(canvas, camera.insets),
+                    DragJuice.bounds(canvas, camera.insets), avoid = serverLabels,
                 )
                 DragJuice.lastBubble.let { b -> serverLabels.obstacle(b.left, b.top, b.right, b.bottom, hardEdge = true) }
             }
         }
         // Flat cells are about half as wide as iso tiles for the same view: the plates count them double.
-        serverLabels.draw(canvas, camera, serverLabels.visibility(cell * FLAT_LABEL_ZOOM, density), density, time)
+        serverLabels.draw(canvas, camera, serverLabels.visibility(cell * FLAT_LABEL_ZOOM, density, atFramedZoom), density, time)
     }
 
     /**

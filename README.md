@@ -22,7 +22,13 @@ ausgewähltes Kabel neu verlegen: Griff an einem Ende auf einen anderen Knoten z
 (bezahlt/erstattet wird nur die Preisdifferenz) · Kabel lange drücken = auswählen und nächstes Ende greifen ·
 Router, WLAN und Mast unter „Netzwerk“ aufs Feld ziehen (oder antippen, dann ein freies Feld antippen) ·
 die Punkte unter jedem Gerät sind seine Anschlüsse (● belegt, ○ frei: PC 2, Server 4, Router 6); sind sie voll,
-kommt ein Router dazwischen · „Pause“ oder Zurück öffnet das Pause-Menü ·
+kommt ein Router dazwischen · Server antippen = Vorschau mit Preis, nochmal antippen = aufrüsten ·
+gekapptes Kabel antippen = reparieren · Gerät antippen = warum es hängt (seine Server leuchten auf) ·
+WLAN antippen = Kanal wechseln, halten = 5 GHz · Mast antippen = Vorschau, nochmal = nächste Generation ·
+„Pause“ hält die Uhr an (weiterbauen geht), Menü-Knopf oder Zurück öffnet das Pause-Menü ·
+„?“ unten öffnet die Legende („Was ist was?“) direkt aus dem Spiel ·
+Hinweise: abgelehnte Aktionen stehen auf einer roten Platte mit „!“, einmalige Tipps erklären eine Mechanik, wenn sie
+zum ersten Mal zählt, und die Game-Over-Karte nennt neben dem Grund einen Tipp für die nächste Partie ·
 Kamera: ziehen oder zwei Finger = verschieben, spreizen = zoomen, zwei Finger drehen = Karte drehen (rastet in
 45°-Schritten ein: vier Ecken, vier Seiten), zwei Finger nebeneinander hoch/runter ziehen = flacher/steiler neigen;
 die Knöpfe oben rechts drehen um 45° (⟲ ⟳), der Kompass dreht zurück nach Norden, die Würfel neigen flacher/steiler

@@ -106,6 +106,11 @@ class Camera {
 
     /** True while the view follows the fitted area (set by [fit]); any zoom or pan by the player clears it. */
     var followsArea = true; private set
+    /**
+     * The zoom floor of the latest automatic framing ([Renderer.framingMinScale]), kept so the draw path can tell
+     * without any work whether the player zoomed out beyond it ([Renderer.atFramedZoom]).
+     */
+    var framingFloor = 0f
 
     private var animating = false
     private var targetScale = 1f
@@ -145,6 +150,17 @@ class Camera {
         this.insets = insets
     }
 
+    /**
+     * Changes the [insets] while every map point keeps its screen position: the focus moves with the viewport's
+     * centre, so the picture does not jump (a following [fit] then glides to a new framing).
+     */
+    fun setInsetsKeepingView(insets: ViewInsets) {
+        val x = centerX; val y = centerY
+        this.insets = insets
+        focusX += (centerX - x) / scale
+        focusY += (centerY - y) / scale
+    }
+
     fun setZoomRange(min: Float, max: Float) {
         minScale = min
         maxScale = maxOf(min, max)
@@ -175,6 +191,12 @@ class Camera {
 
     /** World units -> screen pixels. */
     fun worldToScreen(p: Vec2): Vec2 = toScreen(worldToMap(p.x, p.y))
+
+    /** Screen x of world point ([x], [y]), as [worldToScreen] but without allocating; for per-frame loops. */
+    fun worldToScreenX(x: Float, y: Float) = toScreenX(projection.projectX(turnX(x, y), turnY(x, y)))
+
+    /** Screen y of world point ([x], [y]), as [worldToScreen] but without allocating. */
+    fun worldToScreenY(x: Float, y: Float) = toScreenY(projection.projectY(turnX(x, y), turnY(x, y)))
 
     /** Screen pixels -> world units; the inverse of [worldToScreen]. */
     fun screenToWorld(sx: Float, sy: Float): Vec2 = toMap(sx, sy).let { mapToWorld(it.x, it.y) }

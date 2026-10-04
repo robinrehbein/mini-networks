@@ -157,7 +157,7 @@ class IsoRenderer : Renderer {
      */
     override fun mapBounds(area: CellRect, angle: Float, tilt: Float): MapRect {
         val grow = Camera.liftOf(tilt) / Camera.liftOf(Camera.DEFAULT_TILT) - 1f
-        return turnedBounds(area, angle, IsoProjection(Camera.squashOf(tilt)), 0.3f, 1.1f + 0.75f * grow, 0.4f, 0.4f + 0.25f * grow)
+        return turnedBounds(area, angle, IsoProjection(Camera.squashOf(tilt)), 0.3f, 1.35f + 0.75f * grow, 0.4f, 0.4f + 0.25f * grow)
     }
 
     /** Screen x of world point ([x], [y]) on the ground: turned by the camera's angle, then squashed. */
@@ -213,11 +213,17 @@ class IsoRenderer : Renderer {
         drawWaterShimmer(canvas, world, time)
 
         preparePacketSprites()
-        for (c in world.cables) {
+        val cables = world.cables
+        for (k in cables.indices) {
+            val c = cables[k]
             val grow = growth(world, c)
             // Laid, uncut cables are part of the cached ground layer ([drawStaticCables]); only growing or cut ones
-            // are drawn here every frame.
+            // are drawn here every frame. A jammed cable pulses amber under its packets, so the queue stays visible.
             if (isStatic(world, c, grow)) {
+                if (world.isJammed(c)) {
+                    polyline(cablePath(c))
+                    drawJam(canvas, c, time)
+                }
                 drawCableJuice(canvas, world, c)
                 continue
             }
@@ -229,6 +235,7 @@ class IsoRenderer : Renderer {
                 cutP.strokeWidth = tw * st.width * 0.6f
                 canvas.drawPath(path, cutP)
             }
+            if (world.isJammed(c)) drawJam(canvas, c, time)
             if (grow < 1f) drawCableTip(canvas, c, grow)
             drawCableJuice(canvas, world, c)
         }
@@ -339,12 +346,12 @@ class IsoRenderer : Renderer {
                 DragJuice.bubble(
                     canvas, it, d.detail, sx(end.x, end.y), sy(end.x, end.y), maxOf(th * 2.2f, 40f * density), size, density,
                     if (d.blocked) alarm else 0xFF2F3A34.toInt(), if (d.detailWarning) alarm else 0xFF5B6674.toInt(), col,
-                    DragJuice.bounds(canvas, camera.insets),
+                    DragJuice.bounds(canvas, camera.insets), avoid = serverLabels,
                 )
                 DragJuice.lastBubble.let { b -> serverLabels.obstacle(b.left, b.top, b.right, b.bottom, hardEdge = true) }
             }
         }
-        serverLabels.draw(canvas, camera, serverLabels.visibility(tw, density), density, time)
+        serverLabels.draw(canvas, camera, serverLabels.visibility(tw, density, atFramedZoom), density, time)
     }
 
     /**
@@ -357,6 +364,8 @@ class IsoRenderer : Renderer {
         val x = sx(c.x, c.y); val y = sy(c.x, c.y)
         val k = if (n.isDataCenter) 2f else 1f
         PortDots.draw(canvas, world, n, x, y + th * 0.5f * k, unitPx, density, e, x, y, tw * 0.5f * k, th * 0.5f * k)
+        // A server's name plate never hides its free ports.
+        if (n.kind == NodeKind.SERVER) PortDots.lastRow.let { serverLabels.obstacle(it.left, it.top, it.right, it.bottom, hardEdge = true) }
     }
 
     /**
@@ -1535,18 +1544,27 @@ class IsoRenderer : Renderer {
                 canvas.restore()
                 // Waiting requests in a speech bubble centered over the device, its tail pointing down at it: it reads
                 // as "this device wants ..." and stays inside the device's own column instead of reaching into the
-                // neighbour's (playtest). A red outline marks one that is stuck (ping, bandwidth).
-                val r = maxOf(tw * 0.12f, REQUEST_MIN_DP * 1.56f * density)
+                // neighbour's (playtest). A red outline marks one that is stuck (ping, bandwidth). Close to overload the
+                // bubble turns orange and shows a pip row of how full the queue is ([QueueGauge]); it grows once full.
+                val warn = QueueGauge.warns(n)
+                val r = maxOf(tw * 0.12f, REQUEST_MIN_DP * 1.56f * density) * (if (QueueGauge.full(n)) QueueGauge.GROW else 1f)
                 // One tidy row: up to [MAX_QUEUE] tokens, then a dark count badge for the rest.
                 val total = n.pending.size
                 val count = minOf(total, MAX_QUEUE)
                 val slots = if (total > count) count + 1 else count
                 val step = r * 2.6f
                 val pad = r * 0.8f
-                val qy = sy(x, y, 0.2f) - icon * 2.2f - r - pad - r * 0.7f
+                val pip = QueueGauge.pip(r, density)
+                val gaugeH = if (warn) pip * 2f + pad * 0.5f else 0f
+                val qy = sy(x, y, 0.2f) - icon * 2.2f - r - pad - r * 0.7f - gaugeH
                 val qx = sx(x, y) - (slots - 1) * step / 2f
                 if (slots > 0) {
-                    oval.set(qx - r - pad, qy - r - pad, qx + (slots - 1) * step + r + pad, qy + r + pad)
+                    oval.set(qx - r - pad, qy - r - pad, qx + (slots - 1) * step + r + pad, qy + r + pad + gaugeH)
+                    if (warn) {
+                        // Wide enough for the pip row, even with few tokens left while the ring drains.
+                        val half = maxOf(oval.width(), QueueGauge.width(pip) + pad * 2f) / 2f
+                        oval.left = sx(x, y) - half; oval.right = sx(x, y) + half
+                    }
                     val corner = r + pad
                     val tip = r * 0.7f
                     path.reset()
@@ -1557,14 +1575,17 @@ class IsoRenderer : Renderer {
                     // A soft drop shadow and a thin darker rim lift the bubble off the pale ground.
                     oval.offset(0f, r * 0.45f); fillP.color = 0x40000000; canvas.drawRoundRect(oval, corner, corner, fillP)
                     oval.offset(0f, -r * 0.45f)
-                    strokeP.color = PILL_RIM; strokeP.strokeWidth = maxOf(1f, r * 0.14f)
+                    val face = if (warn) QueueGauge.fillColor(n) else 0xFFFFFFFF.toInt()
+                    strokeP.color = if (warn) QueueGauge.color(n) else PILL_RIM
+                    strokeP.strokeWidth = maxOf(1f, r * (if (warn) 0.2f else 0.14f))
                     canvas.drawPath(path, strokeP)
-                    fillP.color = 0xFAFFFFFF.toInt(); canvas.drawRoundRect(oval, corner, corner, fillP)
-                    fillP.color = 0xFFFFFFFF.toInt(); canvas.drawPath(path, fillP)
+                    fillP.color = if (warn) face else 0xFAFFFFFF.toInt(); canvas.drawRoundRect(oval, corner, corner, fillP)
+                    fillP.color = face; canvas.drawPath(path, fillP)
                     canvas.drawRoundRect(oval, corner, corner, strokeP)
                     // The tail joins the bubble without a seam.
-                    fillP.color = 0xFFFFFFFF.toInt()
+                    fillP.color = face
                     canvas.drawRect(sx(x, y) - tip + strokeP.strokeWidth, oval.bottom - strokeP.strokeWidth * 1.5f, sx(x, y) + tip - strokeP.strokeWidth, oval.bottom + 1f, fillP)
+                    if (warn) QueueGauge.draw(canvas, n, sx(x, y), qy + r + pad * 0.75f + pip, pip)
                 }
                 var badge: RouteProblem? = null
                 for (i in 0 until count) {
@@ -1590,10 +1611,13 @@ class IsoRenderer : Renderer {
                     labelP.color = 0xFFFFFFFF.toInt(); labelP.textSize = r * (if (total - count > 9) 1.25f else 1.55f)
                     canvas.drawText("+${total - count}", bx, qy + labelP.textSize * 0.36f, labelP)
                 }
-                // The problem badge hangs at the bubble's left end: what is wrong, next to what is waiting.
-                badge?.let { ProblemBadges.draw(canvas, it, qx - r - pad - r * 1.9f, qy, r * 1.6f) }
+                // The problem badge hangs at the bubble's left end: what is wrong, next to what is waiting. Without a
+                // bubble it hangs at the same height over the device.
+                val badgeX = if (slots > 0) oval.left - r * 1.9f else sx(x, y) - r * 2.6f
+                val badged = ProblemBadges.drawFor(canvas, world, n, badge, badgeX, qy, r * 1.6f)
                 // Plates keep clear of the device, its bubble, its badge and its overload ring.
-                if (slots > 0) serverLabels.obstacle(oval.left - (if (badge != null) r * 3.6f else 0f), oval.top, oval.right, oval.bottom + r * 0.7f, hardEdge = true)
+                if (slots > 0) serverLabels.obstacle(oval.left - (if (badged) r * 3.6f else 0f), oval.top, oval.right, oval.bottom + r * 0.7f, hardEdge = true)
+                else if (badged) serverLabels.obstacle(badgeX - r * 2f, qy - r * 2f, badgeX + r * 2f, qy + r * 2f, hardEdge = true)
                 val b = groundBox(x, y, if (n.overload > 0f) 0.62f else 0.3f, sy(x, y, 0.2f) - icon * 2.1f)
                 b.union(bx - icon * 1.3f, b.top, bx + icon * 1.3f, b.bottom)
                 serverLabels.obstacle(b.left, b.top, b.right, b.bottom, hardEdge = true)
@@ -2169,6 +2193,13 @@ class IsoRenderer : Renderer {
 
     private fun polyline(pts: List<Vec2>) {
         path.reset()
-        pts.forEachIndexed { i, p -> if (i == 0) path.moveTo(sx(p.x, p.y), sy(p.x, p.y)) else path.lineTo(sx(p.x, p.y), sy(p.x, p.y)) }
+        for (i in pts.indices) {
+            val p = pts[i]
+            if (i == 0) path.moveTo(sx(p.x, p.y), sy(p.x, p.y)) else path.lineTo(sx(p.x, p.y), sy(p.x, p.y))
+        }
     }
+
+    /** The amber jam halo ([JamStyles]) along [path], which holds cable [c]. */
+    private fun drawJam(canvas: Canvas, c: Cable, time: Float) =
+        JamStyles.draw(canvas, path, tw * (CableStyles.of(c.type).width * 0.75f + 0.08f), time, c.type)
 }

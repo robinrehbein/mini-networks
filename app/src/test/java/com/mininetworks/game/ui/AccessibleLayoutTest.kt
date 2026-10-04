@@ -3,10 +3,14 @@ package com.mininetworks.game.ui
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.RectF
+import android.view.MotionEvent
 import com.mininetworks.game.data.SettingsStore
 import com.mininetworks.game.game.CableSkin
+import com.mininetworks.game.game.CableType
 import com.mininetworks.game.game.ColorTheme
 import com.mininetworks.game.game.DebugApi
+import com.mininetworks.game.game.Device
+import com.mininetworks.game.game.Service
 import com.mininetworks.game.game.World
 import com.mininetworks.game.monetization.Entitlements
 import com.mininetworks.game.games.FakeGameServices
@@ -61,8 +65,8 @@ class AccessibleLayoutTest {
     fun hudTargetsAreLargeAndApartInEveryFormat() = everywhere { size, view, bmp ->
         view.drawSnapshot(Canvas(bmp), FormFactorScreenshotTest.busyHud(), bmp.width, bmp.height, time = 1.3f, style = "Iso")
         val nodes = view.accessibilityLayer.nodes.filter { it.key != "hud:map" }
-        // Menu, pause, router, two radios, four cable types, and the view controls: turn both ways, compass, tilt both ways.
-        check(size, "hud", nodes, expectedActions = 14)
+        // Menu, pause, the legend's "?", router, two radios, four cable types, and the view controls: turn both ways, compass, tilt both ways.
+        check(size, "hud", nodes, expectedActions = 15)
     }
 
     /** docs/TOP100.md B5: with the map turned, the view controls below the counters stay apart from everything else. */
@@ -75,7 +79,7 @@ class AccessibleLayoutTest {
         view.drawCurrent(Canvas(bmp))
         val nodes = view.accessibilityLayer.nodes.filter { it.key != "hud:map" }
         assertTrue("${size}: compass shown", nodes.any { it.key == "hud:compass" })
-        check(size, "hud-compass", nodes, expectedActions = 14)
+        check(size, "hud-compass", nodes, expectedActions = 15)
     }
 
     @Test
@@ -90,7 +94,7 @@ class AccessibleLayoutTest {
         val nodes = view.accessibilityLayer.nodes.filter { it.key != "hud:map" }
         assertTrue("${size}: paused banner shown", nodes.any { it.key == "hud:paused" })
         assertTrue("${size}: hint shown", nodes.any { it.key == "hud:hint" })
-        check(size, "hud-paused", nodes, expectedActions = 9 + viewControls(size, nodes))
+        check(size, "hud-paused", nodes, expectedActions = 10 + viewControls(size, nodes))
     }
 
     @Test
@@ -145,6 +149,53 @@ class AccessibleLayoutTest {
             Cosmetic.reset()
         }
         RuntimeEnvironment.setQualifiers("+de")
+    }
+
+    /**
+     * The explanation a tap on a troubled device gives (a jam on a full cable, a service with no server on its network)
+     * keeps its advice: never cut with "…" in any language on a 360 dp wide portrait phone at 200 % text.
+     */
+    @Test
+    fun deviceProblemHintsAreNeverCutAtLargeText() {
+        val cuts = ArrayList<String>()
+        for (lang in LANGUAGES) {
+            RuntimeEnvironment.setQualifiers("$lang-w360dp-h800dp-port-xxhdpi")
+            RuntimeEnvironment.setFontScale(2f)
+            for (jam in listOf(true, false)) {
+                val world = World(seed = 2L, spawnInitialNodes = false)
+                world.incidentsEnabled = false
+                for (row in world.water) row.fill(false)
+                world.grant(500)
+                val u = world.unlocked
+                val pc = world.addClient(Device.PC, u.left + 2, u.top + 2)
+                val mail = world.addServer(Service.MAIL, u.left + 6, u.top + 2)
+                assertTrue(world.connect(pc, mail, CableType.ISDN))
+                if (jam) {
+                    var t = 0f
+                    while (t < World.Tuning.JAM_SECONDS * 2) {
+                        while (pc.pending.size < 3) pc.pending.addLast(Service.MAIL)
+                        world.update(0.1f)
+                        t += 0.1f
+                    }
+                    assertTrue(world.isJammed(pc))
+                } else {
+                    world.addServer(Service.GAMING, u.right - 2, u.bottom - 2)
+                }
+                val view = GameView(app)
+                view.accessibilityLayer.forceActive = true
+                val bmp = Bitmap.createBitmap(1080, 2400, Bitmap.Config.ARGB_8888)
+                view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 1.3f, style = "Iso")
+                val p = view.activeRenderer.toScreen(pc.center)
+                view.injectTouch(MotionEvent.ACTION_DOWN, p.x, p.y)
+                view.injectTouch(MotionEvent.ACTION_UP, p.x, p.y)
+                view.drawCurrent(Canvas(bmp))
+                val hint = view.accessibilityLayer.nodes.singleOrNull { it.key == "hud:hint" }
+                if (hint == null) cuts += "$lang: no hint" else if (hint.shortened) cuts += "$lang: ${hint.text}"
+            }
+        }
+        RuntimeEnvironment.setFontScale(1f)
+        RuntimeEnvironment.setQualifiers("de")
+        assertTrue("hints cut with …:\n${cuts.joinToString("\n")}", cuts.isEmpty())
     }
 
     /**
@@ -264,7 +315,7 @@ class AccessibleLayoutTest {
         view.drawCurrent(Canvas(bmp))
         val nodes = view.accessibilityLayer.nodes.filter { it.key != "hud:map" }
         // Skip, and the HUD: menu, pause, router, ISDN.
-        check(size, "tutorial", nodes, expectedActions = 5)
+        check(size, "tutorial", nodes, expectedActions = 6)
         SettingsStore(app).tutorialSeen = true
     }
 
@@ -280,13 +331,13 @@ class AccessibleLayoutTest {
                 val where = "$lang, $size"
                 val world = FormFactorScreenshotTest.busyHud()
                 view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 1.3f, style = "Iso")
-                check(where, "hud", view.accessibilityLayer.nodes.filter { it.key != "hud:map" }, expectedActions = 14)
+                check(where, "hud", view.accessibilityLayer.nodes.filter { it.key != "hud:map" }, expectedActions = 15)
                 view.accessibilityLayer.performAction(view.accessibilityLayer.idOf("hud:pause"), android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK, null)
                 view.accessibilityLayer.performAction(view.accessibilityLayer.idOf("hud:cable:FIBER"), android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK, null)
                 view.advance(0f)
                 view.drawCurrent(Canvas(bmp))
                 val paused = view.accessibilityLayer.nodes.filter { it.key != "hud:map" }
-                check(where, "hud-paused", paused, expectedActions = 9 + viewControls(where, paused))
+                check(where, "hud-paused", paused, expectedActions = 10 + viewControls(where, paused))
                 val reward = GameView(app).also { it.accessibilityLayer.forceActive = true; it.monetization = FakeMonetization(owned = mutableSetOf(Entitlements.REMOVE_ADS)) }
                 bmp.eraseColor(0)
                 reward.drawSnapshot(Canvas(bmp), FormFactorScreenshotTest.rewardWorld(), bmp.width, bmp.height, time = 1.3f, style = "Iso")
@@ -298,7 +349,7 @@ class AccessibleLayoutTest {
                 tutorial.drawSnapshot(Canvas(bmp), w, bmp.width, bmp.height, time = 0.3f, screen = null)
                 tutorial.advance(0.5f)
                 tutorial.drawCurrent(Canvas(bmp))
-                check(where, "tutorial", tutorial.accessibilityLayer.nodes.filter { it.key != "hud:map" }, expectedActions = 5)
+                check(where, "tutorial", tutorial.accessibilityLayer.nodes.filter { it.key != "hud:map" }, expectedActions = 6)
                 SettingsStore(app).tutorialSeen = true
             }
         }

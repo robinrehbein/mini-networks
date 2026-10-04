@@ -3,7 +3,8 @@
 Ein gieriger Spieler (`GreedyBot` in den `:core`-Tests) spielt jede Szenerie mit festen Seeds, bis ein Gerät
 überläuft. Er misst, wie viele Wochen er überlebt und wie viele Pakete er zustellt (die Punktzahl des Spiels). Die Werte in
 `World.Tuning`, `CableType`, `Service` und je Szenerie (`Scenarios`) sind so gestellt, dass der ausgewogene Bot in der
-ersten Szenerie im Median 8–14 Wochen schafft und jede spätere Szenerie messbar schwerer ist. Einseitige Bots (nur eine
+ersten Szenerie im Median 8–14 Wochen schafft und jede spätere Szenerie messbar schwerer ist; derselbe Bot im Tempo eines
+Menschen (`BotStrategy.HUMAN`) schafft dort im Median mindestens 7 Wochen. Einseitige Bots (nur eine
 Kabelsorte, nur Funk) zeigen, dass es keine dominante Strategie gibt, und ein Wochenplan (`WeekSchedule`) sorgt dafür, dass
 jede Woche bis Woche 12 etwas Neues bringt.
 
@@ -14,6 +15,7 @@ jede Woche bis Woche 12 etwas Neues bringt.
 | G1 Überlebenszeit | Median der Wochen des ausgewogenen Bots in der Kleinstadt über 20 Seeds (1–20, parallel gespielt) liegt in 8–14 | `BalancingTest.firstSceneryLastsEightToFourteenWeeks` |
 | G1 „messbar schwerer“ | In Menü-Reihenfolge (Kleinstadt, Großstadt, Insel & Hafen, Bergdorf, Zukunft 2030) liegt der Median jeder Szenerie **mindestens 0,5 Wochen** unter dem der Szenerie davor (`HARDER_BY`) | `BalancingTest.everySceneryIsHarderThanTheOneBefore` |
 | G2 „klar schlechter“ | Der Median der Punktzahl (zugestellte Pakete) **jedes** einseitigen Bots liegt **mindestens 20 % unter** dem des ausgewogenen Bots (`ONE_SIDED_GAP`), gemessen in der Kleinstadt und in Zukunft 2030 (dort ist jede Kabelsorte und jeder Funk ab dem Start da, kein einseitiger Bot wird vom Kalender benachteiligt); die Tabelle unten zeigt alle Szenerien | `BalancingTest.oneSidedBotsScoreClearlyLower` |
+| Fair für Menschen (T-Human) | Der Bot im Spieltempo (`BotStrategy.HUMAN`, eine Entscheidung alle 2,5 s) schafft in der Kleinstadt im Median über 20 Seeds **mindestens 7 Wochen** (`HUMAN_MIN_MEDIAN_WEEKS`) und verliert mit den Wächter-Seeds 1–3 keine Partie vor Woche 4 | `BalancingTest.humanBotLastsLongEnough` |
 | G3 Wochen-Inhalte | Jede Woche 1–12 bringt eine Technik, ein Gerät, einen Dienst oder ein Ereignis (`WeekSchedule.content`, den auch `World` beim Wochenwechsel nutzt) | `WeekScheduleTest` |
 
 Die Läufe sind deterministisch; die ausgewogenen Partien werden einmal je Testlauf gespielt und von den Tests geteilt
@@ -46,6 +48,44 @@ Die einseitigen Bots (G2) sind derselbe Bot mit Einschränkungen:
 
 Ein Mensch baut sauberere Netze; der ausgewogene Bot ist die untere Messlatte.
 
+## Was in T-Human geändert wurde
+
+Rückmeldung aus dem Probespiel: „Es ist sehr schwer, überhaupt weit zu kommen.“ Die Schwierigkeit war nur am ausgewogenen Bot
+gestellt, der alle 0,5 s die ganze Karte sieht. Entscheidung: keine Schwierigkeitsstufen, sondern „Normal“ fair für Menschen.
+Gemessen mit dem Bot im Spieltempo (`BotStrategy.HUMAN`, siehe unten); Ziel: Kleinstadt im Median 7–10 Wochen, kein Wächter-Seed
+vor Woche 4 verloren, Reihenfolge der Szenerien (G1) und G2 halten.
+
+Der Bot im Spieltempo kam schon vorher auf 9,2 Wochen: Langsamkeit allein erklärt den Frust nicht. Ein Mensch übersieht aber ein
+neues Gerät, reagiert später auf eine Störung und rettet ein Gerät erst, wenn sein Ring schon fast voll ist. Die Änderungen zielen
+darum auf genau diese Momente und lassen das Spätspiel (Staus ab Woche 8–10), an dem beide Bots scheitern, wie es ist.
+
+| Wert | vorher | jetzt | Warum |
+|---|---|---|---|
+| Fairer Start `EARLY_WEEKS` (Geräte nur, wo direkt erreichbar; Ringe füllen sich halb so schnell) | 2 Wochen | 3 Wochen | Woche 3 war eine Klippe: Schonfrist vorbei, erste Störungen, Konsolen mit 140 ms Gaming und der erste Kartenring kamen zusammen. Woche 3 bringt jetzt nur noch Konsole, Gaming und den Kartenring, noch mit Schonfrist. Dafür endet die Schonfrist in Woche 4, zusammen mit der ersten Störung, Streaming und Fernsehern (siehe nächste Zeile): Die Klippe ist eine Woche später und kleiner, aber nicht aufgelöst |
+| Erste Störungen `Incidents.FIRST_WEEK` | Woche 3 | Woche 4 (zwei je Woche ab Woche 10 statt 9) | Wie oben: Woche 3 bringt mit TV-Kabel, Konsole und Gaming schon genug; G3 hält, Woche 4 bringt dafür Fernseher, Streaming **und** die erste Störung, dazu volles Ring-Tempo. Gemessen, um das zu entzerren: erste Störung in Woche 5 macht die Insel (9,5 Wochen) leichter als die Großstadt (9,0); eine auslaufende Schonfrist in Woche 4 (Ringe 1,5- bzw. 1,25-mal langsamer) hebt Zukunft 2030 auf 6,4 Wochen, nicht mehr 0,5 unter dem Bergdorf (6,7); beides verletzt G1. Erste Störung schon in Woche 3 (noch in der Schonfrist) hält G1, senkt aber den Bot im Spieltempo (Kleinstadt 9,4, Insel 5,6, Zukunft 2030 4,5 Wochen, schlechter als vor T-Human). Darum bleibt es bei Woche 4; die längere Vorwarnung gilt ab der ersten Störung |
+| Vorwarnung `Incidents.WARNING_SECONDS` | 5 s | 8 s | Ein Mensch muss die Ankündigung erst sehen, dann das Kabel finden und einen Umweg legen; 5 s reichten dem Bot, kaum einem Spieler. Für die Bots fast ohne Wirkung |
+| Ring leeren `RECOVER_SECONDS` | 30 s | 15 s | Ein Gerät, das man im letzten Moment rettet, war noch eine halbe Minute lang gefährdet: Die nächste Spitze schloss den Ring trotzdem. Die Bot-Mediane ändern sich dadurch nicht messbar (beide Bots retten selten erst im letzten Moment), für Menschen ist es der häufigste Fall. Gewollte Nebenwirkung: Ein Gerät, das immer wieder an der Grenze `MAX_PENDING` hängt, läuft erst über, wenn es mehr als 15 / (15 + 18) ≈ 45 % der Zeit dort hängt (vorher 18 / 48 = 37,5 %), in den Wochen mit Schonfrist erst ab 36 / 51 ≈ 70 % (vorher 36 / 66 ≈ 55 %). Ein dauerhaft knappes Kabel hält also etwas länger durch, bevor man aufrüsten muss |
+| Anfragen ohne Route (`World.queueHasRoom`) | stauten sich ohne Ende | höchstens bis `MAX_PENDING`, weitere gehen verloren | Ein vergessenes Gerät sammelte Dutzende Anfragen; wurde es dann verkabelt, lief sein Ring weiter, bis der ganze Rückstau abgearbeitet war, und der Stoß verstopfte das neue Kabel. Jetzt bringt die erste gesendete Anfrage es unter die Grenze. Ein nie verbundenes Gerät erreicht die Grenze weiter und läuft genauso schnell über wie vorher: Geräte zu ignorieren lohnt sich nicht (`WorldTest.unroutedRequestsStopAtTheQueueLimit`). Anfragen *mit* Route stauen sich weiter unbegrenzt, das ist der Stau, den der Ring misst |
+| Überlast-Zeit `OVERLOAD_SECONDS` | 18 s | 18 s (unverändert) | Gemessen: 22 s (bzw. 25 s) hoben den Bot im Spieltempo in der Kleinstadt auf 10,3 (10,4) Wochen, über das Ziel von höchstens 10, und halfen den späten Szenerien mehr als der ersten (Zukunft 2030 5,8 → 6,5 bzw. 7,2 Wochen, vor dem Bergdorf mit 6,8: G1 verletzt). Die Schonfrist der ersten drei Wochen verdoppelt die Zeit ohnehin dort, wo Menschen am meisten verlieren |
+| `MAX_PENDING` | 6 | 6 (unverändert) | Nicht nötig; jede weitere Verlängerung hätte wie oben die Reihenfolge der Szenerien verschoben |
+| Freischalt-Ziele `METROPOLIS_TARGET` / `ISLAND_TARGET` | 1.000 / 650 | 1.000 / 650 (unverändert) | Weiter höchstens der Median der Szenerie davor (1.273 bzw. 949 Pakete, etwa das 0,8- bzw. 0,7-Fache). Ein höheres Insel-Ziel würde Spielern, die die Insel schon freigespielt haben, sie wieder sperren (die Freischaltung wird aus dem Bestwert berechnet) und wäre für Menschen schwerer, nicht leichter |
+
+Mediane über 20 Seeds (Wochen / Pakete):
+
+| Szenerie | ausgewogen vorher | ausgewogen jetzt | Spieltempo vorher | Spieltempo jetzt |
+|---|---|---|---|---|
+| river_town | 10,2 / 1.261 | 10,1 / 1.273 | 9,2 / 1.059 | 9,8 / 1.112 |
+| metropolis | 8,2 / 808 | 8,9 / 949 | 8,0 / 701 | 9,3 / 990 |
+| island_harbor | 6,9 / 567 | 8,1 / 729 | 6,9 / 467 | 6,9 / 483 |
+| mountain_village | 6,3 / 465 | 6,7 / 518 | 6,5 / 507 | 6,6 / 532 |
+| future_2030 | 5,1 / 440 | 5,8 / 583 | 4,8 / 301 | 5,9 / 518 |
+
+Die späteren Szenerien gewinnen mehr als die Kleinstadt: Sie starten mit mehr Geräten und Diensten, die ruhigen ersten drei Wochen
+wiegen dort schwerer. Die Reihenfolge hält für beide Bots (ausgewogen: Abstände 1,2 / 0,8 / 1,4 / 0,9 Wochen; im Spieltempo
+0,5 / 2,4 / 0,3 / 0,7). Der kürzeste Kleinstadt-Lauf im Spieltempo dauert 6,2 Wochen, die Wächter-Seeds 1–3 halten 10,2 / 8,6 / 9,3
+Wochen. G2 hält: Der beste einseitige Bot liegt in der Kleinstadt 81 %, in Zukunft 2030 59 % unter dem ausgewogenen. Die Grenzen von
+G1 (8–14 Wochen) blieben unverändert.
+
 ## Was in T6 geändert wurde
 
 | Wert | vorher | jetzt | Warum |
@@ -70,14 +110,14 @@ Mit 40 Seeds (1–40) liegen die Mediane bei 9,7 / 8,9 / 7,5 / 6,0 / 5,1 Wochen,
 |---|---|---|---|---|---|
 | 1 | 1995 | ISDN | PC, Telefon | Mail, Telefonie | – |
 | 2 | 1998 | DSL | Laptop | – | – |
-| 3 | 2001 | TV-Kabel | Konsole | Gaming | erste Störungen (1 je Woche) |
-| 4 | 2004 | – | Fernseher | Streaming | – |
+| 3 | 2001 | TV-Kabel | Konsole | Gaming | – |
+| 4 | 2004 | – | Fernseher | Streaming | erste Störungen (1 je Woche) |
 | 5 | 2007 | WLAN, Mobilfunkmast 3G (1 geschenkt) | Smartphone | – | – |
 | 6 | 2010 | Glasfaser, 4G/LTE | Tablet | – | – |
 | 7 | 2013 | – (Masten jetzt auch als Belohnung) | – | Videocall | – |
 | 8 | 2016 | – | Smartwatch | – | – |
-| 9 | 2019 | 5G | Kamera | Kamera-Upload | 2 Störungen je Woche |
-| 10 | 2022 | – | – | Backup | – |
+| 9 | 2019 | 5G | Kamera | Kamera-Upload | – |
+| 10 | 2022 | – | – | Backup | 2 Störungen je Woche |
 | 11 | 2024 | – | Smart-Home | – | – |
 | 12 | 2026 | – | – | Server eines Zufallsdienstes (dann jede zweite Woche) | – |
 
@@ -94,11 +134,11 @@ Ausgewogener Bot (G1):
 <!-- summary:start -->
 | Szenerie | Wochen (Median) | Wochen (Min–Max) | Pakete (Median) | Pakete (Min–Max) | bis Woche 25 | häufigstes Ende |
 |---|---|---|---|---|---|---|
-| river_town | 10,0 | 4,8–13,9 | 1226 | 300–2817 | 0/20 | TV:STREAMING:jam (4×) |
-| metropolis | 8,4 | 5,1–11,9 | 827 | 284–1782 | 0/20 | TV:STREAMING:jam (5×) |
-| island_harbor | 7,0 | 3,4–15,1 | 569 | 117–2348 | 0/20 | TV:STREAMING:jam (7×) |
-| mountain_village | 6,0 | 2,4–11,0 | 434 | 66–1635 | 0/20 | CONSOLE:GAMING:unrouted (4×) |
-| future_2030 | 5,1 | 2,0–10,7 | 440 | 61–1874 | 0/20 | CAMERA:CAMERA_UPLOAD:jam (13×) |
+| river_town | 10,1 | 5,9–13,2 | 1273 | 395–2658 | 0/20 | LAPTOP:CLOUD_BACKUP:jam (4×) |
+| metropolis | 8,9 | 4,8–11,7 | 949 | 259–1905 | 0/20 | TV:STREAMING:jam (4×) |
+| island_harbor | 8,1 | 3,3–11,8 | 729 | 121–1627 | 0/20 | TV:STREAMING:jam (6×) |
+| mountain_village | 6,7 | 2,8–11,5 | 518 | 88–1924 | 0/20 | CAMERA:CAMERA_UPLOAD:jam (5×) |
+| future_2030 | 5,8 | 2,0–11,8 | 583 | 63–2309 | 0/20 | CAMERA:CAMERA_UPLOAD:jam (8×) |
 <!-- summary:end -->
 
 Punktzahl (Median der zugestellten Pakete) des ausgewogenen und der einseitigen Bots, dahinter Median der Wochen und der Abstand zum
@@ -112,29 +152,50 @@ gibt es ihr Werkzeug nicht), nicht an einer schwachen Umsetzung; darum prüft de
 <!-- strategies:start -->
 | Szenerie | ausgewogen | only_isdn | only_dsl | only_coax | only_fiber | wireless_only |
 |---|---|---|---|---|---|---|
-| river_town | 1226 (10,0 W.) | 100 (3,0 W., −92 %) | 216 (4,1 W., −82 %) | 0 (1,7 W., −100 %) | 0 (1,7 W., −100 %) | 0 (1,7 W., −100 %) |
-| metropolis | 827 (8,4 W.) | 47 (2,3 W., −94 %) | 230 (4,4 W., −72 %) | 408 (5,8 W., −51 %) | 0 (1,7 W., −100 %) | 0 (1,7 W., −100 %) |
-| island_harbor | 569 (7,0 W.) | 13 (1,7 W., −98 %) | 161 (3,9 W., −72 %) | 349 (5,5 W., −39 %) | 0 (1,7 W., −100 %) | 1 (1,7 W., −100 %) |
-| mountain_village | 434 (6,0 W.) | 25 (1,8 W., −94 %) | 211 (4,1 W., −51 %) | 93 (2,8 W., −78 %) | 0 (1,7 W., −100 %) | 0 (1,7 W., −100 %) |
-| future_2030 | 440 (5,1 W.) | 22 (1,5 W., −95 %) | 113 (2,3 W., −74 %) | 115 (2,7 W., −74 %) | 32 (1,7 W., −93 %) | 28 (1,8 W., −94 %) |
+| river_town | 1273 (10,1 W.) | 119 (3,3 W., −91 %) | 238 (4,4 W., −81 %) | 0 (1,7 W., −100 %) | 0 (1,7 W., −100 %) | 0 (1,7 W., −100 %) |
+| metropolis | 949 (8,9 W.) | 57 (2,6 W., −94 %) | 246 (4,7 W., −74 %) | 475 (6,3 W., −50 %) | 0 (1,7 W., −100 %) | 0 (1,7 W., −100 %) |
+| island_harbor | 729 (8,1 W.) | 13 (1,7 W., −98 %) | 244 (5,0 W., −67 %) | 345 (5,5 W., −53 %) | 0 (1,7 W., −100 %) | 1 (1,7 W., −100 %) |
+| mountain_village | 518 (6,7 W.) | 25 (1,8 W., −95 %) | 279 (4,8 W., −46 %) | 138 (3,3 W., −73 %) | 0 (1,7 W., −100 %) | 0 (1,7 W., −100 %) |
+| future_2030 | 583 (5,8 W.) | 23 (1,5 W., −96 %) | 152 (3,1 W., −74 %) | 239 (3,7 W., −59 %) | 56 (1,9 W., −90 %) | 29 (1,8 W., −95 %) |
 <!-- strategies:end -->
 
 Vor T6 (alte Werte und alter Bot, 20 Seeds): Kleinstadt 7,4 / Großstadt 6,7 / Insel 5,4 / Bergdorf 4,8 / Zukunft 2030 4,1 Wochen,
 667 / 533 / 339 / 258 / 275 Pakete; der beste einseitige Bot (nur DSL) kam in der Kleinstadt auf 225 Pakete.
 
+## Menschliches Tempo (Bot mit 2,5 s Reaktionszeit)
+
+Der ausgewogene Bot schaut alle 0,5 s auf die ganze Karte und handelt sofort an allen Stellen – schneller als jeder Mensch.
+`BotStrategy.HUMAN` (`human`) entscheidet genauso, aber im Tempo eines Spielers: Er schaut nur alle 2,5 s Spielzeit auf die Karte,
+trifft dabei höchstens **eine** Entscheidung (ein Kabel samt der Aufrüstungen seiner Route, ein Router mit seinen Kabeln, ein Funkknoten,
+eine Server- oder Mast-Aufrüstung, eine Reparatur), repariert gekappte Kabel erst, wenn sie seit 3 s gekappt sind, und wählt die
+Wochenbelohnung erst nach 2 s (die Welt steht dabei still, das kostet also keine Spielzeit). Er gehört nicht zu den einseitigen Bots
+von G2; seine Kleinstadt-Partien prüft der Wächter `humanBotLastsLongEnough`, die übrigen Szenerien spielt nur der Bericht. 20 Seeds je Szenerie, höchstens 25 Wochen:
+
+<!-- human:start -->
+| Szenerie | Wochen (Median) | Wochen (Min–Max) | Pakete (Median) | Pakete (Min–Max) | bis Woche 25 | häufigstes Ende |
+|---|---|---|---|---|---|---|
+| river_town | 9,8 | 6,2–16,1 | 1112 | 447–3261 | 0/20 | TV:STREAMING:jam (9×) |
+| metropolis | 9,3 | 5,8–14,2 | 990 | 338–2820 | 0/20 | TV:STREAMING:jam (7×) |
+| island_harbor | 6,9 | 3,3–10,8 | 483 | 119–1412 | 0/20 | LAPTOP:CLOUD_BACKUP:jam (4×) |
+| mountain_village | 6,6 | 2,9–9,7 | 532 | 108–1142 | 0/20 | LAPTOP:CALL:unrouted (4×) |
+| future_2030 | 5,9 | 3,8–12,1 | 518 | 220–1795 | 0/20 | CAMERA:CAMERA_UPLOAD:jam (9×) |
+<!-- human:end -->
+
 ## Wächter
 
 `BalancingTest.botSurvivesTheFirstSceneryLongEnough` verlangt in der Kleinstadt mit den Seeds 1–3 mindestens 4 Wochen,
-`noSceneryIsLostInTheFirstWeeks` in **jeder** Szenerie (auch den gekauften) mit denselben Seeds mindestens 2 Wochen; mit 40 Seeds
-liegt das Minimum heute bei 1,7 (Zukunft 2030) bis 4,6 Wochen (Kleinstadt). Beide lesen die geteilten Partien der G1-Tests.
+`noSceneryIsLostInTheFirstWeeks` in **jeder** Szenerie (auch den gekauften) mit denselben Seeds mindestens 2 Wochen; mit 20 Seeds
+liegt das Minimum heute bei 2,0 (Zukunft 2030) bis 5,9 Wochen (Kleinstadt). Beide lesen die geteilten Partien der G1-Tests.
+`humanBotLastsLongEnough` verlangt dasselbe (mindestens 4 Wochen mit den Seeds 1–3) vom Bot im Spieltempo und dazu einen
+Kleinstadt-Median von mindestens 7 Wochen; er spielt dafür nur die 20 Kleinstadt-Partien des Bots im Spieltempo, die der Bericht weiterverwendet.
 Die drei Kleinstadt-Läufe heute:
 
 <!-- guard:start -->
 | Seed | Wochen | Pakete | Ende |
 |---|---|---|---|
-| 1 | 9,7 | 1118 | PHONE:CALL:jam |
-| 2 | 6,6 | 524 | SMARTPHONE:MAIL:unrouted |
-| 3 | 9,5 | 1088 | SMARTPHONE:MAIL:unrouted |
+| 1 | 9,7 | 1112 | PHONE:CALL:jam |
+| 2 | 6,9 | 542 | SMARTPHONE:MAIL:unrouted |
+| 3 | 10,5 | 1396 | TV:STREAMING:jam |
 <!-- guard:end -->
 
 ## Neu messen

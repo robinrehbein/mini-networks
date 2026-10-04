@@ -86,7 +86,13 @@ data class MenuPage(
     val score: String? = null,
     /** The first text line says why the game ended: drawn bold in alarm red, the "one more try" hook (judge panel). */
     val alertFirstLine: Boolean = false,
-)
+    /** What to do better next time, drawn in ink right under the first text line (the game-over card's loss tip). */
+    val tip: String? = null,
+) {
+    /** The text lines as shown: [lines] with the [tip] after the first one. */
+    val shownLines: List<String>
+        get() = if (tip == null) lines else listOf(lines.firstOrNull(), tip).filterNotNull() + lines.drop(1)
+}
 
 /**
  * Draws a [MenuPage] on the game canvas in the look of the reward cards: a pale card on a slab over the dimmed map,
@@ -153,7 +159,7 @@ class MenuPanel(context: Context) {
         val linkH = maxOf(TOUCH_DP * density, linkSize * 2.2f)
         val gap = (if (split) SPLIT_GAP_DP else GAP_DP) * u
         val inner = width - 2 * pad
-        val lines: List<String> = page.lines.flatMapIndexed { i, line ->
+        val lines: List<String> = page.shownLines.flatMapIndexed { i, line ->
             text.textSize = lineSize
             text.typeface = if (page.alertFirstLine && i == 0) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
             balanced(line, inner, MAX_LINE_ROWS)
@@ -164,6 +170,12 @@ class MenuPanel(context: Context) {
             text.typeface = if (page.alertFirstLine) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
             balanced(first, inner, MAX_LINE_ROWS).size.also { text.typeface = Typeface.DEFAULT }
         } ?: 0
+        /** Rows of [lines] the [MenuPage.tip] wrapped into, right after the first line's. */
+        val tipRows: IntRange = page.tip?.let { tip ->
+            text.textSize = lineSize
+            val start = if (page.lines.isEmpty()) 0 else firstLineRows
+            start until start + balanced(tip, inner, MAX_LINE_ROWS).size
+        } ?: IntRange.EMPTY
         /** Pill buttons in the grid; [links] go below it as text links. */
         val grid = page.items.filter { it !is MenuItem.Button || !it.link }
         val links = page.items.filter { it is MenuItem.Button && it.link }
@@ -212,11 +224,15 @@ class MenuPanel(context: Context) {
         val rows = (slots.maxOfOrNull { it.row } ?: -1) + 1
         val titleH = if (compact) maxOf(logoSize, titleSize * 1.25f) else titleSize * 1.25f + (if (page.hero) logoSize + 8f * u else 0f)
         val titleGap = (if (split) 4f else 10f) * u
-        val scoreSize = scale.px(if (split) SPLIT_SCORE_SP else 44f) * s
+        val scoreSize = scale.px(if (split && page.tip != null) SPLIT_TIP_SCORE_SP else if (split) SPLIT_SCORE_SP else 44f) * s
         val scoreH = if (page.score != null) scoreSize * 1.3f else 0f
         val highlightH = if (page.highlight != null) highlightSize * 1.8f else 0f
         val lineH = lineSize * 1.6f
-        val linesH = lines.size * lineH + if (lines.isNotEmpty() || page.highlight != null) 8f * u else 0f
+        /** A wrapped tip's further rows sit closer than the separate lines around it: they read as one paragraph. */
+        val tipLineH = lineSize * TIP_LINE_SPACING
+        val closeRows = maxOf(0, tipRows.count() - 1)
+        val linesH = (lines.size - closeRows) * lineH + closeRows * tipLineH +
+            if (lines.isNotEmpty() || page.highlight != null) 8f * u else 0f
         /** The main menu's primary entry (Play) is taller than the rest in a single column: the one thing to tap. */
         val primaryExtra = if (page.hero && grid.any { it is MenuItem.Button && it.primary }) itemH * 0.2f else 0f
         val itemsH = rows * itemH + rows * gap + primaryExtra + links.size * linkH
@@ -329,12 +345,17 @@ class MenuPanel(context: Context) {
                 s -= 0.02f
             }
         }
-        val options = listOf(0.5f to 1, 0.5f to 2, 0.56f to 2, 0.62f to 2).mapNotNull { (share, cols) -> fitted(share, cols, SPLIT_MIN_SCALE) }
+        val base = listOf(0.5f to 1, 0.5f to 2, 0.56f to 2, 0.62f to 2).mapNotNull { (share, cols) -> fitted(share, cols, SPLIT_MIN_SCALE) }
+        // Only a tight card (a tip on a low phone) takes a wider text pane: elsewhere the picture keeps its half.
+        val options = if ((base.maxOfOrNull { it.s } ?: 0f) >= SPLIT_WIDE_BELOW) base
+        else base + listOf(0.68f to 2, 0.74f to 2).mapNotNull { (share, cols) -> fitted(share, cols, SPLIT_MIN_SCALE) }
         val l = options.maxByOrNull { it.s } ?: run {
             // Very large system text: shrink further, down to the common minimum (entries stay 48 dp high).
+            // A card with a tip takes the widest pane, so the tip wraps into fewer rows.
+            val share = if (page.tip != null) 0.74f else 0.62f
             var s = SPLIT_MIN_SCALE
-            var l = Layout(rest, s, 2, cw * 0.62f, split = true)
-            while (l.height > maxH && s > MIN_SCALE) { s -= 0.02f; l = Layout(rest, s, 2, cw * 0.62f, split = true) }
+            var l = Layout(rest, s, 2, cw * share, split = true)
+            while (l.height > maxH && s > MIN_SCALE) { s -= 0.02f; l = Layout(rest, s, 2, cw * share, split = true) }
             l
         }
         val paneW = l.width
@@ -485,14 +506,16 @@ class MenuPanel(context: Context) {
         }
         for ((i, line) in l.lines.withIndex()) {
             val alert = page.alertFirstLine && i < l.firstLineRows
-            text.color = if (alert) ALERT else muted
+            text.color = if (alert) ALERT else if (i in l.tipRows) ink else muted
             text.typeface = if (alert) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
             val shift = if (alert) minOf(l.lineSize * 0.62f + 3f * u, maxOf(0f, (inner - text.measureText(line)) / 2f + 12f * u)) else 0f
-            canvas.drawText(line, cx + shift, y + l.lineSize * 1.15f, text)
-            y += l.lineH
+            // A tip's further rows sit closer together ([TIP_LINE_SPACING]), the baseline as far above the row's end.
+            val rowH = if (i in l.tipRows && i != l.tipRows.first) l.tipLineH else l.lineH
+            canvas.drawText(line, cx + shift, y + rowH - (l.lineH - l.lineSize * 1.15f), text)
+            y += rowH
         }
         text.typeface = Typeface.DEFAULT
-        if (l.lines.isNotEmpty()) drawnNodes += UiNode("menu:lines", textBounds(cx, linesTop, inner, y - linesTop), page.lines.joinToString("\n"), UiNode.Kind.TEXT, textPx = l.lineSize)
+        if (l.lines.isNotEmpty()) drawnNodes += UiNode("menu:lines", textBounds(cx, linesTop, inner, y - linesTop), page.shownLines.joinToString("\n"), UiNode.Kind.TEXT, textPx = l.lineSize)
         if (l.lines.isNotEmpty() || page.highlight != null) y += 8f * u
         page.picture?.let { pic ->
             val pr = RectF(cx - l.pictureW / 2f, y, cx + l.pictureW / 2f, y + l.pictureH)
@@ -875,10 +898,16 @@ class MenuPanel(context: Context) {
         const val ELLIPSIS = "…"
         /** Smallest text scale of a split card's text pane before the picture has given all the room it can. */
         const val SPLIT_MIN_SCALE = 0.86f
+        /** Below this text scale a split card also tries wider text panes. */
+        const val SPLIT_WIDE_BELOW = 0.94f
+        /** Row height of a wrapped tip, in its text size. */
+        const val TIP_LINE_SPACING = 1.25f
         const val SPLIT_PAD_DP = 14f
         const val SPLIT_GAP_DP = 6f
         /** The hero number of a split card (the packets on the game-over card); smaller than on a full card. */
         const val SPLIT_SCORE_SP = 34f
+        /** The score of a split card that also gives a tip: a little smaller, so the tip fits on low phones. */
+        const val SPLIT_TIP_SCORE_SP = 30f
         /** A card with a picture splits into picture and text halves from this width-to-height ratio of the screen. */
         const val SPLIT_ASPECT = 1.25f
         const val SPLIT_W_DP = 760f

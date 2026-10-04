@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.view.MotionEvent
 import com.mininetworks.game.R
+import com.mininetworks.game.audio.Alarm
 import com.mininetworks.game.audio.ServicePitch
 import com.mininetworks.game.audio.Sound
 import com.mininetworks.game.data.HighscoreStore
@@ -369,6 +370,46 @@ class MenuFlowTest {
         tap(view, MenuAction.SETTINGS)
         tap(view, MenuAction.TOGGLE_SOUND)
         assertEquals(emptyList<Sound>(), session(view))
+    }
+
+    @Test
+    fun alarmRisesWithTheRingAndBuzzesOnlyWithHaptics() {
+        /** Fills an unserved phone's ring in steps; the sounds and alarm pulses that came with it. */
+        fun lose(view: GameView): Triple<List<Pair<Sound, Float>>, List<Float>, Int> {
+            val w = World(seed = 2L, spawnInitialNodes = false)
+            for (row in w.water) row.fill(false)
+            w.incidentsEnabled = false
+            val phone = w.addClient(Device.PHONE, 3, 3)
+            view.drawSnapshot(Canvas(bmp), w, bmp.width, bmp.height, time = 0f, style = "Iso")
+            view.advance(1f / 60f)
+            val sounds = view.playedSounds.size
+            val pulses = view.alarmPulses
+            for (ring in floatArrayOf(0f, 0.55f, 0.85f, 0.99999f)) {
+                while (phone.pending.size < World.Tuning.MAX_PENDING) phone.pending.addLast(Service.CALL)
+                phone.overload = ring
+                view.advance(1f / 60f)
+            }
+            assertTrue("the phone's ring closed", w.gameOver)
+            repeat(5) { view.advance(1f / 60f) }
+            return Triple(view.playedSounds.drop(sounds), view.playedVolumes.drop(sounds), view.alarmPulses - pulses)
+        }
+        val view = newView()
+        val (heard, volumes, pulses) = lose(view)
+        assertEquals(
+            listOf(Sound.WARNING to 1f, Sound.WARNING to Alarm.HALF_RATE, Sound.WARNING to Alarm.CRITICAL_RATE, Sound.GAME_OVER to 1f),
+            heard.filter { it.first != Sound.CHIME },
+        )
+        val warnings = heard.indices.filter { heard[it].first == Sound.WARNING }.map { volumes[it] }
+        assertTrue("each alarm stage is louder: $warnings", warnings.zipWithNext().all { (a, b) -> b > a })
+        assertEquals("a heavy click at 80 %, a long buzz on game over", 2, pulses)
+        val quiet = newView()
+        quiet.drawSnapshot(Canvas(bmp), World(seed = 2L, spawnInitialNodes = false), bmp.width, bmp.height, time = 0f, style = "Iso")
+        quiet.back()
+        quiet.advance(0f)
+        draw(quiet)
+        tap(quiet, MenuAction.SETTINGS)
+        tap(quiet, MenuAction.TOGGLE_HAPTICS)
+        assertEquals("haptics off: no buzz", 0, lose(quiet).third)
     }
 
     @Test

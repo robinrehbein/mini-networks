@@ -18,6 +18,7 @@ object SoundSynth {
             "sfx_cable" to cableClick(),
             "sfx_warning" to warning(),
             "sfx_week" to weekChime(),
+            "sfx_gameover" to gameOver(),
         )
     }
 
@@ -88,6 +89,31 @@ object SoundSynth {
             out[i] = (v * attack(t, 0.002)).toFloat()
         }
         return normalize(fadeOut(out, 0.2), 0.45f)
+    }
+
+    /**
+     * A slow falling minor line (G4, E♭4, C4) on a soft square-ish tone with a low hum under it, the last note held:
+     * the network went down.
+     */
+    fun gameOver(): FloatArray {
+        val out = buffer(1.6)
+        val notes = listOf(0.0 to 392.0, 0.28 to 311.13, 0.56 to 261.63)
+        for (i in out.indices) {
+            val t = i.toDouble() / RATE
+            var v = 0.0
+            for ((k, note) in notes.withIndex()) {
+                val (start, hz) = note
+                val u = t - start
+                if (u < 0) continue
+                val decay = if (k == notes.lastIndex) 2.2 else 6.0
+                val env = attack(u, 0.015) * StrictMath.exp(-u * decay)
+                val tone = StrictMath.sin(2 * Math.PI * hz * u) + 0.3 * StrictMath.sin(2 * Math.PI * hz * 3 * u) + 0.15 * StrictMath.sin(2 * Math.PI * hz * 5 * u)
+                v += tone * env * (1 + 0.1 * StrictMath.sin(2 * Math.PI * 5 * u))
+            }
+            v += StrictMath.sin(2 * Math.PI * 65.41 * t) * 0.35 * attack(t, 0.05) * StrictMath.exp(-t * 1.8)
+            out[i] = v.toFloat()
+        }
+        return normalize(fadeOut(out, 0.25), 0.55f)
     }
 
     /** Samples as a 16-bit PCM mono WAV file. */

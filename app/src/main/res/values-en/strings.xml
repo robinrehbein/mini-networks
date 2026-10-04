@@ -6,7 +6,7 @@
         <item quantity="one">%1$d packet</item>
         <item quantity="other">%1$d packets</item>
     </plurals>
-    <string name="hud_resources">Budget %1$d  ·  Routers %2$d</string>
+    <string name="hud_resources">Budget %1$s  ·  Routers %2$s</string>
     <string name="hud_clock_day">Day · %1$s</string>
     <string name="hud_clock_night">Night · %1$s · backups at %2$s</string>
     <string name="button_router">Router (%1$d)</string>
@@ -41,6 +41,7 @@
     <string name="legend_ports_title">Ports</string>
     <string name="legend_ports_desc">The dots under a device: ● in use, ○ free. Devices and Wi-Fi have 2, servers and towers 4, routers 6.</string>
     <string name="hint_place_router">Tap a free cell</string>
+    <string name="hint_error_prefix">Error: %1$s</string>
     <string name="button_access_point">Wi-Fi (%1$d)</string>
     <string name="button_cell_tower">Tower (%1$d)</string>
     <string name="hint_access_point">Tap the access point to change its channel · hold for 5 GHz (%1$d)</string>
@@ -58,7 +59,7 @@
     <string name="server_error_no_space">A data center needs 2×2 free cells at the server</string>
     <string name="incident_excavator_warning">Excavator! Cable cut in %1$d s</string>
     <string name="incident_outage_warning">Power cut ahead: %1$s goes dark in %2$d s</string>
-    <string name="incident_cut">Cable cut: tap to repair for %1$d · fixes itself in %2$d s</string>
+    <string name="incident_cut">Cable cut: tap to fix for %1$d · else %2$d s</string>
     <string name="incident_outage">Power cut: %1$s dark for %2$d s</string>
     <string name="repair_error_no_budget">Not enough budget, a repair costs %1$d</string>
     <string name="hint_repaired">Cable repaired</string>
@@ -120,6 +121,8 @@
     <string name="connect_error_already_connected">Already connected</string>
     <string name="connect_error_not_invented">%1$s not invented yet</string>
     <string name="connect_error_no_budget">Not enough budget</string>
+    <string name="connect_error_no_budget_cost">Not enough budget: %1$s costs %2$d here</string>
+    <string name="connect_error_already_connected_nodes">%1$s and %2$s are already connected</string>
 
     <!-- Week rewards -->
     <string name="reward_prompt">Weekly pay: +%1$d · Tap a card for an extra</string>
@@ -251,6 +254,8 @@
     <string name="place_error_occupied">This cell is taken</string>
     <string name="place_error_terrain">Only on open land</string>
     <string name="hint_router_pick_up">Router without cables · tap again to put it back in stock</string>
+    <string name="router_error_has_cables">Router still has cables · remove them first to put it back in stock</string>
+    <string name="router_error_incident">Incident at this router · put it back once it is over</string>
     <string name="hint_router_picked_up">Router back in stock</string>
     <string name="server_tier">tier %1$d</string>
     <string name="server_tier_data_center">data center</string>
@@ -258,6 +263,13 @@
     <string name="hint_server_preview_voucher">%1$s → %2$s with a voucher · tap again</string>
     <string name="hint_server_upgraded">%1$s is now: %2$s</string>
     <string name="hint_server_busy">%1$s cannot keep up: tap it to upgrade</string>
+    <string name="coach_pause">Tip: press Pause at the bottom – you can keep building while paused.</string>
+    <string name="coach_jam">Tip: jam at %1$s. Upgrade the cable or lay a second one beside it.</string>
+    <string name="coach_server_queue">Tip: %1$s cannot keep up. Tap it to see the price, tap again to upgrade.</string>
+    <string name="coach_cable_upgrade">Tip: cable too narrow? Pick a wider one below and tap the old cable.</string>
+    <string name="coach_incident">Tip: an excavator is about to cut a cable. Tap the cut cable to repair it.</string>
+    <string name="coach_radio_stock">Tip: new in the toolbar: %1$s. Drag the icon onto a free cell of the map.</string>
+    <string name="coach_new_service">Tip: old devices want new services too. %1$s now needs a route to a server for %2$s.</string>
     <string name="hint_radio_reward">New: %1$s – won as a weekly reward</string>
     <string name="hint_service_needs">%1$s needs bandwidth %2$d</string>
     <string name="hint_service_needs_ping">%1$s needs bandwidth %2$d, ping at most %3$d ms</string>
@@ -266,17 +278,37 @@
     <string name="problem_too_narrow">%1$s → %2$s: no cable wide enough (bandwidth %3$d)</string>
     <string name="problem_ping">%1$s → %2$s: ping %3$d ms, allowed %4$d ms</string>
     <string name="problem_jam">%1$s → %2$s: jammed, cables or server too full</string>
-    <string name="game_over_no_route">%1$s couldn’t reach a %2$s server</string>
+    <string name="problem_no_server">%1$s → %2$s: none on its network – run a cable to one</string>
+    <string name="problem_jam_cable">%1$s → %2$s: %3$s cable full – upgrade it or put a server closer</string>
+    <string name="problem_jam_server">%1$s → %2$s: server too slow – upgrade it or add one</string>
+    <string name="game_over_no_route">%1$s couldn’t reach a %2$s</string>
     <string name="game_over_too_narrow">%1$s needed a wider cable for %2$s</string>
     <string name="game_over_ping">%2$s on %1$s lagged: %3$d ms, max %4$d ms</string>
     <string name="game_over_jam">%1$s got stuck in a data jam (%2$s)</string>
+    <string name="game_over_callout">%1$s overloaded</string>
+    <string name="loss_tip_connect">Tip: cable %1$s to a %2$s – directly or through a router</string>
+    <string name="loss_tip_router">Tip: %1$s has no free port – put a router in front of it</string>
+    <string name="loss_tip_needs_server">Tip: %1$s needs a way to a %2$s – cable it to the nearest one</string>
+    <string name="loss_tip_repair">Tip: tap a cut cable to repair it. A second route rides out incidents.</string>
+    <string name="loss_tip_outage">Tip: a power cut switched off a router or Wi-Fi – a second way around it rides that out</string>
+    <string name="loss_tip_wider_cable">Tip: %1$s needs %2$s – pick the cable type below, then tap the old cable</string>
+    <string name="loss_tip_faster_cable">Tip: a shorter route or a faster cable lowers the ping for %1$s</string>
+    <string name="loss_tip_second_cable">Tip: beat a jam with a second cable – or tap the full one to upgrade it</string>
+    <string name="loss_tip_upgrade_server">Tip: the %1$s can’t keep up – tap it to upgrade</string>
+    <string name="loss_tip_second_server">Tip: the %1$s is maxed out – cable some devices to a second one</string>
     <string name="drag_too_narrow">%1$s needs bandwidth %2$d</string>
     <string name="drag_ping">%1$s: ping %2$d/%3$d ms</string>
-    <string name="incident_more">%1$s · +%2$d more</string>
+    <string name="incident_more">%1$s · +%2$d</string>
     <!-- Accessibility (TalkBack) descriptions of the canvas-drawn HUD, docs/TOP100.md A7 -->
     <string name="a11y_menu">Menu</string>
     <string name="a11y_pause">Pause the clock</string>
     <string name="a11y_compass">Turn the map back to north</string>
+    <string name="a11y_offscreen_overload">%1$s off screen %2$s is overloading (%3$d waiting) – go there</string>
+    <string name="a11y_offscreen_warning">%1$s off screen %2$s is filling up (%3$d waiting) – go there</string>
+    <string name="a11y_side_left">to the left</string>
+    <string name="a11y_side_top">above</string>
+    <string name="a11y_side_right">to the right</string>
+    <string name="a11y_side_bottom">below</string>
     <string name="a11y_recap">Time-lapse: your network from week %1$d to week %2$d</string>
     <string name="a11y_router">Place router (in stock: %1$d)</string>
     <string name="a11y_access_point">Place Wi-Fi access point (in stock: %1$d)</string>
@@ -339,7 +371,6 @@
     <string name="mode_endless_desc">Endless: no game over – overload only slows the area</string>
     <string name="mode_creative_desc">Creative: build freely, unlimited budget, everything invented</string>
     <string name="pause_mode">%1$s · %2$s</string>
-    <string name="hud_resources_unlimited">Budget ∞  ·  Routers ∞</string>
     <string name="button_router_unlimited">Router (∞)</string>
     <string name="button_access_point_unlimited">Wi-Fi (∞)</string>
     <string name="button_cell_tower_unlimited">Tower (∞)</string>
@@ -557,4 +588,15 @@
     <string name="cell_error_newest">Already on the newest generation</string>
     <string name="cell_error_not_invented">%1$s comes in %2$d</string>
     <string name="legend_cell_tower_desc">Smartphones, tablets and watches only · 3G → 4G/LTE → 5G: tap to upgrade for more capacity and lower ping</string>
+    <string name="hud_budget_low">budget low</string>
+    <string name="legend_cable_edit_title">Changing cables</string>
+    <string name="legend_cable_edit_desc">Pick a cable type below and tap a cable: upgrade. Drag an end: reroute. Tap a cut cable: repair.</string>
+    <string name="legend_gauge_title">Pressure gauge</string>
+    <string name="legend_gauge_desc">The dots show how many requests are waiting. From 4 of 6 the bubble turns orange: act now.</string>
+    <string name="legend_jam_title">Jam</string>
+    <string name="legend_jam_desc">A route exists but it is full. Upgrade the cable or lay a second one.</string>
+    <string name="legend_missing_title">Missing server</string>
+    <string name="legend_missing_desc">The device wants this service, but no linked server provides it. Connect it to a matching server.</string>
+    <string name="legend_incident_title">Incident</string>
+    <string name="legend_incident_desc">An excavator counts down, then cuts a cable: tap it to repair. A power cut darkens routers and Wi-Fi for a while.</string>
 </resources>

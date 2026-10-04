@@ -240,7 +240,7 @@ class GameViewGestureTest {
         assertTrue(world.connect(pc, mail, CableType.ISDN))
         val cable = world.cableBetween(pc, mail)!!
         world.announceExcavator(cable)
-        repeat(60 * 6) { world.update(1f / 60f) }
+        repeat((60 * (Incidents.WARNING_SECONDS + 1f)).toInt()) { world.update(1f / 60f) }
         assertTrue(world.isCut(cable))
         val budget = world.budget
         val p = view.activeRenderer.toScreen(cable.layout.pointAt(0.5f))
