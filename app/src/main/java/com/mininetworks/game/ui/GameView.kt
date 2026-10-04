@@ -182,9 +182,10 @@ import kotlin.math.roundToInt
  *    "free rotation" is on in the settings; two fingers side by side dragged up or down: tilt the iso view flatter or
  *    steeper ([Camera.tilt]; the flat overview has no tilt), which locks out pan, zoom and turn for that gesture;
  *    double tap on empty ground: fit the playable area
- *  - view controls below the counters: turn left, compass (points to north; a tap turns the map back), turn right (each
- *    tap eases 45° around the centre of the view), and in the iso view flatter and steeper; a hint that finds no room
- *    in a low window with large text hides them while it shows; a few seconds after the map last moved they fade out
+ *  - view controls in a column at the right edge, above the menu button: turn left, compass (points to north; a tap
+ *    turns the map back), turn right (each tap eases 45° around the centre of the view), and in the iso view flatter
+ *    and steeper (a second column beside the first where one is too tall); they keep clear of the counters, the
+ *    toolbar and the hint, and step aside where no room is left; a few seconds after the map last moved they fade out
  *    (only the compass stays while the map is turned) and any pan, pinch or turn brings them back
  *  - the bottom toolbar ([layoutToolbar]) has two captioned groups: "Kabel" picks a cable technology (ISDN, DSL,
  *    Koax, Glasfaser; the coin is the price per cell; picking one names its bandwidth, speed and price), "Netzwerk"
@@ -1550,7 +1551,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
      * line each, and whether the counters sit below the date.
      */
     internal val hudStockLayout: Triple<Float, Boolean, Boolean>
-        get() = HudTop(surfaceWidth - safeInsets.left - safeInsets.right - 32 * density, viewControls())
+        get() = HudTop(surfaceWidth - safeInsets.left - safeInsets.right - 32 * density)
             .let { Triple(it.stockPaint.textSize, it.stockTwoLines, it.stacked) }
 
     /** Text size of the date and the packets, for tests. */
@@ -1857,7 +1858,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
      * counters too where the panel reaches under them.
      */
     private fun tutorialTop(): Float {
-        val m = HudTop(surfaceWidth - safeInsets.left - safeInsets.right - 32 * density, viewControls())
+        val m = HudTop(surfaceWidth - safeInsets.left - safeInsets.right - 32 * density)
         val panelRight = tutorialOverlay.reservedRight(surfaceWidth)
         val underCounters = m.stacked || panelRight > surfaceWidth - safeInsets.right - 16 * density - m.rightW - 8 * density
         val block = if (underCounters) m.bottom else m.leftBottom
@@ -1867,11 +1868,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     /**
      * The HUD's top rows, measured for a row [width] px wide: the date with its week bar (and clock) at the left, the
      * packets, budget and vouchers at the right. Offsets are from the top of the HUD area. When both blocks do not fit
-     * side by side (a narrow window with large text), the counters move below the date. The view [controls] (pills of
-     * segment ids, see [viewControls]) sit right-aligned below the counters: side by side where they take at most half
-     * the row, else one pill per row.
+     * side by side (a narrow window with large text), the counters move below the date.
      */
-    private inner class HudTop(width: Float, controls: List<List<String>> = emptyList()) {
+    private inner class HudTop(width: Float) {
         val date: String = context.getString(R.string.hud_date, world.year, world.week)
         val clock: String? = clockLabel()
         val delivered: String = resources.getQuantityString(R.plurals.hud_delivered, world.delivered, world.delivered)
@@ -1933,29 +1932,18 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         val routerBaseline = if (stockTwoLines) stockBaseline + stockPaint.textSize * 1.25f else stockBaseline
         val voucherBaseline = routerBaseline + stockPaint.descent() + hudSub.textSize * 1.2f
         val countersBottom = if (vouchers != null) voucherBaseline + hudSub.descent() else routerBaseline + stockPaint.descent()
-        val controlsTop = countersBottom + 8 * density
-        private fun rowWidth(pills: List<List<String>>) = pills.sumOf { it.size } * buttonHeight + (pills.size - 1) * CONTROL_GAP_DP * density
-        /** The pills of [controls] in rows, top down. */
-        val controlRows: List<List<List<String>>> = when {
-            controls.isEmpty() -> emptyList()
-            rowWidth(controls) <= width / 2f -> listOf(controls)
-            else -> controls.map { listOf(it) }
-        }
-        val controlsW = controlRows.maxOfOrNull { rowWidth(it) } ?: 0f
-        val rightBottom =
-            if (controlRows.isEmpty()) countersBottom
-            else controlsTop + controlRows.size * buttonHeight + (controlRows.size - 1) * CONTROL_GAP_DP * density
-        val bottom = maxOf(leftBottom, rightBottom)
+        val bottom = maxOf(leftBottom, countersBottom)
     }
 
     /** The compass shows while the map is turned away from north or still easing back (docs/TOP100.md B5). */
     private val compassShown get() = renderer.camera.angle != 0f
 
-    /** [animTime] of the last camera move (pan, pinch, turn, tilt, a view control) or game start. */
+    /** [animTime] of the last camera move (pan, pinch, turn, tilt, a view control); never at game start, so they start hidden. */
     private var viewTouchedAt = 0f
 
     /**
-     * How visible the view controls are: fully for [VIEW_CONTROLS_SECONDS] after the map last moved, then fading out,
+     * How visible the view controls are: hidden until the map is moved or zoomed, then fully for
+     * [VIEW_CONTROLS_SECONDS] after it last moved, then fading out,
      * so they leave the map to the game (only the compass stays while the map is turned). A screen reader keeps them.
      */
     private val viewControlsAlpha: Float
@@ -1963,7 +1951,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         else ((VIEW_CONTROLS_SECONDS + VIEW_CONTROLS_FADE_SECONDS - (animTime - viewTouchedAt)) / VIEW_CONTROLS_FADE_SECONDS).coerceIn(0f, 1f)
 
     /**
-     * The view controls below the counters, as pills of segment ids: turn left, the compass and turn right (every 45°
+     * The view controls at the right edge, as pills of segment ids: turn left, the compass and turn right (every 45°
      * a corner or a side-on view), and in a style with height ([Renderer.tilts]) flatter and steeper. The tutorial
      * keeps its HUD calm, and so does a map left alone for a while ([viewControlsAlpha]): only the compass, and only
      * while the map is turned.
@@ -1975,15 +1963,39 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     }
 
     /**
-     * One pill of view controls over [r]: a round button per segment of [ids], with hairlines between them, each a
-     * 48 dp touch target of its own. A tilt button at the end of the range is dimmed and does nothing.
+     * The view control [pills] in columns for a column [room] px tall, the first column rightmost: one column where all
+     * fit above each other, else a column per pill; in a low window (a raised network row under a wide phone's counters)
+     * a pill too tall is split, the compass going to a column of its own beside the turn buttons. Null where not even
+     * one button fits.
+     */
+    private fun viewColumns(pills: List<List<String>>, room: Float): List<List<List<String>>>? {
+        val bh = buttonHeight
+        val gap = CONTROL_GAP_DP * density
+        val fit = floor(room / bh).toInt()
+        return when {
+            pills.sumOf { it.size } * bh + (pills.size - 1) * gap <= room -> listOf(pills)
+            pills.all { it.size <= fit } -> pills.map { listOf(it) }
+            fit < 1 -> null
+            else -> pills.flatMap { pill ->
+                when {
+                    pill.size <= fit -> listOf(pill)
+                    "compass" in pill -> (pill - "compass").chunked(fit) + listOf(listOf("compass"))
+                    else -> pill.chunked(fit)
+                }
+            }.map { listOf(it) }
+        }
+    }
+
+    /**
+     * One upright pill of view controls over [r]: a round button per segment of [ids], top down, with hairlines between
+     * them, each a 48 dp touch target of its own. A tilt button at the end of the range is dimmed and does nothing.
      */
     private fun drawViewPill(canvas: Canvas, r: RectF, ids: List<String>) {
-        val h = r.height()
-        canvas.drawRoundRect(r, h / 2, h / 2, btnFill)
+        val w = r.width()
+        canvas.drawRoundRect(r, w / 2, w / 2, btnFill)
         for ((i, id) in ids.withIndex()) {
-            val seg = RectF(r.left + i * h, r.top, r.left + (i + 1) * h, r.bottom)
-            if (i > 0) canvas.drawRect(seg.left - 0.5f * density, seg.top + h * 0.26f, seg.left + 0.5f * density, seg.bottom - h * 0.26f, pillDivider)
+            val seg = RectF(r.left, r.top + i * w, r.right, r.top + (i + 1) * w)
+            if (i > 0) canvas.drawRect(seg.left + w * 0.26f, seg.top - 0.5f * density, seg.right - w * 0.26f, seg.top + 0.5f * density, pillDivider)
             val enabled = when (id) {
                 "tilt:low" -> renderer.camera.canTilt(-1)
                 "tilt:high" -> renderer.camera.canTilt(1)
@@ -2123,7 +2135,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         val top = safeInsets.top + pad
         val bottom = surfaceHeight - safeInsets.bottom - pad
         if (right <= left || bottom <= top) return hudBottomReserve
-        val m = HudTop(right - left, viewControls())
+        val m = HudTop(right - left)
         val bh = buttonHeight
         val bar = layoutToolbar(left, right, bottom - bh, tall = bottom - top - maxOf(m.leftBottom, m.countersBottom) >= 6 * bh)
         val trayTop = minOf(bar.trayTop, bar.raised?.top ?: Float.MAX_VALUE)
@@ -2148,7 +2160,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             hudNodes += UiNode("hud:menu", RectF(r), context.getString(R.string.a11y_menu), UiNode.Kind.BUTTON)
             return
         }
-        val m = HudTop(right - left, viewControls())
+        val m = HudTop(right - left)
         // Soft plates under the date and the counters keep them readable over a busy map at phone size.
         val plateX = 10 * density
         val plateY = 7 * density
@@ -2214,28 +2226,20 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         hudSub.textAlign = Paint.Align.LEFT
         // When both blocks do not fit side by side (a narrow window with large text), the counters sit below the date.
         val rightW = if (m.stacked) right - left else m.rightW
-        val rightBottom = top + m.rightBottom
         hudNodes += UiNode(
             "hud:status", RectF(right - m.rightW, top + m.rightTop, right, top + m.countersBottom),
             listOfNotNull(m.delivered, m.stock, if (budgetLow) context.getString(R.string.hud_budget_low) else null, m.vouchers).joinToString(". "),
             UiNode.Kind.TEXT,
         )
-        // The view controls (turn, compass, tilt: docs/TOP100.md B5) go right-aligned below the counters, a row per pill
-        // where they do not fit side by side; they are drawn last, as a hint that finds no other room hides them.
-        var controlsShown = m.controlRows.isNotEmpty()
-
-        // Centered lines (week news, incidents, the paused pill) stack from the top; one that would run into the date,
-        // the counters or the view controls moves below them.
+        // Centered lines (week news, incidents, the paused pill) stack from the top; one that would run into the date
+        // or the counters moves below them.
         val center = (left + right) / 2f
         val headBottom = maxOf(leftBottom, top + m.countersBottom) + 6 * density
-        var blocksBottom = maxOf(leftBottom, rightBottom) + 6 * density
+        val blocksBottom = maxOf(leftBottom, top + m.countersBottom) + 6 * density
         val freeHalf = minOf(center - (left + leftW) , (right - rightW) - center) - 12 * density
-        val controlsTop = top + m.controlsTop - 6 * density
-        val controlsFree = (right - m.controlsW) - center - 12 * density
         var cursor = top
         fun place(w: Float, h: Float): Float {
             if (cursor < headBottom && w / 2f > freeHalf) cursor = headBottom
-            if (controlsShown && cursor < blocksBottom && cursor + h > controlsTop && w / 2f > controlsFree) cursor = blocksBottom
             val at = cursor
             cursor += h + 4 * density
             return at
@@ -2287,6 +2291,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             hintText == null || hintText !== hint -> false
             else -> hintError
         }
+        var hintBox: RectF? = null
         // A long hint (or large text) wraps into up to three lines (four for an explanation) that grow upwards from above
         // the buttons.
         hintText?.let {
@@ -2312,18 +2317,6 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 hintY = hintBase - hintPadY
                 room = floor((hintY - hudSub.textSize - hintPadY - maxOf(cursor, blocksBottom)) / lineH).toInt() + 1
             }
-            if (room < want && controlsShown) {
-                // Not even one line below the view controls (a low window with large text; for a coaching tip, not all
-                // of its lines): they step aside while the hint shows, and the paused pill may go back up beside the
-                // counters.
-                controlsShown = false
-                blocksBottom = headBottom
-                if (banner != null) {
-                    cursor = cursorWithoutBanner
-                    banner = placeBanner()
-                }
-                room = floor((hintY - hudSub.textSize - hintPadY - maxOf(cursor, blocksBottom)) / lineH).toInt() + 1
-            }
             if (room < want && banner != null) {
                 // Not even one line below the paused pill: the pause button shows the stopped clock anyway.
                 banner = null
@@ -2346,6 +2339,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             // A calm frosted plate (the tray's look) keeps the text readable over buildings; it hugs the wrapped lines.
             val plate = RectF(left, hintY - (lines.size - 1) * lineH - hudSub.textSize - hintPadY, left + w + 2 * hintPadX + markW, hintY + hudSub.descent() + hintPadY)
             val radius = HINT_RADIUS_DP * density
+            hintBox = plate
             canvas.drawRoundRect(plate, radius, radius, if (hintIsError) hintErrorPlate else if (coach) coachPlate else hintPlate)
             val textX = left + hintPadX + markW
             if (coach && !wide) {
@@ -2380,22 +2374,37 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         }
         if (incidentShown) drawIncidentLine(canvas)
         banner?.let { drawPausedBanner(canvas, it) }
-        if (controlsShown) {
-            // Fading out after the map was left alone (the compass alone, once they are gone, stays solid).
-            val alpha = if (m.controlRows.singleOrNull()?.singleOrNull()?.size == 1) 1f else viewControlsAlpha
-            val layer = if (alpha < 1f) canvas.saveLayerAlpha(null, (alpha * 255).toInt()) else null
-            val controlGap = CONTROL_GAP_DP * density
-            var rowTop = top + m.controlsTop
-            for (row in m.controlRows) {
-                var end = right
-                for (pill in row.asReversed()) {
-                    val w = pill.size * bh
-                    drawViewPill(canvas, RectF(end - w, rowTop, end, rowTop + bh), pill)
-                    end -= w + controlGap
-                }
-                rowTop += bh + controlGap
+        // The view controls (turn, compass, tilt: docs/TOP100.md B5) stand upright at the right edge, in line with the
+        // menu button below them and centred between the counters (and any centred line) and the toolbar, so they take
+        // no room from the top rows. Drawn last: they keep clear of the hint and step aside where no room is left.
+        val pills = viewControls()
+        if (pills.isNotEmpty()) {
+            val gap = CONTROL_GAP_DP * density
+            val air = CONTROL_AIR_DP * density
+            val colTop = maxOf(top + m.countersBottom + plateY, cursor) + air
+            var colBottom = minOf(bar.trayTop, bar.raised?.top ?: Float.MAX_VALUE) - air
+            var columns = viewColumns(pills, colBottom - colTop)
+            val hintPlate = hintBox
+            if (columns != null && hintPlate != null && hintPlate.right + gap > right - columns.size * (bh + gap) + gap) {
+                colBottom = minOf(colBottom, hintPlate.top - air)
+                columns = viewColumns(pills, colBottom - colTop)
             }
-            layer?.let { canvas.restoreToCount(it) }
+            if (columns != null) {
+                // Fading out after the map was left alone (the compass alone, once they are gone, stays solid).
+                val alpha = if (pills.singleOrNull()?.size == 1) 1f else viewControlsAlpha
+                val layer = if (alpha < 1f) canvas.saveLayerAlpha(null, (alpha * 255).toInt()) else null
+                var colRight = right
+                for (column in columns) {
+                    val h = column.sumOf { it.size } * bh + (column.size - 1) * gap
+                    var y = (colTop + colBottom - h) / 2f
+                    for (pill in column) {
+                        drawViewPill(canvas, RectF(colRight - bh, y, colRight, y + pill.size * bh), pill)
+                        y += pill.size * bh + gap
+                    }
+                    colRight -= bh + gap
+                }
+                layer?.let { canvas.restoreToCount(it) }
+            }
         }
         if (screen == Screen.PLAYING && tutorial == null && !world.gameOver && failFocusUntil == null) drawOffscreenChips(canvas)
     }
@@ -5081,7 +5090,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private fun continueGame() {
         if (gameInProgress) {
             screen = Screen.PLAYING
-            viewTouchedAt = animTime
+            // The view controls stay hidden until the map is moved or zoomed.
+            viewTouchedAt = Float.NEGATIVE_INFINITY
             return
         }
         val saved = saves.load()
@@ -5101,7 +5111,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         screen = Screen.PLAYING
         showWorld(w)
         gameInProgress = true
-        viewTouchedAt = animTime
+        viewTouchedAt = Float.NEGATIVE_INFINITY
         cableType = w.unlockedCables.first()
         dailyExpiredHinted = false
         if (fresh) {
@@ -5391,7 +5401,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         /** Padding (dp) around the hint line's text inside its backdrop plate, and the plate's corner radius. */
         const val HINT_PAD_X_DP = 10f
         const val HINT_PAD_Y_DP = 5f
-        /** The hint plate's top and bottom padding where a full one would push the paused pill or view controls away. */
+        /** The hint plate's top and bottom padding where a full one would push the paused pill away. */
         const val HINT_PAD_TIGHT_DP = 1f
         const val HINT_RADIUS_DP = 12f
         /** The error hint's "!" disc, as a share of the hint's text size, and its gap to the text (dp). */
@@ -5484,8 +5494,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         const val BUDGET_FLASH_SECONDS = 1.2f
         const val SELECTION_COLOR = 0xFFFFC21A.toInt()
         const val COMPASS_NORTH = 0xFFD7263D.toInt()
-        /** Gap between the pills of the view controls, side by side or in rows, in dp. */
+        /** Gap between the pills of the view controls, above each other or side by side, in dp. */
         const val CONTROL_GAP_DP = 8f
+        /** Air between the column of view controls and the counters above it or the toolbar below it, in dp. */
+        const val CONTROL_AIR_DP = 12f
         const val STATE_IN_GAME = "mininetworks.inGame"
         const val STATE_IN_TUTORIAL = "mininetworks.inTutorial"
         /** A finger that moves less than this is a tap. */

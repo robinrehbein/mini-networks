@@ -76,7 +76,9 @@ class HudOverlapTest {
         val raised = view.toolbarRaisedBox
         val top = minOf(toolbar, raised?.top ?: Float.MAX_VALUE)
         assertTrue("$tag: the framing keeps clear of the toolbar (${cam.insets.bottom} vs ${height - top})", height - cam.insets.bottom <= top + 0.5f)
-        val hud = listOf("status", "date", "rotate:left", "compass", "rotate:right", "tilt:low", "tilt:high").mapNotNull { view.hudBounds("hud:$it") }
+        // The view controls stand over the map's right edge for a few seconds after it moved, then fade out: not a box
+        // the framing keeps nodes out of.
+        val hud = listOf("status", "date").mapNotNull { view.hudBounds("hud:$it") }
         // Every corner of every node's ground cell (its building stands on it, its port dots in front).
         for (n in world.nodes) for (cell in n.footprint) for (dx in 0..1) for (dy in 0..1) {
             val s = r.toScreen(Vec2((cell.x + dx).toFloat(), (cell.y + dy).toFloat()))
@@ -131,9 +133,9 @@ class HudOverlapTest {
         val r = view.activeRenderer
         val area = world.unlocked
         val free = (area.left until area.right).flatMap { x -> (area.top until area.bottom).map { y -> Cell(x, y) } }.filter { world.nodeAt(it) == null }
-        // The map moved so that free ground lies just below the view buttons, wherever the framing put it.
+        // The map moved so that free ground lies just left of the view buttons, wherever the layout put them.
         val span = RectF(controls.minOf { it.left }, controls.minOf { it.top }, controls.maxOf { it.right }, controls.maxOf { it.bottom })
-        val want = Vec2(span.centerX(), span.bottom + 80f)
+        val want = Vec2(span.left - 80f, span.centerY())
         val near = free.minBy { r.toScreen(it.center).let { p -> (p.x - want.x) * (p.x - want.x) + (p.y - want.y) * (p.y - want.y) } }
         r.toScreen(near.center).let { r.camera.panBy(want.x - it.x, want.y - it.y) }
         view.drawCurrent(Canvas(bmp))
@@ -143,15 +145,15 @@ class HudOverlapTest {
         // From the device nearest to that ground that is still on the map (not under the HUD).
         val cam = r.camera
         val from = world.nodes.filter { it.device != null }.map { r.toScreen(it.center) }
-            .filter { it.x in cam.insets.left + 60f..bmp.width - cam.insets.right - 60f && it.y in span.bottom + 60f..bmp.height - cam.insets.bottom - 60f }
+            .filter { it.x in cam.insets.left + 60f..span.left - 60f && it.y in cam.insets.top + 60f..bmp.height - cam.insets.bottom - 60f }
         val a = from.minBy { (it.x - want.x) * (it.x - want.x) + (it.y - want.y) * (it.y - want.y) }
         view.injectTouch(MotionEvent.ACTION_DOWN, a.x, a.y, time = 2000L)
         view.injectTouch(MotionEvent.ACTION_MOVE, a.x + 60f, a.y, time = 2100L)
-        // Then to every free cell just below the view buttons, where the label would go up under them.
+        // Then to every free cell beside and under the view buttons, where the label would go up under them.
         val targets = free.filter { c ->
-            r.toScreen(c.center).let { it.x in span.left..span.right && it.y in span.bottom..span.bottom + 160f }
+            r.toScreen(c.center).let { it.x in span.left - 160f..span.right && it.y in span.top..span.bottom + 160f }
         }
-        check(targets.isNotEmpty()) { "cells under the view buttons" }
+        check(targets.isNotEmpty()) { "cells beside the view buttons" }
         var time = 2200L
         for (c in targets) {
             val p = r.toScreen(c.center)
