@@ -3,10 +3,14 @@ package com.mininetworks.game.ui
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.RectF
+import android.view.MotionEvent
 import com.mininetworks.game.data.SettingsStore
 import com.mininetworks.game.game.CableSkin
+import com.mininetworks.game.game.CableType
 import com.mininetworks.game.game.ColorTheme
 import com.mininetworks.game.game.DebugApi
+import com.mininetworks.game.game.Device
+import com.mininetworks.game.game.Service
 import com.mininetworks.game.game.World
 import com.mininetworks.game.monetization.Entitlements
 import com.mininetworks.game.games.FakeGameServices
@@ -145,6 +149,53 @@ class AccessibleLayoutTest {
             Cosmetic.reset()
         }
         RuntimeEnvironment.setQualifiers("+de")
+    }
+
+    /**
+     * The explanation a tap on a troubled device gives (a jam on a full cable, a service with no server on its network)
+     * keeps its advice: never cut with "…" in any language on a 360 dp wide portrait phone at 200 % text.
+     */
+    @Test
+    fun deviceProblemHintsAreNeverCutAtLargeText() {
+        val cuts = ArrayList<String>()
+        for (lang in LANGUAGES) {
+            RuntimeEnvironment.setQualifiers("$lang-w360dp-h800dp-port-xxhdpi")
+            RuntimeEnvironment.setFontScale(2f)
+            for (jam in listOf(true, false)) {
+                val world = World(seed = 2L, spawnInitialNodes = false)
+                world.incidentsEnabled = false
+                for (row in world.water) row.fill(false)
+                world.grant(500)
+                val u = world.unlocked
+                val pc = world.addClient(Device.PC, u.left + 2, u.top + 2)
+                val mail = world.addServer(Service.MAIL, u.left + 6, u.top + 2)
+                assertTrue(world.connect(pc, mail, CableType.ISDN))
+                if (jam) {
+                    var t = 0f
+                    while (t < World.Tuning.JAM_SECONDS * 2) {
+                        while (pc.pending.size < 3) pc.pending.addLast(Service.MAIL)
+                        world.update(0.1f)
+                        t += 0.1f
+                    }
+                    assertTrue(world.isJammed(pc))
+                } else {
+                    world.addServer(Service.GAMING, u.right - 2, u.bottom - 2)
+                }
+                val view = GameView(app)
+                view.accessibilityLayer.forceActive = true
+                val bmp = Bitmap.createBitmap(1080, 2400, Bitmap.Config.ARGB_8888)
+                view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 1.3f, style = "Iso")
+                val p = view.activeRenderer.toScreen(pc.center)
+                view.injectTouch(MotionEvent.ACTION_DOWN, p.x, p.y)
+                view.injectTouch(MotionEvent.ACTION_UP, p.x, p.y)
+                view.drawCurrent(Canvas(bmp))
+                val hint = view.accessibilityLayer.nodes.singleOrNull { it.key == "hud:hint" }
+                if (hint == null) cuts += "$lang: no hint" else if (hint.shortened) cuts += "$lang: ${hint.text}"
+            }
+        }
+        RuntimeEnvironment.setFontScale(1f)
+        RuntimeEnvironment.setQualifiers("de")
+        assertTrue("hints cut with …:\n${cuts.joinToString("\n")}", cuts.isEmpty())
     }
 
     /**

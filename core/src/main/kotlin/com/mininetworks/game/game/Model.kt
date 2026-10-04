@@ -216,6 +216,20 @@ class Node(
     /** 0..1, game over when a client reaches 1. */
     var overload = 0f
 
+    /** 0..1: how full a client's queue is, 1 at [World.Tuning.MAX_PENDING] (its ring runs); 0 for other nodes. */
+    val pressure get() = if (kind == NodeKind.CLIENT) (pending.size / World.Tuning.MAX_PENDING.toFloat()).coerceAtMost(1f) else 0f
+
+    /** A client at [World.Tuning.PREWARN_PENDING] or more waiting requests: close to overload or already in it. */
+    val nearOverload get() = kind == NodeKind.CLIENT && pending.size >= World.Tuning.PREWARN_PENDING
+
+    /**
+     * Seconds a client has been held back by a full link on the route of its oldest routed request ([World.jamLink]),
+     * capped once it shows and counting down through [World.Tuning.JAM_HOLD] after the jam lets up; 0 while it is not
+     * jammed. See [World.isJammed]. Not saved: it builds up again within [World.Tuning.JAM_SECONDS].
+     */
+    var jamTime = 0f
+        internal set
+
     /** Server hardware tier 1..MAX_SERVER_LEVEL: more throughput, drawn as a taller stack; the top tier is a data center. */
     var level = 1
 
@@ -304,6 +318,13 @@ class Cable(
 
     /** [World.time] of the last upgrade to a better technology, for the upgrade effect; minus infinity if none. */
     var upgradedAt = Float.NEGATIVE_INFINITY
+        internal set
+
+    /**
+     * Above [World.Tuning.JAM_SECONDS] while this cable holds back a jammed client, counting down through
+     * [World.Tuning.JAM_HOLD] after; 0 otherwise (see [World.isJammed]). Not saved, like [Node.jamTime].
+     */
+    var jamTime = 0f
         internal set
 
     /**

@@ -127,6 +127,8 @@
     <string name="connect_error_already_connected">Ya conectados</string>
     <string name="connect_error_not_invented">%1$s aún no se ha inventado</string>
     <string name="connect_error_no_budget">Presupuesto insuficiente</string>
+    <string name="connect_error_no_budget_cost">Presupuesto insuficiente: %1$s cuesta %2$d aquí</string>
+    <string name="connect_error_already_connected_nodes">%1$s y %2$s ya están conectados</string>
 
     <!-- Week rewards -->
     <string name="reward_prompt">Paga semanal: +%1$d · Toca una carta para un extra</string>
@@ -261,6 +263,8 @@
     <string name="place_error_occupied">Esta casilla ya está ocupada</string>
     <string name="place_error_terrain">Solo en terreno libre</string>
     <string name="hint_router_pick_up">Router sin cables · toca otra vez para devolverlo al almacén</string>
+    <string name="router_error_has_cables">El router aún tiene cables · quítalos antes de devolverlo al almacén</string>
+    <string name="router_error_incident">Incidente en este router · devuélvelo cuando termine</string>
     <string name="hint_router_picked_up">Router devuelto al almacén</string>
     <string name="server_tier">nivel %1$d</string>
     <string name="server_tier_data_center">centro de datos</string>
@@ -276,6 +280,9 @@
     <string name="problem_too_narrow">%1$s → %2$s: ningún cable es lo bastante ancho (ancho de banda %3$d)</string>
     <string name="problem_ping">%1$s → %2$s: ping %3$d ms, permitido %4$d ms</string>
     <string name="problem_jam">%1$s → %2$s: atasco, cables o servidor llenos</string>
+    <string name="problem_no_server">%1$s → %2$s: ninguno en su red – tiende un cable a uno</string>
+    <string name="problem_jam_cable">%1$s → %2$s: cable %3$s lleno – mejóralo o acerca un servidor</string>
+    <string name="problem_jam_server">%1$s → %2$s: servidor lento – mejóralo o pon otro</string>
     <string name="game_over_no_route">%1$s no llegó a ningún servidor de %2$s</string>
     <string name="game_over_too_narrow">%1$s necesitaba un cable más ancho para %2$s</string>
     <string name="game_over_ping">%2$s en %1$s iba con retraso: %3$d ms, máx. %4$d ms</string>
@@ -287,6 +294,12 @@
     <string name="a11y_menu">Menú</string>
     <string name="a11y_pause">Detener el reloj</string>
     <string name="a11y_compass">Girar el mapa al norte</string>
+    <string name="a11y_offscreen_overload">%1$s fuera de la vista %2$s se sobrecarga (%3$d en espera) – ir allí</string>
+    <string name="a11y_offscreen_warning">%1$s fuera de la vista %2$s se está llenando (%3$d en espera) – ir allí</string>
+    <string name="a11y_side_left">a la izquierda</string>
+    <string name="a11y_side_top">arriba</string>
+    <string name="a11y_side_right">a la derecha</string>
+    <string name="a11y_side_bottom">abajo</string>
     <string name="a11y_recap" tools:ignore="PluralsCandidate">Cámara rápida: tu red de la semana %1$d a la semana %2$d</string>
     <string name="a11y_router">Colocar router (disponibles: %1$d)</string>
     <string name="a11y_access_point">Colocar punto de acceso Wi-Fi (disponibles: %1$d)</string>

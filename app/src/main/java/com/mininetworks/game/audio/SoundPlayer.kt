@@ -15,8 +15,10 @@ enum class Sound(val res: Int, val volume: Float) {
     PLUCK(R.raw.sfx_pluck, 0.45f),
     /** A cable snapped into place (laid or repaired). */
     CABLE(R.raw.sfx_cable, 0.7f),
-    /** A device starts to overload. */
+    /** A device starts to overload; pitched up and louder as its ring fills ([Alarm]). */
     WARNING(R.raw.sfx_warning, 0.8f),
+    /** The game is lost. */
+    GAME_OVER(R.raw.sfx_gameover, 0.85f),
     /** A new week begins. */
     CHIME(R.raw.sfx_week, 0.6f),
 }
@@ -37,6 +39,19 @@ object ServicePitch {
         Service.VIDEO_CALL -> 9
         Service.CAMERA_UPLOAD -> 12
     }
+}
+
+/**
+ * The rising alarm: the overload warning replayed higher and louder at each stage of a filling ring, so the ear hears
+ * the danger grow without a new sound to learn. Rates are [SoundPool] playback rates, volumes scale [Sound.volume].
+ */
+object Alarm {
+    /** A minor third up at half a ring. */
+    val HALF_RATE: Float = 2.0.pow(3 / 12.0).toFloat()
+    /** A fifth up, at full volume, at [com.mininetworks.game.game.SoundCues.CRITICAL_RING]. */
+    val CRITICAL_RATE: Float = 2.0.pow(7 / 12.0).toFloat()
+    const val HALF_VOLUME = 1.1f
+    const val CRITICAL_VOLUME = 1.25f
 }
 
 /**
@@ -62,6 +77,9 @@ class SoundPlayer(private val context: Context) {
 
     /** The last sounds played (at most [HISTORY]), with their rate, oldest first; for tests. */
     internal val played = ArrayDeque<Pair<Sound, Float>>()
+
+    /** The effective volume of each of [played]; for tests. */
+    internal val volumes = ArrayDeque<Float>()
 
     /** True once the pool is loaded and sounds are heard; for tests. */
     internal val ready get() = loaded != null
@@ -103,16 +121,24 @@ class SoundPlayer(private val context: Context) {
                 if (play(Sound.PLUCK, ServicePitch.rate(cue.service))) lastPluck[i] = nowMs
             }
             SoundCue.OverloadStarted -> play(Sound.WARNING)
+            SoundCue.OverloadHalf -> play(Sound.WARNING, Alarm.HALF_RATE, Alarm.HALF_VOLUME)
+            SoundCue.OverloadCritical -> play(Sound.WARNING, Alarm.CRITICAL_RATE, Alarm.CRITICAL_VOLUME)
+            SoundCue.GameOver -> play(Sound.GAME_OVER)
             SoundCue.NewWeek -> play(Sound.CHIME)
         }
     }
 
-    /** Plays [sound] at [rate]; false if sound is off. */
-    fun play(sound: Sound, rate: Float = 1f): Boolean {
+    /** Plays [sound] at [rate] and [gain] times its own volume (capped at full); false if sound is off. */
+    fun play(sound: Sound, rate: Float = 1f, gain: Float = 1f): Boolean {
         if (!enabled) return false
+        val v = (sound.volume * gain).coerceAtMost(1f)
         played.addLast(sound to rate)
-        if (played.size > HISTORY) played.removeFirst()
-        loaded?.let { it.pool.play(it.ids[sound.ordinal], sound.volume, sound.volume, if (sound == Sound.PLUCK) 0 else 1, 0, rate) }
+        volumes.addLast(v)
+        if (played.size > HISTORY) {
+            played.removeFirst()
+            volumes.removeFirst()
+        }
+        loaded?.let { it.pool.play(it.ids[sound.ordinal], v, v, if (sound == Sound.PLUCK) 0 else 1, 0, rate) }
         return true
     }
 

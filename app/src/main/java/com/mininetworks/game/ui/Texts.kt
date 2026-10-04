@@ -3,6 +3,7 @@ package com.mininetworks.game.ui
 import android.content.Context
 import com.mininetworks.game.R
 import com.mininetworks.game.game.Achievement
+import com.mininetworks.game.game.Cable
 import com.mininetworks.game.game.CableSkin
 import com.mininetworks.game.game.CableType
 import com.mininetworks.game.game.ColorTheme
@@ -14,8 +15,10 @@ import com.mininetworks.game.game.Device
 import com.mininetworks.game.game.Incident
 import com.mininetworks.game.game.IncidentKind
 import com.mininetworks.game.game.Incidents
+import com.mininetworks.game.game.Link
 import com.mininetworks.game.game.Node
 import com.mininetworks.game.game.NodeKind
+import com.mininetworks.game.game.PickUpError
 import com.mininetworks.game.game.RadioType
 import com.mininetworks.game.game.RerouteError
 import com.mininetworks.game.game.Scenario
@@ -158,6 +161,24 @@ class Texts(private val context: Context) {
         ConnectError.NO_BUDGET -> context.getString(R.string.connect_error_no_budget)
     }
 
+    /**
+     * The hint after a cable could not be laid from [from] to [to]: like [connectError], but naming both ends, the
+     * year [type] comes in ([invented]) or its price ([cost]), since the drag's label is gone by then.
+     */
+    fun connectFailure(e: ConnectError, from: Node, to: Node, type: CableType, cost: Int, invented: Int): String = when (e) {
+        ConnectError.ALREADY_CONNECTED -> context.getString(R.string.connect_error_already_connected_nodes, node(from), node(to))
+        ConnectError.NOT_INVENTED -> context.getString(R.string.cell_error_not_invented, cable(type), invented)
+        ConnectError.NO_BUDGET -> context.getString(R.string.connect_error_no_budget_cost, cable(type), cost)
+        else -> connectError(e, from, to, type)
+    }
+
+    /** Why a router cannot go back into stock; null when it is no router. */
+    fun pickUpError(e: PickUpError): String? = when (e) {
+        PickUpError.NOT_A_ROUTER -> null
+        PickUpError.HAS_CABLES -> context.getString(R.string.router_error_has_cables)
+        PickUpError.INCIDENT -> context.getString(R.string.router_error_incident)
+    }
+
     /** Why a cable cannot be re-routed onto [to]; null when nothing needs saying ([RerouteError.UNCHANGED]). */
     fun rerouteError(e: RerouteError, to: Node): String? = when (e) {
         RerouteError.SAME_NODE -> context.getString(R.string.connect_error_same_node)
@@ -166,6 +187,38 @@ class Texts(private val context: Context) {
         RerouteError.NO_BUDGET -> context.getString(R.string.connect_error_no_budget)
         RerouteError.INCIDENT -> context.getString(R.string.reroute_error_incident)
         RerouteError.UNCHANGED, RerouteError.GONE -> null
+    }
+
+    /**
+     * What an off-screen chip for device [n] says: it overloads ([overloading]) or its queue nears the limit, on which
+     * [side] of the view it lies (GameView.SIDE_*) and how many requests wait ([waiting]), so chips for devices of one
+     * type read apart.
+     */
+    fun offscreen(n: Node, overloading: Boolean, side: Int, waiting: Int): String = context.getString(
+        if (overloading) R.string.a11y_offscreen_overload else R.string.a11y_offscreen_warning,
+        node(n),
+        context.getString(
+            when (side) {
+                GameView.SIDE_LEFT -> R.string.a11y_side_left
+                GameView.SIDE_RIGHT -> R.string.a11y_side_right
+                GameView.SIDE_TOP -> R.string.a11y_side_top
+                else -> R.string.a11y_side_bottom
+            },
+        ),
+        waiting,
+    )
+
+    /** Device [n] is linked in, but no server of [s] is reachable from its network ([World.unreachableServices]). */
+    fun noServer(n: Node, s: Service): String = context.getString(R.string.problem_no_server, node(n), serverWithGlyph(s))
+
+    /**
+     * [n]'s requests for [s] stand in a jam at the full [link] ([World.jamLink]), a cable named by its technology, or
+     * at a saturated server when [link] is null ([World.jamServer]).
+     */
+    fun jam(n: Node, s: Service, link: Link?): String = when (link) {
+        null -> context.getString(R.string.problem_jam_server, node(n), serverWithGlyph(s))
+        is Cable -> context.getString(R.string.problem_jam_cable, node(n), serverWithGlyph(s), cable(link.type))
+        else -> context.getString(R.string.problem_jam, node(n), serverWithGlyph(s))
     }
 
     /** "[n] has only 2 ports" in the wording of [plural] ([R.plurals.ports_full] or its short form). */

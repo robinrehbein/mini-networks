@@ -11,9 +11,10 @@ import kotlin.math.roundToInt
  * Difficulty guards and balancing report with the [GreedyBot] (docs/BALANCING.md, docs/TOP100.md G1 and G2).
  *
  * The guards run with every build: the first scenery lasts 8–14 weeks in the median of [SEEDS] seeds and every later
- * scenery is measurably harder (G1), no one-sided bot comes close to the balanced one (G2), and no scenery can be lost
- * in its first weeks. The seeds run in parallel and the balanced games are shared between the tests. The report
- * rewrites the tables in docs/BALANCING.md: `BALANCING_REPORT=1 ./gradlew :core:test --tests '*BalancingTest*'`.
+ * scenery is measurably harder (G1), no one-sided bot comes close to the balanced one (G2), no scenery can be lost in
+ * its first weeks, and the bot at a human pace ([BotStrategy.HUMAN]) still gets far on the first scenery. The seeds run
+ * in parallel and the games are shared between the tests. The report rewrites the tables in docs/BALANCING.md:
+ * `BALANCING_REPORT=1 ./gradlew :core:test --tests '*BalancingTest*'`.
  */
 class BalancingTest {
 
@@ -29,6 +30,20 @@ class BalancingTest {
     fun noSceneryIsLostInTheFirstWeeks() {
         for (run in balanced.filter { it.seed in GUARD_SEEDS }) {
             assertTrue("${run.scenario} seed ${run.seed}: lost after ${run.weeks} weeks (${run.cause})", run.weeks >= GUARD_MIN_WEEKS)
+        }
+    }
+
+    /**
+     * Fair for humans (docs/BALANCING.md, T-Human): at a human pace ([BotStrategy.HUMAN]: one decision every 2.5 s) the
+     * bot still lasts at least [HUMAN_MIN_MEDIAN_WEEKS] weeks on the first scenery in the median of [SEEDS] seeds, and
+     * loses none of the [GUARD_SEEDS] before week [GUARD_WEEKS].
+     */
+    @Test
+    fun humanBotLastsLongEnough() {
+        val median = median(weeksOf(humanFirstScenery, Scenarios.RIVER_TOWN, BotStrategy.HUMAN))
+        assertTrue("human-paced bot: median $median weeks on the first scenery", median >= HUMAN_MIN_MEDIAN_WEEKS)
+        for (run in humanFirstScenery.filter { it.seed in GUARD_SEEDS }) {
+            assertTrue("human-paced bot, seed ${run.seed}: lost after ${run.weeks} weeks (${run.cause})", run.weeks >= GUARD_WEEKS)
         }
     }
 
@@ -89,21 +104,9 @@ class BalancingTest {
         val runs = if (seeds == SEEDS) balanced else play(Scenarios.all, listOf(BotStrategy.BALANCED), seeds)
         val bots = if (seeds == SEEDS) oneSided + play(Scenarios.all - G2_SCENERIES.toSet(), ONE_SIDED, seeds)
         else play(Scenarios.all, ONE_SIDED, seeds)
-        val table = buildString {
-            appendLine("| Szenerie | Wochen (Median) | Wochen (Min–Max) | Pakete (Median) | Pakete (Min–Max) | bis Woche $REPORT_MAX_WEEKS | häufigstes Ende |")
-            appendLine("|---|---|---|---|---|---|---|")
-            for (s in Scenarios.all) {
-                val mine = runs.filter { it.scenario == s.id }
-                val weeks = mine.map { it.weeks }.sorted()
-                val packets = mine.map { it.delivered.toFloat() }.sorted()
-                val cause = mine.filter { !it.survived }.groupingBy { it.cause }.eachCount().maxByOrNull { it.value }
-                appendLine(
-                    "| ${s.id} | ${fmt(median(weeks))} | ${fmt(weeks.first())}–${fmt(weeks.last())} | " +
-                        "${median(packets).toInt()} | ${packets.first().toInt()}–${packets.last().toInt()} | " +
-                        "${mine.count { it.survived }}/${mine.size} | ${cause?.let { "${it.key} (${it.value}×)" } ?: "–"} |",
-                )
-            }
-        }
+        val humanRuns = if (seeds == SEEDS) human else play(Scenarios.all, listOf(BotStrategy.HUMAN), seeds)
+        val table = summary(runs)
+        val humanTable = summary(humanRuns)
         val strategies = buildString {
             append("| Szenerie | ausgewogen |")
             for (b in ONE_SIDED) append(" ${b.id} |")
@@ -129,12 +132,31 @@ class BalancingTest {
         println(table)
         println(strategies)
         println(guard)
+        println(humanTable)
         val file = File(requireNotNull(System.getProperty("balancing.file")))
         var text = file.readText()
         text = replaceBetween(text, "summary", table)
         text = replaceBetween(text, "strategies", strategies)
         text = replaceBetween(text, "guard", guard)
+        text = replaceBetween(text, "human", humanTable)
         file.writeText(text)
+    }
+
+    /** One line per scenery: weeks and packets (median, range), games that reach the end, the most common end of [runs]. */
+    private fun summary(runs: List<BotRun>) = buildString {
+        appendLine("| Szenerie | Wochen (Median) | Wochen (Min–Max) | Pakete (Median) | Pakete (Min–Max) | bis Woche $REPORT_MAX_WEEKS | häufigstes Ende |")
+        appendLine("|---|---|---|---|---|---|---|")
+        for (s in Scenarios.all) {
+            val mine = runs.filter { it.scenario == s.id }
+            val weeks = mine.map { it.weeks }.sorted()
+            val packets = mine.map { it.delivered.toFloat() }.sorted()
+            val cause = mine.filter { !it.survived }.groupingBy { it.cause }.eachCount().maxByOrNull { it.value }
+            appendLine(
+                "| ${s.id} | ${fmt(median(weeks))} | ${fmt(weeks.first())}–${fmt(weeks.last())} | " +
+                    "${median(packets).toInt()} | ${packets.first().toInt()}–${packets.last().toInt()} | " +
+                    "${mine.count { it.survived }}/${mine.size} | ${cause?.let { "${it.key} (${it.value}×)" } ?: "–"} |",
+            )
+        }
     }
 
     /** "−81 %": how far [score] lies below [best]. */
@@ -165,7 +187,10 @@ class BalancingTest {
         const val ONE_SIDED_GAP = 0.2f
         /** G2 is checked on the first scenery and on the one that has every cable and radio from the start. */
         val G2_SCENERIES = listOf(Scenarios.RIVER_TOWN, Scenarios.FUTURE)
-        val ONE_SIDED = BotStrategy.all - BotStrategy.BALANCED
+        /** The one-sided bots of G2; neither the balanced bot nor its human-paced twin [BotStrategy.HUMAN]. */
+        val ONE_SIDED = BotStrategy.all - BotStrategy.BALANCED - BotStrategy.HUMAN
+        /** Median weeks the human-paced bot must last on the first scenery ([humanBotLastsLongEnough]). */
+        const val HUMAN_MIN_MEDIAN_WEEKS = 7f
         /** The bot must last this many weeks on the first scenery with every guard seed. */
         const val GUARD_WEEKS = 4f
         val GUARD_SEEDS = listOf(1L, 2L, 3L)
@@ -175,6 +200,12 @@ class BalancingTest {
 
         /** Balanced bot, every scenery, [SEEDS] seeds; played once per test run and shared. */
         val balanced by lazy { play(Scenarios.all, listOf(BotStrategy.BALANCED), SEEDS) }
+
+        /** The balanced bot at a human pace ([BotStrategy.HUMAN]) on the first scenery, [SEEDS] seeds; shared by guard and report. */
+        val humanFirstScenery by lazy { play(listOf(Scenarios.RIVER_TOWN), listOf(BotStrategy.HUMAN), SEEDS) }
+
+        /** [humanFirstScenery] plus the other sceneries; only the report plays those. */
+        val human by lazy { humanFirstScenery + play(Scenarios.all - Scenarios.RIVER_TOWN, listOf(BotStrategy.HUMAN), SEEDS) }
 
         /** The one-sided bots on the [G2_SCENERIES]. */
         val oneSided by lazy { play(G2_SCENERIES, ONE_SIDED, SEEDS) }

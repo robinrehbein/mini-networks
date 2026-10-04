@@ -113,9 +113,12 @@ class GameViewRerouteTest {
         assertTrue(world.connect(pc, other, CableType.ISDN))
         draw()
         assertSame("a cancelled drag keeps the cable selected", cable, view.selected)
+        val errors = view.errorPulses
         drag(view.handleTargets()[1], screen(other.center))
         assertSame("already connected: nothing changes", cable, world.cableBetween(pc, near))
         assertEquals(budget - 2, world.budget)
+        assertEquals("but it says why, with the error buzz", "Schon verbunden", view.shownHint)
+        assertEquals(errors + 1, view.errorPulses)
     }
 
     @Test
@@ -159,6 +162,35 @@ class GameViewRerouteTest {
         view.injectTouch(MotionEvent.ACTION_UP, f.x, f.y, time = clock + 800L)
         assertNotNull("the end nearer the finger moved", world.cableBetween(pc, far))
         assertNull(world.cableBetween(pc, near))
+    }
+
+    @Test
+    fun aRerouteWithoutBudgetBuzzesAndFlashesTheBudget() {
+        val cable = world.cables.single()
+        world.grant(-world.budget)
+        tapAt(middleOf(cable))
+        val errors = view.errorPulses
+        drag(view.handleTargets()[1], screen(far.center))
+        assertSame("the longer way is not paid for", cable, world.cableBetween(pc, near))
+        assertNull(world.cableBetween(pc, far))
+        assertEquals("Budget reicht nicht", view.shownHint)
+        assertEquals(errors + 1, view.errorPulses)
+        assertTrue(view.budgetFlashing)
+    }
+
+    @Test
+    fun aLongPressOnACableWithAnIncidentBuzzes() {
+        val cable = world.cables.single()
+        world.announceExcavator(cable)
+        draw()
+        val errors = view.errorPulses
+        val p = screen(cable.layout.pointAt(0.6f))
+        clock += 400L
+        view.injectTouch(MotionEvent.ACTION_DOWN, p.x, p.y, time = clock)
+        view.injectTouch(MotionEvent.ACTION_MOVE, p.x + 1f, p.y, time = clock + GameView.LONG_PRESS_MS + 10L)
+        view.injectTouch(MotionEvent.ACTION_UP, p.x + 1f, p.y, time = clock + GameView.LONG_PRESS_MS + 60L)
+        assertEquals(app.getString(com.mininetworks.game.R.string.reroute_error_incident), view.shownHint)
+        assertEquals("the same buzz as a dropped re-route", errors + 1, view.errorPulses)
     }
 
     @Test

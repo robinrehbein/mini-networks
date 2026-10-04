@@ -46,37 +46,39 @@ class IncidentsTest {
     // ---------------------------------------------------------------- plan
 
     @Test
-    fun noneInTheFirstTwoWeeksThenMoreAndMore() {
+    fun noneInTheFirstThreeWeeksThenMoreAndMore() {
         assertEquals(0, Incidents.countIn(1))
         assertEquals(0, Incidents.countIn(2))
-        assertEquals(3, Incidents.FIRST_WEEK)
-        assertEquals(1, Incidents.countIn(3))
+        assertEquals("week 3 already brings TV cable, consoles and gaming (docs/BALANCING.md, T-Human)", 0, Incidents.countIn(3))
+        assertEquals(4, Incidents.FIRST_WEEK)
+        assertEquals(1, Incidents.countIn(4))
         val counts = (3..30).map(Incidents::countIn)
         assertEquals("never fewer in a later week", counts.sorted(), counts)
-        assertTrue(Incidents.countIn(12) > Incidents.countIn(3))
+        assertTrue(Incidents.countIn(12) > Incidents.countIn(Incidents.FIRST_WEEK))
         assertEquals(Incidents.MAX_PER_WEEK, Incidents.countIn(100))
         assertEquals("rare: one a week for the first weeks", 1, Incidents.countIn(Incidents.FIRST_WEEK + Incidents.WEEKS_PER_STEP - 1))
         assertTrue("rare: never more than two a week", Incidents.MAX_PER_WEEK <= 2)
         for (seed in 1L..20L) {
             assertTrue(Incidents.plan(seed, 1).isEmpty())
             assertTrue(Incidents.plan(seed, 2).isEmpty())
+            assertTrue(Incidents.plan(seed, 3).isEmpty())
         }
     }
 
     @Test
     fun planIsDeterministicFromSeedAndWeek() {
-        for (week in 3..15) {
+        for (week in Incidents.FIRST_WEEK..15) {
             assertEquals(Incidents.plan(42L, week), Incidents.plan(42L, week))
             assertEquals(Incidents.countIn(week), Incidents.plan(42L, week).size)
         }
         assertNotEquals(Incidents.plan(1L, 6), Incidents.plan(2L, 6))
-        val kinds = (1L..50L).map { Incidents.plan(it, 3).first().kind }.toSet()
+        val kinds = (1L..50L).map { Incidents.plan(it, Incidents.FIRST_WEEK).first().kind }.toSet()
         assertEquals("both kinds occur", IncidentKind.entries.toSet(), kinds)
     }
 
     @Test
     fun announcementsStayInsideTheWeekAndNeverOverlap() {
-        for (seed in 1L..30L) for (week in 3..20) {
+        for (seed in 1L..30L) for (week in Incidents.FIRST_WEEK..20) {
             val plan = Incidents.plan(seed, week)
             for (p in plan) {
                 assertTrue(p.at >= Incidents.START_MARGIN)
@@ -87,7 +89,7 @@ class IncidentsTest {
     }
 
     @Test
-    fun noIncidentInTheFirstTwoWeeksOfAGame() {
+    fun noIncidentBeforeTheFirstIncidentWeekOfAGame() {
         val w = World(seed = 5L)
         w.grant(500, extraRouters = 4)
         val clients = w.nodes.filter { it.kind == NodeKind.CLIENT }
@@ -108,11 +110,11 @@ class IncidentsTest {
     @Test
     fun incidentIsAnnouncedAtThePlannedTime() {
         val w = dryWorld(seedFor(IncidentKind.EXCAVATOR))
-        w.jumpToWeek(3)
+        w.jumpToWeek(Incidents.FIRST_WEEK)
         val pc = w.addClient(Device.PC, 2, 2)
         val mail = w.addServer(Service.MAIL, 8, 2)
         assertTrue(w.connect(pc, mail, CableType.DSL))
-        val at = (3 - 1) * World.Tuning.WEEK_SECONDS + Incidents.plan(w.seed, 3).first().at
+        val at = (Incidents.FIRST_WEEK - 1) * World.Tuning.WEEK_SECONDS + Incidents.plan(w.seed, Incidents.FIRST_WEEK).first().at
         runUntil(w) { w.incidents.isNotEmpty() }
         assertEquals(at, w.time, dt * 1.01f)
     }
@@ -122,7 +124,7 @@ class IncidentsTest {
     /** PC and mail server with a single cable; the excavator is the only possible incident. */
     private fun cabledPair(seed: Long): Triple<World, Node, Cable> {
         val w = dryWorld(seed)
-        w.jumpToWeek(3)
+        w.jumpToWeek(Incidents.FIRST_WEEK)
         val pc = w.addClient(Device.PC, 2, 2)
         val mail = w.addServer(Service.MAIL, 8, 2)
         assertTrue(w.connect(pc, mail, CableType.DSL))
@@ -174,7 +176,7 @@ class IncidentsTest {
         runUntil(w) { w.incidents.isNotEmpty() }
         assertEquals("nothing to repair during the warning", RepairError.NOT_CUT, w.repairError(cable))
         assertFalse(w.repair(cable))
-        runUntil(w, 6f) { w.isCut(cable) }
+        runUntil(w, Incidents.WARNING_SECONDS + 1f) { w.isCut(cable) }
         val budget = w.budget
         assertNull(w.repairError(cable))
         assertTrue(w.repair(cable))
@@ -240,7 +242,7 @@ class IncidentsTest {
     @Test
     fun trafficTakesASecondCableAroundTheCut() {
         val w = dryWorld(seedFor(IncidentKind.EXCAVATOR))
-        w.jumpToWeek(3)
+        w.jumpToWeek(Incidents.FIRST_WEEK)
         val pc = w.addClient(Device.PC, 2, 2)
         val mail = w.addServer(Service.MAIL, 8, 2)
         val router = w.addRouter(5, 6)
@@ -250,7 +252,7 @@ class IncidentsTest {
         // The warning gives time to lay a detour; the router is new, so the excavator stays on its cable.
         assertTrue(w.connect(pc, router, CableType.DSL))
         assertTrue(w.connect(router, mail, CableType.DSL))
-        runUntil(w, 6f) { w.isCut(cut) }
+        runUntil(w, Incidents.WARNING_SECONDS + 1f) { w.isCut(cut) }
         val route = w.routeFor(pc, Service.MAIL)
         assertNotNull(route)
         assertTrue(router in route!!.nodes)
@@ -261,7 +263,7 @@ class IncidentsTest {
     /** PC - router - mail server. */
     private fun routedPair(seed: Long): Triple<World, Node, Node> {
         val w = dryWorld(seed)
-        w.jumpToWeek(3)
+        w.jumpToWeek(Incidents.FIRST_WEEK)
         val pc = w.addClient(Device.PC, 2, 2)
         val mail = w.addServer(Service.MAIL, 8, 2)
         val router = w.addRouter(5, 2)
@@ -321,7 +323,7 @@ class IncidentsTest {
     @Test
     fun outageOnlyHitsCabledRoutersAndAccessPoints() {
         val w = dryWorld(seedFor(IncidentKind.POWER_OUTAGE))
-        w.jumpToWeek(3)
+        w.jumpToWeek(Incidents.FIRST_WEEK)
         w.addRouter(12, 8)
         val pc = w.addClient(Device.PC, 2, 2)
         val mail = w.addServer(Service.MAIL, 8, 2)
@@ -333,7 +335,7 @@ class IncidentsTest {
     @Test
     fun nothingHappensWithoutATarget() {
         val w = dryWorld(seedFor(IncidentKind.EXCAVATOR))
-        w.jumpToWeek(3)
+        w.jumpToWeek(Incidents.FIRST_WEEK)
         w.addClient(Device.PC, 2, 2)
         w.addServer(Service.MAIL, 8, 2)
         run(w, World.Tuning.WEEK_SECONDS - 1f)
@@ -361,9 +363,9 @@ class IncidentsTest {
             }
             return count
         }
-        assertEquals(Incidents.countIn(3), announced(3))
+        assertEquals(Incidents.countIn(Incidents.FIRST_WEEK), announced(Incidents.FIRST_WEEK))
         assertEquals(Incidents.countIn(12), announced(12))
-        assertTrue(announced(12) > announced(3))
+        assertTrue(announced(12) > announced(Incidents.FIRST_WEEK))
     }
 
     // ---------------------------------------------------------------- determinism and saving
@@ -394,14 +396,14 @@ class IncidentsTest {
         val announced = Save.decode(Save.encode(w))!!
         assertEquals(1, announced.incidents.size)
         assertFalse(announced.incidents.single().struck)
-        run(w, 6f)
+        run(w, Incidents.WARNING_SECONDS)
         val active = Save.decode(Save.encode(w))!!
         val cut = active.incidents.single()
         assertTrue(cut.struck)
         assertTrue(active.isCut(cut.cable!!))
         assertSame(active.cableBetween(cut.cable.a, cut.cable.b), cut.cable)
 
-        run(announced, 6f)
+        run(announced, Incidents.WARNING_SECONDS)
         assertEquals(w.snapshot(), announced.snapshot())
         for (world in listOf(w, active, announced)) run(world, 30f)
         assertEquals(w.snapshot(), active.snapshot())

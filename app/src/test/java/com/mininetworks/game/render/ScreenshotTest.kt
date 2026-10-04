@@ -25,6 +25,7 @@ import com.mininetworks.game.game.RouteProblem
 import com.mininetworks.game.game.Service
 import com.mininetworks.game.game.StressWorld
 import com.mininetworks.game.game.Tutorial
+import com.mininetworks.game.game.Vec2
 import com.mininetworks.game.game.World
 import com.mininetworks.game.monetization.Entitlements
 import com.mininetworks.game.monetization.FakeMonetization
@@ -170,6 +171,71 @@ class ScreenshotTest {
         val bmp = xxhdpiPhone()
         view.drawSnapshot(Canvas(bmp), scene(), bmp.width, bmp.height, time = 1.3f)
         save(bmp, File(shots, "game-hud.png"))
+    }
+
+    /**
+     * Off-screen chips: zoomed in on one corner of the HUD scene, the devices in trouble elsewhere show at the view's
+     * edge, red with their overload ring, orange while their queue only nears the limit.
+     */
+    @Test
+    @Config(qualifiers = "de-xxhdpi")
+    fun renderOffscreenChips() {
+        val view = GameView(RuntimeEnvironment.getApplication())
+        val bmp = xxhdpiPhone()
+        val world = scene()
+        view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 1.3f, style = "Iso")
+        val r = view.activeRenderer
+        val clients = world.nodes.filter { it.kind == NodeKind.CLIENT }.sortedBy { it.cellX + it.cellY }
+        val corner = clients.first()
+        clients.drop(1).forEachIndexed { i, n ->
+            while (n.pending.size < World.Tuning.MAX_PENDING - 1) n.pending.addLast(n.pending.firstOrNull() ?: Service.MAIL)
+            n.overload = if (i % 2 == 0) (0.2f + 0.15f * i).coerceAtMost(0.9f) else 0f
+        }
+        val p = r.toScreen(corner.footprintCenter)
+        r.camera.zoomBy(4f, p.x, p.y)
+        r.camera.panBy(r.camera.centerX - p.x, r.camera.centerY - p.y)
+        view.drawCurrent(Canvas(bmp))
+        save(bmp, File(shots, "offscreen-chips.png"))
+    }
+
+    /**
+     * Badges for the silent failures, zoomed in, in both styles: a PC whose ISDN line to the mail server is jammed (the
+     * cable pulses amber, the PC wears the jam badge) and a TV cabled only to the mail server (badge with the missing
+     * streaming sign).
+     */
+    @Test
+    @Config(qualifiers = "de-xxhdpi")
+    fun renderProblemBadges() {
+        for (style in listOf("Iso", "Flat")) {
+            SettingsStore(RuntimeEnvironment.getApplication()).tutorialSeen = true
+            val view = GameView(RuntimeEnvironment.getApplication())
+            val bmp = xxhdpiPhone()
+            val world = World(seed = 2L, spawnInitialNodes = false)
+            world.incidentsEnabled = false
+            for (row in world.water) row.fill(false)
+            world.jumpToWeek(Service.STREAMING.serverWeek)
+            world.grant(300)
+            val u = world.unlocked
+            val pc = world.addClient(Device.PC, u.left + 3, u.top + 3)
+            val mail = world.addServer(Service.MAIL, u.left + 7, u.top + 3)
+            val tv = world.addClient(Device.TV, u.left + 5, u.top + 6)
+            world.addServer(Service.STREAMING, u.left + 9, u.top + 7)
+            world.connect(pc, mail, CableType.ISDN)
+            world.connect(tv, mail, CableType.DSL)
+            repeat(30) {
+                while (pc.pending.size < 3) pc.pending.addLast(Service.MAIL)
+                world.update(0.1f)
+            }
+            while (pc.pending.size > 3) pc.pending.removeLast()
+            tv.pending.clear(); tv.pending.addLast(Service.STREAMING)
+            view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 1.3f, style = style)
+            val r = view.activeRenderer
+            val p = r.toScreen(Vec2(u.left + 6f, u.top + 5f))
+            r.camera.zoomBy(2.5f, p.x, p.y)
+            r.camera.panBy(r.camera.centerX - p.x, r.camera.centerY - p.y)
+            view.drawCurrent(Canvas(bmp))
+            save(bmp, File(shots, if (style == "Iso") "problem-badges.png" else "problem-badges-flat.png"))
+        }
     }
 
     /**

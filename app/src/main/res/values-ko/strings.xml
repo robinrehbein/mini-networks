@@ -113,6 +113,8 @@
     <string name="connect_error_already_connected">이미 연결됨</string>
     <string name="connect_error_not_invented">%1$s: 아직 발명되지 않음</string>
     <string name="connect_error_no_budget">예산이 부족합니다</string>
+    <string name="connect_error_no_budget_cost">예산 부족: 여기서 %1$s 비용 %2$d</string>
+    <string name="connect_error_already_connected_nodes">%1$s · %2$s 이미 연결됨</string>
 
     <!-- Week rewards -->
     <string name="reward_prompt">주급: +%1$d · 카드를 탭해 보너스를 고르세요</string>
@@ -241,6 +243,8 @@
     <string name="place_error_occupied">이미 사용 중인 칸입니다</string>
     <string name="place_error_terrain">빈 땅에만 놓을 수 있습니다</string>
     <string name="hint_router_pick_up">케이블 없는 라우터 · 한 번 더 탭하면 재고로 회수</string>
+    <string name="router_error_has_cables">라우터에 케이블이 남아 있어요 · 먼저 케이블을 빼야 재고로 돌릴 수 있어요</string>
+    <string name="router_error_incident">이 라우터에 장애 발생 중 · 끝난 뒤에 재고로 돌릴 수 있어요</string>
     <string name="hint_router_picked_up">라우터를 재고로 회수했습니다</string>
     <string name="server_tier">%1$d단계</string>
     <string name="server_tier_data_center">데이터 센터</string>
@@ -256,6 +260,9 @@
     <string name="problem_too_narrow">%1$s → %2$s: 충분히 넓은 케이블이 없음 (대역폭 %3$d)</string>
     <string name="problem_ping">%1$s → %2$s: 핑 %3$dms, 허용 %4$dms</string>
     <string name="problem_jam">%1$s → %2$s: 정체, 케이블이나 서버가 꽉 참</string>
+    <string name="problem_no_server">%1$s → %2$s: 네트워크에 없음 – 케이블로 연결하세요</string>
+    <string name="problem_jam_cable">%1$s → %2$s: %3$s 케이블 꽉 참 – 업그레이드하거나 서버를 가까이</string>
+    <string name="problem_jam_server">%1$s → %2$s: 서버가 느림 – 업그레이드하거나 하나 더</string>
     <string name="game_over_no_route">%2$s 서버에 연결할 수 없었어요 (%1$s)</string>
     <string name="game_over_too_narrow">%2$s에는 더 넓은 케이블이 필요했어요 (%1$s)</string>
     <string name="game_over_ping">%2$s 지연: %3$d ms, 최대 %4$d ms (%1$s)</string>
@@ -267,6 +274,12 @@
     <string name="a11y_menu">메뉴</string>
     <string name="a11y_pause">시계 멈추기</string>
     <string name="a11y_compass">지도를 북쪽으로 되돌리기</string>
+    <string name="a11y_offscreen_overload">화면 밖 %2$s %1$s 과부하 (대기 %3$d) – 이동</string>
+    <string name="a11y_offscreen_warning">화면 밖 %2$s %1$s 대기 증가 (대기 %3$d) – 이동</string>
+    <string name="a11y_side_left">왼쪽</string>
+    <string name="a11y_side_top">위쪽</string>
+    <string name="a11y_side_right">오른쪽</string>
+    <string name="a11y_side_bottom">아래쪽</string>
     <string name="a11y_recap" tools:ignore="PluralsCandidate">타임랩스: %1$d주차부터 %2$d주차까지의 네트워크</string>
     <string name="a11y_router">라우터 놓기 (재고: %1$d)</string>
     <string name="a11y_access_point">Wi-Fi 액세스 포인트 놓기 (재고: %1$d)</string>
@@ -516,6 +529,6 @@
     <string name="news_cell_generation">모바일 %1$s</string>
     <string name="hint_cell_tower">기지국이 %1$s로 송출 중 · 새 세대가 나오면 탭해서 업그레이드</string>
     <string name="cell_error_newest">이미 최신 세대입니다</string>
-    <string name="cell_error_not_invented">%1$s는 %2$d년에 나옵니다</string>
+    <string name="cell_error_not_invented">%1$s: %2$d년에 나옵니다</string>
     <string name="legend_cell_tower_desc">스마트폰·태블릿·워치 전용 · 3G → 4G/LTE → 5G: 탭하면 업그레이드, 용량 증가·핑 감소</string>
 </resources>

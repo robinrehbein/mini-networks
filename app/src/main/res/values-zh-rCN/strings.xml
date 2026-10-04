@@ -113,6 +113,8 @@
     <string name="connect_error_already_connected">已经连接</string>
     <string name="connect_error_not_invented">%1$s 还没有发明</string>
     <string name="connect_error_no_budget">预算不足</string>
+    <string name="connect_error_no_budget_cost">预算不足：这里铺设%1$s需要 %2$d</string>
+    <string name="connect_error_already_connected_nodes">%1$s 和 %2$s 已经连接</string>
 
     <!-- Week rewards -->
     <string name="reward_prompt">本周收入：+%1$d · 点按一张卡片领取额外奖励</string>
@@ -241,6 +243,8 @@
     <string name="place_error_occupied">这个格子已被占用</string>
     <string name="place_error_terrain">只能放在空地上</string>
     <string name="hint_router_pick_up">未接电缆的路由器 · 再次点按放回库存</string>
+    <string name="router_error_has_cables">路由器上还有电缆 · 先拆掉电缆才能放回库存</string>
+    <string name="router_error_incident">这台路由器正发生故障 · 结束后再放回库存</string>
     <string name="hint_router_picked_up">路由器已放回库存</string>
     <string name="server_tier">%1$d 级</string>
     <string name="server_tier_data_center">数据中心</string>
@@ -256,6 +260,9 @@
     <string name="problem_too_narrow">%1$s → %2$s：没有足够宽的电缆（带宽 %3$d）</string>
     <string name="problem_ping">%1$s → %2$s：延迟 %3$d 毫秒，允许 %4$d 毫秒</string>
     <string name="problem_jam">%1$s → %2$s：拥堵，电缆或服务器已满</string>
+    <string name="problem_no_server">%1$s → %2$s：网络中没有——用电缆连到一台</string>
+    <string name="problem_jam_cable">%1$s → %2$s：%3$s电缆已满——升级它或把服务器放近些</string>
+    <string name="problem_jam_server">%1$s → %2$s：服务器太慢——升级它或再放一台</string>
     <string name="game_over_no_route">%1$s 无法连到 %2$s 服务器</string>
     <string name="game_over_too_narrow">%1$s 的 %2$s 需要更宽的电缆</string>
     <string name="game_over_ping">%1$s 的 %2$s 延迟 %3$d 毫秒，上限 %4$d 毫秒</string>
@@ -267,6 +274,12 @@
     <string name="a11y_menu">菜单</string>
     <string name="a11y_pause">暂停时间</string>
     <string name="a11y_compass">将地图转回北方</string>
+    <string name="a11y_offscreen_overload">屏幕外%2$s的%1$s过载（%3$d个等待） – 前往</string>
+    <string name="a11y_offscreen_warning">屏幕外%2$s的%1$s正在拥堵（%3$d个等待） – 前往</string>
+    <string name="a11y_side_left">左侧</string>
+    <string name="a11y_side_top">上方</string>
+    <string name="a11y_side_right">右侧</string>
+    <string name="a11y_side_bottom">下方</string>
     <string name="a11y_recap" tools:ignore="PluralsCandidate">延时回放：你的网络从第 %1$d 周到第 %2$d 周</string>
     <string name="a11y_router">放置路由器（库存：%1$d）</string>
     <string name="a11y_access_point">放置 Wi-Fi 接入点（库存：%1$d）</string>
