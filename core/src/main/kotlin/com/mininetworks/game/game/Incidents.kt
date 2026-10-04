@@ -43,7 +43,7 @@ class Incident internal constructor(
     val struck get() = warning <= 0f
 
     /** Where it happens in world space: the cut on the cable, or the node's center. */
-    val spot: Vec2 get() = cable?.layout?.pointAt(cutAt) ?: node!!.center
+    val spot: Vec2 get() = cable?.pointAt(cutAt) ?: node!!.center
 
     /** 0..1: how far the effect has run, for a countdown ring. */
     val effectProgress get() = if (!struck) 0f else 1f - remaining / Incidents.durationOf(kind)

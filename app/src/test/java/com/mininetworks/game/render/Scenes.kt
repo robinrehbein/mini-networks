@@ -161,4 +161,31 @@ object Scenes {
         repeat(60 * 3) { w.update(1f / 60f) }
         return w
     }
+    /**
+     * Week 8 of a busy town: every client wired to the nearest servers it can use in all four technologies, so many
+     * cables run over the same cells and the lanes ([com.mininetworks.game.game.CableLanes]) show.
+     */
+    fun crowdedTown(): World {
+        val w = World(seed = 7L)
+        w.incidentsEnabled = false
+        repeat(60 * 45 * 7) {
+            if (w.rewardOffer != null) w.chooseReward(0)
+            w.nodes.forEach { it.pending.clear() }
+            w.update(1f / 60f)
+        }
+        w.grant(2000)
+        val types = CableType.entries.filter { w.invented(it) }
+        for ((i, client) in w.nodes.filter { it.kind == NodeKind.CLIENT }.withIndex()) {
+            val servers = w.nodes
+                .filter { it.kind == NodeKind.SERVER && it.service in client.device!!.services && w.ports(it) < it.maxPorts }
+                .sortedBy { abs(it.cellX - client.cellX) + abs(it.cellY - client.cellY) }
+            for (server in servers.take(2)) w.connect(client, server, types[(i + server.id) % types.size])
+        }
+        repeat(60 * 3) {
+            if (w.rewardOffer != null) w.chooseReward(0)
+            w.update(1f / 60f)
+        }
+        if (w.rewardOffer != null) w.chooseReward(0)
+        return w
+    }
 }

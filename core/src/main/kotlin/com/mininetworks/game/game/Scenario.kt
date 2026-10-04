@@ -88,6 +88,8 @@ data class Scenario(
     val startAccessPoints: Int = 0,
     val startCellTowers: Int = 0,
     val rules: Set<ScenarioRule> = emptySet(),
+    /** Clients per unlocked cell from which no new one appears ([World.isCrowded]); later sceneries are denser, and so harder. */
+    val clientDensity: Float = World.Tuning.MAX_CLIENT_DENSITY,
 ) {
     init {
         require(startCols in 3..cols && startRows in 3..rows) { "start block must fit the grid" }
@@ -133,6 +135,7 @@ object Scenarios {
         ),
         unlock = Unlock.Score(RIVER_TOWN.id, METROPOLIS_TARGET),
         startBudget = 56,
+        clientDensity = 0.075f,
         startRouters = 4,
     )
 
@@ -153,6 +156,7 @@ object Scenarios {
         ),
         unlock = Unlock.Score(METROPOLIS.id, ISLAND_TARGET),
         startBudget = 62,
+        clientDensity = 0.09f,
         startRouters = 2,
         startCellTowers = 1,
     )
@@ -172,6 +176,7 @@ object Scenarios {
         ),
         unlock = Unlock.Purchase,
         startBudget = 60,
+        clientDensity = 0.09f,
         startRouters = 1,
     )
 
@@ -188,6 +193,7 @@ object Scenarios {
         ),
         unlock = Unlock.Purchase,
         startBudget = 74,
+        clientDensity = 0.1f,
         startRouters = 4,
         startAccessPoints = 1,
         startCellTowers = 1,

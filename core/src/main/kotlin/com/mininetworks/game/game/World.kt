@@ -87,6 +87,15 @@ class World(
         const val MIN_SPAWN_SECONDS = 4f
         const val SPAWN_JITTER = 2f
         /**
+         * No new client appears while the map already holds this many clients per unlocked cell ([isCrowded]). Clients
+         * came faster than the map grew (0.04 per cell in week 2, 0.09 in week 10 for a human-paced bot), so cables ran
+         * over each other and the map was unreadable on a phone (docs/BALANCING.md, T-Clutter); now the density stops
+         * rising where the map is still readable, and every new ring of cells makes room for a few more.
+         */
+        const val MAX_CLIENT_DENSITY = 0.07f
+        /** A spawn held back by [MAX_CLIENT_DENSITY] looks again after this long. */
+        const val CROWDED_RETRY_SECONDS = 2f
+        /**
          * Pause between two requests of a client with [Demand.RANDOM] services: [REQUEST_SECONDS] minus [REQUEST_SPEEDUP]
          * per week played, at least [MIN_REQUEST_SECONDS], plus up to [REQUEST_JITTER] at random.
          */
@@ -463,6 +472,13 @@ class World(
         return null
     }
 
+    /** True while the map holds as many clients per unlocked cell as [Tuning.MAX_CLIENT_DENSITY] allows (the crowd rule has no limit). */
+    fun isCrowded(): Boolean {
+        if (rule == DailyRule.CROWD) return false
+        val area = unlocked.let { (it.right - it.left) * (it.bottom - it.top) }
+        return nodeList.count { it.kind == NodeKind.CLIENT } >= area * scenario.clientDensity
+    }
+
     /**
      * A new client of a random invented device that wants a service with a server; newer devices show up more often.
      * In the first [Tuning.EARLY_WEEKS] it only goes where it can be served ([fairStart]); if the drawn device fits
@@ -727,6 +743,7 @@ class World(
             c.a.links += c
             c.b.links += c
         }
+        CableLanes.assign(cableList)
     }
 
     /**
@@ -1495,7 +1512,9 @@ class World(
         if (!guided) startIncidents(prevTime, time)
 
         if (!guided) clientSpawnTimer -= dt
-        if (clientSpawnTimer <= 0f) {
+        if (clientSpawnTimer <= 0f && isCrowded()) {
+            clientSpawnTimer = Tuning.CROWDED_RETRY_SECONDS
+        } else if (clientSpawnTimer <= 0f) {
             spawnClient()
             clientSpawnTimer = (max(Tuning.MIN_SPAWN_SECONDS, Tuning.SPAWN_SECONDS - weeksPlayed * Tuning.SPAWN_SPEEDUP) +
                 rng.nextFloat() * Tuning.SPAWN_JITTER) * if (rule == DailyRule.CROWD) Tuning.CROWD_SPAWN_FACTOR else 1f

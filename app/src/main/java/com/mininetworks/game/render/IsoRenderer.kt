@@ -389,9 +389,23 @@ class IsoRenderer : Renderer {
 
     /** The cable in [path] with style [st]: dark outline, white halo, the cable colour and its core, if any. */
     private fun strokeCable(canvas: Canvas, st: CableStyles.Style) {
-        // A dark outline under the white halo keeps every skin's cables apart from any ground colour.
+        strokeCableOutline(canvas, st)
+        strokeCableBody(canvas, st)
+    }
+
+    /**
+     * The dark outline and the white halo of the cable in [path]: they keep every skin's cables apart from any ground
+     * colour. Cables side by side in their lanes ([CableLanes]) draw all outlines first and all bodies after, so one
+     * cable's halo never covers the colour of its neighbour.
+     */
+    private fun strokeCableOutline(canvas: Canvas, st: CableStyles.Style) {
         strokeP.color = CABLE_OUTLINE; strokeP.strokeWidth = tw * (st.width * 0.75f + 0.13f); canvas.drawPath(path, strokeP)
         strokeP.color = 0xB3FFFFFF.toInt(); strokeP.strokeWidth = tw * (st.width * 0.75f + 0.08f); canvas.drawPath(path, strokeP)
+    }
+
+    /** The cable colour and its core of the cable in [path], in a thin dark edge so it still reads where cables cross. */
+    private fun strokeCableBody(canvas: Canvas, st: CableStyles.Style) {
+        strokeP.color = CABLE_OUTLINE; strokeP.strokeWidth = tw * (st.width * 0.75f + 0.035f); canvas.drawPath(path, strokeP)
         strokeP.color = st.color; strokeP.strokeWidth = tw * st.width * 0.75f; canvas.drawPath(path, strokeP)
         st.core?.let { strokeP.color = it; strokeP.strokeWidth = tw * st.coreWidth * 0.75f; canvas.drawPath(path, strokeP) }
     }
@@ -404,7 +418,12 @@ class IsoRenderer : Renderer {
         for (cable in world.cables) {
             if (!isStatic(world, cable)) continue
             polyline(cablePath(cable))
-            strokeCable(c, CableStyles.of(cable.type))
+            strokeCableOutline(c, CableStyles.of(cable.type))
+        }
+        for (cable in world.cables) {
+            if (!isStatic(world, cable)) continue
+            polyline(cablePath(cable))
+            strokeCableBody(c, CableStyles.of(cable.type))
         }
     }
 
@@ -586,7 +605,7 @@ class IsoRenderer : Renderer {
         for (k in cables.indices) {
             val c = cables[k]
             h = mix(mix(mix(h, c.a.id), c.b.id), c.type.ordinal)
-            val pts = c.layout.waypoints
+            val pts = c.path
             for (i in pts.indices) h = mix(mix(h, pts[i].x.toRawBits()), pts[i].y.toRawBits())
         }
         return h
@@ -1269,7 +1288,7 @@ class IsoRenderer : Renderer {
             strokeP.color = 0xFFFFFF or ((Juice.fade(g) * 0.55f).toInt() shl 24)
             strokeP.strokeWidth = tw * (CableStyles.of(c.type).width * 0.75f + 0.1f)
             canvas.drawPath(path, strokeP)
-            val p = c.layout.pointAt(g)
+            val p = c.pointAt(g)
             val x = sx(p.x, p.y); val y = sy(p.x, p.y)
             fillP.color = 0xFFFFFFFF.toInt()
             Juice.sparkle(canvas, path, x, y, tw * 0.12f, fillP)
@@ -1318,7 +1337,7 @@ class IsoRenderer : Renderer {
 
     /** A bright spark at the growing end of a cable being laid. */
     private fun drawCableTip(canvas: Canvas, c: Cable, f: Float) {
-        val p = c.layout.pointAt(f)
+        val p = c.pointAt(f)
         val x = sx(p.x, p.y); val y = sy(p.x, p.y)
         fillP.color = 0x66FFFFFF; canvas.drawCircle(x, y, tw * 0.11f, fillP)
         fillP.color = CableStyles.of(c.type).color; canvas.drawCircle(x, y, tw * 0.055f, fillP)
@@ -1740,9 +1759,9 @@ class IsoRenderer : Renderer {
      * that cell. A decoration left in the chosen cell is hidden while the excavator stands there ([excavatorCells]).
      */
     private fun excavatorStand(world: World, i: Incident): Pair<Vec2, Vec2> {
-        val layout = i.cable!!.layout
-        val a = layout.pointAt((i.cutAt - 0.02f).coerceAtLeast(0f))
-        val b = layout.pointAt((i.cutAt + 0.02f).coerceAtMost(1f))
+        val cable = i.cable!!
+        val a = cable.pointAt((i.cutAt - 0.02f).coerceAtLeast(0f))
+        val b = cable.pointAt((i.cutAt + 0.02f).coerceAtMost(1f))
         val back = if (abs(b.x - a.x) >= abs(b.y - a.y)) Vec2(0f, 1f) else Vec2(1f, 0f)
         val spot = i.spot
         fun standFor(d: Vec2) = Vec2(spot.x - d.x * 0.62f, spot.y - d.y * 0.62f)

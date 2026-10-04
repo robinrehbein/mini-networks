@@ -110,7 +110,7 @@ class TutorialOverlay(private val context: Context) {
             }
             is TutorialFocus.Nodes -> focus.nodes.forEach { nodeRing(canvas, renderer.toScreen(it.center), renderer, pulse) }
             is TutorialFocus.Cables -> focus.cables.forEach { c ->
-                drawPath(canvas, c.layout.waypoints.map(renderer::toScreen), dashed = false, glow = pulse)
+                drawPath(canvas, c.path.map(renderer::toScreen), dashed = false, glow = pulse)
             }
             TutorialFocus.RouterButton -> hudButton("router")?.let { buttonFrame(canvas, it, pulse) }
             is TutorialFocus.CableButton -> hudButton("cable:${focus.type.name}")?.let { buttonFrame(canvas, it, pulse) }
