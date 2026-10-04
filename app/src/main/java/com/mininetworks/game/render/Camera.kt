@@ -176,6 +176,12 @@ class Camera {
     /** World units -> screen pixels. */
     fun worldToScreen(p: Vec2): Vec2 = toScreen(worldToMap(p.x, p.y))
 
+    /** Screen x of world point ([x], [y]), as [worldToScreen] but without allocating; for per-frame loops. */
+    fun worldToScreenX(x: Float, y: Float) = toScreenX(projection.projectX(turnX(x, y), turnY(x, y)))
+
+    /** Screen y of world point ([x], [y]), as [worldToScreen] but without allocating. */
+    fun worldToScreenY(x: Float, y: Float) = toScreenY(projection.projectY(turnX(x, y), turnY(x, y)))
+
     /** Screen pixels -> world units; the inverse of [worldToScreen]. */
     fun screenToWorld(sx: Float, sy: Float): Vec2 = toMap(sx, sy).let { mapToWorld(it.x, it.y) }
 

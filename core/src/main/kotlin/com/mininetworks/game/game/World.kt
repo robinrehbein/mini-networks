@@ -51,7 +51,18 @@ class World(
         const val FUTURE_PACE_WEEK = 8
         const val ROUTER_MS = 4f
         const val MAX_PENDING = 6
+        /** From this many waiting requests a device warns (orange bubble, off-screen chip) before its ring starts. */
+        const val PREWARN_PENDING = MAX_PENDING - 2
         const val OVERLOAD_SECONDS = 18f
+        /** A device counts as jammed ([isJammed]) once it has been held back this long without a break. */
+        const val JAM_SECONDS = 1.5f
+        /** A device or cable shown as jammed stays so this long after the jam lets up, so its badge does not blink. */
+        const val JAM_HOLD = 1f
+        /**
+         * A device only counts as jammed while at least this many requests wait: half full, a step before the
+         * pre-warning ([PREWARN_PENDING]), so the cause shows just before the symptom gets urgent.
+         */
+        const val JAM_PENDING = MAX_PENDING / 2
         /**
          * A full overload ring empties in this long once the device is served again; short, so a device saved at the
          * last moment is safe soon (docs/BALANCING.md, T-Human). Intended side effect: a device that keeps hitting
@@ -335,6 +346,9 @@ class World(
 
     /** Per client and [Service.ordinal]: is there a route at any link width ([YES], [NO], [UNKNOWN])? For [routeProblem]. */
     private val wideCache = HashMap<Node, ByteArray>()
+
+    /** Like [wideCache], for a route at any width with every incident counted as repaired. For [missingServer]. */
+    private val islandCache = HashMap<Node, ByteArray>()
 
     /** Scratch tables of [computeRoute]. */
     private var routeDist = FloatArray(0)
@@ -1093,6 +1107,7 @@ class World(
     private fun forgetRoutes() {
         routeCache.clear()
         wideCache.clear()
+        islandCache.clear()
     }
 
     /**
@@ -1100,7 +1115,9 @@ class World(
      * The open list may hold a node twice; the first entry with the lowest distance is taken next. Links narrower than
      * [minCapacity] are left out; [extra] is a planned cable that is not laid yet but counts as if it were.
      */
-    private fun computeRoute(client: Node, service: Service, minCapacity: Int = service.bandwidth, extra: Cable? = null): Route? {
+    private fun computeRoute(
+        client: Node, service: Service, minCapacity: Int = service.bandwidth, extra: Cable? = null, ignoreIncidents: Boolean = false,
+    ): Route? {
         val count = nodeList.size
         if (routeDist.size < count) {
             routeDist = FloatArray(count * 2)
@@ -1134,15 +1151,15 @@ class World(
             if (cur !== client && cur.kind == NodeKind.SERVER) continue
             val hopCost = if (cur === client) 0f else Tuning.ROUTER_MS
             val links = cur.links
-            for (i in links.indices) relax(client, cur, links[i], minCapacity, hopCost)
-            if (extra != null && extra.connects(cur)) relax(client, cur, extra, minCapacity, hopCost)
+            for (i in links.indices) relax(client, cur, links[i], minCapacity, hopCost, ignoreIncidents)
+            if (extra != null && extra.connects(cur)) relax(client, cur, extra, minCapacity, hopCost, ignoreIncidents)
         }
         return null
     }
 
     /** One edge of [computeRoute]: reaching the far end of [c] from [cur] through it, if that is shorter. */
-    private fun relax(client: Node, cur: Node, c: Link, minCapacity: Int, hopCost: Float) {
-        if (c.capacity < minCapacity || !isUp(c)) return
+    private fun relax(client: Node, cur: Node, c: Link, minCapacity: Int, hopCost: Float, ignoreIncidents: Boolean) {
+        if (c.capacity < minCapacity || !(ignoreIncidents || isUp(c))) return
         // A radio link only carries its device's own traffic, as the first hop: a radio reaches the network
         // through its cables, and cabled devices cannot ride on a wireless client.
         if (c is RadioLink && !(cur === client && c.device === client)) return
@@ -1182,6 +1199,137 @@ class World(
 
     /** Bandwidth units waiting at either end of a link on the medium of [l] to enter it. */
     internal fun linkWaiting(l: Link) = tallies[l.medium]?.waiting ?: 0
+
+    /**
+     * The link holding back [client]'s oldest request that has a route ([routeFor]) right now: the first one on that
+     * route whose medium has no room left for it. Null if the client waits for nothing, every link has room, or the
+     * server is what holds it back ([jamServer]); a request without a route has a [routeProblem] instead.
+     */
+    fun jamLink(client: Node): Link? = jamBlock(client) as? Link
+
+    /**
+     * The saturated server holding back [client]'s oldest routed request: requests are parked at it for its throughput
+     * ([serverBusy], [waitingAt]) and fill its cable, so a wider cable would not help. Null otherwise.
+     */
+    fun jamServer(client: Node): Node? = jamBlock(client) as? Node
+
+    /** True if the medium of [link] has no room left for a request of [service]. */
+    private fun full(link: Link, service: Service): Boolean {
+        val t = tallies[link.medium] ?: return false
+        return t.moving + t.waiting + service.bandwidth > link.capacity
+    }
+
+    /**
+     * What holds [client] back: a full [Link], a saturated server [Node] behind its route's last link, or null.
+     * [parked] holds [waitingAt] per [Node.index] when the caller counted it once for every client.
+     */
+    private fun jamBlock(client: Node, parked: IntArray? = null): Any? {
+        if (client.kind != NodeKind.CLIENT) return null
+        val pending = client.pending
+        for (i in pending.indices) {
+            val service = pending[i]
+            val route = routeFor(client, service)?.nodes ?: continue
+            val server = route.last()
+            for (k in 0 until route.size - 2) {
+                val link = linkBetween(route[k], route[k + 1]) ?: continue
+                if (full(link, service)) return link
+            }
+            // Requests parked at the server keep its cable full whenever it has room for a moment: the server it is.
+            if (serverBusy(server) && (parked?.get(server.index) ?: waitingAt(server)) > 0) return server
+            return linkBetween(route[route.size - 2], server)?.takeIf { full(it, service) }
+        }
+        return null
+    }
+
+    /**
+     * True once client [n] has been held back by a full link ([jamLink]) or a saturated server ([jamServer]) for
+     * [Tuning.JAM_SECONDS] with a queue of [Tuning.JAM_PENDING] or more, and for [Tuning.JAM_HOLD] after that ends:
+     * its requests have a route but stand in a jam.
+     */
+    fun isJammed(n: Node) = n.kind == NodeKind.CLIENT && n.jamTime >= Tuning.JAM_SECONDS
+
+    /** [waitingAt] per [Node.index], counted once per step by [trackJams]. */
+    private var parkedScratch = IntArray(0)
+
+    /** True while cable [c] is the [jamLink] of a jammed client ([isJammed]), or was within [Tuning.JAM_HOLD]. */
+    fun isJammed(c: Cable) = c.jamTime >= Tuning.JAM_SECONDS
+
+    /** The cables that are jammed right now ([isJammed]). */
+    fun jammedCables(): List<Cable> = cableList.filter(::isJammed)
+
+    /** True if [client] is linked to the network: at least one of its cables or radio links can carry packets. */
+    fun isLinkedIn(client: Node): Boolean {
+        val links = client.links
+        for (i in links.indices) if (isUp(links[i])) return true
+        return false
+    }
+
+    /**
+     * Services [client] wants that have a server somewhere ([availableServices]) but none it can reach, although it
+     * is linked in ([isLinkedIn]): typically a device cabled to a server of another service. Empty for an unlinked
+     * device (it shows that by itself) and for other nodes.
+     */
+    fun unreachableServices(client: Node): List<Service> {
+        val device = client.device ?: return emptyList()
+        if (!isLinkedIn(client)) return emptyList()
+        return device.services.filter { it in availableServices && missingServer(client, it) }
+    }
+
+    /** The first of [unreachableServices], without building the list; for drawing every frame. */
+    fun firstUnreachableService(client: Node): Service? {
+        val device = client.device ?: return null
+        if (!isLinkedIn(client)) return null
+        val services = device.services
+        for (i in services.indices) {
+            val s = services[i]
+            if (s in availableServices && missingServer(client, s)) return s
+        }
+        return null
+    }
+
+    /**
+     * True if [client] has no route to a server of [s] even with the links incidents took down ([isUp]) counted as
+     * up: a cut cable or a dark router is an incident with its own look, not a missing server.
+     */
+    private fun missingServer(client: Node, s: Service): Boolean {
+        if (routeProblem(client, s) != RouteProblem.NO_ROUTE) return false
+        if (incidentList.none { it.struck }) return true
+        // Drawn every frame for each device while an incident is struck: the search is cached like [wideCache].
+        val row = islandCache.getOrPut(client) { ByteArray(Service.entries.size) }
+        if (row[s.ordinal] == UNKNOWN) row[s.ordinal] = if (computeRoute(client, s, minCapacity = 0, ignoreIncidents = true) != null) YES else NO
+        return row[s.ordinal] == NO
+    }
+
+    /**
+     * Advances the jam timers once per step. A client grows its [Node.jamTime] while a [jamLink] or [jamServer] holds
+     * back a queue of [Tuning.JAM_PENDING] or more; one still building up drops to 0 as soon as nothing holds it back,
+     * one already shown as jammed stays so for [Tuning.JAM_HOLD] more, so a queue swinging around the threshold does
+     * not blink. A cable is jammed only as the [jamLink] of a jammed client, with the same hold: a busy cable that keeps
+     * up stays calm, and a server's own cable never glows for the server's slowness.
+     */
+    private fun trackJams(dt: Float) {
+        if (parkedScratch.size < nodeList.size) parkedScratch = IntArray(nodeList.size * 2)
+        val parked = parkedScratch
+        parked.fill(0, 0, nodeList.size)
+        for (i in packets.indices) {
+            val p = packets[i]
+            if (!p.isResponse && p.inTransit && p.progress >= SERVER_WAIT && p.hop + 2 == p.route.size) parked[p.to.index]++
+        }
+        val shown = Tuning.JAM_SECONDS + Tuning.JAM_HOLD
+        for (i in cableList.indices) cableList[i].let { it.jamTime = if (it.jamTime > Tuning.JAM_SECONDS) it.jamTime - dt else 0f }
+        for (i in nodeList.indices) {
+            val n = nodeList[i]
+            if (n.kind != NodeKind.CLIENT) continue
+            // One request waiting for the one in flight is a cable that keeps up; a jam is a queue that builds.
+            val block = if (n.pending.size < Tuning.JAM_PENDING) null else jamBlock(n, parked)
+            n.jamTime = when {
+                block != null -> minOf(n.jamTime + dt, shown)
+                n.jamTime > Tuning.JAM_SECONDS -> n.jamTime - dt
+                else -> 0f
+            }
+            if (block is Cable && isJammed(n)) block.jamTime = shown
+        }
+    }
 
     /**
      * Load counters of one medium: bandwidth units travelling on it ([moving]), waiting at one of its ends to enter it
@@ -1292,6 +1440,7 @@ class World(
         }
 
         movePackets(dt)
+        trackJams(dt)
 
         val fillSeconds = Tuning.OVERLOAD_SECONDS * (if (weeksPlayed <= Tuning.EARLY_WEEKS) Tuning.EARLY_OVERLOAD_SLOWDOWN else 1f) *
             (if (rule == DailyRule.CROWD) Tuning.CROWD_OVERLOAD_SLOWDOWN else 1f)

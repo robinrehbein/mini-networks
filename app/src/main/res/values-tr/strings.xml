@@ -120,6 +120,8 @@
     <string name="connect_error_already_connected">Zaten bağlı</string>
     <string name="connect_error_not_invented">%1$s henüz icat edilmedi</string>
     <string name="connect_error_no_budget">Bütçe yetmiyor</string>
+    <string name="connect_error_no_budget_cost">Bütçe yetmiyor: %1$s burada %2$d tutuyor</string>
+    <string name="connect_error_already_connected_nodes">%1$s ile %2$s zaten bağlı</string>
 
     <!-- Week rewards -->
     <string name="reward_prompt">Haftalık ödenek: +%1$d · Ekstra için bir karta dokun</string>
@@ -251,6 +253,8 @@
     <string name="place_error_occupied">Bu kare zaten dolu</string>
     <string name="place_error_terrain">Yalnızca boş arazide</string>
     <string name="hint_router_pick_up">Kablosu olmayan router · stoğa geri koymak için tekrar dokun</string>
+    <string name="router_error_has_cables">Router\'da hâlâ kablo var · stoğa koymak için önce kabloları sök</string>
+    <string name="router_error_incident">Bu router\'da arıza var · bitince stoğa koyabilirsin</string>
     <string name="hint_router_picked_up">Router stoğa geri döndü</string>
     <string name="server_tier">seviye %1$d</string>
     <string name="server_tier_data_center">veri merkezi</string>
@@ -266,6 +270,9 @@
     <string name="problem_too_narrow">%1$s → %2$s: yeterince geniş kablo yok (bant genişliği %3$d)</string>
     <string name="problem_ping">%1$s → %2$s: ping %3$d ms, izin verilen %4$d ms</string>
     <string name="problem_jam">%1$s → %2$s: tıkanıklık, kablolar ya da sunucu dolu</string>
+    <string name="problem_no_server">%1$s → %2$s: ağında yok – birine kablo çek</string>
+    <string name="problem_jam_cable">%1$s → %2$s: %3$s kablosu dolu – yükselt ya da sunucuyu yaklaştır</string>
+    <string name="problem_jam_server">%1$s → %2$s: sunucu çok yavaş – yükselt ya da bir tane ekle</string>
     <string name="game_over_no_route">%1$s hiçbir %2$s sunucusuna ulaşamadı</string>
     <string name="game_over_too_narrow">%1$s, %2$s için daha geniş bir kablo istedi</string>
     <string name="game_over_ping">%1$s üzerinde %2$s takıldı: %3$d ms, en fazla %4$d ms</string>
@@ -277,6 +284,12 @@
     <string name="a11y_menu">Menü</string>
     <string name="a11y_pause">Saati durdur</string>
     <string name="a11y_compass">Haritayı kuzeye çevir</string>
+    <string name="a11y_offscreen_overload">Ekran dışında %2$s: %1$s aşırı yükleniyor (%3$d bekliyor) – oraya git</string>
+    <string name="a11y_offscreen_warning">Ekran dışında %2$s: %1$s doluyor (%3$d bekliyor) – oraya git</string>
+    <string name="a11y_side_left">solda</string>
+    <string name="a11y_side_top">yukarıda</string>
+    <string name="a11y_side_right">sağda</string>
+    <string name="a11y_side_bottom">aşağıda</string>
     <string name="a11y_recap" tools:ignore="PluralsCandidate">Hızlandırılmış: ağın, %1$d. haftadan %2$d. haftaya</string>
     <string name="a11y_router">Router yerleştir (stokta: %1$d)</string>
     <string name="a11y_access_point">Wi-Fi erişim noktası yerleştir (stokta: %1$d)</string>

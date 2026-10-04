@@ -1,9 +1,11 @@
 package com.mininetworks.game.render
 
 import android.graphics.Canvas
+import android.graphics.ComposePathEffect
 import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.PathEffect
 import android.graphics.RectF
 import com.mininetworks.game.game.Cable
 import com.mininetworks.game.game.CableLayout
@@ -13,6 +15,7 @@ import com.mininetworks.game.game.CellRect
 import com.mininetworks.game.game.Device
 import com.mininetworks.game.game.Geometry
 import com.mininetworks.game.game.Node
+import com.mininetworks.game.game.NodeKind
 import com.mininetworks.game.game.Packet
 import com.mininetworks.game.game.RouteProblem
 import com.mininetworks.game.game.Service
@@ -357,11 +360,124 @@ object ProblemBadges {
 
     private val SIDES = floatArrayOf(-1f, 1f)
 
+    /** Body of the jam badge: the warning amber of a route that works but is full, not the red of a broken one. */
+    const val JAM = IncidentStyles.WARNING
+    /** Ink on the amber jam badge: dark, so it reads without the hue. */
+    private const val JAM_INK = 0xFF3A4350.toInt()
+    private val jamP = fill(JAM)
+    private val jamInk = fill(JAM_INK)
+    private val jamRim = stroke(JAM_INK)
+    private val jamBox = RectF()
+    private val slashP = stroke(ALARM)
+
+    /**
+     * The badge client [n] gets, of radius [r] pixels around ([x], [y]); false if none. A blocked route ([problem], see
+     * [of]) comes first, then a wanted service no linked server provides ([World.firstUnreachableService]), then a jam
+     * on a route that exists ([World.isJammed]).
+     */
+    fun drawFor(canvas: Canvas, world: World, n: Node, problem: RouteProblem?, x: Float, y: Float, r: Float): Boolean {
+        if (problem != null && shows(problem)) {
+            draw(canvas, problem, x, y, r)
+            return true
+        }
+        world.firstUnreachableService(n)?.let {
+            drawMissing(canvas, it, x, y, r)
+            return true
+        }
+        if (world.isJammed(n)) {
+            drawJam(canvas, x, y, r)
+            return true
+        }
+        return false
+    }
+
+    /** No server of [s] reachable: the service's sign in a red rim, with a small red "no entry" disc at its corner. */
+    fun drawMissing(canvas: Canvas, s: Service, x: Float, y: Float, r: Float) {
+        canvas.drawCircle(x, y + r * 0.18f, r * 1.28f, shadowP)
+        canvas.drawCircle(x, y, r * 1.28f, inkFill)
+        ServiceGlyphs.sign(canvas, s, x, y, r, ALARM)
+        slashP.strokeWidth = r * 0.2f
+        canvas.drawCircle(x, y, r, slashP)
+        val cx = x + r * 0.8f; val cy = y + r * 0.8f; val cr = r * 0.5f
+        canvas.drawCircle(cx, cy, cr * 1.25f, inkFill)
+        canvas.drawCircle(cx, cy, cr, bodyP)
+        inkP.strokeWidth = cr * 0.36f
+        canvas.drawLine(cx - cr * 0.55f, cy, cx + cr * 0.55f, cy, inkP)
+    }
+
+    /** A jam: an amber badge with three packets packed into a pipe. */
+    fun drawJam(canvas: Canvas, x: Float, y: Float, r: Float) {
+        canvas.drawCircle(x, y + r * 0.18f, r * 1.28f, shadowP)
+        canvas.drawCircle(x, y, r * 1.28f, inkFill)
+        canvas.drawCircle(x, y, r, jamP)
+        jamRim.strokeWidth = r * 0.12f
+        jamBox.set(x - r * 0.72f, y - r * 0.3f, x + r * 0.72f, y + r * 0.3f)
+        canvas.drawRoundRect(jamBox, r * 0.3f, r * 0.3f, jamRim)
+        for (i in -1..1) canvas.drawCircle(x + i * r * 0.4f, y, r * 0.17f, jamInk)
+    }
+
     /** Material Icons "speed" (Apache License 2.0, docs/licenses-material-icons.txt), in its 24-unit box. */
     private val gauge: Path = androidx.core.graphics.PathParser.createPathFromPathData(
         "M19.46 10a1 1 0 0 0-.07 1 7.55 7.55 0 0 1 .52 1.81 8 8 0 0 1-.69 4.73 1 1 0 0 1-.89.53H5.68a1 1 0 0 1-.89-.54A8 8 0 0 1 13 6.06a7.69 7.69 0 0 1 2.11.56 1 1 0 0 0 1-.07 1 1 0 0 0-.17-1.76A10 10 0 0 0 3.35 19a2 2 0 0 0 1.72 1h13.85a2 2 0 0 0 1.74-1 10 10 0 0 0 .55-8.89 1 1 0 0 0-1.75-.11z" +
             "M10.59 12.59a2 2 0 0 0 2.83 2.83l5.66-8.49z",
     )
+}
+
+/**
+ * The pre-warning on a device's request bubble ([Node.nearOverload]): from [World.Tuning.PREWARN_PENDING] waiting
+ * requests on, the bubble turns orange and shows a row of [World.Tuning.MAX_PENDING] pips, a dark one per request on
+ * white ones; red and grown by [GROW] once the queue is full or the ring runs ([full]). The pip count and the size step
+ * carry it without the hue (colorblind palette); the size stays put while the queue swings around the pre-warning.
+ * Shared by all styles and the off-screen chips.
+ */
+object QueueGauge {
+    const val GROW = 1.15f
+    /** Bubble fill and rim while the queue nears the limit, and once it is full. */
+    const val WARN_FILL = 0xFFFFE9C7.toInt()
+    const val FULL_FILL = 0xFFFFD9DC.toInt()
+    /** A filled pip, and the rim of every pip: dark, so it reads on both bubble fills. */
+    const val PIP_DARK = 0xFF3A4350.toInt()
+    /** An empty pip. */
+    const val PIP_EMPTY = 0xFFFFFFFF.toInt()
+    private const val PIP_MIN_DP = 2f
+    private val pipP = fill(0)
+    private val ringP = stroke(0)
+
+    /** True when client [n] gets the warning look: near the limit, or its ring still shows. */
+    fun warns(n: Node) = n.nearOverload || (n.kind == NodeKind.CLIENT && n.overload > 0f)
+
+    /** True when client [n] gets the red look: its queue is full or its ring still shows. */
+    fun full(n: Node) = n.overload > 0f || n.pending.size >= World.Tuning.MAX_PENDING
+
+    /** Orange while the queue nears the limit, red once it is full ([full]). */
+    fun color(n: Node) = if (full(n)) ProblemBadges.ALARM else IncidentStyles.WARNING
+
+    fun fillColor(n: Node) = if (full(n)) FULL_FILL else WARN_FILL
+
+    /** Filled pips of client [n]: its [Node.pressure] in steps of one request. */
+    fun filled(n: Node) = kotlin.math.round(n.pressure * World.Tuning.MAX_PENDING).toInt()
+
+    /** Pip radius for a bubble of token radius [r], never under [PIP_MIN_DP]. */
+    fun pip(r: Float, density: Float) = maxOf(r * 0.4f, PIP_MIN_DP * density)
+
+    /** Width of the pip row for pips of radius [r]. */
+    fun width(r: Float) = (World.Tuning.MAX_PENDING - 1) * r * PIP_STEP + r * 2f
+
+    /** The pip row of client [n], pips of radius [r], centered on ([x], [y]). */
+    fun draw(canvas: Canvas, n: Node, x: Float, y: Float, r: Float) {
+        val max = World.Tuning.MAX_PENDING
+        val filled = filled(n)
+        val x0 = x - (max - 1) * r * PIP_STEP / 2f
+        ringP.color = PIP_DARK; ringP.strokeWidth = maxOf(1f, r * 0.22f)
+        for (i in 0 until max) {
+            val px = x0 + i * r * PIP_STEP
+            pipP.color = if (i < filled) PIP_DARK else PIP_EMPTY
+            canvas.drawCircle(px, y, r, pipP)
+            canvas.drawCircle(px, y, r, ringP)
+        }
+    }
+
+    private const val PIP_STEP = 2.6f
 }
 
 /**
@@ -541,6 +657,53 @@ object CableStyles {
         CableSkin.PASTEL -> PASTEL
         CableSkin.GOLD -> GOLD
     }[t.ordinal]
+}
+
+/**
+ * A jammed cable ([World.isJammed]): a slowly pulsing amber halo in a dark rim over it with dark ticks packed along it,
+ * so the jam reads on every skin's cable colors and without the hue too. Drawn every frame over the cable, which the iso
+ * style keeps in its cached ground layer, and under the cable's packets.
+ */
+object JamStyles {
+    /** Slow and narrow next to the overload ring's beat: a cable covers far more screen than a device's ring. */
+    private const val PULSE_PER_SECOND = 0.6f
+    private const val INK = 0xFF3A4350.toInt()
+    private val rimP = stroke(INK).apply { strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
+    private val haloP = stroke(ProblemBadges.JAM).apply { strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
+    private val tickP = stroke(INK)
+    /** One dash cache per cable type: their widths differ, and one shared cache would rebuild its dash every cable. */
+    private val ticks = Array(CableType.entries.size) { DashCache() }
+    /** Ticks composed with the flat style's [corner] rounding, per cable type; rebuilt only when either changes. */
+    private val rounded = arrayOfNulls<PathEffect>(CableType.entries.size)
+    private val roundedDash = arrayOfNulls<PathEffect>(CableType.entries.size)
+    private val roundedCorner = arrayOfNulls<PathEffect>(CableType.entries.size)
+
+    /**
+     * Strokes the jammed cable of [type] in [path], [width] pixels wide, at [time] seconds; [corner] is the rounding
+     * the cable itself was stroked with, if any, so the overlay follows its bends.
+     */
+    fun draw(canvas: Canvas, path: Path, width: Float, time: Float, type: CableType, corner: PathEffect? = null) {
+        val beat = 0.5f + 0.5f * sin(time * PULSE_PER_SECOND * 2f * Math.PI.toFloat())
+        val halo = width * (1.2f + 0.12f * beat)
+        rimP.pathEffect = corner
+        rimP.strokeWidth = halo + maxOf(2f, width * 0.35f)
+        canvas.drawPath(path, rimP)
+        haloP.pathEffect = corner
+        haloP.strokeWidth = halo
+        canvas.drawPath(path, haloP)
+        tickP.strokeWidth = width * 0.45f
+        val dash = ticks[type.ordinal].get(width * 0.3f, 1.6f, 0f)
+        tickP.pathEffect = if (corner == null) dash else {
+            val i = type.ordinal
+            if (roundedDash[i] !== dash || roundedCorner[i] !== corner) {
+                rounded[i] = ComposePathEffect(dash, corner)
+                roundedDash[i] = dash
+                roundedCorner[i] = corner
+            }
+            rounded[i]
+        }
+        canvas.drawPath(path, tickP)
+    }
 }
 
 /**

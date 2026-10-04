@@ -120,6 +120,8 @@
     <string name="connect_error_already_connected">Al verbonden</string>
     <string name="connect_error_not_invented">%1$s is nog niet uitgevonden</string>
     <string name="connect_error_no_budget">Budget reikt niet</string>
+    <string name="connect_error_no_budget_cost">Budget reikt niet: %1$s kost hier %2$d</string>
+    <string name="connect_error_already_connected_nodes">%1$s en %2$s zijn al verbonden</string>
 
     <!-- Week rewards -->
     <string name="reward_prompt">Weekloon: +%1$d · Tik op een kaart voor een extraatje</string>
@@ -251,6 +253,8 @@
     <string name="place_error_occupied">Dit vak is al bezet</string>
     <string name="place_error_terrain">Alleen op vrij land</string>
     <string name="hint_router_pick_up">Router zonder kabels · tik nog eens om hem terug op voorraad te leggen</string>
+    <string name="router_error_has_cables">Router heeft nog kabels · haal ze eerst weg om hem terug in voorraad te leggen</string>
+    <string name="router_error_incident">Storing bij deze router · leg hem terug als die voorbij is</string>
     <string name="hint_router_picked_up">Router terug op voorraad</string>
     <string name="server_tier">niveau %1$d</string>
     <string name="server_tier_data_center">datacenter</string>
@@ -266,6 +270,9 @@
     <string name="problem_too_narrow">%1$s → %2$s: geen kabel breed genoeg (bandbreedte %3$d)</string>
     <string name="problem_ping">%1$s → %2$s: ping %3$d ms, toegestaan %4$d ms</string>
     <string name="problem_jam">%1$s → %2$s: file, kabels of server te vol</string>
+    <string name="problem_no_server">%1$s → %2$s: geen in zijn netwerk – leg een kabel naar een</string>
+    <string name="problem_jam_cable">%1$s → %2$s: %3$s-kabel vol – upgrade hem of zet een server dichterbij</string>
+    <string name="problem_jam_server">%1$s → %2$s: server te traag – upgrade hem of zet er een bij</string>
     <string name="game_over_no_route">%1$s bereikte geen %2$s-server</string>
     <string name="game_over_too_narrow">%1$s had een bredere kabel nodig voor %2$s</string>
     <string name="game_over_ping">%2$s op %1$s haperde: %3$d ms, max %4$d ms</string>
@@ -277,6 +284,12 @@
     <string name="a11y_menu">Menu</string>
     <string name="a11y_pause">Klok stilzetten</string>
     <string name="a11y_compass">Kaart terugdraaien naar het noorden</string>
+    <string name="a11y_offscreen_overload">%1$s buiten beeld %2$s raakt overbelast (%3$d wachtend) – ga erheen</string>
+    <string name="a11y_offscreen_warning">%1$s buiten beeld %2$s loopt vol (%3$d wachtend) – ga erheen</string>
+    <string name="a11y_side_left">links</string>
+    <string name="a11y_side_top">boven</string>
+    <string name="a11y_side_right">rechts</string>
+    <string name="a11y_side_bottom">onder</string>
     <string name="a11y_recap" tools:ignore="PluralsCandidate">Timelapse: je netwerk van week %1$d tot week %2$d</string>
     <string name="a11y_router">Router plaatsen (op voorraad: %1$d)</string>
     <string name="a11y_access_point">Wifi-accesspoint plaatsen (op voorraad: %1$d)</string>

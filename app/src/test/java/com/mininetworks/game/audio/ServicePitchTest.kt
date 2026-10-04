@@ -5,7 +5,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Every service plucks its own note of the pentatonic scale, within the range SoundPool can play. */
+/**
+ * Every service plucks its own note of the pentatonic scale, within the range SoundPool can play; the alarm rises in
+ * pitch and volume.
+ */
 class ServicePitchTest {
 
     @Test
@@ -21,5 +24,12 @@ class ServicePitchTest {
         for (s in Service.entries) assertTrue(ServicePitch.rate(s) in 0.5f..2.0f)
         assertEquals(1f, ServicePitch.rate(Service.MAIL), 0f)
         assertEquals(2f, ServicePitch.rate(Service.CAMERA_UPLOAD), 1e-6f)
+    }
+
+    @Test
+    fun alarmRisesInPitchAndVolume() {
+        assertTrue(1f < Alarm.HALF_RATE && Alarm.HALF_RATE < Alarm.CRITICAL_RATE && Alarm.CRITICAL_RATE <= 2f)
+        assertTrue(1f < Alarm.HALF_VOLUME && Alarm.HALF_VOLUME < Alarm.CRITICAL_VOLUME)
+        assertTrue("the loudest alarm still fits SoundPool's volume", Sound.WARNING.volume * Alarm.CRITICAL_VOLUME <= 1f)
     }
 }

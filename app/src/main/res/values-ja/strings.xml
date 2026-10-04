@@ -113,6 +113,8 @@
     <string name="connect_error_already_connected">すでに接続済み</string>
     <string name="connect_error_not_invented">%1$sはまだ発明されていません</string>
     <string name="connect_error_no_budget">予算が足りません</string>
+    <string name="connect_error_no_budget_cost">予算が足りません：ここでは%1$sに%2$dかかります</string>
+    <string name="connect_error_already_connected_nodes">%1$sと%2$sはすでに接続済みです</string>
 
     <!-- Week rewards -->
     <string name="reward_prompt">今週の収入：+%1$d · カードをタップしてボーナスを選択</string>
@@ -241,6 +243,8 @@
     <string name="place_error_occupied">このマスはすでに使われています</string>
     <string name="place_error_terrain">空いている陸地にのみ置けます</string>
     <string name="hint_router_pick_up">ケーブルなしのルーター · もう一度タップで在庫に戻す</string>
+    <string name="router_error_has_cables">ルーターにケーブルが残っています · 先に外すと在庫に戻せます</string>
+    <string name="router_error_incident">このルーターで障害発生中 · 終わってから在庫に戻せます</string>
     <string name="hint_router_picked_up">ルーターを在庫に戻しました</string>
     <string name="server_tier">レベル%1$d</string>
     <string name="server_tier_data_center">データセンター</string>
@@ -256,6 +260,9 @@
     <string name="problem_too_narrow">%1$s → %2$s：帯域の足りるケーブルがありません（帯域%3$d）</string>
     <string name="problem_ping">%1$s → %2$s：Ping %3$dミリ秒、上限%4$dミリ秒</string>
     <string name="problem_jam">%1$s → %2$s：渋滞中、ケーブルかサーバーが満杯</string>
+    <string name="problem_no_server">%1$s → %2$s：ネットワーク内にありません。ケーブルでつなごう</string>
+    <string name="problem_jam_cable">%1$s → %2$s：%3$sケーブルが満杯。アップグレードかサーバーを近くに</string>
+    <string name="problem_jam_server">%1$s → %2$s：サーバーが遅すぎます。アップグレードかもう1台</string>
     <string name="game_over_no_route">%1$sは%2$sサーバーにつながらなかった</string>
     <string name="game_over_too_narrow">%1$sの%2$sには、もっと太いケーブルが必要だった</string>
     <string name="game_over_ping">%1$sの%2$sが遅延：%3$d ms（上限%4$d ms）</string>
@@ -267,6 +274,12 @@
     <string name="a11y_menu">メニュー</string>
     <string name="a11y_pause">時間を止める</string>
     <string name="a11y_compass">地図を北向きに戻す</string>
+    <string name="a11y_offscreen_overload">画面外%2$sの%1$sが過負荷（待ち%3$d件） – そこへ移動</string>
+    <string name="a11y_offscreen_warning">画面外%2$sの%1$sが混雑中（待ち%3$d件） – そこへ移動</string>
+    <string name="a11y_side_left">左</string>
+    <string name="a11y_side_top">上</string>
+    <string name="a11y_side_right">右</string>
+    <string name="a11y_side_bottom">下</string>
     <string name="a11y_recap" tools:ignore="PluralsCandidate">タイムラプス：第%1$d週から第%2$d週までのネットワーク</string>
     <string name="a11y_router">ルーターを置く（在庫：%1$d）</string>
     <string name="a11y_access_point">Wi-Fiアクセスポイントを置く（在庫：%1$d）</string>

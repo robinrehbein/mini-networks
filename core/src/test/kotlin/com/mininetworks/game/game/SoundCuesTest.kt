@@ -4,7 +4,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Sound cues: deliveries per service, overload warning once per overload, week chime, silent world swap. */
+/**
+ * Sound cues: deliveries per service, overload warning once per overload, the rising alarm at 50 % and 80 % of the ring,
+ * game over, week chime, silent world swap.
+ */
 @OptIn(DebugApi::class)
 class SoundCuesTest {
 
@@ -96,6 +99,173 @@ class SoundCuesTest {
     }
 
     @Test
+    fun alarmRisesOnceAtHalfAndAtCriticalRing() {
+        val w = dryWorld()
+        val phone = w.addClient(Device.PHONE, 1, 1)
+        w.addServer(Service.CALL, 8, 8)
+        val cues = SoundCues()
+        cues.poll(w)
+        repeat(World.Tuning.MAX_PENDING) { phone.pending.addLast(Service.CALL) }
+        phone.overload = 0.49f
+        assertEquals(listOf(SoundCue.OverloadStarted), cues.poll(w))
+        phone.overload = 0.5f
+        assertEquals(listOf(SoundCue.OverloadHalf), cues.poll(w))
+        phone.overload = 0.7f
+        assertEquals("once per crossing", emptyList<SoundCue>(), cues.poll(w))
+        phone.overload = 0.8f
+        assertEquals(listOf(SoundCue.OverloadCritical), cues.poll(w))
+        // A stage sounds again only after the ring has fully emptied, however far it drained in between.
+        phone.overload = 0.75f
+        assertEquals(emptyList<SoundCue>(), cues.poll(w))
+        phone.overload = 0.85f
+        assertEquals(emptyList<SoundCue>(), cues.poll(w))
+        phone.overload = 0.05f
+        assertEquals(emptyList<SoundCue>(), cues.poll(w))
+        phone.overload = 0.85f
+        assertEquals("a half-fixed device refilling stays quiet", emptyList<SoundCue>(), cues.poll(w))
+        phone.pending.clear()
+        phone.overload = 0f
+        assertEquals(emptyList<SoundCue>(), cues.poll(w))
+        // A jump straight past both stages sounds only the higher one.
+        phone.overload = 0.9f
+        assertEquals(listOf(SoundCue.OverloadCritical), cues.poll(w))
+    }
+
+    @Test
+    fun aQueueHoveringAtTheLimitSoundsTheCriticalAlarmOnce() {
+        val w = dryWorld()
+        val phone = w.addClient(Device.PHONE, 1, 1)
+        w.addServer(Service.CALL, 8, 8)
+        val cues = SoundCues()
+        cues.poll(w)
+        repeat(World.Tuning.MAX_PENDING) { phone.pending.addLast(Service.CALL) }
+        phone.overload = 0.79f
+        cues.poll(w)
+        val heard = ArrayList<SoundCue>()
+        // Requests are served and come back one at a time: 6, 5, 6, 5, ... while the ring swings around 80 %.
+        repeat(40) { i ->
+            if (i % 2 == 0) {
+                phone.pending.addLast(Service.CALL)
+                phone.overload = 0.85f
+            } else {
+                phone.pending.removeFirst()
+                phone.overload = 0.7f
+            }
+            heard += cues.poll(w)
+        }
+        assertEquals(listOf(SoundCue.OverloadCritical), heard.filter { it == SoundCue.OverloadCritical || it == SoundCue.OverloadHalf })
+    }
+
+    @Test
+    fun aSecondDeviceBelowTheWorstStageStaysQuiet() {
+        val w = dryWorld()
+        val a = w.addClient(Device.PHONE, 1, 1)
+        val b = w.addClient(Device.PHONE, 1, 4)
+        w.addServer(Service.CALL, 8, 8)
+        val cues = SoundCues()
+        cues.poll(w)
+        repeat(World.Tuning.MAX_PENDING) { a.pending.addLast(Service.CALL); b.pending.addLast(Service.CALL) }
+        a.overload = 0.85f
+        b.overload = 0.1f
+        assertEquals(listOf(SoundCue.OverloadCritical), cues.poll(w))
+        b.overload = 0.55f
+        assertEquals("b passing 50 % while a is past 80 % is silent", emptyList<SoundCue>(), cues.poll(w))
+        b.overload = 0.85f
+        assertEquals(emptyList<SoundCue>(), cues.poll(w))
+        a.pending.clear()
+        a.overload = 0f
+        b.pending.clear()
+        b.overload = 0f
+        assertEquals(emptyList<SoundCue>(), cues.poll(w))
+        repeat(World.Tuning.MAX_PENDING) { b.pending.addLast(Service.CALL) }
+        b.overload = 0.6f
+        assertEquals("both emptied: the alarm rises again", listOf(SoundCue.OverloadHalf), cues.poll(w))
+    }
+
+    @Test
+    fun alarmFollowsTheRingWhileTheWorldRuns() {
+        val w = dryWorld()
+        val phone = w.addClient(Device.PHONE, 1, 1)
+        w.addServer(Service.CALL, 8, 8)
+        val cues = SoundCues()
+        cues.poll(w)
+        val heard = ArrayList<SoundCue>()
+        var s = 0
+        while (!w.gameOver && s++ < 60 * 200) {
+            while (phone.pending.size < World.Tuning.MAX_PENDING) phone.pending.addLast(Service.CALL)
+            w.update(step)
+            heard += cues.poll(w)
+        }
+        assertTrue("the unserved phone ends the game", w.gameOver)
+        val alarm = heard.filter { it != SoundCue.NewWeek && it !is SoundCue.Delivered }
+        assertEquals(listOf(SoundCue.OverloadStarted, SoundCue.OverloadHalf, SoundCue.OverloadCritical, SoundCue.GameOver), alarm)
+        assertEquals("game over sounds once", emptyList<SoundCue>(), cues.poll(w))
+    }
+
+    @Test
+    fun aRevivedGameRaisesTheAlarmAgain() {
+        val w = dryWorld()
+        val phone = w.addClient(Device.PHONE, 1, 1)
+        w.addServer(Service.CALL, 8, 8)
+        val cues = SoundCues()
+        cues.poll(w)
+        repeat(World.Tuning.MAX_PENDING) { phone.pending.addLast(Service.CALL) }
+        fun fill(): List<SoundCue> {
+            val heard = ArrayList<SoundCue>()
+            for (ring in floatArrayOf(0.55f, 0.85f)) {
+                phone.overload = ring
+                heard += cues.poll(w)
+            }
+            phone.overload = 0.99999f
+            w.update(step)
+            assertTrue(w.gameOver)
+            heard += cues.poll(w)
+            return heard
+        }
+        assertEquals("the start is swallowed by the louder half-ring alarm of the same poll",
+            listOf(SoundCue.OverloadHalf, SoundCue.OverloadCritical, SoundCue.GameOver), fill())
+        assertTrue(w.continueAfterGameOver())
+        assertEquals("the requests still wait: the ring warns as it starts again", listOf(SoundCue.OverloadStarted), cues.poll(w))
+        assertEquals("the second run rises all the way again", listOf(SoundCue.OverloadHalf, SoundCue.OverloadCritical, SoundCue.GameOver), fill())
+    }
+
+    @Test
+    fun noAlarmWhereAFullRingCannotEndTheGame() {
+        for (w in listOf(World(cols = 16, rows = 10, seed = 1L, spawnInitialNodes = false, mode = GameMode.ENDLESS),
+            World(cols = 16, rows = 10, seed = 1L, spawnInitialNodes = false, guided = true))) {
+            for (row in w.water) row.fill(false)
+            w.incidentsEnabled = false
+            val phone = w.addClient(Device.PHONE, 1, 1)
+            w.addServer(Service.CALL, 8, 8)
+            val cues = SoundCues()
+            cues.poll(w)
+            repeat(World.Tuning.MAX_PENDING) { phone.pending.addLast(Service.CALL) }
+            phone.overload = 0.6f
+            assertEquals(listOf(SoundCue.OverloadStarted), cues.poll(w))
+            phone.overload = 0.9f
+            assertEquals(emptyList<SoundCue>(), cues.poll(w))
+        }
+    }
+
+    @Test
+    fun gameOverSilencesTheRestOfItsPoll() {
+        val w = dryWorld()
+        val b = w.addClient(Device.PHONE, 1, 4)
+        val a = w.addClient(Device.PHONE, 1, 1)
+        w.addServer(Service.CALL, 8, 8)
+        val cues = SoundCues()
+        cues.poll(w)
+        repeat(World.Tuning.MAX_PENDING) { a.pending.addLast(Service.CALL); b.pending.addLast(Service.CALL) }
+        a.overload = 0.99999f
+        assertEquals("one warning per poll, the most urgent", listOf(SoundCue.OverloadCritical), cues.poll(w))
+        b.overload = 0.79999f
+        w.update(step)
+        assertTrue("b passed 80 % in the same step", b.overload >= SoundCues.CRITICAL_RING)
+        assertTrue(w.gameOver)
+        assertEquals(listOf(SoundCue.GameOver), cues.poll(w))
+    }
+
+    @Test
     fun newWeekChimesOnce() {
         val w = dryWorld()
         val cues = SoundCues()
@@ -117,7 +287,16 @@ class SoundCuesTest {
         busy.update(step)
         val cues = SoundCues()
         cues.poll(dryWorld())
+        busy.nodes.first { it === phone }.overload = 0.9f
         assertEquals("a loaded game that is already overloaded and in week 5 makes no sound", emptyList<SoundCue>(), cues.poll(busy))
         assertEquals(emptyList<SoundCue>(), cues.poll(busy))
+        val lost = dryWorld()
+        val p = lost.addClient(Device.PHONE, 1, 1)
+        lost.addServer(Service.CALL, 8, 8)
+        repeat(World.Tuning.MAX_PENDING) { p.pending.addLast(Service.CALL) }
+        p.overload = 0.9999f
+        lost.update(step)
+        assertTrue(lost.gameOver)
+        assertEquals("a lost game shown again does not sound game over", emptyList<SoundCue>(), cues.poll(lost))
     }
 }

@@ -123,6 +123,8 @@
     <string name="connect_error_already_connected">Schon verbunden</string>
     <string name="connect_error_not_invented">%1$s noch nicht erfunden</string>
     <string name="connect_error_no_budget">Budget reicht nicht</string>
+    <string name="connect_error_no_budget_cost">Zu wenig Budget: %1$s kostet hier %2$d</string>
+    <string name="connect_error_already_connected_nodes">%1$s und %2$s sind schon verbunden</string>
 
     <!-- Week rewards -->
     <string name="reward_prompt">Wochenlohn: +%1$d · Tippe auf eine Karte für ein Extra</string>
@@ -254,6 +256,8 @@
     <string name="place_error_occupied">Das Feld ist schon belegt</string>
     <string name="place_error_terrain">Nur auf freiem Land</string>
     <string name="hint_router_pick_up">Router ohne Kabel · nochmal antippen: zurück ins Lager</string>
+    <string name="router_error_has_cables">Router hat noch Kabel · erst die Kabel entfernen, dann zurück ins Lager</string>
+    <string name="router_error_incident">Störfall am Router · erst danach zurück ins Lager</string>
     <string name="hint_router_picked_up">Router zurück im Lager</string>
     <string name="server_tier">Stufe %1$d</string>
     <string name="server_tier_data_center">Rechenzentrum</string>
@@ -269,6 +273,9 @@
     <string name="problem_too_narrow">%1$s → %2$s: kein Kabel breit genug (Bandbreite %3$d)</string>
     <string name="problem_ping">%1$s → %2$s: Ping %3$d ms, erlaubt %4$d ms</string>
     <string name="problem_jam">%1$s → %2$s: Stau, Kabel oder Server zu voll</string>
+    <string name="problem_no_server">%1$s → %2$s: keiner im Netz – leg ein Kabel zu einem</string>
+    <string name="problem_jam_cable">%1$s → %2$s: %3$s-Kabel voll – aufrüsten oder Server näher stellen</string>
+    <string name="problem_jam_server">%1$s → %2$s: Server zu langsam – aufrüsten oder einen dazustellen</string>
     <string name="game_over_no_route">%1$s erreichte keinen %2$s-Server</string>
     <string name="game_over_too_narrow">%1$s brauchte ein breiteres Kabel für %2$s</string>
     <string name="game_over_ping">%2$s auf %1$s ruckelte: %3$d ms statt höchstens %4$d ms</string>
@@ -282,6 +289,12 @@
     <string name="a11y_menu">Menü</string>
     <string name="a11y_pause">Uhr anhalten</string>
     <string name="a11y_compass">Karte nach Norden drehen</string>
+    <string name="a11y_offscreen_overload">%1$s außerhalb der Ansicht %2$s überlastet (%3$d wartend) – hinschwenken</string>
+    <string name="a11y_offscreen_warning">%1$s außerhalb der Ansicht %2$s staut sich (%3$d wartend) – hinschwenken</string>
+    <string name="a11y_side_left">links</string>
+    <string name="a11y_side_top">oben</string>
+    <string name="a11y_side_right">rechts</string>
+    <string name="a11y_side_bottom">unten</string>
     <string name="a11y_recap" tools:ignore="PluralsCandidate">Zeitraffer: dein Netz von Woche %1$d bis Woche %2$d</string>
     <string name="a11y_router">Router setzen (vorrätig: %1$d)</string>
     <string name="a11y_access_point">WLAN-Zugangspunkt setzen (vorrätig: %1$d)</string>

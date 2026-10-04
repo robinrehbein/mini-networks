@@ -120,6 +120,8 @@
     <string name="connect_error_already_connected">Already connected</string>
     <string name="connect_error_not_invented">%1$s not invented yet</string>
     <string name="connect_error_no_budget">Not enough budget</string>
+    <string name="connect_error_no_budget_cost">Not enough budget: %1$s costs %2$d here</string>
+    <string name="connect_error_already_connected_nodes">%1$s and %2$s are already connected</string>
 
     <!-- Week rewards -->
     <string name="reward_prompt">Weekly pay: +%1$d · Tap a card for an extra</string>
@@ -251,6 +253,8 @@
     <string name="place_error_occupied">This cell is taken</string>
     <string name="place_error_terrain">Only on open land</string>
     <string name="hint_router_pick_up">Router without cables · tap again to put it back in stock</string>
+    <string name="router_error_has_cables">Router still has cables · remove them first to put it back in stock</string>
+    <string name="router_error_incident">Incident at this router · put it back once it is over</string>
     <string name="hint_router_picked_up">Router back in stock</string>
     <string name="server_tier">tier %1$d</string>
     <string name="server_tier_data_center">data center</string>
@@ -266,6 +270,9 @@
     <string name="problem_too_narrow">%1$s → %2$s: no cable wide enough (bandwidth %3$d)</string>
     <string name="problem_ping">%1$s → %2$s: ping %3$d ms, allowed %4$d ms</string>
     <string name="problem_jam">%1$s → %2$s: jammed, cables or server too full</string>
+    <string name="problem_no_server">%1$s → %2$s: none on its network – run a cable to one</string>
+    <string name="problem_jam_cable">%1$s → %2$s: %3$s cable full – upgrade it or put a server closer</string>
+    <string name="problem_jam_server">%1$s → %2$s: server too slow – upgrade it or add one</string>
     <string name="game_over_no_route">%1$s couldn’t reach a %2$s server</string>
     <string name="game_over_too_narrow">%1$s needed a wider cable for %2$s</string>
     <string name="game_over_ping">%2$s on %1$s lagged: %3$d ms, max %4$d ms</string>
@@ -277,6 +284,12 @@
     <string name="a11y_menu">Menu</string>
     <string name="a11y_pause">Pause the clock</string>
     <string name="a11y_compass">Turn the map back to north</string>
+    <string name="a11y_offscreen_overload">%1$s off screen %2$s is overloading (%3$d waiting) – go there</string>
+    <string name="a11y_offscreen_warning">%1$s off screen %2$s is filling up (%3$d waiting) – go there</string>
+    <string name="a11y_side_left">to the left</string>
+    <string name="a11y_side_top">above</string>
+    <string name="a11y_side_right">to the right</string>
+    <string name="a11y_side_bottom">below</string>
     <string name="a11y_recap">Time-lapse: your network from week %1$d to week %2$d</string>
     <string name="a11y_router">Place router (in stock: %1$d)</string>
     <string name="a11y_access_point">Place Wi-Fi access point (in stock: %1$d)</string>
