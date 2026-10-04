@@ -108,6 +108,23 @@ class MenuFlowTest {
         assertEquals("the demo town does not run", demo, view.currentWorld.snapshot())
     }
 
+    /** The view controls stay hidden at the start of a game until the map is moved or zoomed. */
+    @Test
+    fun viewControlsHiddenUntilTheMapMoves() {
+        val view = newView()
+        pickScenery(view)
+        assertEquals(Screen.PLAYING, view.currentScreen)
+        assertNull("hidden at the start", view.hudTarget("rotate:right"))
+        assertNull(view.hudTarget("compass"))
+        // A pinch: the second finger makes it a camera gesture.
+        view.injectTouch(MotionEvent.ACTION_DOWN, 700f, 450f)
+        view.injectTouch(MotionEvent.ACTION_POINTER_DOWN, 900f, 450f, floatArrayOf(700f, 450f, 900f, 450f))
+        view.injectTouch(MotionEvent.ACTION_MOVE, 900f, 450f, floatArrayOf(650f, 450f, 950f, 450f))
+        view.injectTouch(MotionEvent.ACTION_UP, 950f, 450f)
+        draw(view)
+        assertNotNull("shown once the map is zoomed", view.hudTarget("rotate:right"))
+    }
+
     @Test
     fun playPauseAndResume() {
         val view = newView()
