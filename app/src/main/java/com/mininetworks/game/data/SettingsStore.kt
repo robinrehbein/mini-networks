@@ -39,6 +39,15 @@ class SettingsStore(context: Context) {
         get() = prefs.getBoolean(KEY_TUTORIAL_SEEN, false)
         set(value) = prefs.edit().putBoolean(KEY_TUTORIAL_SEEN, value).apply()
 
+    /** Keys of the one-time coaching tips already shown ([com.mininetworks.game.ui.Coaching.key]): each shows once per install. */
+    val coachingSeen: Set<String>
+        get() = prefs.getStringSet(KEY_COACHING_SEEN, null)?.toSet() ?: emptySet()
+
+    /** Records that the coaching tip [key] was shown. */
+    fun markCoachingSeen(key: String) {
+        prefs.edit().putStringSet(KEY_COACHING_SEEN, coachingSeen + key).apply()
+    }
+
     fun save(s: GameSettings) {
         prefs.edit()
             .putBoolean(KEY_SOUND, s.sound)
@@ -61,5 +70,6 @@ class SettingsStore(context: Context) {
         const val KEY_TUTORIAL_SEEN = "tutorial_seen"
         const val KEY_CABLE_SKIN = "cable_skin"
         const val KEY_COLOR_THEME = "color_theme"
+        const val KEY_COACHING_SEEN = "coaching_seen"
     }
 }

@@ -8,7 +8,7 @@
         <item quantity="one">%1$d Paket</item>
         <item quantity="other">%1$d Pakete</item>
     </plurals>
-    <string name="hud_resources">Budget %1$d  ·  Router %2$d</string>
+    <string name="hud_resources">Budget %1$s  ·  Router %2$s</string>
     <string name="hud_clock_day">Tag · %1$s</string>
     <string name="hud_clock_night">Nacht · %1$s · Backups um %2$s</string>
     <string name="clock_time" translatable="false">%1$02d:%2$02d</string>
@@ -44,6 +44,7 @@
     <string name="legend_ports_title">Anschlüsse</string>
     <string name="legend_ports_desc">Die Punkte unter einem Gerät: ● belegt, ○ frei. Geräte und WLAN haben 2, Server und Mast 4, Router 6.</string>
     <string name="hint_place_router">Tippe auf ein freies Feld</string>
+    <string name="hint_error_prefix">Fehler: %1$s</string>
     <string name="button_access_point">WLAN (%1$d)</string>
     <string name="button_cell_tower">Mast (%1$d)</string>
     <string name="hint_access_point">Access Point antippen: Kanal wechseln · halten: 5 GHz für %1$d</string>
@@ -61,7 +62,7 @@
     <string name="server_error_no_space">Rechenzentrum braucht 2×2 freie Felder am Server</string>
     <string name="incident_excavator_warning">Bagger! Kabel gekappt in %1$d s</string>
     <string name="incident_outage_warning">Stromausfall droht: %1$s fällt in %2$d s aus</string>
-    <string name="incident_cut">Kabel gekappt: antippen = reparieren für %1$d · von selbst in %2$d s</string>
+    <string name="incident_cut">Kabel gekappt: tippen = Reparatur für %1$d · sonst %2$d s</string>
     <string name="incident_outage">Stromausfall: %1$s noch %2$d s ohne Strom</string>
     <string name="repair_error_no_budget">Zu wenig Budget, Reparieren kostet %1$d</string>
     <string name="hint_repaired">Kabel repariert</string>
@@ -265,6 +266,13 @@
     <string name="hint_server_preview_voucher">%1$s → %2$s mit Gutschein · nochmal antippen</string>
     <string name="hint_server_upgraded">%1$s jetzt: %2$s</string>
     <string name="hint_server_busy">%1$s kommt nicht hinterher: antippen zum Aufrüsten</string>
+    <string name="coach_pause">Tipp: Drück unten auf Pause – auch pausiert kannst du weiterbauen.</string>
+    <string name="coach_jam">Tipp: Stau bei %1$s. Rüste das Kabel auf oder leg ein zweites daneben.</string>
+    <string name="coach_server_queue">Tipp: %1$s kommt nicht hinterher. Antippen zeigt den Preis, nochmal antippen rüstet auf.</string>
+    <string name="coach_cable_upgrade">Tipp: Kabel zu schmal? Wähle unten ein breiteres und tippe das alte Kabel an.</string>
+    <string name="coach_incident">Tipp: Ein Bagger kappt gleich ein Kabel. Tippe das gekappte Kabel an, um es zu reparieren.</string>
+    <string name="coach_radio_stock">Tipp: Neu in der Leiste: %1$s. Zieh das Symbol auf ein freies Feld der Karte.</string>
+    <string name="coach_new_service">Tipp: Auch alte Geräte wollen neue Dienste. %1$s braucht jetzt einen Weg zu einem Server für %2$s.</string>
     <string name="hint_radio_reward">Neu: %1$s – gibt es als Wochen-Belohnung</string>
     <string name="hint_service_needs">%1$s braucht Bandbreite %2$d</string>
     <string name="hint_service_needs_ping">%1$s braucht Bandbreite %2$d, Ping höchstens %3$d ms</string>
@@ -276,15 +284,26 @@
     <string name="problem_no_server">%1$s → %2$s: keiner im Netz – leg ein Kabel zu einem</string>
     <string name="problem_jam_cable">%1$s → %2$s: %3$s-Kabel voll – aufrüsten oder Server näher stellen</string>
     <string name="problem_jam_server">%1$s → %2$s: Server zu langsam – aufrüsten oder einen dazustellen</string>
-    <string name="game_over_no_route">%1$s erreichte keinen %2$s-Server</string>
+    <string name="game_over_no_route">%1$s fand keinen Weg zu %2$s</string>
     <string name="game_over_too_narrow">%1$s brauchte ein breiteres Kabel für %2$s</string>
     <string name="game_over_ping">%2$s auf %1$s ruckelte: %3$d ms statt höchstens %4$d ms</string>
     <string name="game_over_jam">%1$s steckte im Datenstau fest (%2$s)</string>
+    <string name="game_over_callout">%1$s überlastet</string>
+    <string name="loss_tip_connect">Tipp: %1$s per Kabel mit %2$s verbinden – direkt oder über einen Router</string>
+    <string name="loss_tip_router">Tipp: %1$s hat keine freien Anschlüsse – setz einen Router davor</string>
+    <string name="loss_tip_needs_server">Tipp: %1$s braucht einen Weg zu %2$s – Kabel zum nächsten ziehen</string>
+    <string name="loss_tip_repair">Tipp: Gekappte Kabel antippen, um sie zu reparieren. Ein zweiter Weg hält Störfälle aus.</string>
+    <string name="loss_tip_outage">Tipp: Ein Stromausfall legte Router oder WLAN still – ein zweiter Weg drumherum übersteht das</string>
+    <string name="loss_tip_wider_cable">Tipp: %1$s braucht %2$s – Kabeltyp unten wählen, dann das alte Kabel antippen</string>
+    <string name="loss_tip_faster_cable">Tipp: Weniger Ping für %1$s mit kürzerem Weg oder schnellerem Kabel</string>
+    <string name="loss_tip_second_cable">Tipp: Gegen Stau ein zweites Kabel legen – oder das volle antippen und aufrüsten</string>
+    <string name="loss_tip_upgrade_server">Tipp: %1$s schafft zu wenig – antippen und aufrüsten</string>
+    <string name="loss_tip_second_server">Tipp: %1$s ist am Limit – häng einige Geräte an einen zweiten Server</string>
     <string name="drag_too_narrow">%1$s braucht Bandbreite %2$d</string>
     <string name="drag_ping">%1$s: Ping %2$d/%3$d ms</string>
     <string name="incident_countdown" translatable="false">%1$d s</string>
     <string name="hint_two_parts" translatable="false">%1$s · %2$s</string>
-    <string name="incident_more">%1$s · +%2$d weitere</string>
+    <string name="incident_more">%1$s · +%2$d</string>
     <!-- Accessibility (TalkBack) descriptions of the canvas-drawn HUD, docs/TOP100.md A7 -->
     <string name="a11y_menu">Menü</string>
     <string name="a11y_pause">Uhr anhalten</string>
@@ -357,7 +376,6 @@
     <string name="mode_endless_desc">Endlos: kein Game Over – Überlast bremst nur die Gegend</string>
     <string name="mode_creative_desc">Kreativ: frei bauen, Budget ohne Ende, alles erfunden</string>
     <string name="pause_mode">%1$s · %2$s</string>
-    <string name="hud_resources_unlimited">Budget ∞  ·  Router ∞</string>
     <string name="button_router_unlimited">Router (∞)</string>
     <string name="button_access_point_unlimited">WLAN (∞)</string>
     <string name="button_cell_tower_unlimited">Mast (∞)</string>
@@ -575,4 +593,15 @@
     <string name="cell_error_newest">Funkt schon mit der neuesten Generation</string>
     <string name="cell_error_not_invented">%1$s gibt es erst ab %2$d</string>
     <string name="legend_cell_tower_desc">Nur für Smartphone, Tablet und Uhr · 3G → 4G/LTE → 5G: Antippen rüstet auf, mehr Kapazität, weniger Ping</string>
+    <string name="hud_budget_low">Budget knapp</string>
+    <string name="legend_cable_edit_title">Kabel ändern</string>
+    <string name="legend_cable_edit_desc">Kabeltyp unten wählen und ein Kabel antippen: aufrüsten. Ende ziehen: umlegen. Gekapptes Kabel antippen: reparieren.</string>
+    <string name="legend_gauge_title">Druckanzeige</string>
+    <string name="legend_gauge_desc">Die Punkte zeigen, wie viele Anfragen warten. Ab 4 von 6 wird die Blase orange: jetzt helfen.</string>
+    <string name="legend_jam_title">Stau</string>
+    <string name="legend_jam_desc">Es gibt einen Weg, aber er ist voll. Rüste das Kabel auf oder leg ein zweites.</string>
+    <string name="legend_missing_title">Server fehlt</string>
+    <string name="legend_missing_desc">Das Gerät will diesen Dienst, aber kein verbundener Server liefert ihn. Verbinde es mit einem passenden Server.</string>
+    <string name="legend_incident_title">Störfall</string>
+    <string name="legend_incident_desc">Ein Bagger zählt herunter und kappt ein Kabel: antippen repariert es. Bei Stromausfall ruhen Router und WLAN kurz.</string>
 </resources>

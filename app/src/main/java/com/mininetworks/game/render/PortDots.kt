@@ -38,6 +38,9 @@ object PortDots {
     private val ringP = stroke(0)
     private val pill = RectF()
 
+    /** The row's pill as the last [draw] placed it (reused), so a server's name plate can keep clear of it. */
+    val lastRow = RectF()
+
     /** True if calm rows show at a zoom of [unitPx] ([Renderer.unitPx]). */
     fun visible(unitPx: Float, density: Float) = unitPx >= MIN_UNIT_DP * density
 
@@ -82,6 +85,7 @@ object PortDots {
             canvas.drawOval(pill, ringP)
         }
         pill.set(cx - w / 2f, cy - h / 2f, cx + w / 2f, cy + h / 2f)
+        lastRow.set(pill)
         fillP.color = if (emphasis == Emphasis.CALM || emphasis == Emphasis.FULL_QUIET) 0xB3FFFFFF.toInt() else 0xF2FFFFFF.toInt()
         canvas.drawRoundRect(pill, h / 2f, h / 2f, fillP)
         if (emphasis != Emphasis.CALM && emphasis != Emphasis.FULL_QUIET) {

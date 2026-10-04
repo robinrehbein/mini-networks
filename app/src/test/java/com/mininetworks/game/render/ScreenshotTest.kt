@@ -199,7 +199,7 @@ class ScreenshotTest {
     }
 
     /**
-     * Badges for the silent failures, zoomed in, in both styles: a PC whose ISDN line to the mail server is jammed (the
+     * Badges for the silent failures, framed close (all four nodes clear of the HUD), in both styles: a PC whose ISDN line to the mail server is jammed (the
      * cable pulses amber, the PC wears the jam badge) and a TV cabled only to the mail server (badge with the missing
      * streaming sign).
      */
@@ -231,7 +231,7 @@ class ScreenshotTest {
             view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 1.3f, style = style)
             val r = view.activeRenderer
             val p = r.toScreen(Vec2(u.left + 6f, u.top + 5f))
-            r.camera.zoomBy(2.5f, p.x, p.y)
+            r.camera.zoomBy(if (style == "Iso") 1.4f else 1.1f, p.x, p.y)
             r.camera.panBy(r.camera.centerX - p.x, r.camera.centerY - p.y)
             view.drawCurrent(Canvas(bmp))
             save(bmp, File(shots, if (style == "Iso") "problem-badges.png" else "problem-badges-flat.png"))

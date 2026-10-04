@@ -5,7 +5,7 @@
     <plurals name="hud_delivered">
         <item quantity="other">%1$dパケット</item>
     </plurals>
-    <string name="hud_resources">予算 %1$d  ·  ルーター %2$d</string>
+    <string name="hud_resources">予算 %1$s  ·  ルーター %2$s</string>
     <string name="hud_clock_day">昼 · %1$s</string>
     <string name="hud_clock_night">夜 · %1$s · バックアップ %2$s</string>
     <string name="button_router">ルーター (%1$d)</string>
@@ -36,6 +36,7 @@
     <string name="legend_ports_title">ポート</string>
     <string name="legend_ports_desc">端末の下の点：●使用中、○空き。端末とWi-Fiは2個、サーバーと基地局は4個、ルーターは6個。</string>
     <string name="hint_place_router">空いているマスをタップ</string>
+    <string name="hint_error_prefix">エラー：%1$s</string>
     <string name="button_access_point">Wi-Fi (%1$d)</string>
     <string name="button_cell_tower">基地局 (%1$d)</string>
     <string name="hint_access_point">アクセスポイントをタップでチャンネル変更 · 長押しで5 GHz（%1$d）</string>
@@ -252,6 +253,13 @@
     <string name="hint_server_preview_voucher">%1$s → %2$s（無料券）· もう一度タップ</string>
     <string name="hint_server_upgraded">%1$sが%2$sになりました</string>
     <string name="hint_server_busy">%1$sが処理しきれません：タップで強化</string>
+    <string name="coach_pause">ヒント：下の一時停止を押そう – 停止中も建設を続けられます。</string>
+    <string name="coach_jam">ヒント：%1$sで渋滞。ケーブルを強化するか、隣に2本目を敷こう。</string>
+    <string name="coach_server_queue">ヒント：%1$sが処理しきれません。タップで価格を表示、もう一度タップで強化。</string>
+    <string name="coach_cable_upgrade">ヒント：ケーブルが細すぎ？下で太いものを選び、古いケーブルをタップしよう。</string>
+    <string name="coach_incident">ヒント：ショベルカーがもうすぐケーブルを切ります。切れたケーブルをタップして修理しよう。</string>
+    <string name="coach_radio_stock">ヒント：バーに新登場：%1$s。アイコンをマップの空きマスへドラッグしよう。</string>
+    <string name="coach_new_service">ヒント：古い機器も新しいサービスを求めます。%1$sは%2$sのサーバーへの経路が必要です。</string>
     <string name="hint_radio_reward">新登場：%1$s ― 週のボーナスで手に入ります</string>
     <string name="hint_service_needs">%1$sには帯域%2$dが必要です</string>
     <string name="hint_service_needs_ping">%1$sには帯域%2$dとPing %3$dミリ秒以内が必要です</string>
@@ -263,10 +271,21 @@
     <string name="problem_no_server">%1$s → %2$s：ネットワーク内にありません。ケーブルでつなごう</string>
     <string name="problem_jam_cable">%1$s → %2$s：%3$sケーブルが満杯。アップグレードかサーバーを近くに</string>
     <string name="problem_jam_server">%1$s → %2$s：サーバーが遅すぎます。アップグレードかもう1台</string>
-    <string name="game_over_no_route">%1$sは%2$sサーバーにつながらなかった</string>
+    <string name="game_over_no_route">%1$sは%2$sにつながらなかった</string>
     <string name="game_over_too_narrow">%1$sの%2$sには、もっと太いケーブルが必要だった</string>
     <string name="game_over_ping">%1$sの%2$sが遅延：%3$d ms（上限%4$d ms）</string>
     <string name="game_over_jam">%1$sの%2$sが渋滞で詰まった</string>
+    <string name="game_over_callout">%1$sがパンク</string>
+    <string name="loss_tip_connect">ヒント：%1$sを%2$sにケーブルでつなごう – 直接かルーター経由で</string>
+    <string name="loss_tip_router">ヒント：%1$sのポートが満杯 – 手前にルーターを置こう</string>
+    <string name="loss_tip_needs_server">ヒント：%1$sには%2$sへの道が必要 – 近くのものにつなごう</string>
+    <string name="loss_tip_repair">ヒント：切れたケーブルはタップで修理。2本目の経路があれば障害に強い。</string>
+    <string name="loss_tip_outage">ヒント：停電でルーターかWi-Fiが止まった – 迂回する2本目の経路なら耐えられる</string>
+    <string name="loss_tip_wider_cable">ヒント：%1$sには%2$sが必要 – 下でケーブルの種類を選び、古いケーブルをタップ</string>
+    <string name="loss_tip_faster_cable">ヒント：短い経路か速いケーブルで%1$sのPingが下がる</string>
+    <string name="loss_tip_second_cable">ヒント：渋滞には2本目のケーブル – または満杯のケーブルをタップして強化</string>
+    <string name="loss_tip_upgrade_server">ヒント：%1$sが追いつかない – タップして強化しよう</string>
+    <string name="loss_tip_second_server">ヒント：%1$sは限界 – 一部の機器を2台目のサーバーにつなごう</string>
     <string name="drag_too_narrow">%1$sには帯域%2$dが必要</string>
     <string name="drag_ping">%1$s：Ping %2$d/%3$dミリ秒</string>
     <string name="incident_more">%1$s · ほか%2$d件</string>
@@ -338,7 +357,6 @@
     <string name="mode_endless_desc">エンドレス：ゲームオーバーなし ― 過負荷は周辺を遅くするだけ</string>
     <string name="mode_creative_desc">クリエイティブ：自由に建設、予算無制限、すべて発明済み</string>
     <string name="pause_mode">%1$s · %2$s</string>
-    <string name="hud_resources_unlimited">予算 ∞  ·  ルーター ∞</string>
     <string name="button_router_unlimited">ルーター (∞)</string>
     <string name="button_access_point_unlimited">Wi-Fi (∞)</string>
     <string name="button_cell_tower_unlimited">基地局 (∞)</string>
@@ -531,4 +549,15 @@
     <string name="cell_error_newest">すでに最新の世代です</string>
     <string name="cell_error_not_invented">%1$sは%2$d年に登場</string>
     <string name="legend_cell_tower_desc">スマホ・タブレット・時計専用 · 3G → 4G/LTE → 5G：タップでアップグレード、容量アップ・Ping低下</string>
+    <string name="hud_budget_low">予算わずか</string>
+    <string name="legend_cable_edit_title">ケーブルの変更</string>
+    <string name="legend_cable_edit_desc">下でケーブルの種類を選んでケーブルをタップ：強化。端をドラッグ：引き直し。切れたケーブルをタップ：修理。</string>
+    <string name="legend_gauge_title">圧力ゲージ</string>
+    <string name="legend_gauge_desc">点は待っているリクエストの数。6つ中4つからバブルがオレンジに：今すぐ対処しよう。</string>
+    <string name="legend_jam_title">渋滞</string>
+    <string name="legend_jam_desc">経路はあるが満杯です。ケーブルを強化するか2本目を敷こう。</string>
+    <string name="legend_missing_title">サーバーなし</string>
+    <string name="legend_missing_desc">機器はこのサービスを求めていますが、つながったサーバーが提供していません。合うサーバーにつなごう。</string>
+    <string name="legend_incident_title">障害</string>
+    <string name="legend_incident_desc">ショベルカーのカウントダウンの後、ケーブルが切られます：タップで修理。停電中はルーターとWi-Fiがしばらく止まります。</string>
 </resources>

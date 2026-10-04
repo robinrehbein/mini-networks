@@ -5,7 +5,7 @@
     <plurals name="hud_delivered">
         <item quantity="other">패킷 %1$d개</item>
     </plurals>
-    <string name="hud_resources">예산 %1$d  ·  라우터 %2$d</string>
+    <string name="hud_resources">예산 %1$s  ·  라우터 %2$s</string>
     <string name="hud_clock_day">낮 · %1$s</string>
     <string name="hud_clock_night">밤 · %1$s · 백업 시각 %2$s</string>
     <string name="button_router">라우터 (%1$d)</string>
@@ -36,6 +36,7 @@
     <string name="legend_ports_title">포트</string>
     <string name="legend_ports_desc">기기 아래의 점: ● 사용 중, ○ 비어 있음. 기기와 Wi-Fi는 2개, 서버와 기지국은 4개, 라우터는 6개.</string>
     <string name="hint_place_router">빈칸을 탭하세요</string>
+    <string name="hint_error_prefix">오류: %1$s</string>
     <string name="button_access_point">Wi-Fi (%1$d)</string>
     <string name="button_cell_tower">기지국 (%1$d)</string>
     <string name="hint_access_point">액세스 포인트를 탭하면 채널 변경 · 길게 누르면 5 GHz (%1$d)</string>
@@ -252,6 +253,13 @@
     <string name="hint_server_preview_voucher">%1$s → %2$s, 쿠폰 사용 · 한 번 더 탭</string>
     <string name="hint_server_upgraded">%1$s: 이제 %2$s</string>
     <string name="hint_server_busy">%1$s 처리 한계: 탭해서 업그레이드</string>
+    <string name="coach_pause">팁: 아래의 일시정지를 누르세요 – 멈춘 상태에서도 계속 지을 수 있어요.</string>
+    <string name="coach_jam">팁: %1$s 정체. 케이블을 업그레이드하거나 옆에 두 번째를 까세요.</string>
+    <string name="coach_server_queue">팁: %1$s 처리 한계. 탭하면 가격이 보이고, 한 번 더 탭하면 업그레이드돼요.</string>
+    <string name="coach_cable_upgrade">팁: 케이블이 너무 좁나요? 아래에서 더 넓은 것을 고르고 기존 케이블을 탭하세요.</string>
+    <string name="coach_incident">팁: 굴착기가 곧 케이블을 끊어요. 끊긴 케이블을 탭해서 수리하세요.</string>
+    <string name="coach_radio_stock">팁: 바에 새로 추가: %1$s. 아이콘을 지도의 빈칸으로 끌어다 놓으세요.</string>
+    <string name="coach_new_service">팁: 오래된 기기도 새 서비스를 원해요. %1$s에 이제 %2$s 서버로 가는 경로가 필요해요.</string>
     <string name="hint_radio_reward">새로 등장: %1$s – 주간 보상으로 얻을 수 있어요</string>
     <string name="hint_service_needs">%1$s: 대역폭 %2$d 필요</string>
     <string name="hint_service_needs_ping">%1$s: 대역폭 %2$d, 핑 최대 %3$dms 필요</string>
@@ -263,10 +271,21 @@
     <string name="problem_no_server">%1$s → %2$s: 네트워크에 없음 – 케이블로 연결하세요</string>
     <string name="problem_jam_cable">%1$s → %2$s: %3$s 케이블 꽉 참 – 업그레이드하거나 서버를 가까이</string>
     <string name="problem_jam_server">%1$s → %2$s: 서버가 느림 – 업그레이드하거나 하나 더</string>
-    <string name="game_over_no_route">%2$s 서버에 연결할 수 없었어요 (%1$s)</string>
+    <string name="game_over_no_route">%2$s에 연결할 수 없었어요 (%1$s)</string>
     <string name="game_over_too_narrow">%2$s에는 더 넓은 케이블이 필요했어요 (%1$s)</string>
     <string name="game_over_ping">%2$s 지연: %3$d ms, 최대 %4$d ms (%1$s)</string>
     <string name="game_over_jam">%2$s 트래픽이 막혔어요 (%1$s)</string>
+    <string name="game_over_callout">%1$s 과부하</string>
+    <string name="loss_tip_connect">팁: %1$s을(를) %2$s에 케이블로 연결하세요 – 직접 또는 라우터로</string>
+    <string name="loss_tip_router">팁: %1$s의 포트가 꽉 찼어요 – 앞에 라우터를 놓으세요</string>
+    <string name="loss_tip_needs_server">팁: %1$s에서 %2$s까지 길이 필요해요 – 가까운 곳에 연결하세요</string>
+    <string name="loss_tip_repair">팁: 끊긴 케이블은 탭해서 수리하세요. 두 번째 경로가 있으면 사고에 강해요.</string>
+    <string name="loss_tip_outage">팁: 정전으로 라우터나 Wi-Fi가 꺼졌어요 – 우회하는 두 번째 경로가 있으면 버텨요</string>
+    <string name="loss_tip_wider_cable">팁: %1$s에는 %2$s이(가) 필요해요 – 아래에서 케이블 종류를 고르고 기존 케이블을 탭하세요</string>
+    <string name="loss_tip_faster_cable">팁: 더 짧은 경로나 더 빠른 케이블이 %1$s 핑을 낮춰요</string>
+    <string name="loss_tip_second_cable">팁: 정체에는 두 번째 케이블을 깔거나 – 가득 찬 케이블을 탭해 업그레이드하세요</string>
+    <string name="loss_tip_upgrade_server">팁: %1$s이(가) 감당하지 못해요 – 탭해서 업그레이드하세요</string>
+    <string name="loss_tip_second_server">팁: %1$s이(가) 한계예요 – 일부 기기를 두 번째 서버에 연결하세요</string>
     <string name="drag_too_narrow">%1$s: 대역폭 %2$d 필요</string>
     <string name="drag_ping">%1$s: 핑 %2$d/%3$dms</string>
     <string name="incident_more">%1$s · 외 %2$d건</string>
@@ -338,7 +357,6 @@
     <string name="mode_endless_desc">무한: 게임 오버 없음 – 과부하는 주변만 느리게 만듦</string>
     <string name="mode_creative_desc">크리에이티브: 자유 건설, 무제한 예산, 모두 발명 완료</string>
     <string name="pause_mode">%1$s · %2$s</string>
-    <string name="hud_resources_unlimited">예산 ∞  ·  라우터 ∞</string>
     <string name="button_router_unlimited">라우터 (∞)</string>
     <string name="button_access_point_unlimited">Wi-Fi (∞)</string>
     <string name="button_cell_tower_unlimited">기지국 (∞)</string>
@@ -531,4 +549,15 @@
     <string name="cell_error_newest">이미 최신 세대입니다</string>
     <string name="cell_error_not_invented">%1$s: %2$d년에 나옵니다</string>
     <string name="legend_cell_tower_desc">스마트폰·태블릿·워치 전용 · 3G → 4G/LTE → 5G: 탭하면 업그레이드, 용량 증가·핑 감소</string>
+    <string name="hud_budget_low">예산 부족</string>
+    <string name="legend_cable_edit_title">케이블 바꾸기</string>
+    <string name="legend_cable_edit_desc">아래에서 케이블 종류를 고르고 케이블을 탭: 업그레이드. 끝을 끌기: 경로 변경. 끊긴 케이블을 탭: 수리.</string>
+    <string name="legend_gauge_title">압력 게이지</string>
+    <string name="legend_gauge_desc">점은 기다리는 요청 수예요. 6개 중 4개부터 말풍선이 주황색이 돼요: 지금 대처하세요.</string>
+    <string name="legend_jam_title">정체</string>
+    <string name="legend_jam_desc">경로는 있지만 꽉 찼어요. 케이블을 업그레이드하거나 두 번째를 까세요.</string>
+    <string name="legend_missing_title">서버 없음</string>
+    <string name="legend_missing_desc">기기가 이 서비스를 원하지만 연결된 서버가 제공하지 않아요. 맞는 서버에 연결하세요.</string>
+    <string name="legend_incident_title">사고</string>
+    <string name="legend_incident_desc">굴착기가 카운트다운한 뒤 케이블이 끊겨요: 탭해서 수리하세요. 정전 때는 라우터와 Wi-Fi가 잠시 꺼져요.</string>
 </resources>

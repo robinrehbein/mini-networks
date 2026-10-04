@@ -154,6 +154,17 @@ class ServiceCheck(val service: Service, val problem: RouteProblem?, val pingMs:
  */
 class Failure(val node: Node, val service: Service, val problem: RouteProblem?, val pingMs: Float?)
 
+/**
+ * The one move the game-over card suggests against a [Failure] ([World.lossTip]): lay a cable from the unlinked device
+ * ([CONNECT]), put a router in front of a device whose ports are full ([ROUTER]), link the device to a server of the
+ * service it wanted ([NEEDS_SERVER]), mend what an incident cut or plan a second way around it ([REPAIR]), plan a way
+ * around a router a power outage switched off ([OUTAGE]), upgrade to a wider cable ([WIDER_CABLE]), take a shorter way
+ * or a faster cable against the ping ([FASTER_CABLE]), lay a second or a wider cable against a jam ([SECOND_CABLE]),
+ * upgrade the saturated server behind it ([UPGRADE_SERVER]) or, once it cannot grow, link a second one
+ * ([SECOND_SERVER]). [ROUTER] also covers a service whose servers have all their ports taken.
+ */
+enum class LossTip { CONNECT, ROUTER, NEEDS_SERVER, REPAIR, OUTAGE, WIDER_CABLE, FASTER_CABLE, SECOND_CABLE, UPGRADE_SERVER, SECOND_SERVER }
+
 /** What a week change brought: the UI shows it as "year · New: ...". */
 @Serializable
 data class WeekNews(

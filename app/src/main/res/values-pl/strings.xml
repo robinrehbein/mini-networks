@@ -8,7 +8,7 @@
         <item quantity="many">%1$d pakietów</item>
         <item quantity="other">%1$d pakietu</item>
     </plurals>
-    <string name="hud_resources">Budżet %1$d  ·  Routery %2$d</string>
+    <string name="hud_resources">Budżet %1$s  ·  Routery %2$s</string>
     <string name="hud_clock_day">Dzień · %1$s</string>
     <string name="hud_clock_night">Noc · %1$s · kopie zapasowe o %2$s</string>
     <string name="button_router">Router (%1$d)</string>
@@ -51,6 +51,7 @@
     <string name="legend_ports_title">Porty</string>
     <string name="legend_ports_desc">Kropki pod urządzeniem: ● zajęty, ○ wolny. Urządzenia i Wi-Fi mają 2, serwery i maszty 4, routery 6.</string>
     <string name="hint_place_router">Dotknij wolnego pola</string>
+    <string name="hint_error_prefix">Błąd: %1$s</string>
     <string name="button_access_point">Wi-Fi (%1$d)</string>
     <string name="button_cell_tower">Maszt (%1$d)</string>
     <string name="hint_access_point">Dotknij punktu dostępu, by zmienić kanał · przytrzymaj, by przejść na 5 GHz (%1$d)</string>
@@ -70,7 +71,7 @@
     <string name="server_error_no_space">Centrum danych potrzebuje 2×2 wolnych pól przy serwerze</string>
     <string name="incident_excavator_warning">Koparka! Cięcie za %1$d s</string>
     <string name="incident_outage_warning">Grozi awaria prądu: %1$s zgaśnie za %2$d s</string>
-    <string name="incident_cut">Kabel przecięty: dotknij, by naprawić za %1$d · sam wróci za %2$d s</string>
+    <string name="incident_cut">Kabel przecięty: dotknij = napraw (%1$d) · inaczej %2$d s</string>
     <string name="incident_outage">Awaria prądu: %1$s bez zasilania jeszcze %2$d s</string>
     <string name="repair_error_no_budget">Za mały budżet, naprawa kosztuje %1$d</string>
     <string name="hint_repaired">Kabel naprawiony</string>
@@ -282,6 +283,13 @@
     <string name="hint_server_preview_voucher">%1$s → %2$s z bonem · dotknij ponownie</string>
     <string name="hint_server_upgraded">%1$s teraz: %2$s</string>
     <string name="hint_server_busy">%1$s nie nadąża: dotknij, by ulepszyć</string>
+    <string name="coach_pause">Wskazówka: naciśnij Pauzę na dole – w pauzie możesz dalej budować.</string>
+    <string name="coach_jam">Wskazówka: korek przy %1$s. Ulepsz kabel albo połóż drugi obok.</string>
+    <string name="coach_server_queue">Wskazówka: %1$s nie nadąża. Dotknij, by zobaczyć cenę, dotknij znowu, by ulepszyć.</string>
+    <string name="coach_cable_upgrade">Wskazówka: kabel za wąski? Wybierz na dole szerszy i dotknij starego kabla.</string>
+    <string name="coach_incident">Wskazówka: koparka zaraz przetnie kabel. Dotknij przeciętego kabla, by go naprawić.</string>
+    <string name="coach_radio_stock">Wskazówka: nowość na pasku: %1$s. Przeciągnij ikonę na wolne pole mapy.</string>
+    <string name="coach_new_service">Wskazówka: stare urządzenia też chcą nowych usług. %1$s potrzebuje teraz trasy do serwera usługi %2$s.</string>
     <string name="hint_radio_reward">Nowość: %1$s – do zdobycia jako nagroda tygodnia</string>
     <string name="hint_service_needs">%1$s: potrzeba przepustowości %2$d</string>
     <string name="hint_service_needs_ping">%1$s: potrzeba przepustowości %2$d i pingu najwyżej %3$d ms</string>
@@ -293,13 +301,24 @@
     <string name="problem_no_server">%1$s → %2$s: brak w jego sieci – poprowadź kabel do któregoś</string>
     <string name="problem_jam_cable">%1$s → %2$s: kabel %3$s pełny – ulepsz go lub postaw serwer bliżej</string>
     <string name="problem_jam_server">%1$s → %2$s: serwer za wolny – ulepsz go lub postaw kolejny</string>
-    <string name="game_over_no_route">Brak połączenia z serwerem %2$s (%1$s)</string>
+    <string name="game_over_no_route">Brak połączenia z: %2$s (%1$s)</string>
     <string name="game_over_too_narrow">Za wąski kabel dla %2$s (%1$s)</string>
     <string name="game_over_ping">Za duży ping dla %2$s (%1$s): %3$d ms, maks. %4$d ms</string>
     <string name="game_over_jam">Korek w sieci zablokował %2$s (%1$s)</string>
+    <string name="game_over_callout">%1$s: przeciążenie</string>
+    <string name="loss_tip_connect">Wskazówka: połącz %1$s kablem z %2$s – wprost lub przez router</string>
+    <string name="loss_tip_router">Wskazówka: %1$s nie ma wolnego portu – wstaw przed nim router</string>
+    <string name="loss_tip_needs_server">Wskazówka: %1$s potrzebuje drogi do: %2$s – podłącz najbliższy</string>
+    <string name="loss_tip_repair">Wskazówka: dotknij przeciętego kabla, by go naprawić. Druga trasa przetrwa awarie.</string>
+    <string name="loss_tip_outage">Wskazówka: awaria prądu wyłączyła router lub Wi-Fi – druga trasa obok to przetrwa</string>
+    <string name="loss_tip_wider_cable">Wskazówka: %1$s wymaga: %2$s – wybierz typ kabla na dole, potem dotknij starego kabla</string>
+    <string name="loss_tip_faster_cable">Wskazówka: krótsza trasa lub szybszy kabel obniży ping dla %1$s</string>
+    <string name="loss_tip_second_cable">Wskazówka: na korek pomoże drugi kabel – albo dotknij pełnego, by go ulepszyć</string>
+    <string name="loss_tip_upgrade_server">Wskazówka: %1$s nie nadąża – dotknij, by ulepszyć</string>
+    <string name="loss_tip_second_server">Wskazówka: %1$s jest na limicie – podłącz część urządzeń do drugiego serwera</string>
     <string name="drag_too_narrow">%1$s: potrzeba przepustowości %2$d</string>
     <string name="drag_ping">%1$s: ping %2$d/%3$d ms</string>
-    <string name="incident_more">%1$s · +%2$d kolejne</string>
+    <string name="incident_more">%1$s · +%2$d</string>
     <!-- Accessibility (TalkBack) descriptions of the canvas-drawn HUD, docs/TOP100.md A7 -->
     <string name="a11y_menu">Menu</string>
     <string name="a11y_pause">Zatrzymaj zegar</string>
@@ -380,7 +399,6 @@
     <string name="mode_endless_desc">Bez końca: nie ma końca gry – przeciążenie tylko spowalnia okolicę</string>
     <string name="mode_creative_desc">Kreatywny: buduj swobodnie, budżet bez limitu, wszystko wynalezione</string>
     <string name="pause_mode">%1$s · %2$s</string>
-    <string name="hud_resources_unlimited">Budżet ∞  ·  Routery ∞</string>
     <string name="button_router_unlimited">Router (∞)</string>
     <string name="button_access_point_unlimited">Wi-Fi (∞)</string>
     <string name="button_cell_tower_unlimited">Maszt (∞)</string>
@@ -648,4 +666,15 @@
     <string name="cell_error_newest">To już najnowsza generacja</string>
     <string name="cell_error_not_invented">%1$s pojawi się w %2$d</string>
     <string name="legend_cell_tower_desc">Tylko smartfon, tablet i zegarek · 3G → 4G/LTE → 5G: dotknij, by ulepszyć – większa przepustowość, niższy ping</string>
+    <string name="hud_budget_low">mało budżetu</string>
+    <string name="legend_cable_edit_title">Zmiana kabli</string>
+    <string name="legend_cable_edit_desc">Wybierz typ na dole i dotknij kabla: ulepszenie. Przeciągnij koniec: przełożenie. Przecięty kabel: dotknij, naprawa.</string>
+    <string name="legend_gauge_title">Wskaźnik nacisku</string>
+    <string name="legend_gauge_desc">Kropki pokazują, ile żądań czeka. Od 4 z 6 bańka robi się pomarańczowa: działaj teraz.</string>
+    <string name="legend_jam_title">Korek</string>
+    <string name="legend_jam_desc">Trasa istnieje, ale jest pełna. Ulepsz kabel albo połóż drugi.</string>
+    <string name="legend_missing_title">Brak serwera</string>
+    <string name="legend_missing_desc">Urządzenie chce tej usługi, ale żaden podłączony serwer jej nie daje. Połącz je z pasującym serwerem.</string>
+    <string name="legend_incident_title">Awaria</string>
+    <string name="legend_incident_desc">Koparka odlicza i przecina kabel: dotknij go, by naprawić. Przy awarii prądu routery i Wi-Fi na chwilę gasną.</string>
 </resources>

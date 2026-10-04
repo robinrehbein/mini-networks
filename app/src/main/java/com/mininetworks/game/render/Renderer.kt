@@ -132,7 +132,7 @@ interface Renderer {
         updateLimits(world)
         if (camera.scale > framed * FRAMED_TOLERANCE) return
         camera.rescale(autoScale(world) / framed, camera.tiltedAroundX, camera.tiltedAroundY)
-        camera.bringIntoView(frame(world))
+        camera.bringIntoView(framing(world))
     }
 
     /**
@@ -159,7 +159,7 @@ interface Renderer {
      */
     fun fitArea(world: World, animate: Boolean) {
         updateLimits(world)
-        camera.fit(frame(world), animate, atLeast = framingMinScale(world))
+        camera.fit(framing(world), animate, atLeast = framedFloor(world))
     }
 
     /** The zoom the automatic framing ([fitArea]) settles on at the current angle and pitch. */
@@ -169,7 +169,7 @@ interface Renderer {
     /** Call when the unlocked area grew: widens the limits and, unless the player moved the view, follows the area. */
     fun onAreaChanged(world: World) {
         updateLimits(world)
-        if (camera.followsArea) camera.fit(frame(world), animate = true, atLeast = framingMinScale(world))
+        if (camera.followsArea) camera.fit(framing(world), animate = true, atLeast = framedFloor(world))
     }
 
     /**
@@ -179,8 +179,17 @@ interface Renderer {
     fun onContentChanged(world: World) {
         if (!camera.followsArea) return
         val content = contentBounds(world) ?: return
-        if (!camera.shows(content)) camera.fit(frame(world), animate = true, atLeast = framingMinScale(world))
+        if (!camera.shows(content)) camera.fit(framing(world), animate = true, atLeast = framedFloor(world))
     }
+
+    /** [framingMinScale], remembered in [Camera.framingFloor] for [atFramedZoom]. */
+    private fun framedFloor(world: World): Float = framingMinScale(world).also { camera.framingFloor = it }
+
+    /**
+     * True while the zoom is not (much) below the automatic framing's: a pan, a turn or a glide to a device keeps it,
+     * only pinching out further ends it. Server plates use their lower fade thresholds then ([ServerLabels.visibility]).
+     */
+    val atFramedZoom: Boolean get() = camera.scale >= camera.framingFloor * FRAMED_ZOOM_SHARE
 
     /**
      * The zoom the automatic framing does not go below: [readableScale]; but in a portrait view, whose width is the
@@ -190,9 +199,32 @@ interface Renderer {
      */
     fun framingMinScale(world: World): Float {
         val readable = readableScale * minOf(1f, Camera.squashOf(Camera.DEFAULT_TILT) / camera.squash)
-        if (!camera.isTall) return readable
         val content = contentBounds(world) ?: return readable
+        // Landscape: zoom out a little below the readable size rather than leave a node under the toolbar or the top
+        // HUD, but not so far that a big network turns into specks (the player pans there).
+        if (!camera.isTall) return minOf(readable, maxOf(camera.fitScale(content), readable * LANDSCAPE_READABLE_SHARE))
         return minOf(readable, camera.fitScale(content))
+    }
+
+    /**
+     * [frame], moved as little as needed so that, at the zoom the automatic framing settles on ([autoScale]), every
+     * built node ([contentBounds]) lies inside the inset viewport (between the top HUD and the toolbar) along each axis
+     * on which it fits, and is centred along one on which it does not: a frame bigger than the view would otherwise be
+     * centred on the area's middle and push nodes at its edge under the HUD.
+     */
+    fun framing(world: World): MapRect {
+        val f = frame(world)
+        val c = contentBounds(world) ?: return f
+        val s = autoScale(world)
+        val hw = (camera.viewWidth - camera.insets.left - camera.insets.right).coerceAtLeast(1f) / 2f / s
+        val hh = (camera.viewHeight - camera.insets.top - camera.insets.bottom).coerceAtLeast(1f) / 2f / s
+        fun focus(mid: Float, lo: Float, hi: Float, half: Float): Float {
+            val from = hi - half; val to = lo + half
+            return if (from >= to) (lo + hi) / 2f else mid.coerceIn(from, to)
+        }
+        val dx = focus(f.centerX, c.left, c.right, hw) - f.centerX
+        val dy = focus(f.centerY, c.top, c.bottom, hh) - f.centerY
+        return MapRect(f.left + dx, f.top + dy, f.right + dx, f.bottom + dy)
     }
 
     /**
@@ -303,6 +335,10 @@ interface Renderer {
         const val CONTENT_MARGIN = 0.15f
         /** Share of the area's width and height a landscape [frame] always shows around its middle. */
         const val CORE_FRACTION = 0.45f
+        /** Share of [readableScale] a landscape framing may zoom out to so every node stays clear of the HUD. */
+        const val LANDSCAPE_READABLE_SHARE = 0.75f
+        /** A zoom down to this share of the automatic framing's floor still counts as at it ([atFramedZoom]). */
+        const val FRAMED_ZOOM_SHARE = 0.95f
     }
 }
 
@@ -1121,16 +1157,52 @@ object DragJuice {
      * Puts a bubble of [w] by [h] for the point ([x], [y]) into [out], keeping [margin] to [bounds]: its bottom [lift]
      * above the point, or, where its top would leave [bounds] (a [tail] tip included), its top [lift] below the point;
      * then pushed inside vertically. Returns the centre x, clamped so the bubble stays between the side bounds.
+     * With [avoid], a spot that would run under a box the HUD [reserve][ServerLabels.reserve]d (the view buttons, the
+     * counters) gives way: the bubble flips to the other side of the point, else slides beside that box, above or
+     * below; where every spot is covered it keeps the first.
      */
-    internal fun place(w: Float, h: Float, x: Float, y: Float, lift: Float, tail: Float, margin: Float, bounds: RectF, out: RectF): Float {
+    internal fun place(
+        w: Float, h: Float, x: Float, y: Float, lift: Float, tail: Float, margin: Float, bounds: RectF, out: RectF,
+        avoid: ServerLabels? = null,
+    ): Float {
         val cx = if (w + 2 * margin >= bounds.width()) bounds.centerX() else x.coerceIn(bounds.left + margin + w / 2f, bounds.right - margin - w / 2f)
         var top = y - lift - h
-        if (top < bounds.top + margin) top = y + lift
+        val flipped = top < bounds.top + margin
+        if (flipped) top = y + lift
+        put(w, h, cx, top, tail, margin, bounds, out)
+        val hit = avoid?.let { hitWithTail(it, out, y, tail, margin) } ?: return cx
+        val hl = hit.left; val hr = hit.right
+        val other = if (flipped) y - lift - h else y + lift
+        val slidLeft = hl - margin - w / 2f
+        val slidRight = hr + margin + w / 2f
+        // Spots in order of preference: the other side of the point, then slid beside the box on this side and the other.
+        for (k in 0 until AVOID_SPOTS) {
+            val sx = when (k) { 0 -> cx; 1, 3 -> slidLeft; else -> slidRight }
+            if (w + 2 * margin < bounds.width() && (sx < bounds.left + margin + w / 2f - 0.5f || sx > bounds.right - margin - w / 2f + 0.5f)) continue
+            put(w, h, sx, if (k == 0 || k >= 3) other else top, tail, margin, bounds, out)
+            if (hitWithTail(avoid, out, y, tail, margin) == null) return sx
+        }
+        put(w, h, cx, top, tail, margin, bounds, out)
+        return cx
+    }
+
+    private const val AVOID_SPOTS = 5
+
+    private val tailed = RectF()
+
+    /** [ServerLabels.reservedHit] for the bubble [out] with its [tail] towards the point at [y] (below it or above). */
+    private fun hitWithTail(avoid: ServerLabels, out: RectF, y: Float, tail: Float, margin: Float): RectF? {
+        tailed.set(out)
+        if (out.top > y) tailed.top -= tail else tailed.bottom += tail
+        return avoid.reservedHit(tailed, margin)
+    }
+
+    /** [out] = a bubble of [w] by [h] centred at [cx] with its top near [top], pushed inside [bounds] vertically. */
+    private fun put(w: Float, h: Float, cx: Float, top: Float, tail: Float, margin: Float, bounds: RectF, out: RectF) {
         val low = bounds.bottom - margin - tail - h
         val high = bounds.top + margin + tail
-        top = if (low < high) high else top.coerceIn(high, low)
-        out.set(cx - w / 2f, top, cx + w / 2f, top + h)
-        return cx
+        val t = if (low < high) high else top.coerceIn(high, low)
+        out.set(cx - w / 2f, t, cx + w / 2f, t + h)
     }
 
     /** The glow under a preview line [path] of stroke width [width] pixels in [color]. */
@@ -1193,11 +1265,13 @@ object DragJuice {
     /**
      * The bubble with [label] (and a smaller [detail] line) whose tail points at ([x], [y]), its bottom [lift] pixels
      * above that point; [size] is the label's text size. The bubble stays inside [bounds] (the screen minus the safe
-     * area and the HUD): where it would clip at the top it flips below the point, tail up.
+     * area and the HUD): where it would clip at the top it flips below the point, tail up; with [avoid] it also keeps
+     * clear of the boxes the HUD reserved there (the view buttons below the counters, see [place]).
      */
     fun bubble(
         canvas: Canvas, label: String, detail: String?, x: Float, y: Float, lift: Float, size: Float, density: Float,
         labelColor: Int, detailColor: Int, accent: Int, bounds: RectF = RectF(0f, 0f, canvas.width.toFloat(), canvas.height.toFloat()),
+        avoid: ServerLabels? = null,
     ) {
         textP.textSize = size
         val w1 = textP.measureText(label)
@@ -1208,7 +1282,7 @@ object DragJuice {
         val padY = size * 0.5f
         val w = maxOf(w1, w2) + 2 * padX
         val h = size * 1.15f + (if (detail != null) detailSize * 1.25f else 0f) + 2 * padY
-        val cx = place(w, h, x, y, lift, size * 0.5f, 8 * density, bounds, rect)
+        val cx = place(w, h, x, y, lift, size * 0.5f, 8 * density, bounds, rect, avoid)
         val flipped = rect.top > y
         val bottom = rect.bottom
         val r = minOf(h / 2f, size * 0.9f)

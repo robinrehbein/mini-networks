@@ -346,12 +346,12 @@ class IsoRenderer : Renderer {
                 DragJuice.bubble(
                     canvas, it, d.detail, sx(end.x, end.y), sy(end.x, end.y), maxOf(th * 2.2f, 40f * density), size, density,
                     if (d.blocked) alarm else 0xFF2F3A34.toInt(), if (d.detailWarning) alarm else 0xFF5B6674.toInt(), col,
-                    DragJuice.bounds(canvas, camera.insets),
+                    DragJuice.bounds(canvas, camera.insets), avoid = serverLabels,
                 )
                 DragJuice.lastBubble.let { b -> serverLabels.obstacle(b.left, b.top, b.right, b.bottom, hardEdge = true) }
             }
         }
-        serverLabels.draw(canvas, camera, serverLabels.visibility(tw, density), density, time)
+        serverLabels.draw(canvas, camera, serverLabels.visibility(tw, density, atFramedZoom), density, time)
     }
 
     /**
@@ -364,6 +364,8 @@ class IsoRenderer : Renderer {
         val x = sx(c.x, c.y); val y = sy(c.x, c.y)
         val k = if (n.isDataCenter) 2f else 1f
         PortDots.draw(canvas, world, n, x, y + th * 0.5f * k, unitPx, density, e, x, y, tw * 0.5f * k, th * 0.5f * k)
+        // A server's name plate never hides its free ports.
+        if (n.kind == NodeKind.SERVER) PortDots.lastRow.let { serverLabels.obstacle(it.left, it.top, it.right, it.bottom, hardEdge = true) }
     }
 
     /**

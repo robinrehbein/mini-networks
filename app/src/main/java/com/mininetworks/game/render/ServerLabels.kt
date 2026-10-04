@@ -64,9 +64,15 @@ class ServerLabels {
 
     /**
      * How much of the plates shows at a cell width of [cellPx] pixels: 1 from [FADE_FROM_DP], 0 below [FADE_TO_DP]
-     * (a zoomed-out map would be all plates).
+     * (a zoomed-out map would be all plates). At the automatic framing's zoom ([framed], [Renderer.atFramedZoom], also
+     * after a pan or a turn) the lower [FRAMED_FADE_FROM_DP] and [FRAMED_FADE_TO_DP] apply, so it keeps its names; a
+     * map the player pinched out further uses the stricter ones.
      */
-    fun visibility(cellPx: Float, density: Float) = ((cellPx / density - FADE_TO_DP) / (FADE_FROM_DP - FADE_TO_DP)).coerceIn(0f, 1f)
+    fun visibility(cellPx: Float, density: Float, framed: Boolean = false): Float {
+        val from = if (framed) FRAMED_FADE_FROM_DP else FADE_FROM_DP
+        val to = if (framed) FRAMED_FADE_TO_DP else FADE_TO_DP
+        return ((cellPx / density - to) / (from - to)).coerceIn(0f, 1f)
+    }
 
     // ---------------------------------------------------------------- per-frame layout
 
@@ -96,6 +102,42 @@ class ServerLabels {
         if (reservedCount == reserved.size) reserved += RectF()
         reserved[reservedCount++].set(box)
     }
+
+    /**
+     * The first [reserve]d HUD box that [c], grown by [pad] on every side, would touch, or null; e.g. for the drag
+     * label, which must not slide under the view buttons.
+     */
+    fun reservedHit(c: RectF, pad: Float): RectF? {
+        for (i in 0 until reservedCount) {
+            val p = reserved[i]
+            if (c.left < p.right + pad && c.right > p.left - pad && c.top < p.bottom + pad && c.bottom > p.top - pad) return p
+        }
+        return null
+    }
+
+    private val overlays = ArrayList<RectF>()
+    private var overlayCount = 0
+
+    /**
+     * Screen boxes the view draws over the map itself (an incident's countdown pin), kept from frame to frame: plates
+     * treat them as hard obstacles, so a pin never hides a name. [clearOverlays], then [overlay] each box.
+     */
+    fun clearOverlays() {
+        overlayCount = 0
+    }
+
+    fun overlay(l: Float, t: Float, r: Float, b: Float) {
+        if (overlayCount == overlays.size) overlays += RectF()
+        overlays[overlayCount++].set(l, t, r, b)
+    }
+
+    /** How many plates the last [draw] placed; [placedPlate] gives each one's screen box (not to be changed). */
+    val placedPlates get() = placedCount
+
+    fun placedPlate(i: Int): RectF = placed[i]
+
+    /** The plates placed in the last [draw], for tests. */
+    internal fun plates(): List<RectF> = placed.subList(0, placedCount).map { RectF(it) }
 
     /** Starts a frame: forgets the obstacles and servers of the last one. */
     fun begin() {
@@ -194,21 +236,29 @@ class ServerLabels {
         // to one side (its pointer still at the building), last on a data center's own front (hiding only itself): the
         // first spot clear of everything, in one line, else stacked; else the first that only touches the edge of a
         // building ([SOFT_OVERLAP]); a server in focus takes the least covering spot.
+        // Where only the countdown pins ([overlay]) leave no spot, a second search ignores them: the pins then give
+        // way to the plate ([placedPlates], [placedPlate]) rather than a server losing its name.
         var best = -1
         var bestStacked = false
         var bestCost = Float.MAX_VALUE
         var firstSoft = -1
         var softStacked = false
-        search@ for (stacked in if (stage != null) STACKINGS else FLAT_ONLY) {
-            val w = width(stacked); val h = height(stacked)
-            // Only a data center's wide hall has room for its plate on its own front; a rack server would vanish.
-            for (s in 0 until if (n.isDataCenter) CANDIDATES else ON) {
-                spot(s, cx, cy, l, t, r, b, w, h, gap, w / 2f - size * 1.6f)
-                val cost = cost(candidate, k, density)
-                if (cost == 0f) { best = s; bestStacked = stacked; bestCost = 0f; break@search }
-                if (firstSoft < 0 && cost <= candidate.width() * candidate.height() * SOFT_OVERLAP) { firstSoft = s; softStacked = stacked }
-                if (cost < bestCost) { best = s; bestStacked = stacked; bestCost = cost }
+        var overlaysToo = true
+        while (true) {
+            search@ for (stacked in if (stage != null) STACKINGS else FLAT_ONLY) {
+                val w = width(stacked); val h = height(stacked)
+                // Only a data center's wide hall has room for its plate on its own front; a rack server would vanish.
+                for (s in 0 until if (n.isDataCenter) CANDIDATES else ON) {
+                    spot(s, cx, cy, l, t, r, b, w, h, gap, w / 2f - size * 1.6f)
+                    val cost = cost(candidate, k, density, overlaysToo)
+                    if (cost == 0f) { best = s; bestStacked = stacked; bestCost = 0f; break@search }
+                    if (firstSoft < 0 && cost <= candidate.width() * candidate.height() * SOFT_OVERLAP) { firstSoft = s; softStacked = stacked }
+                    if (cost < bestCost) { best = s; bestStacked = stacked; bestCost = cost }
+                }
             }
+            if (bestCost == 0f || firstSoft >= 0 || focus > 0f || !overlaysToo || overlayCount == 0) break
+            overlaysToo = false
+            best = -1; bestCost = Float.MAX_VALUE
         }
         val s: Int
         val stacked: Boolean
@@ -216,7 +266,11 @@ class ServerLabels {
             bestCost == 0f -> { s = best; stacked = bestStacked }
             firstSoft >= 0 -> { s = firstSoft; stacked = softStacked }
             focus > 0f && bestCost < Float.MAX_VALUE -> { s = best; stacked = bestStacked }
-            else -> return
+            else -> {
+                // No room for the name: never drop it silently, the service's token on a small disc says whose it is.
+                compact(canvas, n, service, k, size, density, alpha, cx, cy, l, t, r, b, gap)
+                return
+            }
         }
         val w = width(stacked); val h = height(stacked)
         spot(s, cx, cy, l, t, r, b, w, h, gap, w / 2f - size * 1.6f)
@@ -271,6 +325,52 @@ class ServerLabels {
         }
     }
 
+    /**
+     * The fallback of [plate] where no spot has room for the name: only the service's token on a disc (a quarter of
+     * the plate's size) at the first clear spot, else at the one covering least (never under the HUD or off the view);
+     * its pointer still points at the building. The server keeps a sign, and TalkBack reads the name from the map node.
+     */
+    private fun compact(
+        canvas: Canvas, n: Node, service: Service, k: Int, size: Float, density: Float, alpha: Float,
+        cx: Float, cy: Float, l: Float, t: Float, r: Float, b: Float, gap: Float,
+    ) {
+        val d = size * 2f
+        var best = -1
+        var bestCost = Float.MAX_VALUE
+        for (s in 0 until if (n.isDataCenter) CANDIDATES else ON) {
+            spot(s, cx, cy, l, t, r, b, d, d, gap, 0f)
+            val cost = cost(candidate, k, density)
+            if (cost < bestCost) { best = s; bestCost = cost }
+            if (cost <= candidate.width() * candidate.height() * SOFT_OVERLAP) break
+        }
+        if (best < 0) return
+        spot(best, cx, cy, l, t, r, b, d, d, gap, 0f)
+        claim(candidate)
+        val a = (alpha * 255f).toInt().coerceIn(0, 255)
+        val radius = d / 2f
+        val px = candidate.centerX(); val py = candidate.centerY()
+        tail.reset()
+        val tip = size * 0.52f
+        val side = when (best) { 4, 5 -> BELOW; 6, 7 -> ABOVE; 9, 10 -> ON; else -> best }
+        when (side) {
+            BELOW -> { tail.moveTo(px - tip, candidate.top + radius * 0.3f); tail.lineTo(cx, candidate.top - tip); tail.lineTo(px + tip, candidate.top + radius * 0.3f) }
+            ABOVE -> { tail.moveTo(px - tip, candidate.bottom - radius * 0.3f); tail.lineTo(cx, candidate.bottom + tip); tail.lineTo(px + tip, candidate.bottom - radius * 0.3f) }
+            RIGHT -> { tail.moveTo(candidate.left + radius * 0.3f, py - tip); tail.lineTo(candidate.left - tip, cy); tail.lineTo(candidate.left + radius * 0.3f, py + tip) }
+            ON -> Unit
+            else -> { tail.moveTo(candidate.right - radius * 0.3f, py - tip); tail.lineTo(candidate.right + tip, cy); tail.lineTo(candidate.right - radius * 0.3f, py + tip) }
+        }
+        tail.close()
+        shadowP.alpha = (0x2B * alpha).toInt()
+        canvas.drawCircle(px, py + 1.5f * density, radius, shadowP)
+        plateP.color = withAlpha(PLATE, a)
+        canvas.drawPath(tail, plateP)
+        canvas.drawCircle(px, py, radius, plateP)
+        rimP.color = withAlpha(RIM, a)
+        rimP.strokeWidth = 1f * density
+        canvas.drawCircle(px, py, radius, rimP)
+        ServiceGlyphs.token(canvas, service, px, py, size * 0.62f, alpha = a, rim = false)
+    }
+
     /** Candidate spot [s] of [plate] into [candidate], around the building box ([l], [t], [r], [b]). */
     private fun spot(s: Int, cx: Float, cy: Float, l: Float, t: Float, r: Float, b: Float, w: Float, h: Float, gap: Float, slide: Float) {
         val dx = when (s) { 4, 6, 9 -> slide; 5, 7, 10 -> -slide; else -> 0f }
@@ -288,7 +388,7 @@ class ServerLabels {
      * own building; the area it lies over soft obstacles ([obstacle]); hard obstacles and other plates count
      * [HARD_WEIGHT] times their area and put it past any soft tolerance. Outside the [area]: [Float.MAX_VALUE].
      */
-    private fun cost(c: RectF, self: Int, density: Float): Float {
+    private fun cost(c: RectF, self: Int, density: Float, overlaysToo: Boolean = true): Float {
         if (c.left < area.left || c.top < area.top || c.right > area.right || c.bottom > area.bottom) return Float.MAX_VALUE
         val penalty = c.width() * c.height()
         var cost = 0f
@@ -305,6 +405,11 @@ class ServerLabels {
         for (i in 0 until reservedCount) {
             val p = reserved[i]
             if (c.left < p.right + hud && c.right > p.left - hud && c.top < p.bottom + hud && c.bottom > p.top - hud) return Float.MAX_VALUE
+        }
+        for (i in 0 until if (overlaysToo) overlayCount else 0) {
+            val o = overlays[i]
+            if (c.left >= o.right + pad || c.right <= o.left - pad || c.top >= o.bottom + pad || c.bottom <= o.top - pad) continue
+            cost += penalty + (minOf(c.right, o.right) - maxOf(c.left, o.left) + 2 * pad) * (minOf(c.bottom, o.bottom) - maxOf(c.top, o.top) + 2 * pad) * HARD_WEIGHT
         }
         for (i in 0 until placedCount) {
             val p = placed[i]
@@ -355,6 +460,12 @@ class ServerLabels {
         /** Cell widths (dp) at which plates show fully and at which they are gone. */
         const val FADE_FROM_DP = 46f
         const val FADE_TO_DP = 34f
+        /**
+         * The same at the automatic framing's zoom ([Renderer.atFramedZoom]): full at the zooms the automatic framing settles on at the default
+         * pitch (down to [Renderer.LANDSCAPE_READABLE_SHARE] of the readable size).
+         */
+        const val FRAMED_FADE_FROM_DP = 34f
+        const val FRAMED_FADE_TO_DP = 26f
         /** How much a server outside the focus is dimmed (alpha units) and how much of its plate fades. */
         const val DIM = 120f
         const val DIM_PLATES = 0.6f

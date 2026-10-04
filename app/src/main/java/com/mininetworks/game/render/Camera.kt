@@ -106,6 +106,11 @@ class Camera {
 
     /** True while the view follows the fitted area (set by [fit]); any zoom or pan by the player clears it. */
     var followsArea = true; private set
+    /**
+     * The zoom floor of the latest automatic framing ([Renderer.framingMinScale]), kept so the draw path can tell
+     * without any work whether the player zoomed out beyond it ([Renderer.atFramedZoom]).
+     */
+    var framingFloor = 0f
 
     private var animating = false
     private var targetScale = 1f
@@ -143,6 +148,17 @@ class Camera {
         viewWidth = width
         viewHeight = height
         this.insets = insets
+    }
+
+    /**
+     * Changes the [insets] while every map point keeps its screen position: the focus moves with the viewport's
+     * centre, so the picture does not jump (a following [fit] then glides to a new framing).
+     */
+    fun setInsetsKeepingView(insets: ViewInsets) {
+        val x = centerX; val y = centerY
+        this.insets = insets
+        focusX += (centerX - x) / scale
+        focusY += (centerY - y) / scale
     }
 
     fun setZoomRange(min: Float, max: Float) {

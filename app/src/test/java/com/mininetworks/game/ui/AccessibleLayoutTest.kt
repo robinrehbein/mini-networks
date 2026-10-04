@@ -65,8 +65,8 @@ class AccessibleLayoutTest {
     fun hudTargetsAreLargeAndApartInEveryFormat() = everywhere { size, view, bmp ->
         view.drawSnapshot(Canvas(bmp), FormFactorScreenshotTest.busyHud(), bmp.width, bmp.height, time = 1.3f, style = "Iso")
         val nodes = view.accessibilityLayer.nodes.filter { it.key != "hud:map" }
-        // Menu, pause, router, two radios, four cable types, and the view controls: turn both ways, compass, tilt both ways.
-        check(size, "hud", nodes, expectedActions = 14)
+        // Menu, pause, the legend's "?", router, two radios, four cable types, and the view controls: turn both ways, compass, tilt both ways.
+        check(size, "hud", nodes, expectedActions = 15)
     }
 
     /** docs/TOP100.md B5: with the map turned, the view controls below the counters stay apart from everything else. */
@@ -79,7 +79,7 @@ class AccessibleLayoutTest {
         view.drawCurrent(Canvas(bmp))
         val nodes = view.accessibilityLayer.nodes.filter { it.key != "hud:map" }
         assertTrue("${size}: compass shown", nodes.any { it.key == "hud:compass" })
-        check(size, "hud-compass", nodes, expectedActions = 14)
+        check(size, "hud-compass", nodes, expectedActions = 15)
     }
 
     @Test
@@ -94,7 +94,7 @@ class AccessibleLayoutTest {
         val nodes = view.accessibilityLayer.nodes.filter { it.key != "hud:map" }
         assertTrue("${size}: paused banner shown", nodes.any { it.key == "hud:paused" })
         assertTrue("${size}: hint shown", nodes.any { it.key == "hud:hint" })
-        check(size, "hud-paused", nodes, expectedActions = 9 + viewControls(size, nodes))
+        check(size, "hud-paused", nodes, expectedActions = 10 + viewControls(size, nodes))
     }
 
     @Test
@@ -315,7 +315,7 @@ class AccessibleLayoutTest {
         view.drawCurrent(Canvas(bmp))
         val nodes = view.accessibilityLayer.nodes.filter { it.key != "hud:map" }
         // Skip, and the HUD: menu, pause, router, ISDN.
-        check(size, "tutorial", nodes, expectedActions = 5)
+        check(size, "tutorial", nodes, expectedActions = 6)
         SettingsStore(app).tutorialSeen = true
     }
 
@@ -331,13 +331,13 @@ class AccessibleLayoutTest {
                 val where = "$lang, $size"
                 val world = FormFactorScreenshotTest.busyHud()
                 view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = 1.3f, style = "Iso")
-                check(where, "hud", view.accessibilityLayer.nodes.filter { it.key != "hud:map" }, expectedActions = 14)
+                check(where, "hud", view.accessibilityLayer.nodes.filter { it.key != "hud:map" }, expectedActions = 15)
                 view.accessibilityLayer.performAction(view.accessibilityLayer.idOf("hud:pause"), android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK, null)
                 view.accessibilityLayer.performAction(view.accessibilityLayer.idOf("hud:cable:FIBER"), android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK, null)
                 view.advance(0f)
                 view.drawCurrent(Canvas(bmp))
                 val paused = view.accessibilityLayer.nodes.filter { it.key != "hud:map" }
-                check(where, "hud-paused", paused, expectedActions = 9 + viewControls(where, paused))
+                check(where, "hud-paused", paused, expectedActions = 10 + viewControls(where, paused))
                 val reward = GameView(app).also { it.accessibilityLayer.forceActive = true; it.monetization = FakeMonetization(owned = mutableSetOf(Entitlements.REMOVE_ADS)) }
                 bmp.eraseColor(0)
                 reward.drawSnapshot(Canvas(bmp), FormFactorScreenshotTest.rewardWorld(), bmp.width, bmp.height, time = 1.3f, style = "Iso")
@@ -349,7 +349,7 @@ class AccessibleLayoutTest {
                 tutorial.drawSnapshot(Canvas(bmp), w, bmp.width, bmp.height, time = 0.3f, screen = null)
                 tutorial.advance(0.5f)
                 tutorial.drawCurrent(Canvas(bmp))
-                check(where, "tutorial", tutorial.accessibilityLayer.nodes.filter { it.key != "hud:map" }, expectedActions = 5)
+                check(where, "tutorial", tutorial.accessibilityLayer.nodes.filter { it.key != "hud:map" }, expectedActions = 6)
                 SettingsStore(app).tutorialSeen = true
             }
         }

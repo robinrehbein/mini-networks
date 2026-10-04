@@ -5,7 +5,7 @@
     <plurals name="hud_delivered">
         <item quantity="other">%1$d 个数据包</item>
     </plurals>
-    <string name="hud_resources">预算 %1$d  ·  路由器 %2$d</string>
+    <string name="hud_resources">预算 %1$s  ·  路由器 %2$s</string>
     <string name="hud_clock_day">白天 · %1$s</string>
     <string name="hud_clock_night">夜晚 · %1$s · %2$s 备份</string>
     <string name="button_router">路由器 (%1$d)</string>
@@ -36,6 +36,7 @@
     <string name="legend_ports_title">端口</string>
     <string name="legend_ports_desc">设备下方的圆点：● 已占用，○ 空闲。设备和 Wi-Fi 有 2 个，服务器和基站 4 个，路由器 6 个。</string>
     <string name="hint_place_router">点按一个空格子</string>
+    <string name="hint_error_prefix">错误：%1$s</string>
     <string name="button_access_point">Wi-Fi (%1$d)</string>
     <string name="button_cell_tower">基站 (%1$d)</string>
     <string name="hint_access_point">点按接入点可切换信道 · 长按切换到 5 GHz（%1$d）</string>
@@ -252,6 +253,13 @@
     <string name="hint_server_preview_voucher">%1$s → %2$s，使用服务器券 · 再次点按</string>
     <string name="hint_server_upgraded">%1$s 现在是：%2$s</string>
     <string name="hint_server_busy">%1$s忙不过来了：点按升级</string>
+    <string name="coach_pause">提示：按下方的暂停 – 暂停时也能继续建设。</string>
+    <string name="coach_jam">提示：%1$s 拥堵。升级线缆，或在旁边再铺一条。</string>
+    <string name="coach_server_queue">提示：%1$s忙不过来了。点按查看价格，再点按一次即可升级。</string>
+    <string name="coach_cable_upgrade">提示：线缆太窄？在下方选一种更宽的，再点按旧线缆。</string>
+    <string name="coach_incident">提示：挖掘机即将挖断一条线缆。点按被挖断的线缆即可修复。</string>
+    <string name="coach_radio_stock">提示：工具栏新增：%1$s。把图标拖到地图上的空格。</string>
+    <string name="coach_new_service">提示：旧设备也想要新服务。%1$s 现在需要一条通往%2$s服务器的路线。</string>
     <string name="hint_radio_reward">新增：%1$s——可作为每周奖励获得</string>
     <string name="hint_service_needs">%1$s需要带宽 %2$d</string>
     <string name="hint_service_needs_ping">%1$s需要带宽 %2$d，延迟最多 %3$d 毫秒</string>
@@ -263,10 +271,21 @@
     <string name="problem_no_server">%1$s → %2$s：网络中没有——用电缆连到一台</string>
     <string name="problem_jam_cable">%1$s → %2$s：%3$s电缆已满——升级它或把服务器放近些</string>
     <string name="problem_jam_server">%1$s → %2$s：服务器太慢——升级它或再放一台</string>
-    <string name="game_over_no_route">%1$s 无法连到 %2$s 服务器</string>
+    <string name="game_over_no_route">%1$s 无法连到 %2$s</string>
     <string name="game_over_too_narrow">%1$s 的 %2$s 需要更宽的电缆</string>
     <string name="game_over_ping">%1$s 的 %2$s 延迟 %3$d 毫秒，上限 %4$d 毫秒</string>
     <string name="game_over_jam">%1$s 的 %2$s 被网络拥堵卡住了</string>
+    <string name="game_over_callout">%1$s 过载</string>
+    <string name="loss_tip_connect">提示：用电缆把 %1$s 连到 %2$s – 直连或经路由器</string>
+    <string name="loss_tip_router">提示：%1$s 没有空闲端口 – 在它前面放一个路由器</string>
+    <string name="loss_tip_needs_server">提示：%1$s 需要一条通往 %2$s 的路 – 连到最近的那台</string>
+    <string name="loss_tip_repair">提示：点按被挖断的电缆即可修复。多一条线路能扛住故障。</string>
+    <string name="loss_tip_outage">提示：停电让路由器或 Wi-Fi 断了 – 绕开它的第二条线路能扛过去</string>
+    <string name="loss_tip_wider_cable">提示：%1$s 需要 %2$s – 在下方选择线缆类型，再点按旧电缆</string>
+    <string name="loss_tip_faster_cable">提示：更短的线路或更快的电缆能降低 %1$s 的延迟</string>
+    <string name="loss_tip_second_cable">提示：拥堵时再铺一条电缆 – 或点按满载的电缆升级</string>
+    <string name="loss_tip_upgrade_server">提示：%1$s 处理不过来 – 点按它升级</string>
+    <string name="loss_tip_second_server">提示：%1$s 已到极限 – 把部分设备连到第二台服务器</string>
     <string name="drag_too_narrow">%1$s需要带宽 %2$d</string>
     <string name="drag_ping">%1$s：延迟 %2$d/%3$d 毫秒</string>
     <string name="incident_more">%1$s · 另有 %2$d 个</string>
@@ -338,7 +357,6 @@
     <string name="mode_endless_desc">无尽：没有游戏结束——过载只会拖慢周边</string>
     <string name="mode_creative_desc">创造：自由建设，预算无限，一切都已发明</string>
     <string name="pause_mode">%1$s · %2$s</string>
-    <string name="hud_resources_unlimited">预算 ∞  ·  路由器 ∞</string>
     <string name="button_router_unlimited">路由器 (∞)</string>
     <string name="button_access_point_unlimited">Wi-Fi (∞)</string>
     <string name="button_cell_tower_unlimited">基站 (∞)</string>
@@ -531,4 +549,15 @@
     <string name="cell_error_newest">已是最新一代</string>
     <string name="cell_error_not_invented">%1$s 将于 %2$d 年出现</string>
     <string name="legend_cell_tower_desc">仅限手机、平板和手表 · 3G → 4G/LTE → 5G：点按升级，容量更大、延迟更低</string>
+    <string name="hud_budget_low">预算紧张</string>
+    <string name="legend_cable_edit_title">修改线缆</string>
+    <string name="legend_cable_edit_desc">在下方选择线缆类型并点按线缆：升级。拖动一端：改线。点按被挖断的线缆：修复。</string>
+    <string name="legend_gauge_title">压力指示</string>
+    <string name="legend_gauge_desc">圆点显示有多少请求在等待。6 个中满 4 个起气泡变橙色：马上处理。</string>
+    <string name="legend_jam_title">拥堵</string>
+    <string name="legend_jam_desc">路线存在，但已满载。升级线缆或再铺一条。</string>
+    <string name="legend_missing_title">缺少服务器</string>
+    <string name="legend_missing_desc">设备需要这项服务，但没有已连接的服务器提供。把它连到合适的服务器。</string>
+    <string name="legend_incident_title">故障</string>
+    <string name="legend_incident_desc">挖掘机倒计时后会挖断一条线缆：点按即可修复。停电时路由器和 Wi-Fi 会暂时熄灭。</string>
 </resources>

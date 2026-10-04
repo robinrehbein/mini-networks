@@ -7,7 +7,7 @@
         <item quantity="many">%1$d pacotes</item>
         <item quantity="other">%1$d pacotes</item>
     </plurals>
-    <string name="hud_resources">Verba %1$d  ·  Roteadores %2$d</string>
+    <string name="hud_resources">Verba %1$s  ·  Roteadores %2$s</string>
     <string name="hud_clock_day">Dia · %1$s</string>
     <string name="hud_clock_night">Noite · %1$s · backups às %2$s</string>
     <string name="button_router">Roteador (%1$d)</string>
@@ -46,6 +46,7 @@
     <string name="legend_ports_title">Portas</string>
     <string name="legend_ports_desc">Os pontos embaixo de um aparelho: ● ocupada, ○ livre. Aparelhos e Wi-Fi têm 2, servidores e torres 4, roteadores 6.</string>
     <string name="hint_place_router">Toque em um espaço livre</string>
+    <string name="hint_error_prefix">Erro: %1$s</string>
     <string name="button_access_point">Wi-Fi (%1$d)</string>
     <string name="button_cell_tower">Torre (%1$d)</string>
     <string name="hint_access_point">Toque no ponto de acesso para trocar o canal · segure para 5 GHz (%1$d)</string>
@@ -64,7 +65,7 @@
     <string name="server_error_no_space">Um data center precisa de 2×2 espaços livres junto ao servidor</string>
     <string name="incident_excavator_warning">Escavadeira! Corte em %1$d s</string>
     <string name="incident_outage_warning">Queda de energia à vista: %1$s apaga em %2$d s</string>
-    <string name="incident_cut">Cabo cortado: toque para consertar por %1$d · volta sozinho em %2$d s</string>
+    <string name="incident_cut">Cabo cortado: toque = consertar (%1$d) · senão %2$d s</string>
     <string name="incident_outage">Queda de energia: %1$s sem luz por mais %2$d s</string>
     <string name="repair_error_no_budget">Verba insuficiente, o conserto custa %1$d</string>
     <string name="hint_repaired">Cabo consertado</string>
@@ -272,6 +273,13 @@
     <string name="hint_server_preview_voucher">%1$s → %2$s com cupom · toque de novo</string>
     <string name="hint_server_upgraded">%1$s agora: %2$s</string>
     <string name="hint_server_busy">%1$s não dá conta: toque para melhorar</string>
+    <string name="coach_pause">Dica: toque em Pausa embaixo – pausado, você pode continuar construindo.</string>
+    <string name="coach_jam">Dica: congestionamento em %1$s. Melhore o cabo ou passe um segundo ao lado.</string>
+    <string name="coach_server_queue">Dica: %1$s não dá conta. Toque para ver o preço, toque de novo para melhorar.</string>
+    <string name="coach_cable_upgrade">Dica: cabo estreito demais? Escolha um mais largo embaixo e toque no cabo antigo.</string>
+    <string name="coach_incident">Dica: uma escavadeira vai cortar um cabo. Toque no cabo cortado para consertá-lo.</string>
+    <string name="coach_radio_stock">Dica: novo na barra: %1$s. Arraste o ícone para uma casa livre do mapa.</string>
+    <string name="coach_new_service">Dica: aparelhos antigos também querem serviços novos. %1$s agora precisa de uma rota até um servidor de %2$s.</string>
     <string name="hint_radio_reward">Novo: %1$s – vem como recompensa semanal</string>
     <string name="hint_service_needs">%1$s precisa de banda %2$d</string>
     <string name="hint_service_needs_ping">%1$s precisa de banda %2$d e ping de no máximo %3$d ms</string>
@@ -283,13 +291,24 @@
     <string name="problem_no_server">%1$s → %2$s: nenhum na rede dele – passe um cabo até um</string>
     <string name="problem_jam_cable">%1$s → %2$s: cabo %3$s cheio – melhore-o ou aproxime um servidor</string>
     <string name="problem_jam_server">%1$s → %2$s: servidor lento – melhore-o ou coloque outro</string>
-    <string name="game_over_no_route">%1$s não alcançou nenhum servidor de %2$s</string>
+    <string name="game_over_no_route">%1$s não encontrou rota até %2$s</string>
     <string name="game_over_too_narrow">%1$s precisava de um cabo mais largo para %2$s</string>
     <string name="game_over_ping">%2$s em %1$s travou: %3$d ms, máx. %4$d ms</string>
     <string name="game_over_jam">%1$s ficou preso num congestionamento (%2$s)</string>
+    <string name="game_over_callout">Sobrecarga: %1$s</string>
+    <string name="loss_tip_connect">Dica: ligue %1$s a %2$s com um cabo – direto ou por um roteador</string>
+    <string name="loss_tip_router">Dica: %1$s não tem porta livre – coloque um roteador na frente</string>
+    <string name="loss_tip_needs_server">Dica: %1$s precisa chegar a %2$s – ligue o mais próximo</string>
+    <string name="loss_tip_repair">Dica: toque num cabo cortado para consertar. Uma segunda rota aguenta incidentes.</string>
+    <string name="loss_tip_outage">Dica: uma queda de energia desligou um roteador ou Wi-Fi – uma segunda rota em volta aguenta</string>
+    <string name="loss_tip_wider_cable">Dica: %1$s precisa de %2$s – escolha o tipo de cabo embaixo e toque no cabo antigo</string>
+    <string name="loss_tip_faster_cable">Dica: uma rota mais curta ou um cabo mais rápido baixa o ping de %1$s</string>
+    <string name="loss_tip_second_cable">Dica: contra congestionamento, passe um segundo cabo – ou toque no cheio para melhorar</string>
+    <string name="loss_tip_upgrade_server">Dica: %1$s não dá conta – toque para melhorar</string>
+    <string name="loss_tip_second_server">Dica: %1$s está no limite – ligue parte dos aparelhos a um segundo servidor</string>
     <string name="drag_too_narrow">%1$s precisa de banda %2$d</string>
     <string name="drag_ping">%1$s: ping %2$d/%3$d ms</string>
-    <string name="incident_more">%1$s · +%2$d mais</string>
+    <string name="incident_more">%1$s · +%2$d</string>
     <!-- Accessibility (TalkBack) descriptions of the canvas-drawn HUD, docs/TOP100.md A7 -->
     <string name="a11y_menu">Menu</string>
     <string name="a11y_pause">Parar o relógio</string>
@@ -366,7 +385,6 @@
     <string name="mode_endless_desc">Infinito: sem game over – a sobrecarga só deixa a região mais lenta</string>
     <string name="mode_creative_desc">Criativo: construa à vontade, verba ilimitada, tudo inventado</string>
     <string name="pause_mode">%1$s · %2$s</string>
-    <string name="hud_resources_unlimited">Verba ∞  ·  Roteadores ∞</string>
     <string name="button_router_unlimited">Roteador (∞)</string>
     <string name="button_access_point_unlimited">Wi-Fi (∞)</string>
     <string name="button_cell_tower_unlimited">Torre (∞)</string>
@@ -609,4 +627,15 @@
     <string name="cell_error_newest">Já usa a geração mais nova</string>
     <string name="cell_error_not_invented">%1$s chega em %2$d</string>
     <string name="legend_cell_tower_desc">Só smartphone, tablet e relógio · 3G → 4G/LTE → 5G: toque para atualizar, mais capacidade e menos ping</string>
+    <string name="hud_budget_low">orçamento curto</string>
+    <string name="legend_cable_edit_title">Mudar cabos</string>
+    <string name="legend_cable_edit_desc">Escolha um tipo embaixo e toque num cabo: melhorar. Arraste uma ponta: mover. Cabo cortado: toque para consertar.</string>
+    <string name="legend_gauge_title">Medidor de pressão</string>
+    <string name="legend_gauge_desc">Os pontos mostram quantos pedidos esperam. A partir de 4 de 6 a bolha fica laranja: aja agora.</string>
+    <string name="legend_jam_title">Congestionamento</string>
+    <string name="legend_jam_desc">Existe uma rota, mas ela está cheia. Melhore o cabo ou passe um segundo.</string>
+    <string name="legend_missing_title">Falta servidor</string>
+    <string name="legend_missing_desc">O aparelho quer este serviço, mas nenhum servidor ligado o oferece. Ligue-o a um servidor adequado.</string>
+    <string name="legend_incident_title">Incidente</string>
+    <string name="legend_incident_desc">Uma escavadeira faz a contagem e corta um cabo: toque nele para consertar. Um apagão desliga roteadores e Wi-Fi.</string>
 </resources>

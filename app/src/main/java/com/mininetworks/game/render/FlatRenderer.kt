@@ -283,6 +283,8 @@ class FlatRenderer : Renderer {
             val nx = screenX(c.x, c.y); val ny = screenY(c.x, c.y)
             val k = if (n.isDataCenter) 2f else 1f
             PortDots.draw(canvas, world, n, nx, ny + cell * 0.46f * k, cell, density, e, nx, ny, cell * 0.55f * k, cell * 0.55f * k)
+            // A server's name plate never hides its free ports.
+            if (n.kind == NodeKind.SERVER) PortDots.lastRow.let { serverLabels.obstacle(it.left, it.top, it.right, it.bottom, hardEdge = true) }
         }
 
         for (n in world.nodes) {
@@ -318,13 +320,13 @@ class FlatRenderer : Renderer {
                 DragJuice.bubble(
                     canvas, it, d.detail, s.x, s.y, maxOf(cell * 0.9f, 40f * density), maxOf(cell * 0.38f, LABEL_MIN_DP * 1.2f * density), density,
                     if (d.blocked) alarm else ink, if (d.detailWarning) alarm else ink, col,
-                    DragJuice.bounds(canvas, camera.insets),
+                    DragJuice.bounds(canvas, camera.insets), avoid = serverLabels,
                 )
                 DragJuice.lastBubble.let { b -> serverLabels.obstacle(b.left, b.top, b.right, b.bottom, hardEdge = true) }
             }
         }
         // Flat cells are about half as wide as iso tiles for the same view: the plates count them double.
-        serverLabels.draw(canvas, camera, serverLabels.visibility(cell * FLAT_LABEL_ZOOM, density), density, time)
+        serverLabels.draw(canvas, camera, serverLabels.visibility(cell * FLAT_LABEL_ZOOM, density, atFramedZoom), density, time)
     }
 
     /**

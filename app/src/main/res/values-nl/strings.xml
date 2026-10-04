@@ -6,7 +6,7 @@
         <item quantity="one">%1$d pakket</item>
         <item quantity="other">%1$d pakketten</item>
     </plurals>
-    <string name="hud_resources">Budget %1$d  ·  Routers %2$d</string>
+    <string name="hud_resources">Budget %1$s  ·  Routers %2$s</string>
     <string name="hud_clock_day">Dag · %1$s</string>
     <string name="hud_clock_night">Nacht · %1$s · back-ups om %2$s</string>
     <string name="button_router">Router (%1$d)</string>
@@ -41,6 +41,7 @@
     <string name="legend_ports_title">Poorten</string>
     <string name="legend_ports_desc">De stippen onder een apparaat: ● bezet, ○ vrij. Apparaten en wifi hebben er 2, servers en masten 4, routers 6.</string>
     <string name="hint_place_router">Tik op een vrij vak</string>
+    <string name="hint_error_prefix">Fout: %1$s</string>
     <string name="button_access_point">Wifi (%1$d)</string>
     <string name="button_cell_tower">Mast (%1$d)</string>
     <string name="hint_access_point">Tik op het accesspoint om van kanaal te wisselen · houd vast voor 5 GHz (%1$d)</string>
@@ -58,7 +59,7 @@
     <string name="server_error_no_space">Een datacenter heeft 2×2 vrije vakken bij de server nodig</string>
     <string name="incident_excavator_warning">Graafmachine! Kabel stuk over %1$d s</string>
     <string name="incident_outage_warning">Stroomstoring dreigt: %1$s valt uit over %2$d s</string>
-    <string name="incident_cut">Kabel geknipt: tik om te repareren voor %1$d · vanzelf over %2$d s</string>
+    <string name="incident_cut">Kabel geknipt: tik = repareren (%1$d) · anders %2$d s</string>
     <string name="incident_outage">Stroomstoring: %1$s nog %2$d s zonder stroom</string>
     <string name="repair_error_no_budget">Te weinig budget, repareren kost %1$d</string>
     <string name="hint_repaired">Kabel gerepareerd</string>
@@ -262,6 +263,13 @@
     <string name="hint_server_preview_voucher">%1$s → %2$s met een bon · tik nog eens</string>
     <string name="hint_server_upgraded">%1$s nu: %2$s</string>
     <string name="hint_server_busy">%1$s kan het niet bijbenen: tik om te upgraden</string>
+    <string name="coach_pause">Tip: druk onderin op Pauze – gepauzeerd kun je verder bouwen.</string>
+    <string name="coach_jam">Tip: file bij %1$s. Upgrade de kabel of leg er een tweede naast.</string>
+    <string name="coach_server_queue">Tip: %1$s kan het niet bijbenen. Tik erop voor de prijs, tik nog eens om te upgraden.</string>
+    <string name="coach_cable_upgrade">Tip: kabel te smal? Kies onderin een bredere en tik op de oude kabel.</string>
+    <string name="coach_incident">Tip: een graafmachine gaat zo een kabel doorknippen. Tik op de doorgeknipte kabel om hem te repareren.</string>
+    <string name="coach_radio_stock">Tip: nieuw in de balk: %1$s. Sleep het icoon naar een vrij vak op de kaart.</string>
+    <string name="coach_new_service">Tip: ook oude apparaten willen nieuwe diensten. %1$s heeft nu een route nodig naar een server voor %2$s.</string>
     <string name="hint_radio_reward">Nieuw: %1$s – te winnen als weekbeloning</string>
     <string name="hint_service_needs">%1$s heeft bandbreedte %2$d nodig</string>
     <string name="hint_service_needs_ping">%1$s heeft bandbreedte %2$d nodig en een ping van hooguit %3$d ms</string>
@@ -273,13 +281,24 @@
     <string name="problem_no_server">%1$s → %2$s: geen in zijn netwerk – leg een kabel naar een</string>
     <string name="problem_jam_cable">%1$s → %2$s: %3$s-kabel vol – upgrade hem of zet een server dichterbij</string>
     <string name="problem_jam_server">%1$s → %2$s: server te traag – upgrade hem of zet er een bij</string>
-    <string name="game_over_no_route">%1$s bereikte geen %2$s-server</string>
+    <string name="game_over_no_route">%1$s bereikte geen %2$s</string>
     <string name="game_over_too_narrow">%1$s had een bredere kabel nodig voor %2$s</string>
     <string name="game_over_ping">%2$s op %1$s haperde: %3$d ms, max %4$d ms</string>
     <string name="game_over_jam">%1$s kwam vast te zitten in een datafile (%2$s)</string>
+    <string name="game_over_callout">%1$s overbelast</string>
+    <string name="loss_tip_connect">Tip: verbind %1$s met een kabel met %2$s – direct of via een router</string>
+    <string name="loss_tip_router">Tip: %1$s heeft geen vrije poort – zet er een router voor</string>
+    <string name="loss_tip_needs_server">Tip: %1$s moet %2$s bereiken – verbind de dichtstbijzijnde</string>
+    <string name="loss_tip_repair">Tip: tik een geknipte kabel aan om hem te repareren. Een tweede route doorstaat storingen.</string>
+    <string name="loss_tip_outage">Tip: een stroomstoring legde een router of wifi stil – een tweede route eromheen doorstaat dat</string>
+    <string name="loss_tip_wider_cable">Tip: %1$s heeft %2$s nodig – kies onderin het kabeltype en tik dan de oude kabel aan</string>
+    <string name="loss_tip_faster_cable">Tip: een kortere route of snellere kabel verlaagt de ping voor %1$s</string>
+    <string name="loss_tip_second_cable">Tip: tegen een file helpt een tweede kabel – of tik de volle aan om te upgraden</string>
+    <string name="loss_tip_upgrade_server">Tip: %1$s kan het niet aan – tik erop om te upgraden</string>
+    <string name="loss_tip_second_server">Tip: %1$s zit vol – verbind een deel van de apparaten met een tweede server</string>
     <string name="drag_too_narrow">%1$s heeft bandbreedte %2$d nodig</string>
     <string name="drag_ping">%1$s: ping %2$d/%3$d ms</string>
-    <string name="incident_more">%1$s · +%2$d meer</string>
+    <string name="incident_more">%1$s · +%2$d</string>
     <!-- Accessibility (TalkBack) descriptions of the canvas-drawn HUD, docs/TOP100.md A7 -->
     <string name="a11y_menu">Menu</string>
     <string name="a11y_pause">Klok stilzetten</string>
@@ -352,7 +371,6 @@
     <string name="mode_endless_desc">Eindeloos: geen game over – overbelasting remt alleen de buurt af</string>
     <string name="mode_creative_desc">Creatief: vrij bouwen, onbeperkt budget, alles uitgevonden</string>
     <string name="pause_mode">%1$s · %2$s</string>
-    <string name="hud_resources_unlimited">Budget ∞  ·  Routers ∞</string>
     <string name="button_router_unlimited">Router (∞)</string>
     <string name="button_access_point_unlimited">Wifi (∞)</string>
     <string name="button_cell_tower_unlimited">Mast (∞)</string>
@@ -570,4 +588,15 @@
     <string name="cell_error_newest">Al de nieuwste generatie</string>
     <string name="cell_error_not_invented">%1$s komt in %2$d</string>
     <string name="legend_cell_tower_desc">Alleen smartphone, tablet en horloge · 3G → 4G/LTE → 5G: tik om te upgraden, meer capaciteit en minder ping</string>
+    <string name="hud_budget_low">budget krap</string>
+    <string name="legend_cable_edit_title">Kabels wijzigen</string>
+    <string name="legend_cable_edit_desc">Kies onderin een type en tik op een kabel: upgraden. Sleep een uiteinde: omleggen. Geknipte kabel: tik om te repareren.</string>
+    <string name="legend_gauge_title">Drukmeter</string>
+    <string name="legend_gauge_desc">De stippen tonen hoeveel verzoeken wachten. Vanaf 4 van 6 wordt de bel oranje: grijp nu in.</string>
+    <string name="legend_jam_title">File</string>
+    <string name="legend_jam_desc">Er is een route, maar die zit vol. Upgrade de kabel of leg een tweede.</string>
+    <string name="legend_missing_title">Server ontbreekt</string>
+    <string name="legend_missing_desc">Het apparaat wil deze dienst, maar geen verbonden server levert hem. Verbind het met een passende server.</string>
+    <string name="legend_incident_title">Storing</string>
+    <string name="legend_incident_desc">Een graafmachine telt af en knipt een kabel: tik erop om te repareren. Bij stroomuitval vallen routers en wifi even uit.</string>
 </resources>

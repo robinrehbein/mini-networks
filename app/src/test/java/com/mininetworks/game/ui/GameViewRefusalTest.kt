@@ -118,6 +118,61 @@ class GameViewRefusalTest {
         assertTrue("the unlimited line is not drawn red: $creative vs $calm", creative <= calm + 5)
     }
 
+    @Test
+    fun budgetTurnsAmberWhenThePickedCableIsOutOfReach() {
+        world.jumpToWeek(CableType.FIBER.unlockWeek)
+        world.grant(-world.budget + 3 * GameView.SHORT_CABLE_CELLS)
+        draw()
+        assertFalse("ISDN still pays for a short cable", view.budgetLow)
+        val calm = amberInBudgetCorner()
+        tapHud("cable:FIBER")
+        draw()
+        assertEquals(CableType.FIBER, view.pickedCable)
+        assertFalse("fibre for exactly a short cable is still in reach", view.budgetLow)
+        world.grant(-1)
+        draw()
+        assertTrue("one coin short of a short fibre cable", view.budgetLow)
+        val low = amberInBudgetCorner()
+        assertTrue("the budget line turns amber: $low vs $calm", low > calm + 20)
+        assertFalse("a warning tint, not the refusal flash", view.budgetFlashing)
+
+        world = World(seed = 2L, spawnInitialNodes = false, mode = GameMode.CREATIVE)
+        draw()
+        assertFalse("no limits, no warning", view.budgetLow)
+    }
+
+    @Test
+    fun refusalFlashWinsOverTheWarningTint() {
+        val pc = world.addClient(Device.PC, cell(2, 2).x, cell(2, 2).y)
+        val mail = world.addServer(Service.MAIL, cell(8, 2).x, cell(8, 2).y)
+        world.grant(-world.budget)
+        draw()
+        assertTrue(view.budgetLow)
+        val amber = amberInBudgetCorner(time = 0f)
+        val calmRed = redInBudgetCorner(time = 0f)
+        assertRefused { drag(pc, mail) }
+        assertTrue(view.budgetFlashing)
+        val flashRed = redInBudgetCorner(time = 0f)
+        val flashAmber = amberInBudgetCorner(time = 0f)
+        assertTrue("red while it flashes: $flashRed vs $calmRed", flashRed > calmRed + 20)
+        assertTrue("the amber gives way to the flash: $flashAmber vs $amber", flashAmber < amber / 2)
+    }
+
+    /** Dark amber pixels ([GameView.BUDGET_LOW_TINT]) on the HUD's counters in a frame at [time]. */
+    private fun amberInBudgetCorner(time: Float = 10f): Int {
+        view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = time, style = "Iso")
+        val r0 = view.hudBounds("hud:status")!!
+        var n = 0
+        for (y in r0.top.toInt() until r0.bottom.toInt()) for (x in r0.left.toInt() until r0.right.toInt()) {
+            val c = bmp.getPixel(x, y)
+            val r = (c shr 16) and 0xFF
+            val g = (c shr 8) and 0xFF
+            val b = c and 0xFF
+            if (r in 140..210 && g in 60..120 && b < 50) n++
+        }
+        return n
+    }
+
     /** Strongly red pixels on the HUD's counters (with the budget line and its coin) in a frame at [time]. */
     private fun redInBudgetCorner(time: Float): Int {
         view.drawSnapshot(Canvas(bmp), world, bmp.width, bmp.height, time = time, style = "Iso")

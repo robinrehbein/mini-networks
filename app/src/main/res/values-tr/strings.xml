@@ -6,7 +6,7 @@
         <item quantity="one">%1$d paket</item>
         <item quantity="other">%1$d paket</item>
     </plurals>
-    <string name="hud_resources">Bütçe %1$d  ·  Router %2$d</string>
+    <string name="hud_resources">Bütçe %1$s  ·  Router %2$s</string>
     <string name="hud_clock_day">Gündüz · %1$s</string>
     <string name="hud_clock_night">Gece · %1$s · yedekleme saati %2$s</string>
     <string name="button_router">Router (%1$d)</string>
@@ -41,6 +41,7 @@
     <string name="legend_ports_title">Portlar</string>
     <string name="legend_ports_desc">Bir cihazın altındaki noktalar: ● dolu, ○ boş. Cihazlar ve Wi-Fi 2, sunucular ve bazlar 4, router’lar 6 porta sahip.</string>
     <string name="hint_place_router">Boş bir kareye dokun</string>
+    <string name="hint_error_prefix">Hata: %1$s</string>
     <string name="button_access_point">Wi-Fi (%1$d)</string>
     <string name="button_cell_tower">Baz (%1$d)</string>
     <string name="hint_access_point">Kanal değiştirmek için erişim noktasına dokun · 5 GHz için basılı tut (%1$d)</string>
@@ -58,7 +59,7 @@
     <string name="server_error_no_space">Veri merkezi için sunucunun yanında 2×2 boş kare gerekir</string>
     <string name="incident_excavator_warning">Kepçe! %1$d sn sonra kesilir</string>
     <string name="incident_outage_warning">Elektrik kesintisi yaklaşıyor: %1$s · %2$d sn sonra kapanır</string>
-    <string name="incident_cut">Kablo kesildi: %1$d karşılığında onarmak için dokun · %2$d sn sonra kendiliğinden düzelir</string>
+    <string name="incident_cut">Kablo kesildi: dokun = onar (%1$d) · yoksa %2$d sn</string>
     <string name="incident_outage">Elektrik kesintisi: %1$s · %2$d sn daha elektriksiz</string>
     <string name="repair_error_no_budget">Bütçe yetmiyor, onarımın bedeli %1$d</string>
     <string name="hint_repaired">Kablo onarıldı</string>
@@ -262,6 +263,13 @@
     <string name="hint_server_preview_voucher">%1$s → %2$s, kuponla · tekrar dokun</string>
     <string name="hint_server_upgraded">%1$s artık: %2$s</string>
     <string name="hint_server_busy">%1$s yetişemiyor: yükseltmek için dokun</string>
+    <string name="coach_pause">İpucu: aşağıdaki Duraklat düğmesine bas – duraklatılmışken inşa etmeye devam edebilirsin.</string>
+    <string name="coach_jam">İpucu: %1$s tıkandı. Kabloyu yükselt ya da yanına ikinci bir kablo döşe.</string>
+    <string name="coach_server_queue">İpucu: %1$s yetişemiyor. Fiyatı görmek için dokun, yükseltmek için tekrar dokun.</string>
+    <string name="coach_cable_upgrade">İpucu: kablo çok mu dar? Aşağıdan daha geniş birini seç ve eski kabloya dokun.</string>
+    <string name="coach_incident">İpucu: bir ekskavatör birazdan bir kabloyu kesecek. Onarmak için kesik kabloya dokun.</string>
+    <string name="coach_radio_stock">İpucu: çubukta yeni: %1$s. Simgeyi haritada boş bir kareye sürükle.</string>
+    <string name="coach_new_service">İpucu: eski cihazlar da yeni hizmetler ister. %1$s artık bir %2$s sunucusuna giden bir yola ihtiyaç duyuyor.</string>
     <string name="hint_radio_reward">Yeni: %1$s – haftalık ödül olarak kazanılır</string>
     <string name="hint_service_needs">%1$s için bant genişliği %2$d gerekir</string>
     <string name="hint_service_needs_ping">%1$s için bant genişliği %2$d ve en fazla %3$d ms ping gerekir</string>
@@ -273,13 +281,24 @@
     <string name="problem_no_server">%1$s → %2$s: ağında yok – birine kablo çek</string>
     <string name="problem_jam_cable">%1$s → %2$s: %3$s kablosu dolu – yükselt ya da sunucuyu yaklaştır</string>
     <string name="problem_jam_server">%1$s → %2$s: sunucu çok yavaş – yükselt ya da bir tane ekle</string>
-    <string name="game_over_no_route">%1$s hiçbir %2$s sunucusuna ulaşamadı</string>
+    <string name="game_over_no_route">%1$s, %2$s ile bağlantı kuramadı</string>
     <string name="game_over_too_narrow">%1$s, %2$s için daha geniş bir kablo istedi</string>
     <string name="game_over_ping">%1$s üzerinde %2$s takıldı: %3$d ms, en fazla %4$d ms</string>
     <string name="game_over_jam">%1$s veri trafiğinde sıkıştı (%2$s)</string>
+    <string name="game_over_callout">%1$s aşırı yüklendi</string>
+    <string name="loss_tip_connect">İpucu: %1$s cihazını kabloyla %2$s ile bağla – doğrudan ya da router üzerinden</string>
+    <string name="loss_tip_router">İpucu: %1$s üzerinde boş port yok – önüne bir router koy</string>
+    <string name="loss_tip_needs_server">İpucu: %1$s için %2$s yolu gerekli – en yakınına bağla</string>
+    <string name="loss_tip_repair">İpucu: kesik kabloya dokunup onar. İkinci bir yol arızalara dayanır.</string>
+    <string name="loss_tip_outage">İpucu: elektrik kesintisi bir router ya da Wi-Fi kapattı – etrafından ikinci bir yol buna dayanır</string>
+    <string name="loss_tip_wider_cable">İpucu: %1$s için %2$s gerekli – aşağıdan kablo türünü seç, sonra eski kabloya dokun</string>
+    <string name="loss_tip_faster_cable">İpucu: daha kısa yol ya da daha hızlı kablo %1$s pingini düşürür</string>
+    <string name="loss_tip_second_cable">İpucu: tıkanıklığa karşı ikinci bir kablo çek – ya da dolu olana dokunup yükselt</string>
+    <string name="loss_tip_upgrade_server">İpucu: %1$s yetişemiyor – yükseltmek için dokun</string>
+    <string name="loss_tip_second_server">İpucu: %1$s sınırda – cihazların bir kısmını ikinci bir sunucuya bağla</string>
     <string name="drag_too_narrow">%1$s için bant genişliği %2$d gerekir</string>
     <string name="drag_ping">%1$s: ping %2$d/%3$d ms</string>
-    <string name="incident_more">%1$s · +%2$d daha</string>
+    <string name="incident_more">%1$s · +%2$d</string>
     <!-- Accessibility (TalkBack) descriptions of the canvas-drawn HUD, docs/TOP100.md A7 -->
     <string name="a11y_menu">Menü</string>
     <string name="a11y_pause">Saati durdur</string>
@@ -352,7 +371,6 @@
     <string name="mode_endless_desc">Sonsuz: oyun bitmez – aşırı yük yalnızca çevreyi yavaşlatır</string>
     <string name="mode_creative_desc">Yaratıcı: özgürce inşa et, sınırsız bütçe, her şey icat edilmiş</string>
     <string name="pause_mode">%1$s · %2$s</string>
-    <string name="hud_resources_unlimited">Bütçe ∞  ·  Router ∞</string>
     <string name="button_router_unlimited">Router (∞)</string>
     <string name="button_access_point_unlimited">Wi-Fi (∞)</string>
     <string name="button_cell_tower_unlimited">Baz (∞)</string>
@@ -570,4 +588,15 @@
     <string name="cell_error_newest">Zaten en yeni nesil</string>
     <string name="cell_error_not_invented">%1$s, %2$d yılında gelir</string>
     <string name="legend_cell_tower_desc">Yalnızca akıllı telefon, tablet ve saat · 3G → 4G/LTE → 5G: yükseltmek için dokun, daha fazla kapasite, daha düşük ping</string>
+    <string name="hud_budget_low">bütçe az</string>
+    <string name="legend_cable_edit_title">Kabloları değiştirme</string>
+    <string name="legend_cable_edit_desc">Aşağıdan tür seç ve bir kabloya dokun: yükselt. Bir ucu sürükle: taşı. Kesik kabloya dokun: onar.</string>
+    <string name="legend_gauge_title">Basınç göstergesi</string>
+    <string name="legend_gauge_desc">Noktalar kaç isteğin beklediğini gösterir. 6’da 4’ten itibaren baloncuk turuncu olur: hemen müdahale et.</string>
+    <string name="legend_jam_title">Tıkanıklık</string>
+    <string name="legend_jam_desc">Bir yol var ama dolu. Kabloyu yükselt ya da ikinci bir kablo döşe.</string>
+    <string name="legend_missing_title">Sunucu eksik</string>
+    <string name="legend_missing_desc">Cihaz bu hizmeti istiyor ama bağlı hiçbir sunucu sunmuyor. Uygun bir sunucuya bağla.</string>
+    <string name="legend_incident_title">Arıza</string>
+    <string name="legend_incident_desc">Bir kazı makinesi geri sayar ve bir kabloyu keser: onarmak için dokun. Elektrik kesintisi router ve Wi-Fi’ı karartır.</string>
 </resources>

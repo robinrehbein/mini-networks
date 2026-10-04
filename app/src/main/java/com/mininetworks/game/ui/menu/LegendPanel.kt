@@ -11,6 +11,8 @@ import com.mininetworks.game.game.RouteProblem
 import com.mininetworks.game.game.Service
 import com.mininetworks.game.render.CableStyles
 import com.mininetworks.game.render.DeviceIcons
+import com.mininetworks.game.render.IncidentStyles
+import com.mininetworks.game.render.QueueGauge
 import com.mininetworks.game.render.ProblemBadges
 import com.mininetworks.game.render.ServiceGlyphs
 import com.mininetworks.game.render.ViewInsets
@@ -36,6 +38,14 @@ sealed interface LegendIcon {
     data object Overload : LegendIcon
     /** A PC with its row of port dots, one in use and one free, as under every node on the map. */
     data object Ports : LegendIcon
+    /** The amber jam badge: a route that works but is full. */
+    data object Jam : LegendIcon
+    /** The badge of a wanted service that no linked server of [service] provides. */
+    data class MissingServer(val service: Service) : LegendIcon
+    /** A request bubble near the limit: orange, with the row of pips that fill up. */
+    data object Gauge : LegendIcon
+    /** An incident's countdown pin over its spot. */
+    data object Incident : LegendIcon
 }
 
 /**
@@ -328,6 +338,42 @@ class LegendPanel(context: Context) {
                 fillP.color = 0xFF3A4350.toInt(); canvas.drawCircle(cx - r * 1.4f, py, r, fillP)
                 lineP.strokeWidth = r * 0.45f; canvas.drawCircle(cx + r * 1.4f, py, r * 0.78f, lineP)
             }
+            LegendIcon.Jam -> ProblemBadges.drawJam(canvas, cx, cy, h * 0.5f)
+            is LegendIcon.MissingServer -> ProblemBadges.drawMissing(canvas, icon.service, cx, cy, h * 0.5f)
+            LegendIcon.Gauge -> {
+                // The warning bubble with four of its six pips filled, as on the map from 4/6 on.
+                val pip = h * 0.09f
+                val w = QueueGauge.width(pip) + h * 0.36f
+                r.set(cx - w / 2f, cy - h * 0.42f, cx + w / 2f, cy + h * 0.42f)
+                fillP.color = QueueGauge.WARN_FILL
+                canvas.drawRoundRect(r, h * 0.42f, h * 0.42f, fillP)
+                lineP.color = IncidentStyles.WARNING; lineP.strokeWidth = h * 0.08f
+                canvas.drawRoundRect(r, h * 0.42f, h * 0.42f, lineP)
+                ServiceGlyphs.token(canvas, Service.MAIL, cx, cy - h * 0.1f, h * 0.2f)
+                val step = (QueueGauge.width(pip) - 2 * pip) / (GAUGE_PIPS - 1)
+                val x0 = cx - (GAUGE_PIPS - 1) * step / 2f
+                lineP.color = QueueGauge.PIP_DARK; lineP.strokeWidth = maxOf(1f, pip * 0.22f)
+                for (i in 0 until GAUGE_PIPS) {
+                    fillP.color = if (i < GAUGE_FILLED) QueueGauge.PIP_DARK else QueueGauge.PIP_EMPTY
+                    canvas.drawCircle(x0 + i * step, cy + h * 0.24f, pip, fillP)
+                    canvas.drawCircle(x0 + i * step, cy + h * 0.24f, pip, lineP)
+                }
+            }
+            LegendIcon.Incident -> {
+                // The countdown pill on its stem, over a cut in the ground.
+                val ph = h * 0.5f
+                r.set(cx - h * 0.62f, cy - h * 0.62f, cx + h * 0.62f, cy - h * 0.62f + ph)
+                fillP.color = IncidentStyles.CUT
+                lineP.color = IncidentStyles.CUT; lineP.strokeWidth = h * 0.08f
+                canvas.drawLine(cx, r.bottom, cx, cy + h * 0.45f, lineP)
+                canvas.drawRoundRect(r, ph / 2f, ph / 2f, fillP)
+                fillP.color = IncidentStyles.DIRT
+                canvas.drawOval(cx - h * 0.4f, cy + h * 0.38f, cx + h * 0.4f, cy + h * 0.62f, fillP)
+                text.textAlign = Paint.Align.CENTER; text.typeface = Typeface.DEFAULT_BOLD
+                text.textSize = ph * 0.62f; text.color = 0xFFFFFFFF.toInt()
+                canvas.drawText(COUNTDOWN_SAMPLE, cx, r.centerY() + text.textSize * 0.36f, text)
+                text.textAlign = Paint.Align.LEFT
+            }
             LegendIcon.Overload -> {
                 // The map's timer ring: dark track, white casing, the red arc that runs out, and the "!" sign.
                 arc.set(cx - h * 0.62f, cy - h * 0.62f, cx + h * 0.62f, cy + h * 0.62f)
@@ -400,6 +446,11 @@ class LegendPanel(context: Context) {
 
     companion object {
         const val BACK = "back"
+        /** The pips of the gauge icon, and how many are filled: from 4 of 6 on the bubble turns orange. */
+        private const val GAUGE_PIPS = 6
+        private const val GAUGE_FILLED = 4
+        /** The number in the incident icon's countdown pill: a digit reads in every language. */
+        private const val COUNTDOWN_SAMPLE = "8"
         private const val MARGIN_DP = 16f
         private const val GAP_DP = 10f
         private const val ROW_GAP_DP = 10f

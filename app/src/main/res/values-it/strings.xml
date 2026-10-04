@@ -7,7 +7,7 @@
         <item quantity="many">%1$d pacchetti</item>
         <item quantity="other">%1$d pacchetti</item>
     </plurals>
-    <string name="hud_resources">Budget %1$d  ·  Router %2$d</string>
+    <string name="hud_resources">Budget %1$s  ·  Router %2$s</string>
     <string name="hud_clock_day">Giorno · %1$s</string>
     <string name="hud_clock_night">Notte · %1$s · backup alle %2$s</string>
     <string name="button_router">Router (%1$d)</string>
@@ -46,6 +46,7 @@
     <string name="legend_ports_title">Porte</string>
     <string name="legend_ports_desc">I punti sotto un dispositivo: ● occupata, ○ libera. Dispositivi e Wi-Fi ne hanno 2, server e antenne 4, router 6.</string>
     <string name="hint_place_router">Tocca una casella libera</string>
+    <string name="hint_error_prefix">Errore: %1$s</string>
     <string name="button_access_point">Wi-Fi (%1$d)</string>
     <string name="button_cell_tower">Antenna (%1$d)</string>
     <string name="hint_access_point">Tocca l’access point per cambiare canale · tieni premuto per i 5 GHz (%1$d)</string>
@@ -64,7 +65,7 @@
     <string name="server_error_no_space">Un data center richiede 2×2 caselle libere accanto al server</string>
     <string name="incident_excavator_warning">Ruspa! Cavo tagliato tra %1$d s</string>
     <string name="incident_outage_warning">Blackout in arrivo: %1$s si spegne tra %2$d s</string>
-    <string name="incident_cut">Cavo tagliato: tocca per ripararlo (%1$d) · si ripara da solo tra %2$d s</string>
+    <string name="incident_cut">Cavo tagliato: tocca = ripara (%1$d) · altrimenti %2$d s</string>
     <string name="incident_outage">Blackout: %1$s senza corrente per altri %2$d s</string>
     <string name="repair_error_no_budget">Budget insufficiente, la riparazione costa %1$d</string>
     <string name="hint_repaired">Cavo riparato</string>
@@ -272,6 +273,13 @@
     <string name="hint_server_preview_voucher">%1$s → %2$s con un buono · tocca di nuovo</string>
     <string name="hint_server_upgraded">%1$s ora: %2$s</string>
     <string name="hint_server_busy">%1$s non ce la fa: toccalo per potenziarlo</string>
+    <string name="coach_pause">Suggerimento: premi Pausa in basso – in pausa puoi continuare a costruire.</string>
+    <string name="coach_jam">Suggerimento: ingorgo a %1$s. Potenzia il cavo o posane un secondo accanto.</string>
+    <string name="coach_server_queue">Suggerimento: %1$s non ce la fa. Toccalo per vedere il prezzo, toccalo di nuovo per potenziarlo.</string>
+    <string name="coach_cable_upgrade">Suggerimento: cavo troppo stretto? Scegline uno più largo in basso e tocca il vecchio cavo.</string>
+    <string name="coach_incident">Suggerimento: un escavatore sta per tagliare un cavo. Tocca il cavo tagliato per ripararlo.</string>
+    <string name="coach_radio_stock">Suggerimento: nuovo nella barra: %1$s. Trascina l’icona su una casella libera della mappa.</string>
+    <string name="coach_new_service">Suggerimento: anche i vecchi dispositivi vogliono i nuovi servizi. %1$s ora ha bisogno di un percorso verso un server di %2$s.</string>
     <string name="hint_radio_reward">Novità: %1$s – si vince come premio settimanale</string>
     <string name="hint_service_needs">%1$s richiede banda %2$d</string>
     <string name="hint_service_needs_ping">%1$s richiede banda %2$d e un ping di al massimo %3$d ms</string>
@@ -283,13 +291,24 @@
     <string name="problem_no_server">%1$s → %2$s: nessuno nella sua rete – stendi un cavo fino a uno</string>
     <string name="problem_jam_cable">%1$s → %2$s: cavo %3$s pieno – potenzialo o avvicina un server</string>
     <string name="problem_jam_server">%1$s → %2$s: server lento – potenzialo o aggiungine uno</string>
-    <string name="game_over_no_route">%1$s non ha raggiunto nessun server di %2$s</string>
+    <string name="game_over_no_route">%1$s non ha trovato una via verso %2$s</string>
     <string name="game_over_too_narrow">%1$s aveva bisogno di un cavo più largo per %2$s</string>
     <string name="game_over_ping">%2$s su %1$s andava a scatti: %3$d ms, max %4$d ms</string>
     <string name="game_over_jam">%1$s è rimasto bloccato nel traffico (%2$s)</string>
+    <string name="game_over_callout">%1$s: sovraccarico</string>
+    <string name="loss_tip_connect">Consiglio: collega %1$s a %2$s con un cavo – diretto o tramite un router</string>
+    <string name="loss_tip_router">Consiglio: %1$s non ha porte libere – mettici davanti un router</string>
+    <string name="loss_tip_needs_server">Consiglio: %1$s deve raggiungere %2$s – collega il più vicino</string>
+    <string name="loss_tip_repair">Consiglio: tocca un cavo tagliato per ripararlo. Un secondo percorso regge agli incidenti.</string>
+    <string name="loss_tip_outage">Consiglio: un blackout ha spento un router o Wi-Fi – un secondo percorso che lo aggiri regge</string>
+    <string name="loss_tip_wider_cable">Consiglio: %1$s vuole %2$s – scegli il tipo di cavo in basso, poi tocca il vecchio cavo</string>
+    <string name="loss_tip_faster_cable">Consiglio: un percorso più corto o un cavo più veloce abbassa il ping di %1$s</string>
+    <string name="loss_tip_second_cable">Consiglio: contro il traffico posa un secondo cavo – o tocca quello pieno per potenziarlo</string>
+    <string name="loss_tip_upgrade_server">Consiglio: %1$s non regge – toccalo per potenziarlo</string>
+    <string name="loss_tip_second_server">Consiglio: %1$s è al limite – collega parte dei dispositivi a un secondo server</string>
     <string name="drag_too_narrow">%1$s richiede banda %2$d</string>
     <string name="drag_ping">%1$s: ping %2$d/%3$d ms</string>
-    <string name="incident_more">%1$s · +%2$d altri</string>
+    <string name="incident_more">%1$s · +%2$d</string>
     <!-- Accessibility (TalkBack) descriptions of the canvas-drawn HUD, docs/TOP100.md A7 -->
     <string name="a11y_menu">Menu</string>
     <string name="a11y_pause">Ferma l’orologio</string>
@@ -366,7 +385,6 @@
     <string name="mode_endless_desc">Infinita: niente game over – il sovraccarico rallenta solo la zona</string>
     <string name="mode_creative_desc">Creativa: costruisci liberamente, budget illimitato, tutto inventato</string>
     <string name="pause_mode">%1$s · %2$s</string>
-    <string name="hud_resources_unlimited">Budget ∞  ·  Router ∞</string>
     <string name="button_router_unlimited">Router (∞)</string>
     <string name="button_access_point_unlimited">Wi-Fi (∞)</string>
     <string name="button_cell_tower_unlimited">Antenna (∞)</string>
@@ -609,4 +627,15 @@
     <string name="cell_error_newest">Usa già la generazione più recente</string>
     <string name="cell_error_not_invented">%1$s arriva nel %2$d</string>
     <string name="legend_cell_tower_desc">Solo smartphone, tablet e orologio · 3G → 4G/LTE → 5G: tocca per aggiornare, più capacità e meno ping</string>
+    <string name="hud_budget_low">budget scarso</string>
+    <string name="legend_cable_edit_title">Cambiare i cavi</string>
+    <string name="legend_cable_edit_desc">Scegli un tipo in basso e tocca un cavo: potenziare. Trascina un capo: spostare. Cavo tagliato: tocca per riparare.</string>
+    <string name="legend_gauge_title">Indicatore di pressione</string>
+    <string name="legend_gauge_desc">I punti mostrano quante richieste aspettano. Da 4 su 6 la bolla diventa arancione: intervieni ora.</string>
+    <string name="legend_jam_title">Ingorgo</string>
+    <string name="legend_jam_desc">Un percorso c’è, ma è pieno. Potenzia il cavo o posane un secondo.</string>
+    <string name="legend_missing_title">Server mancante</string>
+    <string name="legend_missing_desc">Il dispositivo vuole questo servizio, ma nessun server collegato lo offre. Collegalo a un server adatto.</string>
+    <string name="legend_incident_title">Incidente</string>
+    <string name="legend_incident_desc">Un escavatore conta alla rovescia e taglia un cavo: toccalo per ripararlo. Un blackout spegne router e Wi-Fi.</string>
 </resources>

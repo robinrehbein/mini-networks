@@ -1083,6 +1083,63 @@ class World(
         }
 
     /**
+     * The tip against [f], from its cause: a route that is only too narrow or too slow wants a wider or a faster cable,
+     * unless repairing a cut cable would bring back one that is wide and fast enough ([repairWouldServe]); a jam a
+     * second or wider cable, or an upgrade of the saturated server behind it ([jamServer]) while it can still grow, and
+     * a second server of the service once it cannot. Without any route, a way that exists over the links an incident
+     * took down ([missingServer] false) wants a repair if the cut cables are what blocks it, else a way around the
+     * dark router ([LossTip.OUTAGE]); a device with all ports taken, or a service whose servers have all theirs taken
+     * ([serverPortsFull]), a router; an unlinked device a cable; a linked one a way to a server of the service.
+     */
+    fun lossTip(f: Failure): LossTip {
+        val n = f.node
+        return when (f.problem) {
+            RouteProblem.TOO_NARROW, RouteProblem.PING_TOO_HIGH -> when {
+                repairWouldServe(n, f.service, f.service.bandwidth) -> LossTip.REPAIR
+                f.problem == RouteProblem.TOO_NARROW -> LossTip.WIDER_CABLE
+                else -> LossTip.FASTER_CABLE
+            }
+            null -> {
+                val server = jamServer(n, f.service)
+                when {
+                    server == null -> LossTip.SECOND_CABLE
+                    canGrow(server) -> LossTip.UPGRADE_SERVER
+                    else -> LossTip.SECOND_SERVER
+                }
+            }
+            RouteProblem.NO_ROUTE -> when {
+                !missingServer(n, f.service) -> if (repairWouldServe(n, f.service, 0)) LossTip.REPAIR else LossTip.OUTAGE
+                ports(n) >= n.maxPorts || serverPortsFull(f.service) -> LossTip.ROUTER
+                !isLinkedIn(n) -> LossTip.CONNECT
+                else -> LossTip.NEEDS_SERVER
+            }
+        }
+    }
+
+    /**
+     * True if repairing the cables an excavator cut would give [client] a route to [service] at least [minCapacity]
+     * wide and within its ping limit, with the routers and access points a power outage switched off still dark.
+     */
+    private fun repairWouldServe(client: Node, service: Service, minCapacity: Int): Boolean {
+        if (incidentList.none { it.struck && it.kind == IncidentKind.EXCAVATOR }) return false
+        val r = computeRoute(client, service, minCapacity, ignoreCuts = true) ?: return false
+        val limit = service.maxPingMs ?: return true
+        return r.pingMs <= limit
+    }
+
+    /** True if [service] has servers and every one of them has all its ports taken: a new cable to one is refused. */
+    fun serverPortsFull(service: Service): Boolean {
+        var any = false
+        for (i in nodeList.indices) {
+            val s = nodeList[i]
+            if (s.kind != NodeKind.SERVER || s.service != service) continue
+            if (ports(s) < s.maxPorts) return false
+            any = true
+        }
+        return any
+    }
+
+    /**
      * What a cable of [type] from [client] to [other] (along [planLayout] with [bend]) would mean for the client's
      * services that have a server: the first one it is too narrow for, else the first whose best route through it
      * would break the ping limit, else the ping-limited one with the least room left. Null if nothing to say
@@ -1117,6 +1174,7 @@ class World(
      */
     private fun computeRoute(
         client: Node, service: Service, minCapacity: Int = service.bandwidth, extra: Cable? = null, ignoreIncidents: Boolean = false,
+        ignoreCuts: Boolean = false,
     ): Route? {
         val count = nodeList.size
         if (routeDist.size < count) {
@@ -1151,15 +1209,19 @@ class World(
             if (cur !== client && cur.kind == NodeKind.SERVER) continue
             val hopCost = if (cur === client) 0f else Tuning.ROUTER_MS
             val links = cur.links
-            for (i in links.indices) relax(client, cur, links[i], minCapacity, hopCost, ignoreIncidents)
-            if (extra != null && extra.connects(cur)) relax(client, cur, extra, minCapacity, hopCost, ignoreIncidents)
+            for (i in links.indices) relax(client, cur, links[i], minCapacity, hopCost, ignoreIncidents, ignoreCuts)
+            if (extra != null && extra.connects(cur)) relax(client, cur, extra, minCapacity, hopCost, ignoreIncidents, ignoreCuts)
         }
         return null
     }
 
-    /** One edge of [computeRoute]: reaching the far end of [c] from [cur] through it, if that is shorter. */
-    private fun relax(client: Node, cur: Node, c: Link, minCapacity: Int, hopCost: Float, ignoreIncidents: Boolean) {
-        if (c.capacity < minCapacity || !(ignoreIncidents || isUp(c))) return
+    /**
+     * One edge of [computeRoute]: reaching the far end of [c] from [cur] through it, if that is shorter. [ignoreCuts]
+     * counts a cut cable as repaired but keeps dark nodes dark; [ignoreIncidents] counts every incident as over.
+     */
+    private fun relax(client: Node, cur: Node, c: Link, minCapacity: Int, hopCost: Float, ignoreIncidents: Boolean, ignoreCuts: Boolean) {
+        if (c.capacity < minCapacity) return
+        if (!ignoreIncidents && (if (ignoreCuts) isDark(c.a) || isDark(c.b) else !isUp(c))) return
         // A radio link only carries its device's own traffic, as the first hop: a radio reaches the network
         // through its cables, and cabled devices cannot ride on a wireless client.
         if (c is RadioLink && !(cur === client && c.device === client)) return
@@ -1213,6 +1275,13 @@ class World(
      */
     fun jamServer(client: Node): Node? = jamBlock(client) as? Node
 
+    /** Like [jamServer], for [client]'s requests of [service] only, whichever request waits first. */
+    fun jamServer(client: Node, service: Service): Node? {
+        if (client.kind != NodeKind.CLIENT) return null
+        val route = routeFor(client, service)?.nodes ?: return null
+        return blockOn(route, service, null) as? Node
+    }
+
     /** True if the medium of [link] has no room left for a request of [service]. */
     private fun full(link: Link, service: Service): Boolean {
         val t = tallies[link.medium] ?: return false
@@ -1229,16 +1298,21 @@ class World(
         for (i in pending.indices) {
             val service = pending[i]
             val route = routeFor(client, service)?.nodes ?: continue
-            val server = route.last()
-            for (k in 0 until route.size - 2) {
-                val link = linkBetween(route[k], route[k + 1]) ?: continue
-                if (full(link, service)) return link
-            }
-            // Requests parked at the server keep its cable full whenever it has room for a moment: the server it is.
-            if (serverBusy(server) && (parked?.get(server.index) ?: waitingAt(server)) > 0) return server
-            return linkBetween(route[route.size - 2], server)?.takeIf { full(it, service) }
+            return blockOn(route, service, parked)
         }
         return null
+    }
+
+    /** What holds back a request of [service] on [route]: its first full [Link], a saturated server [Node], or null. */
+    private fun blockOn(route: List<Node>, service: Service, parked: IntArray?): Any? {
+        val server = route.last()
+        for (k in 0 until route.size - 2) {
+            val link = linkBetween(route[k], route[k + 1]) ?: continue
+            if (full(link, service)) return link
+        }
+        // Requests parked at the server keep its cable full whenever it has room for a moment: the server it is.
+        if (serverBusy(server) && (parked?.get(server.index) ?: waitingAt(server)) > 0) return server
+        return linkBetween(route[route.size - 2], server)?.takeIf { full(it, service) }
     }
 
     /**

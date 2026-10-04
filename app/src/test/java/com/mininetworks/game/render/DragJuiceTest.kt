@@ -44,6 +44,39 @@ class DragJuiceTest {
         }
     }
 
+    /** A HUD box over the spot above the point (the view buttons): the bubble flips below, or slides beside it. */
+    @Test
+    fun bubbleKeepsClearOfReservedHudBoxes() {
+        val labels = ServerLabels()
+        val buttons = RectF(400f, 300f, 700f, 440f)
+        labels.reserve(buttons)
+        for (x in listOf(420f, 500f, 550f, 680f)) {
+            DragJuice.place(200f, 80f, x, 500f, lift = 60f, tail = 12f, margin = 8f, bounds = screen, out = out, avoid = labels)
+            assertTrue("$x: $out clear of $buttons", !RectF.intersects(out, buttons))
+        }
+        // Low down, with no room below, it slides beside the box instead.
+        val low = RectF(0f, 100f, 1000f, 520f)
+        DragJuice.place(200f, 80f, 550f, 470f, lift = 60f, tail = 12f, margin = 8f, bounds = low, out = out, avoid = labels)
+        assertTrue("$out clear of $buttons", !RectF.intersects(out, buttons))
+        assertTrue("slid to the side: $out", out.right <= buttons.left || out.left >= buttons.right)
+        // Nothing reserved there: as before.
+        labels.clearReserved()
+        DragJuice.place(200f, 80f, 550f, 500f, lift = 60f, tail = 12f, margin = 8f, bounds = screen, out = out, avoid = labels)
+        assertEquals(500f - 60f, out.bottom, 0.01f)
+    }
+
+    /** At a large text size the tail is longer than the margin: its tip must not poke into a HUD box either. */
+    @Test
+    fun bubbleTailKeepsClearOfReservedHudBoxes() {
+        val labels = ServerLabels()
+        val buttons = RectF(400f, 455f, 700f, 470f)
+        labels.reserve(buttons)
+        val tail = 40f
+        DragJuice.place(200f, 80f, 550f, 500f, lift = 60f, tail = tail, margin = 8f, bounds = screen, out = out, avoid = labels)
+        val withTail = RectF(out).apply { if (out.top > 500f) top -= tail else bottom += tail }
+        assertTrue("$withTail clear of $buttons", !RectF.intersects(withTail, buttons))
+    }
+
     @Test
     fun onlyFullNodesNearTheFingerGetTheRing() {
         val w = Scenes.hud()
