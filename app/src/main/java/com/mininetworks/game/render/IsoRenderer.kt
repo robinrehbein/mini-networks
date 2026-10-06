@@ -80,6 +80,7 @@ class IsoRenderer : Renderer {
     override val tilts get() = true
     override var density = 1f
     override val serverLabels = ServerLabels()
+    override var focusCable: Cable? = null
     /** A tile at least [READABLE_TILE_DP] wide on first launch, close to the store framing: devices and packets read at phone size. */
     override val readableScale get() = READABLE_TILE_DP * density
     /** Tile width and height in pixels at the current zoom. */
@@ -398,16 +399,16 @@ class IsoRenderer : Renderer {
      * colour. Cables side by side in their lanes ([CableLanes]) draw all outlines first and all bodies after, so one
      * cable's halo never covers the colour of its neighbour.
      */
-    private fun strokeCableOutline(canvas: Canvas, st: CableStyles.Style) {
-        strokeP.color = CABLE_OUTLINE; strokeP.strokeWidth = tw * (st.width * 0.75f + 0.13f); canvas.drawPath(path, strokeP)
-        strokeP.color = 0xB3FFFFFF.toInt(); strokeP.strokeWidth = tw * (st.width * 0.75f + 0.08f); canvas.drawPath(path, strokeP)
+    private fun strokeCableOutline(canvas: Canvas, st: CableStyles.Style, fade: Float = 1f) {
+        strokeP.color = Renderer.fade(CABLE_OUTLINE, fade); strokeP.strokeWidth = tw * (st.width * 0.75f + 0.13f); canvas.drawPath(path, strokeP)
+        strokeP.color = Renderer.fade(0xB3FFFFFF.toInt(), fade); strokeP.strokeWidth = tw * (st.width * 0.75f + 0.08f); canvas.drawPath(path, strokeP)
     }
 
     /** The cable colour and its core of the cable in [path], in a thin dark edge so it still reads where cables cross. */
-    private fun strokeCableBody(canvas: Canvas, st: CableStyles.Style) {
-        strokeP.color = CABLE_OUTLINE; strokeP.strokeWidth = tw * (st.width * 0.75f + 0.035f); canvas.drawPath(path, strokeP)
-        strokeP.color = st.color; strokeP.strokeWidth = tw * st.width * 0.75f; canvas.drawPath(path, strokeP)
-        st.core?.let { strokeP.color = it; strokeP.strokeWidth = tw * st.coreWidth * 0.75f; canvas.drawPath(path, strokeP) }
+    private fun strokeCableBody(canvas: Canvas, st: CableStyles.Style, fade: Float = 1f) {
+        strokeP.color = Renderer.fade(CABLE_OUTLINE, fade); strokeP.strokeWidth = tw * (st.width * 0.75f + 0.035f); canvas.drawPath(path, strokeP)
+        strokeP.color = Renderer.fade(st.color, fade); strokeP.strokeWidth = tw * st.width * 0.75f; canvas.drawPath(path, strokeP)
+        st.core?.let { strokeP.color = Renderer.fade(it, fade); strokeP.strokeWidth = tw * st.coreWidth * 0.75f; canvas.drawPath(path, strokeP) }
     }
 
     /** True if [c] is fully laid ([grow] = 1) and not cut: then it does not change from frame to frame. */
@@ -415,15 +416,19 @@ class IsoRenderer : Renderer {
 
     /** The laid, uncut cables, drawn into the ground layer so a still frame does not stroke them again. */
     private fun drawStaticCables(c: Canvas, world: World) {
-        for (cable in world.cables) {
-            if (!isStatic(world, cable)) continue
-            polyline(cablePath(cable))
-            strokeCableOutline(c, CableStyles.of(cable.type))
-        }
-        for (cable in world.cables) {
-            if (!isStatic(world, cable)) continue
-            polyline(cablePath(cable))
-            strokeCableBody(c, CableStyles.of(cable.type))
+        // The focus cable last, on top of the faded others; with none, every cable at full strength.
+        val focus = focusCable
+        for (pass in 0..1) {
+            for (cable in world.cables) {
+                if (!isStatic(world, cable) || (cable === focus) != (pass == 1)) continue
+                polyline(cablePath(cable))
+                strokeCableOutline(c, CableStyles.of(cable.type), dimOf(cable))
+            }
+            for (cable in world.cables) {
+                if (!isStatic(world, cable) || (cable === focus) != (pass == 1)) continue
+                polyline(cablePath(cable))
+                strokeCableBody(c, CableStyles.of(cable.type), dimOf(cable))
+            }
         }
     }
 
@@ -576,7 +581,7 @@ class IsoRenderer : Renderer {
      * cells excavators stand on. Runs every frame, so it only mixes numbers and allocates nothing.
      */
     private fun mapSignature(world: World): Long {
-        var h = mix(mix(networkSignature(world), Cosmetic.theme.ordinal), Cosmetic.skin.ordinal)
+        var h = mix(mix(mix(networkSignature(world), Cosmetic.theme.ordinal), Cosmetic.skin.ordinal), focusCable?.let { System.identityHashCode(it) } ?: 0)
         // Laid, uncut cables are part of the ground; one that finishes growing or is cut changes it.
         val cables = world.cables
         for (k in cables.indices) h = mix(h, if (isStatic(world, cables[k])) 1 else 0)

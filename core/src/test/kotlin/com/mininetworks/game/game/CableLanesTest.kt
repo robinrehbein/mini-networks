@@ -128,4 +128,47 @@ class CableLanesTest {
         }
         assertTrue(hub2.cell != hub.cell)
     }
+
+    @Test
+    fun lanesSpreadWiderWhenTheMapIsZoomedOut() {
+        val w = world()
+        val a = row(w, 1, 6, y = 1)
+        val b = row(w, 2, 7, y = 1)
+        CableLanes.assign(listOf(a, b), spread = 1.5f)
+        assertEquals(CableLanes.SPACING * 1.5f, b.path.first().y - a.path.first().y, 1e-4f)
+        assertEquals("still centred on the cells", centreY(a), (a.path.first().y + b.path.first().y) / 2f, 1e-4f)
+    }
+
+    @Test
+    fun spreadGrowsAsOneCellGetsSmallerAndIsCapped() {
+        val pitch = 6f
+        assertEquals("zoomed in: lanes as laid", 1f, CableLanes.spreadFor(unitPx = 100f, minPitchPx = pitch), 0f)
+        // 14 px per cell: 0.3 cell is 4.2 px, 6 px wanted, so about 1.4 times as far apart.
+        assertEquals(1.4f, CableLanes.spreadFor(unitPx = 14f, minPitchPx = pitch), 1e-4f)
+        assertEquals("never wider than the cap", CableLanes.MAX_SPREAD, CableLanes.spreadFor(unitPx = 3f, minPitchPx = pitch), 0f)
+        assertEquals(1f, CableLanes.spreadFor(unitPx = 0f, minPitchPx = pitch), 0f)
+    }
+
+    @Test
+    fun theWorldRelaysItsCablesWhenTheSpreadChanges() {
+        val w = world()
+        w.grant(200)
+        val pc1 = w.addClient(Device.PC, 1, 1)
+        val pc2 = w.addClient(Device.PC, 2, 1)
+        val hub = w.addRouter(8, 3)
+        assertTrue(w.connect(pc1, hub, CableType.ISDN))
+        assertTrue(w.connect(pc2, hub, CableType.ISDN))
+        val shift = { c: Cable -> c.path.indices.map { c.path[it].x - c.layout.waypoints[it].x to c.path[it].y - c.layout.waypoints[it].y } }
+        val before = w.cables.map(shift)
+        assertTrue("the cables are in lanes", before.any { s -> s.any { it != 0f to 0f } })
+        w.laneSpread = 1.5f
+        for ((k, c) in w.cables.withIndex()) {
+            for ((i, d) in shift(c).withIndex()) {
+                assertEquals(before[k][i].first * 1.5f, d.first, 1e-4f)
+                assertEquals(before[k][i].second * 1.5f, d.second, 1e-4f)
+            }
+        }
+        w.laneSpread = 1f
+        assertEquals("back as laid", before, w.cables.map(shift))
+    }
 }

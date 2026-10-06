@@ -67,6 +67,12 @@ interface Renderer {
     /** Pixels per dp of the screen, for sizes that must stay readable at any zoom; set by the view, 1 by default. */
     var density: Float
 
+    /**
+     * The cable the player is looking at: it is drawn on top at full strength and every other laid cable fades, so one
+     * cable can be followed through a crowded network. Set by the view; null leaves all cables as they are.
+     */
+    var focusCable: Cable?
+
     /** Server name plates and the highlight of the servers a device needs; the view sets names and focus. */
     val serverLabels: ServerLabels
 
@@ -297,6 +303,9 @@ interface Renderer {
     /** How a cable runs in world space: its layout moved to its lane beside other cables ([Cable.path]), so every style agrees. */
     fun cablePath(c: Cable): List<Vec2> = c.path
 
+    /** How strongly [c] is drawn: 1 unless another cable is the [focusCable]. */
+    fun dimOf(c: Cable): Float = if (focusCable == null || focusCable === c) 1f else UNFOCUSED_ALPHA
+
     fun draw(canvas: Canvas, world: World, drag: DragPreview?, time: Float)
 
     /** Size of one world unit on screen at the current zoom. */
@@ -322,6 +331,13 @@ interface Renderer {
     }
 
     companion object {
+        /** Opacity of the laid cables beside the [focusCable]; low enough to step back, high enough to still show where they go. */
+        const val UNFOCUSED_ALPHA = 0.3f
+
+        /** [color] with its opacity multiplied by [factor]. */
+        fun fade(color: Int, factor: Float): Int =
+            if (factor >= 1f) color else ((color ushr 24) * factor).toInt().coerceIn(0, 255) shl 24 or (color and 0xFFFFFF)
+
         /** Angles the zoom-out limit is worked out for; the widest one counts. */
         val LIMIT_ANGLES = floatArrayOf(0f, 30f, 45f, 60f, 90f, 120f, 135f, 150f)
         const val ZOOM_OUT_SLACK = 0.9f
