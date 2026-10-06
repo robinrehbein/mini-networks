@@ -22,12 +22,26 @@ object CableLanes {
     /** Distance between two lanes in cells; four lanes then take up 0.9 of a cell, so they stay inside their cells; wide enough that two fibers side by side do not touch. */
     const val SPACING = 0.30f
 
+    /** How far zooming out may widen the lanes ([spreadFor]); four lanes then take up 1.6 cells, which still keeps them apart from the next row's. */
+    const val MAX_SPREAD = 1.8f
+
+    /**
+     * The factor for [SPACING] that keeps two lanes at least [minPitchPx] apart on a screen where one world unit is
+     * [unitPx] pixels: 1 while zoomed in, more as the map shrinks, in steps of a tenth so a pinch does not re-lay the
+     * cables every frame.
+     */
+    fun spreadFor(unitPx: Float, minPitchPx: Float): Float {
+        if (unitPx <= 0f) return 1f
+        val wanted = minPitchPx / (unitPx * SPACING)
+        return (Math.round(wanted.coerceIn(1f, MAX_SPREAD) * 10f) / 10f)
+    }
+
     private class Run(val edges: LongArray, val horizontal: Boolean) {
         var lane = 0
     }
 
-    /** Sets [Cable.path] of every cable in [cables]. */
-    fun assign(cables: List<Cable>) {
+    /** Sets [Cable.path] of every cable in [cables], their lanes [spread] times as far apart as [SPACING]. */
+    fun assign(cables: List<Cable>, spread: Float = 1f) {
         val used = HashMap<Long, Int>()
         val runs = ArrayList<Array<Run?>>(cables.size)
         for (c in cables) {
@@ -43,7 +57,7 @@ object CableLanes {
             }
             runs += perRun
         }
-        for ((k, c) in cables.withIndex()) c.path = pathOf(c.layout.waypoints, runs[k], used)
+        for ((k, c) in cables.withIndex()) c.path = pathOf(c.layout.waypoints, runs[k], used, spread)
     }
 
     /** The straight run from [a] to [b] as the cell edges it covers; null for a zero-length or diagonal one. */
@@ -70,14 +84,14 @@ object CableLanes {
     private fun edge(orientation: Int, line: Int, pos: Int) = (orientation * OFFSET + line + OFFSET / 2) * OFFSET + pos + OFFSET / 2
 
     /** The offset of [run] from the middle of its cells, in cells. */
-    private fun offsetOf(run: Run, used: Map<Long, Int>): Float {
+    private fun offsetOf(run: Run, used: Map<Long, Int>, spread: Float): Float {
         var top = 0
         for (e in run.edges) top = maxOf(top, 31 - Integer.numberOfLeadingZeros(used[e] ?: 1))
-        return (run.lane - top / 2f) * SPACING
+        return (run.lane - top / 2f) * SPACING * spread
     }
 
-    private fun pathOf(pts: List<Vec2>, runs: Array<Run?>, used: Map<Long, Int>): List<Vec2> {
-        val offsets = FloatArray(runs.size) { i -> runs[i]?.let { offsetOf(it, used) } ?: 0f }
+    private fun pathOf(pts: List<Vec2>, runs: Array<Run?>, used: Map<Long, Int>, spread: Float): List<Vec2> {
+        val offsets = FloatArray(runs.size) { i -> runs[i]?.let { offsetOf(it, used, spread) } ?: 0f }
         if (offsets.all { it == 0f }) return pts
         return pts.mapIndexed { i, p ->
             // A corner takes its y from the horizontal run and its x from the vertical run that meet there; the end of

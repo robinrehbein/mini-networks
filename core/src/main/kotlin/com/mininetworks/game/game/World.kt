@@ -736,6 +736,17 @@ class World(
         recountLoads()
     }
 
+    /**
+     * How far apart the lanes of cables over the same cells are drawn, as a multiple of [CableLanes.SPACING]: the view
+     * widens them when the map is zoomed out ([CableLanes.spreadFor]). Only how cables are drawn changes, never the game.
+     */
+    var laneSpread = 1f
+        set(value) {
+            if (value == field) return
+            field = value
+            CableLanes.assign(cableList, value)
+        }
+
     /** Puts every cable into the link lists of its two ends ([Node.links]), which [linkBetween] searches. */
     private fun indexCables() {
         for (n in nodeList) n.links.clear()
@@ -743,7 +754,7 @@ class World(
             c.a.links += c
             c.b.links += c
         }
-        CableLanes.assign(cableList)
+        CableLanes.assign(cableList, laneSpread)
     }
 
     /**

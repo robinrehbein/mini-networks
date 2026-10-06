@@ -6,6 +6,7 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
+import com.mininetworks.game.game.Cable
 import com.mininetworks.game.game.CellRect
 import com.mininetworks.game.game.Incident
 import com.mininetworks.game.game.IncidentKind
@@ -41,6 +42,7 @@ class FlatRenderer : Renderer {
     override val camera = Camera()
     override var density = 1f
     override val serverLabels = ServerLabels()
+    override var focusCable: Cable? = null
     /** A cell at least [READABLE_CELL_DP] wide in the automatic framing. */
     override val readableScale get() = READABLE_CELL_DP * density
     private val cell get() = camera.scale
@@ -122,19 +124,23 @@ class FlatRenderer : Renderer {
         drawLockedArea(canvas, world, grid)
 
         // Cables side by side in their lanes ([CableLanes]): all halos first, so one cable's halo never covers its neighbour.
+        val focus = focusCable
         for (c in world.cables) {
             val grow = Juice.growth(world.time, c.builtAt, c.layout.length)
             if (grow < 1f) partialPolyline(cablePath(c), grow) else polyline(cablePath(c))
             cableP.color = land; cableP.strokeWidth = cell * (CableStyles.of(c.type).width * FLAT_LINE + 0.12f); canvas.drawPath(path, cableP)
         }
-        for (c in world.cables) {
+        // The focus cable last, on top of the faded others.
+        for (pass in 0..1) for (c in world.cables) {
+            if ((c === focus) != (pass == 1)) continue
             val grow = Juice.growth(world.time, c.builtAt, c.layout.length)
             if (grow < 1f) partialPolyline(cablePath(c), grow) else polyline(cablePath(c))
             val st = CableStyles.of(c.type)
+            val dim = dimOf(c)
             // Bold metro-map lines: the overview reads as a line map, not a wiring plan.
             val lw = st.width * FLAT_LINE
-            cableP.color = st.color; cableP.strokeWidth = cell * lw; canvas.drawPath(path, cableP)
-            st.core?.let { cableP.color = it; cableP.strokeWidth = cell * st.coreWidth * FLAT_LINE; canvas.drawPath(path, cableP) }
+            cableP.color = Renderer.fade(st.color, dim); cableP.strokeWidth = cell * lw; canvas.drawPath(path, cableP)
+            st.core?.let { cableP.color = Renderer.fade(it, dim); cableP.strokeWidth = cell * st.coreWidth * FLAT_LINE; canvas.drawPath(path, cableP) }
             if (world.isJammed(c)) JamStyles.draw(canvas, path, cell * lw, time, c.type, cableP.pathEffect)
             if (world.isCut(c)) {
                 cutP.pathEffect = cutDash.get(cell * 0.12f, 0.7f, 0f)

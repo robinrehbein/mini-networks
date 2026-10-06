@@ -36,6 +36,7 @@ import com.mininetworks.game.game.AchievementTracker
 import com.mininetworks.game.game.Achievements
 import com.mininetworks.game.game.Bend
 import com.mininetworks.game.game.Cable
+import com.mininetworks.game.game.CableLanes
 import com.mininetworks.game.game.CableLayout
 import com.mininetworks.game.game.CableSkin
 import com.mininetworks.game.game.CableType
@@ -1308,6 +1309,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         val playing = screen == Screen.PLAYING
         pinCount = 0
         renderer.serverLabels.focus = if (playing) serverFocus() else null
+        // A selected cable stands out and the others fade; zoomed out, parallel cables keep a readable distance.
+        val focus = (selection as? Cable)?.takeIf { playing && !grabbing }
+        for (r in renderers) r.focusCable = focus
+        world.laneSpread = CableLanes.spreadFor(renderer.unitPx, LANE_MIN_PITCH_DP * density)
         renderer.draw(canvas, world, if (playing) dragPreview() else null, animTime)
         if (playing) {
             drawSelection(canvas)
@@ -3335,7 +3340,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         when (sel) {
             is Cable -> {
                 selectionPath.reset()
-                sel.layout.waypoints.forEachIndexed { k, p ->
+                sel.path.forEachIndexed { k, p ->
                     val q = renderer.toScreen(p)
                     if (k == 0) selectionPath.moveTo(q.x, q.y) else selectionPath.lineTo(q.x, q.y)
                 }
@@ -5366,6 +5371,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         /** World-unit size (dp) above which an incident's countdown pin grows with the zoom, and its largest growth. */
         const val PIN_UNIT_DP = 36f
         const val PIN_MAX_SCALE = 1.8f
+
+        /** Least distance between two parallel cables on screen ([CableLanes.spreadFor]). */
+        const val LANE_MIN_PITCH_DP = 6f
         /** Diameter of an off-screen chip, a full touch target; at most this many show, each trying this many slides. */
         const val OFFSCREEN_CHIP_DP = 48f
         const val MAX_OFFSCREEN_CHIPS = 4
